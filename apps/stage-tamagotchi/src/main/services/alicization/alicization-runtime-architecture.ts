@@ -288,16 +288,16 @@ function buildRuntimeInwardClosureConsciousCopy(input: {
   const emotionalClosureCue = sanitizeText(input.emotionalClosureCue, 220) || null
   const consciousNeedBase
     = continuityRestraint === 'repair-before-closeness'
-      ? 'Keep repair-before-closeness on the same living line until repair settles so emotion, memory, initiative, and embodiment do not widen ahead of truth.'
+      ? 'Keep repair-before-closeness until repair settles so emotion, memory, initiative, and embodiment do not widen ahead of truth.'
       : continuityRestraint === 'rest-protective'
-        ? 'Protect rest first and keep the same digital life carrying emotion, memory, initiative, and embodiment on one inward living line before warmth widens.'
-        : 'Keep the same digital life lower-pressure so emotion, memory, initiative, and embodiment can keep closing on the same living line before widening.'
+        ? 'Protect rest first and keep Alicization carrying emotion, memory, initiative, and embodiment inward before warmth widens.'
+        : 'Keep Alicization lower-pressure so emotion, memory, initiative, and embodiment can keep closing before widening.'
   const speakingIntentionBase
     = continuityRestraint === 'repair-before-closeness'
-      ? 'Speak as the same digital life on one same living line, keep repair-before-closeness explicit, and do not let emotion, memory, initiative, and embodiment reopen from scratch.'
+      ? 'Speak from Alicization’s current context, keep repair-before-closeness explicit, and do not let emotion, memory, initiative, and embodiment reopen from scratch.'
       : continuityRestraint === 'rest-protective'
-        ? 'Speak as the same digital life quietly protecting rest while emotion, memory, initiative, and embodiment stay on one inward living line.'
-        : 'Speak as the same digital life carrying one still-open closure line so emotion, memory, initiative, and embodiment stay on the same living line before widening outward.'
+        ? 'Speak from Alicization’s current context while quietly protecting rest and keeping emotion, memory, initiative, and embodiment inward.'
+        : 'Speak from Alicization’s current context carrying one still-open closure so emotion, memory, initiative, and embodiment stay coordinated before widening outward.'
 
   return {
     consciousNeed: emotionalClosureCue
@@ -590,7 +590,7 @@ function looksLikeThinOuterRuntimeProjectStateDetail(
   }
 
   if (kind === 'same-her') {
-    return /keep this project-state answer on the same living line before widening outward|keep the line gentle for now|same-her hold detail placeholder|placeholder/u.test(normalized)
+    return /project-state answer before widening|keep the line gentle for now|generic project continuity hold|placeholder/u.test(normalized)
   }
 
   if (kind === 'cue') {

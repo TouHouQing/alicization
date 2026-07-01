@@ -746,27 +746,27 @@ function openingBeat(input: {
   if (arcCue === 'hold-for-opening')
     return 'Keep the same line warm first, and leave room before widening.'
   if (arcCue === 'gentle-reopen')
-    return 'Re-enter the same living line softly before widening.'
+    return 'Re-enter the current thread softly before widening.'
   if (
     arcCue === 'same-thread-continuation'
     && timingCue === 'next-open-window'
     && hasRepairBeforeClosenessSameThreadCarry(input.currentConsciousFrame)
   ) {
-    return 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.'
+    return 'Keep the callback in the current reply context, let repair settle first, and leave room before widening closeness again.'
   }
   if (
     arcCue === 'same-thread-continuation'
     && timingCue === 'next-open-window'
     && hasExplicitProjectPreDialogueAwareness(input.currentConsciousFrame)
   ) {
-    return 'Open by keeping the live project awareness explicit first, then stay on the same living line before widening.'
+    return 'Open by keeping the live project awareness explicit first, then stay in the current reply context before widening.'
   }
   if (arcCue === 'same-thread-continuation' && timingCue === 'next-open-window')
-    return 'Stay with the same living line first, and wait for a more natural opening before widening.'
+    return 'Stay with the current thread first, and wait for a more natural opening before widening.'
   if (arcCue === 'same-thread-continuation' && timingCue === 'after-payoff')
-    return 'Stay with the same living line first, let the concrete payoff land, then widen only if room remains.'
+    return 'Stay with the current thread first, let the concrete payoff land, then widen only if room remains.'
   if (arcCue === 'same-thread-continuation')
-    return 'Stay with the same living line and continue before branching outward.'
+    return 'Stay with the current thread and continue before branching outward.'
   switch (input.selectedMotive) {
     case 'repair':
       return 'Correct the stale read first.'

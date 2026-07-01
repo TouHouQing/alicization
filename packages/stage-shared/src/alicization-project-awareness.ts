@@ -170,21 +170,21 @@ function resolveContinuityBehaviorMode(input: {
 
 function deriveSameHerHoldDetailFromContinuityBehavior(mode: string | null) {
   if (mode === 'repair-before-closeness')
-    return 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.'
+    return 'repair-before-closeness is still owning this callback line before closeness widens again.'
   if (mode === 'rest-protective')
-    return 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware.'
+    return 'rest-protective companionship is still keeping this return inward and fatigue-aware.'
   if (mode === 'measured-return')
-    return 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
+    return 'measured-return is still keeping this callback line lower-pressure before it widens again.'
   return ''
 }
 
 function deriveContinuityCueFromBehavior(mode: string | null) {
   if (mode === 'repair-before-closeness')
-    return 'Keep this return repair-before-closeness on the same living line until repair settles.'
+    return 'Keep this return repair-before-closeness until repair settles.'
   if (mode === 'rest-protective')
-    return 'Keep this return rest-protective and on the same living line inward before widening outward.'
+    return 'Keep this return rest-protective and inward before widening outward.'
   if (mode === 'measured-return')
-    return 'Keep this return measured-return on the same living line before widening outward.'
+    return 'Keep this return measured-return before widening outward.'
   return ''
 }
 
@@ -204,10 +204,10 @@ function deriveCadenceAwareSameHerHoldDetail(input: {
   const preferredPacingMode = sanitizeProjectAwarenessText(input.preferredPacingMode, 32).toLowerCase()
 
   if (preferredVoiceMode === 'lower-pressure' && preferredPacingMode === 'slower')
-    return 'same-her hold: keep the return lower-pressure and slower before the line widens again.'
+    return 'keep the return lower-pressure and slower before the line widens again.'
 
   if (preferredPauseMode === 'longer' && preferredLipsyncMode === 'restrained')
-    return 'same-her hold: keep the remembered return quieter, longer, and more restrained before widening the line again.'
+    return 'keep the remembered return quieter, longer, and more restrained before widening the line again.'
 
   return ''
 }
@@ -228,10 +228,10 @@ function deriveCadenceAwareContinuityCue(input: {
   const preferredPacingMode = sanitizeProjectAwarenessText(input.preferredPacingMode, 32).toLowerCase()
 
   if (preferredVoiceMode === 'lower-pressure' && preferredPacingMode === 'slower')
-    return 'Keep this return lower-pressure and slower on the same living line before widening outward.'
+    return 'Keep this return lower-pressure and slower before widening outward.'
 
   if (preferredPauseMode === 'longer' && preferredLipsyncMode === 'restrained')
-    return 'Keep this remembered return quieter, longer, and more restrained on the same living line before widening outward.'
+    return 'Keep this remembered return quieter, longer, and more restrained before widening outward.'
 
   return ''
 }

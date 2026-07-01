@@ -2736,8 +2736,8 @@ export function applyCompanionshipHoldModeToDigitalLifeSpine(input: {
   )
   const projectGrowthSuffix = hasPhase1GrowthCarry
     ? hasCrossModalGrowthCarry
-      ? 'This same Phase 1 digital life has landed some closure, but one still-open cross-modal same-her closure path is still being carried carefully.'
-      : 'This same Phase 1 digital life has landed some closure, but one still-open closure path is still being carried carefully.'
+      ? 'Phase 1 project continuity has landed some closure, but one still-open cross-modal closure path is still being carried carefully.'
+      : 'Phase 1 project continuity has landed some closure, but one still-open closure path is still being carried carefully.'
     : ''
 
   const manifestationCadenceSuffix = companionshipHoldMode === 'repair-before-closeness'

@@ -199,11 +199,11 @@ function extractConcreteLifeLoopGapReason(input: {
     || merged.includes('narration')
 
   if (hasSameHerLine && hasProjectShellRisk) {
-    return `Keep ${gapLabels} closing on one same-her line before this turn flattens into project-shell narration`
+    return `Keep ${gapLabels} closure grounded before this turn flattens into project-shell narration`
   }
 
   if (hasSameHerLine) {
-    return `Keep ${gapLabels} closing on one same-her line before the turn widens outward`
+    return `Keep ${gapLabels} closure grounded before the turn widens outward`
   }
 
   return `Keep ${gapLabels} closing together before the turn widens outward`
@@ -399,11 +399,11 @@ export function resolveAlicizationCompanionshipReasonSummary(input: {
     }
 
     if (memoryDeliberationRepairCadence) {
-      return 'Memory deliberation still says let repair settle first on the same living line before closeness widens again'
+      return 'Memory deliberation still says let repair settle first before closeness widens again'
     }
 
     if (sameHerInwardCarry) {
-      return 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again'
+      return 'Keep the callback tied to the current thread, let repair settle first, and leave room before widening closeness again'
     }
 
     return relationshipDoctrine
@@ -439,7 +439,7 @@ export function resolveAlicizationCompanionshipReasonSummary(input: {
     }
 
     if (memoryDeliberationMeasuredCadence) {
-      return 'Memory deliberation still says keep the same living line lower-pressure before widening outward again'
+      return 'Memory deliberation still says keep the current thread lower-pressure before widening outward again'
     }
 
     const thinAffectiveResidueRoomMakingLine = extractThinAffectiveResidueRoomMakingLine({
@@ -459,7 +459,7 @@ export function resolveAlicizationCompanionshipReasonSummary(input: {
     }
 
     if (sameHerInwardCarry) {
-      return 'Keep the same living line inward for now, and leave room before widening outward again'
+      return 'Keep the current thread inward for now, and leave room before widening outward again'
     }
 
     return manifestationCadenceSummary

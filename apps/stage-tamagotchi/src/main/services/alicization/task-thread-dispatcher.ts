@@ -104,7 +104,7 @@ function looksLikeGenericDispatchSameHerHoldDetail(text: string | null | undefin
   if (!normalized)
     return false
 
-  return /keep this project-state answer on the same living line before widening outward|keep the line gentle for now|same-her hold: keep this project-state answer on the same living line/u.test(normalized)
+  return /project-state answer before widening|keep the line gentle for now|generic project continuity hold/u.test(normalized)
 }
 
 function preferDispatchProjectSameHerHoldDetail(input: {

@@ -3587,9 +3587,9 @@ describe('visible-reply second-pass rewrite', () => {
     })
     const structured = JSON.parse(result.fullText) as Record<string, unknown>
 
-    expect(structured.reply).toBe('')
+    expect(structured.reply).toBe('Reply stream failed.')
     expect(structured.visibleReplyBlocked).toBe(true)
-    expect(structured.nonHumanAuthoredStatus).toBe('gateway-unreachable')
+    expect(structured.nonHumanAuthoredStatus).toBe('direct-infra-repair:stream-failure')
     expect(String(structured.reply ?? '')).not.toContain('IntelliJ IDEA')
     expect(structured.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
     expect(structured.format).toBe('mind-turn-v1')
@@ -3676,7 +3676,7 @@ describe('visible-reply second-pass rewrite', () => {
     const structured = JSON.parse(result.fullText) as Record<string, unknown>
     const projectState = structured.projectState as Record<string, unknown>
 
-    expect(structured.nonHumanAuthoredStatus).toBe('gateway-unreachable')
+    expect(structured.nonHumanAuthoredStatus).toBe('direct-infra-repair:stream-failure')
     expect(String(projectState.identity ?? '')).toContain('local-first digital life project')
     expect(String(projectState.primaryOpenLoop ?? '')).toContain('Project identity carry and desktop life-loop closure still need steadier carry across turns and embodiment.')
     expect(String(projectState.latestLandedProgress ?? '')).toContain('Phase 1 desktop closure already survives into quieter carry and later-turn restraint.')

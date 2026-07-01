@@ -664,7 +664,7 @@ export async function generateMemoryRecollectionPlanWithGateway(input: {
       'If the turn is about how something was previously done, prefer procedural memory or execution episodes.',
       'If the turn is about what was talked about before, prefer consolidated memory or recollected periods before raw snippets.',
       'If recallSeed includes stage=hold-for-opening, prefer an opening that keeps the recollection inward and restrained instead of widening closeness too early.',
-      'If recallSeed includes stage=gentle-reopen, prefer an opening that softly re-enters the same living line before adding detail.',
+      'If recallSeed includes stage=gentle-reopen, prefer an opening that softly re-enters the current thread before adding detail.',
       'If recallSeed includes stage=same-thread-continuation, prefer an opening that treats the recollection as already in motion instead of rediscovering it from zero.',
     ].join('\n')),
     user: `Memory recollection candidate JSON: ${JSON.stringify({

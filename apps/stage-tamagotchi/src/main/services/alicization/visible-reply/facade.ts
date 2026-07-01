@@ -178,7 +178,7 @@ function looksLikeSameHerVisibleReplyProjectContinuityLine(raw: unknown) {
   if (!normalized)
     return false
 
-  const carriesSameHer = /same phase 1 digital life|same living line|same her|same-her|one continuous her|one same her|one living her|same local digital life thread/u.test(normalized)
+  const carriesSameHer = /same phase 1 digital life|same living line|same her|same-her|one continuous her|one same her|one living her|current thread continuity/u.test(normalized)
   const carriesClosureContext = /callback|returned result|execution|project|closure|phase 1|open closure|next closure|generic callback shell|detached utility notice/u.test(normalized)
 
   return carriesSameHer && carriesClosureContext
@@ -213,7 +213,7 @@ function readVisibleReplyProjectContinuityFromAnswerCompiler(
     .find(item =>
       Boolean(item)
       && /generic assistant shell|generic task shell|detached project narration|project-summary voice|generic callback shell|detached utility notice/u.test(String(item))
-      && /same-her|same her|same living line|same local digital life thread|one continuous her/u.test(String(item).toLowerCase()),
+      && /same-her|same her|same living line|current thread continuity|one continuous her/u.test(String(item).toLowerCase()),
     ) ?? null
 
   return {

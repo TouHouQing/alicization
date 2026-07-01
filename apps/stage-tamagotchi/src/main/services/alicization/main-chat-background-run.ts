@@ -90,6 +90,7 @@ import {
   createAlicizationChatStreamMetaEmitter,
   repairContinuitySourceTagsFromRuntimeDigest,
 } from './main-chat-stream-meta'
+import { createAbortError } from './main-chat-stream-primitives'
 import { runAlicizationMainChatStream } from './main-chat-stream-runner'
 import { buildAlicizationMainGatewayTimeoutFallbackReply } from './main-chat-timeout-fallback'
 import {
@@ -177,6 +178,23 @@ function readRecord(raw: unknown): Record<string, unknown> | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
   return raw as Record<string, unknown>
+}
+
+function isActiveDialogueFastPathTimeoutError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? '')
+  const normalized = message.toLowerCase()
+  return normalized.includes('main-gateway-timeout-recovery')
+    || normalized.includes('main-gateway-timeout')
+    || normalized.includes('timeout')
+    || normalized.includes('timed out')
+}
+
+function createActiveDialogueFastPathTimeoutAbortError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? '')
+  const normalizedReason = message.includes('chat-first-event-timeout')
+    ? 'chat-first-event-timeout'
+    : `chat-first-event-timeout|recovery-mode=active-dialogue-compact|recovery-failed=${message || 'active-dialogue-fast-path-timeout'}`
+  return createAbortError(normalizedReason)
 }
 
 function readEmotionalKernelSnapshot(raw: unknown): AlicizationRuntimeEmotionalKernelShape | null {
@@ -706,7 +724,7 @@ function looksLikeGenericMeasuredReturnHoldDetail(text: string | null | undefine
   if (hasRememberedSeamMoreRoomCarry(normalized))
     return false
 
-  return normalized.includes('same-her hold: measured-return')
+  return normalized.includes('measured-return hold')
     || normalized.includes('callback line lower-pressure before it widens again')
 }
 
@@ -715,9 +733,9 @@ function looksLikeCanonicalProjectStateSameHerHoldDetail(value: string | null | 
   if (!normalized)
     return false
 
-  return normalized.startsWith('same-her hold:')
+  return normalized.startsWith('generic project continuity hold')
     && normalized.includes('project-state answer')
-    && normalized.includes('same living line before widening outward')
+    && normalized.includes('before widening outward')
 }
 
 function looksLikeExplicitSameHerHoldDetail(value: string | null | undefined) {
@@ -725,7 +743,7 @@ function looksLikeExplicitSameHerHoldDetail(value: string | null | undefined) {
   if (!normalized)
     return false
 
-  return normalized.startsWith('same-her hold:')
+  return normalized.startsWith('generic project continuity hold')
 }
 
 function looksLikeGenericContinuityCueShell(value: string | null | undefined) {
@@ -776,7 +794,7 @@ function looksLikeResumeConfirmationBoundaryHoldDetail(value: string | null | un
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'same-her hold: recognize the same remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
+  return 'Recognize the remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
 }
 
 function resolveRememberedSeamMoreRoomOpeningGuidance() {
@@ -6926,6 +6944,8 @@ export async function runAlicizationMainChatBackground(
           strategy: activeDialogueDecision.strategy,
           reason: error instanceof Error ? error.message : String(error),
         })
+        if (isActiveDialogueFastPathTimeoutError(error))
+          throw createActiveDialogueFastPathTimeoutAbortError(error)
         await input.appendRuntimeDebugLine('chat-stream.active-dialogue-escalated-to-main-runtime', {
           cardId: input.payload.cardId,
           turnId: input.payload.turnId,

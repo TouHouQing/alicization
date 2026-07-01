@@ -562,7 +562,7 @@ function buildHumanlikePersistenceRelationshipMeaning(input: {
     = input.candidate.relationshipContext.containsSamePersonTest || input.candidate.relationshipContext.containsContinuityWorry
       ? 'This memory belongs to same-person continuity, not a generic status shell or tool shell drift.'
       : input.candidate.relationshipContext.hostCorrectionApplied
-        ? 'This memory should keep the corrected relationship meaning on the same living line.'
+        ? 'This memory should keep the corrected relationship meaning continuous.'
         : null
 
   return sanitizeHumanlikeMemoryText(
@@ -1563,7 +1563,7 @@ function inferClosureEmotionCarry(input: {
           ? {
               label: 'same-person-attention',
               summary: uniqueClosureTexts([
-                'The host is checking whether this still belongs to the same living line.',
+                'The host is checking whether this still belongs to the current thread.',
                 input.relationshipTexts[0] ?? null,
               ], 2).join(' '),
               intensity: 0.58,
@@ -1851,9 +1851,9 @@ function buildHumanlikeMemoryCandidateFromClosure(input: {
   const structuredEmbodimentTexts = shouldBlendProjectContinuityIntoCandidate
     ? uniqueClosureTexts([
         projectStateContinuity?.sameHerHoldDetail
-          ? /^same-her hold:/iu.test(projectStateContinuity.sameHerHoldDetail)
+          ? /^continuity hold:/iu.test(projectStateContinuity.sameHerHoldDetail)
             ? projectStateContinuity.sameHerHoldDetail
-            : `same-her hold: ${projectStateContinuity.sameHerHoldDetail}`
+            : `continuity hold: ${projectStateContinuity.sameHerHoldDetail}`
           : null,
         projectStateContinuity?.continuityRestraint
           ? `continuity restraint: ${projectStateContinuity.continuityRestraint}, lower-pressure voice, slower pacing, longer pause, restrained lipsync`
@@ -2065,13 +2065,13 @@ function buildHumanlikeMemoryCandidateFromClosure(input: {
 
 function buildHumanlikeSurfaceSensitivityHint(candidate: AlicizationHumanlikeMemoryCandidate) {
   if (candidate.relationshipContext.hostCorrectionApplied || candidate.recallPosture.certainty === 'corrected') {
-    return 'Do not fall back to the older misread after a host correction; keep the corrected relationship meaning on the same living line.'
+    return 'Do not fall back to the older misread after a host correction; keep the corrected relationship meaning continuous.'
   }
   if (candidate.recallPosture.certainty === 'tentative') {
     return 'Keep uncertainty explicit instead of pretending this recall is already fully settled.'
   }
   if (candidate.relationshipContext.containsSamePersonTest || candidate.relationshipContext.containsContinuityWorry) {
-    return 'Do not flatten same-her continuity into a generic status recap or tool-shell frame.'
+    return 'Do not flatten continuity into a generic status recap or tool-shell frame.'
   }
   return ''
 }

@@ -65,6 +65,8 @@ Alicization 不应该继续以 prompt 规则、fallback 模板和 same-her 修�
 - LoRA、prompt、浏览器 fallback、供应方回复都不能成为人格真源。
 - `same-her` 应该成为状态，而不是回复层被迫说出的短语。
 
+`IdentityCore` 还应输出稳定的关系锚点和禁忌锚点，避免不同模块各自拼一个“她是谁”的版本。
+
 ### 2. WorkingMemory
 
 负责当前对话的短期记忆。
@@ -85,6 +87,8 @@ Alicization 不应该继续以 prompt 规则、fallback 模板和 same-her 修�
 - 在上下文溢出前，较早 turn 自动压缩
 - 压缩结果应该是结构化工作记忆项，而不是只有散文式摘要
 - 短期记忆可以生成长期记忆候选，但它本身不是长期记忆
+- 压缩前必须优先保留未完成任务、用户纠正、稳定偏好和关系姿态
+- 压缩结果必须可回放、可调试、可追溯到原始 turn
 
 ### 3. EpisodicMemory
 
@@ -97,7 +101,10 @@ Alicization 不应该继续以 prompt 规则、fallback 模板和 same-her 修�
 ```ts
 interface MemoryEpisode {
   id: string
+  kind: 'episode' | 'fact' | 'relationship' | 'procedure' | 'affective'
   occurredAt: number
+  createdAt: number
+  updatedAt: number
   people: string[]
   activity: string | null
   objects: string[]
@@ -114,7 +121,12 @@ interface MemoryEpisode {
   confidence: number
   sensitivity: 'public' | 'personal' | 'private' | 'secret'
   provenance: 'observed' | 'remembered' | 'inferred' | 'reconstructed'
+  schemaVersion: number
+  embeddingModelId: string
+  contentHash: string
   lastConfirmedAt: number | null
+  lastAccessedAt: number | null
+  accessCount: number
   contradictionLinks: string[]
 }
 ```
@@ -125,6 +137,8 @@ interface MemoryEpisode {
 - 长期回想应该优先使用情景事件、关系事件、程序记忆和事实，而不是原始 transcript 片段。
 - 每条持久记忆都必须有 provenance 和支持它的 turn id。
 - 不确定的记忆应该以不确定记忆的方式浮现，而不是伪装成新鲜事实。
+- 记忆落库后要能解释它为什么被写入、为什么会被召回、为什么会被降权。
+- 所有长期记忆都应支持版本化重建和 tombstone 删除。
 
 ### 4. PersonaLearning
 
@@ -217,6 +231,8 @@ interface WorkingMemorySnapshot {
 - 当前任务状态和情绪状态分开提取。
 - 在丢弃细节前，先提取可能进入长期记忆的候选。
 - 用户纠正和偏好应比普通闲聊更强地保留。
+- 压缩不是重写人格，也不是重新解释事实，只是把短期上下文压到可持续的表示里。
+- 压缩摘要必须保持可回指到原始 turn 的锚点。
 
 示例：
 
@@ -249,6 +265,349 @@ Active relationship posture:
 - `RawArchive`：原始 turn，用作证据和审计轨迹
 
 关键变化是：Alicization 必须记得经历，而不只是记得事实。
+
+### 记忆闭环
+
+长期记忆不是一次性写入后就结束，而是一个闭环：
+
+```text
+raw turn
+→ 结构化抽取
+→ 写入门禁
+→ committed memory
+→ 索引 / embedding / FTS
+→ 召回 / 重排
+→ DialogueCore 注入
+→ 用户纠正 / 继续对话 / 任务完成
+→ 新的训练样本与记忆修订
+→ 夜间 consolidation / 评测 / 版本发布
+```
+
+这个闭环必须保证：
+
+- 记忆写入有门禁，不是所有 turn 都能进长期库。
+- 记忆召回有预算，不是所有相关内容都要塞进上下文。
+- 用户纠正能反哺记忆，而不是只改表面回复。
+- 版本升级可回滚，不会把一次坏训练永久写进人格。
+- 每个阶段可重放、可恢复、可审计，避免崩溃重试后重复写入或漏写。
+
+### 记忆事务与可靠性
+
+记忆闭环必须使用事务日志，而不是把抽取、写入、索引和训练样本生成散落在不同调用里。
+
+建议引入 `MemoryTransaction`：
+
+```ts
+interface MemoryTransaction {
+  id: string
+  idempotencyKey: string
+  sourceTurnIds: string[]
+  stage: 'extracted' | 'admitted' | 'indexed' | 'consolidated' | 'rejected'
+  status: 'pending' | 'committed' | 'failed' | 'dead-lettered'
+  createdAt: number
+  updatedAt: number
+  errorMessage: string | null
+}
+```
+
+可靠性规则：
+
+- 同一组 turn 的同一类抽取必须有稳定 `idempotencyKey`。
+- 长期记忆写入和派生索引更新必须能通过 outbox 重试。
+- 失败任务进入 dead letter，不阻塞主对话路径。
+- 夜间任务必须能从事务日志重放，重新生成 index、embedding 和训练候选。
+- 崩溃恢复后，系统应能判断每条记忆停在哪个阶段，而不是重新猜测。
+
+### 记忆权限分层
+
+一条记忆能被保存，不代表能被随意召回、训练、导出或显示。
+
+每条长期记忆应至少包含四类策略：
+
+```ts
+interface MemoryPolicy {
+  storage: 'allow' | 'ephemeral' | 'deny'
+  recall: 'allow' | 'implicit-only' | 'blocked'
+  training: 'allow' | 'distill-only' | 'deny'
+  export: 'allow' | 'redacted' | 'deny'
+}
+```
+
+规则：
+
+- `storage` 决定是否能保存在本地。
+- `recall` 决定能否在回复里显性说出，或只能隐性影响语气和决策。
+- `training` 决定是否能进入 PersonaTrainingRecord、reranker 样本或 LoRA 数据。
+- `export` 决定用户导出或调试视图中如何呈现。
+- 高敏感记忆默认不能进入 LoRA，也不能被显性回想，除非用户明确允许。
+- 删除请求必须覆盖所有策略层，不能只删除可见记录。
+
+### 记忆写入与生命周期
+
+写入路径应按顺序执行：
+
+```text
+turn normalize
+→ 记忆候选抽取
+→ 去重 / 合并 / 冲突检测
+→ 敏感级别判断
+→ salience / confidence 打分
+→ 写入或拒绝
+→ 建索引
+→ 进入夜间 consolidation
+```
+
+建议把写入结果分成四类：
+
+- `store`：直接落库
+- `merge`：并入已有记忆
+- `defer`：暂存，等待更多证据
+- `reject`：不进入长期记忆，只保留审计痕迹
+
+生命周期建议包含：
+
+- `provisional`：候选态，证据还不够
+- `committed`：已落库，可召回
+- `promoted`：被用户确认或反复使用，优先召回
+- `stale`：长期未被确认或被新信息稀释
+- `tombstoned`：逻辑删除，保留审计
+- `deleted`：按用户要求彻底移除
+
+衰减与保留规则：
+
+- `Fact` 和 `RelationshipEvent` 的衰减慢于普通闲聊。
+- 用户明确确认过的记忆衰减更慢。
+- 被反复纠正、冲突频繁、置信度低的记忆应更快降权。
+- `RawArchive` 只作为证据和审计，不参与直接生成回复。
+- 用户删除必须级联到 derived memory、embedding index、训练样本 tombstone。
+
+### MemoryAdmissionScore
+
+写入门禁不能靠感觉，应该在结构上区分“值不值得写”和“能不能写”。
+
+```ts
+interface MemoryAdmissionScore {
+  novelty: number
+  recurrence: number
+  emotionalWeight: number
+  relationshipImpact: number
+  futureUsefulness: number
+  userCorrection: number
+  evidenceStrength: number
+  sensitivityRisk: number
+}
+```
+
+规则：
+
+- 高 `sensitivityRisk` 会压低或阻止写入。
+- 高 `userCorrection` 和高 `evidenceStrength` 会显著抬高优先级。
+- `novelty` 低且 `recurrence` 低的闲聊通常不值得进长期库。
+- `futureUsefulness` 只是一项信号，不是自动写入许可。
+- 写入决策应输出 `store / merge / defer / reject` 以及明确原因码。
+
+### 时间语义
+
+时间不是只有 `occurredAt`，查询也需要时间语义。
+
+- 相对时间表达要先归一成时间窗口，再做召回。
+- `recency` 是加权项，不是唯一目标。
+- 周期性事件要支持重复模式，例如每周、每月、节日、例行任务。
+- 查询不能凭空补出精确日期，只能使用证据里已有的时间范围。
+- 当用户说“上周”“昨天”“前阵子”时，优先使用区间和近似排序，而不是假装精确。
+
+### 冲突与纠错
+
+记忆系统必须承认同一件事可能存在多个版本。
+
+- 新事实和旧事实冲突时，不能粗暴覆盖，应该保留 provenance 和 `contradictionLinks`。
+- 置信度高、证据新的记忆可以成为主路径，但旧记忆仍保留为历史证据。
+- 用户明确纠正的内容应优先写成高权重 `Fact` 或 `RelationshipEvent`。
+- 不确定记忆必须以不确定方式浮现，不能被包装成肯定事实。
+
+### Recall Query Planning
+
+查询扩展在这里不是把用户原句改写得更长，而是把一句话转成一个受约束的召回计划。
+
+```ts
+type RecallMode = 'none' | 'working-only' | 'fast-recall' | 'deep-recall' | 'audit-recall'
+
+interface RecallQueryPlan {
+  originalText: string
+  mode: RecallMode
+  targetKinds: Array<'episode' | 'fact' | 'relationship' | 'procedure' | 'affective'>
+  entityIds: string[]
+  aliases: string[]
+  timeWindow: {
+    start: number | null
+    end: number | null
+    recencyBias: number
+  }
+  relationshipSignals: string[]
+  mustHaveSignals: string[]
+  avoidSignals: string[]
+  topK: number
+  timeBudgetMs: number
+  tokenBudget: number
+}
+```
+
+它要做的是：
+
+- 识别当前消息的记忆意图
+- 约束哪些记忆类型值得查
+- 生成向量、FTS、实体、时间和关系的检索线索
+- 明确正信号和负信号
+- 控制召回范围和速度
+
+它不能做的是：
+
+- 编造新事实
+- 无限制扩词
+- 混淆任务求助、共同活动邀请和创作讨论
+
+召回计划建议拆成这些维度：
+
+- `intent`
+- `entity`
+- `alias`
+- `time window`
+- `relationship`
+- `emotion`
+- `task phase`
+- `tool state`
+
+回想流水线应优先并行，而不是串行堆时延：
+
+```text
+current message
+→ recall intent classifier
+→ entity / alias / time / relationship expansion
+→ vector recall from MemoryEpisode.embeddingText
+→ keyword recall from FTS
+→ hot cache lookup for recent relevant memories
+→ temporal boost for recent shared events
+→ relationship boost for user + alice events
+→ contradiction and privacy filter
+→ rerank with confidence / salience / evidence quality
+→ return 1-3 candidate memories
+  → pack evidence snippets for DialogueCore
+```
+
+默认策略：
+
+- 召回结果少而准，通常只给 1-3 条。
+- 先召回证据，再决定是否在回复里显性提及。
+- 当置信度不足时，宁可说“不太确定”，不要硬编。
+- 查询计划只负责检索，不负责生成记忆结论。
+- `Episode`、`Fact`、`RelationshipEvent` 和 `Procedure` 必须走不同优先级和过滤器。
+- query expansion 应尽量显式使用 entity registry、time window 和 relationship context，而不是自由联想。
+- `RecallMode` 是调度约束，不是模型提示词。
+- `fast-recall` 优先命中缓存和实体线索，`deep-recall` 才允许完整向量+FTS+rerank。
+- `audit-recall` 只用于解释和调试，不应该混进正常回复的路径。
+
+### 实体归一与别名治理
+
+在引入图数据库之前，应先建立轻量实体注册表，解决“同一个人、游戏、项目、任务被不同叫法打散”的问题。
+
+建议对象：
+
+```ts
+interface MemoryEntity {
+  id: string
+  type: 'person' | 'project' | 'game' | 'tool' | 'place' | 'topic' | 'task'
+  canonicalName: string
+  aliases: string[]
+  confidence: number
+  mergedFrom: string[]
+  createdAt: number
+  updatedAt: number
+}
+```
+
+规则：
+
+- 写入记忆前先做 entity linking，避免重复创建同一实体。
+- 用户明确命名或纠正别名时，优先更新 entity registry。
+- alias merge 必须保留来源和置信度，不能静默覆盖。
+- 召回 query expansion 应从 entity registry 读取别名，而不是每次让模型自由扩写。
+- 当实体冲突无法自动判断时，保持分裂并降低召回置信度，等待用户确认。
+
+### 记忆分层与索引拓扑
+
+为了同时满足速度、效率和回想质量，记忆应分层而不是扁平堆放。
+
+- `Hot`：当前会话的 WorkingMemory、最近被确认的关系记忆、最近高频访问的 episode。尽量驻留内存或轻量缓存。
+- `Warm`：可直接检索的 episodic / fact / procedure 索引，包含 FTS、向量索引和少量 alias 表。
+- `Cold`：RawArchive、历史低频记忆、可重建索引数据，只在需要时读取或批量重建。
+
+拓扑规则：
+
+- 写入先落 `Hot/Warm`，再异步刷新 `Cold` 或重建索引。
+- `Hot` 负责低延迟，`Warm` 负责召回质量，`Cold` 负责审计和重建。
+- 删除必须同时更新所有层的可见性状态，不能只删主表。
+- 失效缓存应按 memory id、alias、entity 和 time window 粒度刷新。
+
+### MemoryDebugTrace
+
+记忆系统必须能解释自己为什么写、为什么想起、为什么没想起。
+
+```ts
+interface MemoryDebugTrace {
+  turnId: string
+  queryPlanMode: RecallMode
+  selectedMemoryIds: string[]
+  rejectedMemoryIds: string[]
+  reasonCodes: string[]
+  latencyMs: number
+  tokenBudgetUsed: number
+  indexHits: Array<'hot' | 'warm' | 'cold' | 'fts' | 'vector' | 'alias'>
+  versionIds: {
+    memorySchemaVersion: number
+    embeddingModelId: string
+    recallRouterVersion: string
+    rerankerVersion: string
+  }
+}
+```
+
+规则：
+
+- 每次显性回想都应能回放出命中的候选和排序原因。
+- 没有召回时也要能说明是 mode、预算、权限还是索引缺失导致。
+- 这个 trace 只用于调试和评测，不应直接进入人格训练。
+
+### 在线路径与后台路径隔离
+
+主对话路径必须保持轻，不能把清洗、embedding 生成、索引重建和训练准备都塞进用户等待时间里。
+
+建议路径：
+
+```text
+online turn
+→ append raw turn
+→ update WorkingMemory
+→ lightweight recall
+→ reply
+→ enqueue extraction / indexing / consolidation jobs
+```
+
+后台队列：
+
+- `memory-extraction`
+- `embedding-index`
+- `fts-index`
+- `consolidation`
+- `persona-distillation`
+- `eval-and-publish`
+
+队列规则：
+
+- 在线路径只做最小同步写入和轻量召回。
+- embedding、FTS、去重、合并和训练样本生成都应异步执行。
+- 每个队列有 retry、backoff、dead letter 和进度记录。
+- 后台任务忙时可以延迟学习，但不能拖慢正常聊天。
+- 读路径必须能接受索引短暂滞后，必要时回退到 WorkingMemory 和旧索引。
 
 示例用户消息：
 
@@ -324,20 +683,48 @@ interface EmbeddingProvider {
 }
 ```
 
+边界：
+
+- `EmbeddingProvider` 只负责把文本映射成向量，不负责定义记忆真相。
+- embedding 是检索表示，不是人格表达本体。
+- 更换 embedding 模型时，旧索引必须可重建、可 shadow、可回滚。
+
 默认姿态：
 
 - 优先使用本地 embedding 模型。
 - 云端 embedding 可选，并且必须显式开启。
 - embedding 模型可替换。
 - 向量应绑定到 episode，而不是只绑定到原始聊天日志。
+- embedding 应在写入时预计算，避免把延迟转移到用户读路径。
+- 向量索引和 FTS 索引应面向不同用途：向量负责语义近邻，FTS 负责实体、关键词和精确证据。
 
 第一条生产路径应该使用固定 embedding 模型加可训练重排器。
 
 embedding 微调可以后置，等正样本和 hard negative 样本足够后再做。
 
+### 召回性能预算
+
+记忆系统的目标不是“找最多”，而是“在固定时间里找最对”。
+
+建议的读路径预算：
+
+- 热路径召回：优先命中缓存和已有索引，尽量在 100ms 级完成。
+- 冷路径召回：本地向量 + FTS + rerank 仍应保持在几百毫秒级，不应拖慢整轮回复。
+- 超预算时：退化为只用 WorkingMemory 或只用 FTS，而不是阻塞对话。
+
+建议的工程约束：
+
+- 热缓存保存最近会话相关记忆、最近查询和常用 alias。
+- 查询必须设置 topK 上限，避免召回膨胀。
+- rerank 只能处理小候选集，不能拿全库直接排序。
+- 上下文注入必须有 token cap，避免挤爆对话窗口。
+- 召回超时不应触发模板化安慰回复，而应优雅降级为“不确定”或继续对话。
+
 ## 记忆重排器
 
 重排器学习哪段召回记忆才是 Alicization 在当前场景真正应该想起的。
+
+它不是二次生成器，不负责补全记忆，也不负责创造新解释，只负责对候选做排序和筛除。
 
 训练记录：
 
@@ -365,6 +752,82 @@ hard negative: "昨天聊过游戏开发"
 - 共同休闲经历比游戏相关技术词更重要。
 - 最近共同经历比泛泛话题相似更重要。
 - 用户的邀请语气不同于任务求助语气。
+- 证据质量、时间相关性、关系相关性和隐私级别要一起参与排序，而不是只看 embedding 分数。
+- 高分候选如果缺少证据，也不能直接进上下文。
+- 负样本应该区分“语义相近但关系不对”和“时间对但类型不对”，不能混成一类。
+
+### 召回结果注入
+
+召回结果不应该直接原样灌进 prompt，而应先被包装成证据块。
+
+```ts
+interface RecallResult {
+  memoryId: string
+  kind: 'episode' | 'fact' | 'relationship' | 'procedure' | 'affective'
+  score: number
+  confidence: number
+  evidenceTurnIds: string[]
+  evidenceSnippets: string[]
+  shouldSurface: boolean
+  reason: string
+}
+
+interface MemoryContextPack {
+  selected: RecallResult[]
+  totalTokenCost: number
+  budget: number
+  freshnessBias: number
+}
+```
+
+规则：
+
+- 显性回想只在高置信度时出现。
+- 隐性携带可以只影响语气和决策，不必明说来源。
+- 低置信度时宁可不提，也不要“像记得一样”乱说。
+- 上下文注入优先短证据、可验证证据和用户已确认记忆。
+
+### 用户体验约束
+
+记忆体验必须像“她想起来了”，而不是“系统查到了一条记录”。
+
+- 当记忆命中明确时，回复应该自然嵌入，不要报告检索过程。
+- 当记忆不确定时，直接承认不确定。
+- 当记忆缺失时，正常推进当前对话，不要把空白包装成戏剧化遗忘。
+- 当用户纠正记忆时，先接住纠正，再更新记忆，不要争辩。
+- 当系统故障时，只说故障，不要用人格模板掩盖。
+
+### 评估指标
+
+自动化闭环必须被指标约束，否则夜间学习会悄悄漂移。
+
+离线评估：
+
+- `recall@k`：目标记忆是否进入候选集。
+- `MRR` / `NDCG`：正确记忆的排序是否足够靠前。
+- `false recall rate`：错误记忆被召回的比例。
+- `hallucinated memory rate`：没有证据却被当作记忆说出的比例。
+- `compression loss`：压缩后是否丢失未完成事项、关系姿态和纠正信息。
+- `persona drift score`：回复是否偏离 `SOUL.md`、身份锚点和长期关系姿态。
+- `template leakage rate`：固定模板、fallback 语气或项目口号是否泄漏进正常人格回复。
+- `recall naturalness score`：记忆被使用时是否像自然回想，而不是检索报告。
+
+在线评估：
+
+- `p95 retrieval latency`：单轮召回是否拖慢回复。
+- `p95 end-to-end turn latency`：记忆系统是否影响整体响应速度。
+- `memory hit rate`：常见场景是否命中可用记忆。
+- `user correction acceptance rate`：用户纠正后，系统是否稳定吸收。
+- `delete propagation latency`：删除是否快速传播到派生索引和样本。
+- `correction recovery rate`：被用户指出错误后，后续相似场景是否不再犯同一类错。
+- `explicit recall satisfaction`：显性回想是否被用户继续接住，而不是打断对话体验。
+
+评测原则：
+
+- 任何新版本都必须先通过回放集，再进入 shadow，再进入主路径。
+- 召回准确率不能以明显增加响应延迟为代价。
+- 速度不能以牺牲证据质量和人格连续性为代价。
+- 人格评估必须覆盖日常闲聊、任务协作、关系修复、失败透明处理和长期共同经历回想。
 
 ## 人格连续与模型微调
 
@@ -398,6 +861,8 @@ interface PersonaTrainingRecord {
   idealReply: string
   sourceTurnIds: string[]
   sensitivity: 'public' | 'personal' | 'private'
+  trainingPolicy: 'allow' | 'distill-only' | 'deny'
+  redactionState: 'none' | 'redacted' | 'blocked'
   quality: number
 }
 ```
@@ -423,6 +888,53 @@ interface PersonaTrainingRecord {
 - 原始密钥、账号数据、私有路径等秘密。
 - 未解决的冲突 turn。
 - 用户不满但没有修复完成的片段。
+
+### 人格训练清洗与脱敏
+
+人格训练数据必须经过清洗流水线，不能从聊天日志或记忆候选直接进入 LoRA。
+
+人格蒸馏不是把所有好回复搬进权重，而是把稳定的情境-内在状态-行为边界提炼出来。
+
+建议流水线：
+
+```text
+candidate turn
+→ quality filter
+→ failure / fallback filter
+→ privacy classification
+→ secret redaction
+→ conflict check
+→ persona relevance labeling
+→ ideal reply distillation
+→ replay eval
+→ training dataset publish
+```
+
+训练清洗规则：
+
+- 失败回复、fallback、超时和工具错误默认 `trainingPolicy = deny`。
+- 私密事实可以留下记忆，但默认不进入权重。
+- 能体现人格表达的片段应被蒸馏成情境、内在状态和行为边界，而不是复制原文。
+- 用户纠正后的成功修复可以成为高价值人格样本。
+- 未解决争执、未确认事实、临时情绪发泄不能直接成为人格样本。
+- 每条训练记录必须能追溯到来源 turn，并能随删除请求 tombstone。
+- 蒸馏结果必须经过 replay eval 才能进入训练集发布。
+
+### 术语边界与防误用
+
+以下概念都必须按“是什么 / 不是什么”去实现：
+
+- `IdentityCore`：身份真源和关系锚点，不是 prompt 文本，不是风格模板，不是某次回复。
+- `WorkingMemory`：当前会话和任务状态，不是历史仓库，不是散文摘要。
+- `EpisodicMemory`：带证据的事件记录，不是原始 transcript 的复制件，不是回复草稿。
+- `Recall Query Planning`：受约束的召回计划，不是自由改写，不是答案生成。
+- `MemoryReranker`：候选排序器，不是补全器，不是第二次聊天模型。
+- `PersonaLearning`：人格行为蒸馏，不是事实灌权重，不是秘密压缩。
+- `FailureSurface`：透明错误出口，不是情绪化安抚层，不是 fallback 伪装层。
+- `Hot / Warm / Cold`：索引和访问层级，不是三套不同的记忆真相。
+- `Nightly learning`：清洗后的小心更新，不是把白天全部聊天原样送训。
+
+如果某个模块在实现时开始承担“不属于它”的职责，就说明边界已经松了，应该拆开。
 
 蒸馏记录示例：
 
@@ -478,6 +990,8 @@ activate only if it passes
 
 自动学习循环应该保守。
 
+夜间学习只处理已经被清洗、可追溯、可回放、可评测的数据，不允许把白天所有聊天原样灌进训练。
+
 ```text
 daytime usage
 → record raw turns
@@ -502,8 +1016,36 @@ daytime usage
 - 用户纠正后的修复行为没有变差。
 - 普通回复中没有泄露私密细节。
 - 没有匹配 base model id 时，模型专属 LoRA 不能启用。
+- 记忆检索的 p95 延迟没有恶化到影响对话感。
+- 召回精度和 false recall rate 没有在新版本中退化。
+- 压缩没有丢掉当前会话中的未完成事项和关系姿态。
+- 删除请求、敏感记忆和 tombstone 行为都能被审计。
 
 如果评测失败，候选版本保持 rejected，当前运行时不变。
+
+### 版本化与发布
+
+以下版本必须分别可追踪：
+
+- `memorySchemaVersion`
+- `embeddingModelId`
+- `recallRouterVersion`
+- `rerankerVersion`
+- `personaDatasetVersion`
+- `loraVersion`
+- `memoryIndexVersion`
+
+发布原则：
+
+- 只允许单独升级一个可观测层，避免一次改动把多个回归源混在一起。
+- 新版本先 shadow，再小流量，再全量。
+- 任一层评测失败，都必须能回滚到前一版本。
+- 索引重建必须是可重复的，不依赖手工补数据。
+- embedding 模型变更时必须构建 shadow index，不能直接覆盖旧向量。
+- schema 迁移期间优先 dual-read，必要时 dual-write，直到回放评测通过。
+- reranker、recall router、persona dataset 和 LoRA 应能独立回滚。
+- 发布前必须验证删除、tombstone、敏感记忆过滤在新旧版本中语义一致。
+- 索引 backfill 必须可暂停、可恢复、可观测，不能占满用户对话资源。
 
 ## 失败处理边界
 
@@ -560,9 +1102,14 @@ apps/stage-tamagotchi/src/main/services/alicization/life-core/
   identity-core.ts
   working-memory.ts
   episodic-memory.ts
+  memory-transaction-log.ts
+  memory-policy.ts
+  memory-entity-registry.ts
+  memory-job-queue.ts
   recall-router.ts
   memory-reranker.ts
   persona-learning.ts
+  persona-training-sanitizer.ts
   dialogue-core.ts
   failure-surface.ts
   life-core-runtime.ts
@@ -591,6 +1138,8 @@ apps/stage-tamagotchi/src/main/services/alicization/life-core/
 ### Phase 2：建立 EpisodicMemory Store
 
 - 定义 `MemoryEpisode`。
+- 建立 `MemoryTransaction`、outbox 和 idempotency key。
+- 增加 `MemoryPolicy`，把存储、召回、训练和导出权限拆开。
 - 从 turn 中抽取 episode。
 - 增加 FTS 和向量字段。
 - 将 episode 关联到原始 turn id。
@@ -599,9 +1148,11 @@ apps/stage-tamagotchi/src/main/services/alicization/life-core/
 ### Phase 3：建立 Recall Router
 
 - 搜索前先分类回想意图。
+- 建立 entity registry 和 alias merge 规则。
 - 对 episode、fact、procedure、relationship event 做混合召回。
 - 重排候选。
 - 只把被选中的候选传给 `DialogueCore`。
+- 增加 Hot / Warm / Cold 分层缓存和索引失效策略。
 
 ### Phase 4：建立 DialogueCore 边界
 
@@ -609,13 +1160,16 @@ apps/stage-tamagotchi/src/main/services/alicization/life-core/
 - 将显性回想 / 隐性携带 / 不回想做成一等决策。
 - 让 `FailureSurface` 绕过 `DialogueCore` 的人格输出。
 - 把可见回复修复移出 happy path。
+- 将 embedding、索引重建和 consolidation 移到后台队列，避免阻塞在线对话。
 
 ### Phase 5：建立 PersonaLearning
 
+- 建立训练样本清洗、脱敏、失败过滤和冲突检查。
 - 从蒸馏样本创建人格数据集记录。
 - 按 base model 训练本地 LoRA 候选。
 - 训练记忆重排器候选。
 - 只评测并启用通过的候选。
+- 增加人格漂移、模板泄漏和自然回想评测。
 
 ### Phase 6：删除补丁路径
 
@@ -636,6 +1190,13 @@ apps/stage-tamagotchi/src/main/services/alicization/life-core/
 - LoRA 候选不能绕过回放评测直接启用。
 - 记忆置信度低时，她可以说“不确定”。
 - 旧浏览器 fallback 不能创建第二个人格来源。
+- 记忆事务可以在崩溃后重放，不重复写入、不漏写索引。
+- 同一条记忆可以分别控制存储、召回、训练和导出权限。
+- 实体别名纠正后，相似表达能稳定召回同一批相关记忆。
+- 后台索引、清洗和训练任务不会阻塞在线对话。
+- 人格训练样本必须经过脱敏、失败过滤和冲突检查。
+- 回放评测能发现人格漂移、模板泄漏和不自然回想。
+- embedding / index / schema 版本切换支持 shadow、dual-read 和回滚。
 
 ## 成功标准
 
@@ -651,3 +1212,4 @@ apps/stage-tamagotchi/src/main/services/alicization/life-core/
 用户可见的效果应该很简单：
 
 用户可以自然说话，Alicization 能记起相关的共同经历，能在模型切换后保持人格，能在夜间本地学习，也能在系统失败时诚实失败。
+在常见场景里，她会像“真的想起来了”，而不是像一个拼接了检索结果的接口。

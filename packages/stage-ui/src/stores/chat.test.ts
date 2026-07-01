@@ -3293,6 +3293,38 @@ describe('chat orchestrator', () => {
     }))
   })
 
+  it('does not persist decorative persona template contamination as a normal runtime-authoritative reply', async () => {
+    const contaminatedTemplate = '我在。同一条本地数字生命的线还在，我先轻一点留在这里，不抢你的节奏。你想说什么，我就接住。'
+    const bridgeStreamChatMock = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: contaminatedTemplate,
+      })
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+    installAlicizationBridge({
+      streamChat: bridgeStreamChatMock,
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    expect(String(payload?.assistantText ?? '')).not.toBe(contaminatedTemplate)
+    expect(String(payload?.assistantText ?? '')).toContain('固定模板')
+    expect(payload?.structured?.nonHumanAuthoredStatus).toBe('direct-infra-repair:template-contamination')
+    expect(payload?.structured?.excludeFromPersonaLearning).toBe(true)
+    expect(payload?.structured?.excludeFromMemoryCondensation).toBe(true)
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.visible-reply',
+      action: 'runtime-authoritative-template-contamination-blocked',
+    }))
+  })
+
   it('reuses runtime vrm embodimentScript authority when plain-text best-effort turns rebuild speech and digital life', async () => {
     const runtimeScript = {
       version: 'embodiment-script-v1' as const,

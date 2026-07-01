@@ -32,13 +32,16 @@ import {
   formatAlicizationRealtimeSurfaceSummary,
   inferAlicizationInspectionIntent,
   inferAlicizationRealtimeSurfaceLocale,
+  isAlicizationDecorativePersonaTemplateContamination,
   isAlicizationThinProjectAwarenessLine,
   isAlicizationThinSamePhaseCarryLine as isThinSamePhaseCarryLine,
   looksLikeAlicizationStructuredPayloadText,
+  resolveAlicizationChatFailureSurface,
   resolveAlicizationDialogueEmbodiment,
   resolveAlicizationProjectPreDialogueAwarenessLine,
   shouldBufferAlicizationStructuredSpeechPrelude,
   translateGovernedMindFallback,
+  type AlicizationChatFailureKind,
 } from '@proj-alicization/stage-shared'
 import { createQueue } from '@proj-alicization/stream-kit'
 import { nanoid } from 'nanoid'
@@ -538,6 +541,10 @@ function mindRepairText(path: string, userText?: string, params?: Record<string,
   return translateGovernedMindFallback(`mind-repair.${path}`, params, userText)
 }
 
+function chatFailureReply(kind: AlicizationChatFailureKind, userText?: string) {
+  return resolveAlicizationChatFailureSurface({ kind, userText }).reply
+}
+
 function sanitizeRealtimeEvidenceText(raw: unknown, maxChars = 480) {
   if (typeof raw !== 'string')
     return ''
@@ -583,16 +590,17 @@ function buildRealtimeEvidenceSystemPrompt(input: {
   return lines.filter(Boolean).join('\n')
 }
 
-const assistantLeakFallbackReply = (userText?: string) => mindRepairText('internal-leak', userText)
-const assistantRealtimeUnavailableReply = (userText?: string) => mindRepairText('realtime-unavailable', userText)
-const assistantEpoch1StrictFallbackReply = (userText?: string) => mindRepairText('epoch1-strict', userText)
-const assistantStructuredContractFallbackReply = (userText?: string) => mindRepairText('structured-contract', userText)
-const assistantStreamFailureFallbackReply = (userText?: string) => mindRepairText('stream-failure', userText)
-const assistantLocalRuntimeUnavailableFallbackReply = (userText?: string) => mindRepairText('local-runtime-unavailable', userText)
-const assistantProviderAuthFallbackReply = (userText?: string) => mindRepairText('provider-auth', userText)
-const assistantProviderNetworkFallbackReply = (userText?: string) => mindRepairText('provider-network', userText)
-const assistantProviderConfigFallbackReply = (userText?: string) => mindRepairText('provider-config', userText)
-const assistantUnsupportedToolsFallbackReply = (userText?: string) => mindRepairText('unsupported-tools', userText)
+const assistantLeakFallbackReply = (userText?: string) => chatFailureReply('internal-leak', userText)
+const assistantRealtimeUnavailableReply = (userText?: string) => chatFailureReply('realtime-unavailable', userText)
+const assistantEpoch1StrictFallbackReply = (userText?: string) => chatFailureReply('epoch1-strict', userText)
+const assistantStructuredContractFallbackReply = (userText?: string) => chatFailureReply('structured-contract', userText)
+const assistantStreamFailureFallbackReply = (userText?: string) => chatFailureReply('stream-failure', userText)
+const assistantTemplateContaminationFallbackReply = (userText?: string) => chatFailureReply('template-contamination', userText)
+const assistantLocalRuntimeUnavailableFallbackReply = (userText?: string) => chatFailureReply('local-runtime-unavailable', userText)
+const assistantProviderAuthFallbackReply = (userText?: string) => chatFailureReply('provider-auth', userText)
+const assistantProviderNetworkFallbackReply = (userText?: string) => chatFailureReply('provider-network', userText)
+const assistantProviderConfigFallbackReply = (userText?: string) => chatFailureReply('provider-config', userText)
+const assistantUnsupportedToolsFallbackReply = (userText?: string) => chatFailureReply('model-tools-unsupported', userText)
 const runtimeGatewayWatchdogPolicy = deriveAlicizationRendererBridgeWatchdogTimeoutPolicy()
 const alicizationChatRuntimeFlags = {
   epoch1StrictModeEnabled: false,
@@ -1349,20 +1357,11 @@ function resolveAbortReason(error: unknown, stale: boolean): AlicizationAbortRea
   return 'unknown'
 }
 
-type StreamFailureKind
-  = | 'local-runtime-unavailable'
-    | 'provider-auth'
-    | 'provider-config'
-    | 'provider-network'
-    | 'timeout'
-    | 'model-tools-unsupported'
-    | 'runtime-aborted'
-    | 'unknown'
+type StreamFailureKind = AlicizationChatFailureKind
 
 function buildTimeoutDiagnosticReply(error: unknown, userText?: string) {
   void error
-  void userText
-  return translateGovernedMindFallback('mind-repair.stream-timeout', undefined, userText)
+  return chatFailureReply('timeout', userText)
 }
 
 function resolveStreamFailureFallback(error: unknown, userText?: string): { reply: string, kind: StreamFailureKind } {
@@ -2118,6 +2117,8 @@ function createFailureFallbackThought(kind: StreamFailureKind) {
       return 'obligation=repair; truth=uncertain; focus=keep the turn alive while connectivity is broken; move=state the network break plainly and invite retry; tone=warm'
     case 'timeout':
       return 'obligation=repair; truth=uncertain; focus=keep continuity while the gateway stalls before speaking; move=state the stall plainly and invite immediate retry; tone=warm'
+    case 'template-contamination':
+      return 'obligation=repair; truth=uncertain; focus=block fixed reply template contamination before it impersonates the runtime mind; move=state the visible reply failure plainly; tone=direct'
     case 'model-tools-unsupported':
       return 'obligation=repair; truth=uncertain; focus=tool support is missing for this request; move=state the capability mismatch plainly and guide the next step; tone=direct'
     case 'local-runtime-unavailable':
@@ -2136,10 +2137,14 @@ function createFailureStructuredFallback(input: {
   userText?: string
 }): StructuredWithContract {
   const emotion = input.emotion ?? 'concerned'
+  const failureSurface = resolveAlicizationChatFailureSurface({
+    kind: input.kind,
+    userText: input.userText,
+  })
   return {
     thought: createFailureFallbackThought(input.kind),
     emotion,
-    reply: sanitizeStructuredReplySurface(input.replyText.trim()) || assistantStructuredContractFallbackReply(input.userText),
+    reply: sanitizeStructuredReplySurface(input.replyText.trim() || failureSurface.reply) || assistantStructuredContractFallbackReply(input.userText),
     performance: normalizeAlicizationPerformancePayload(undefined, emotion as AlicizationEmotion),
     userSentimentScore: 0,
     sentimentConfidence: 0.2,
@@ -2147,7 +2152,9 @@ function createFailureStructuredFallback(input: {
     parsePath: 'fallback',
     repairTimedOut: false,
     contractFailed: true,
-    nonHumanAuthoredStatus: `direct-infra-repair:${input.kind}`,
+    nonHumanAuthoredStatus: failureSurface.nonHumanAuthoredStatus,
+    excludeFromPersonaLearning: failureSurface.excludeFromPersonaLearning,
+    excludeFromMemoryCondensation: failureSurface.excludeFromMemoryCondensation,
   }
 }
 
@@ -3901,6 +3908,35 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         const governedReply = governedStructuredWithRuntimeMeta.reply.trim()
         const safeFallbackReply = nonContractReply
           || assistantStructuredContractFallbackReply(sendingMessage)
+        if (isAlicizationDecorativePersonaTemplateContamination(governedReply || payload.reply || nonContractReply)) {
+          const templateContaminationReply = assistantTemplateContaminationFallbackReply(sendingMessage)
+          const templateContaminationStructured = mergeStructuredRuntimeMeta(createFailureStructuredFallback({
+            kind: 'template-contamination',
+            replyText: templateContaminationReply,
+            emotion: 'concerned',
+            userText: sendingMessage,
+          }), getTurnStructuredRuntimeMeta())
+          await appendAlicizationAuditLog({
+            level: 'critical',
+            category: 'alicization.visible-reply',
+            action: 'runtime-authoritative-template-contamination-blocked',
+            message: 'Blocked fixed template contamination before it could be persisted as runtime-authored visible speech.',
+            details: {
+              sessionId,
+              turnId,
+              candidateReply: governedReply || payload.reply || nonContractReply,
+            },
+          })
+          return setStagedAssistantResolution({
+            categorization: {
+              speech: templateContaminationReply,
+              reasoning: payload.reasoning,
+            },
+            structured: templateContaminationStructured,
+            reply: templateContaminationReply,
+            visibleReplySource: 'runtime-model',
+          })
+        }
         const finalReply = (
           governedReply && !looksLikeAlicizationStructuredPayloadText(governedReply)
             ? governedReply

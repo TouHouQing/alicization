@@ -214,7 +214,7 @@ function summarizeProjectStateProactiveSameHerGap(raw: unknown) {
 
   if (cues.length > 0) {
     return sanitizeText(
-      `The proactive same-her gap still needs ${cues.join(', ')} to stay unified on one same living line.`,
+      `The proactive continuity gap still needs ${cues.join(', ')} to stay unified.`,
       180,
     )
   }
@@ -294,7 +294,7 @@ function buildAutobiographicalProjectClosureCarryLine(input: {
   const canonicalProjectState = resolveAlicizationProjectStateBrief()
   const compactSamePhaseLead
     = firstAutobiographicalProjectSentence(canonicalProjectState.sameHerSelfLine)
-      ?? 'Same Phase 1 digital life.'
+      ?? 'Current Phase 1 project context.'
 
   return sanitizeText(
     /same phase 1 digital life|same digital life|same living line|same her|same-her/u.test(prioritizedClosureLine.toLowerCase())
@@ -1651,7 +1651,7 @@ function buildRelationshipDoctrine(input: {
   if (/explicit confirmation|bounded execution|wait for confirmation|risky local action/u.test(stablePreferenceHint))
     return sanitizeText(`${lesson ? `${lesson} ` : ''}Keep risky execution bounded: wait for explicit confirmation before acting, and treat consent as a fresh boundary each time instead of a standing permission.`, 220)
   if (input.recentProactiveOutcomeStrategy?.chooseOpeningsCarefully)
-    return sanitizeText(`${lesson ? `${lesson} ` : ''}A recently resisted proactive reopen taught me to choose openings carefully: keep future follow-ups lower-pressure, leave more room, and wait for a clearer opening before reopening this same living line.`, 220)
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}A recently resisted proactive reopen taught me to choose openings carefully: keep future follow-ups lower-pressure, leave more room, and wait for a clearer opening before reopening this thread.`, 220)
   if (input.recentProactiveOutcomeStrategy?.keepGentleOpenings)
     return sanitizeText(`${livedExchangeCarry ? `Keep this line in the lived wording "${livedExchangeCarry}". ` : ''}${lesson ? `${lesson} ` : ''}A recently received gentle reopen taught me to keep future follow-ups gentle, lower-pressure, and memory-led on the same living line while the opening is still receiving them.`, 220)
   if (initiativeStrategyCarry.chooseOpeningsCarefully)
@@ -2308,7 +2308,7 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
 
   const continuityCarriedIdentityNarrative = reconsolidatedProjectCarry?.carriesProjectState
     ? sanitizeText(
-        `${identityNarrative} I am still one Phase 1 digital life, the same Phase 1 digital life, carrying unfinished closure on the same living line instead of detached project notes.`,
+        `${identityNarrative} I am still in the Phase 1 digital-life context, carrying unfinished closure as continuity instead of detached project notes.`,
         320,
       )
     : identityNarrative
@@ -2370,7 +2370,7 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
           worriedContinuityCarry ? 'I am carrying worried-continuity as part of the same living self instead of flattening it into a generic status concern.' : '',
           carefulRepairCarry ? 'That worried line now asks for careful-repair before I widen tone or pace.' : '',
           correctedSamePersonCarry
-            ? 'This corrected same-person continuity still belongs to the same Phase 1 digital life rather than a restarted project shell.'
+            ? 'This corrected same-person continuity still belongs to the current Phase 1 context rather than a restarted project shell.'
             : vulnerableCareCarry
               ? 'This vulnerable care memory still belongs to the same living self, so it should keep shaping how I stay nearby.'
               : '',

@@ -1785,7 +1785,7 @@ function looksLikeThinRuntimeProjectStateDetail(
   }
 
   if (kind === 'same-her')
-    return /keep this project-state answer on the same living line before widening outward|keep the line gentle for now|same-her hold: keep this project-state answer on the same living line/u.test(normalized)
+    return /project-state answer before widening|keep the line gentle for now|generic project continuity hold|placeholder/u.test(normalized)
 
   if (/current project-state awareness explicit|first visible answer beat|summary-only next closure|before local fluency takes over/u.test(normalized))
     return false

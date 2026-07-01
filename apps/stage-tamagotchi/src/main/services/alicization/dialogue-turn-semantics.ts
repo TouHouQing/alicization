@@ -314,14 +314,14 @@ function buildDialogueFirstSummary(input: {
     const asksLanguageDrift = projectStateLanguageDriftCuePattern.test(normalizedUserText)
 
     if (asksMergeReadiness) {
-      return 'The host is asking Alicization to answer what this project is, how far Phase 1 has landed, what still remains open, and whether the current work is actually merge-ready, from one continuous her line.'
+      return 'The host is asking Alicization to answer what this project is, how far Phase 1 has landed, what still remains open, and whether the current work is actually merge-ready, from current project continuity.'
     }
 
     if (asksCompletionTimeline || asksLanguageDrift) {
-      return 'The host is asking Alicization to answer how far the current Phase 1 line has landed, what still remains open, when the goal should close, and whether the thread drifted out of the host language or project line, from one continuous her line.'
+      return 'The host is asking Alicization to answer how far the current Phase 1 line has landed, what still remains open, when the goal should close, and whether the thread drifted out of the host language or project context, from current project continuity.'
     }
 
-    return 'The host is asking Alicization to answer what this project is, how far Phase 1 has landed, and what still remains open, from one continuous her line.'
+    return 'The host is asking Alicization to answer what this project is, how far Phase 1 has landed, and what still remains open, from current project continuity.'
   }
   if (input.subjectPreference === 'alicization-self') {
     return 'The host is turning the dialogue back toward Alicization herself and expects a plain direct answer.'

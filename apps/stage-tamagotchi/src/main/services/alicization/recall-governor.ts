@@ -228,9 +228,9 @@ function buildProjectStateCarryLine(
     return null
 
   return sanitizeText([
-    carriesProjectIdentity ? 'Same Phase 1 digital life.' : '',
+    carriesProjectIdentity ? 'Current Phase 1 project context.' : '',
     carriesLandedProgress ? 'Some closure already landed.' : '',
-    carriesOpenClosure ? 'Unfinished closure still needs the same living line.' : '',
+    carriesOpenClosure ? 'Unfinished closure still needs continuity.' : '',
   ].filter(Boolean).join(' '), 220) || null
 }
 
@@ -247,8 +247,8 @@ function buildProjectPreflightRecallFallbackProjectState(
     latestLandedProgress: projectStateCarryLine.includes('Some closure already landed.')
       ? 'Some closure already landed.'
       : '',
-    primaryOpenLoop: projectStateCarryLine.includes('Unfinished closure still needs the same living line.')
-      ? 'Unfinished closure still needs the same living line.'
+    primaryOpenLoop: projectStateCarryLine.includes('Unfinished closure still needs continuity.')
+      ? 'Unfinished closure still needs continuity.'
       : '',
     preflightSummary: projectStateCarryLine,
     preDialogueAwarenessLine: projectStateCarryLine,

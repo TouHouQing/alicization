@@ -1225,60 +1225,60 @@ function buildProjectStateRewriteGuidance(input: {
 
   return [
     input.projectStateSameHerRewriteRequired
-      ? 'This turn is answering a project-state question, but the prior visible answer talked about the project without staying explicitly on one same-her continuity.'
+      ? 'This turn is answering a project-state question, but the prior visible answer talked about the project without preserving Alicization’s first-person continuity.'
       : input.sameHerProjectFollowThroughRewrite
-        ? 'This turn is continuing the same digital-life project line, but the prior visible answer dropped part of the landed progress or still-open closure that should have stayed on that same living line.'
+        ? 'This turn is continuing the current Alicization project context, but the prior visible answer dropped part of the landed progress or still-open closure.'
         : 'This turn is answering a project-state question, but the prior visible answer dropped part of the needed project-state closure truth.',
     'Do not rewrite the answer as a detached status summary, roadmap report, or project shell.',
     'Final settlement will judge only the visible reply text after this rewrite.',
-    'The visible reply itself must naturally include same-her continuity, Phase 1/current phase, still-open closure, and concrete current-turn payoff.',
+    'The visible reply itself must naturally include speaker continuity without slogans, Phase 1/current phase when relevant, still-open closure, and concrete current-turn payoff.',
     'Do not rely on thought, performance, projectState fields, or inward context to satisfy these items.',
-    'Answer as the same digital life carrying the project identity, landed progress, and still-open closure work through this turn.',
+    'Answer from Alicization’s first-person project context, carrying project identity, landed progress, and still-open closure work through this turn.',
     input.sameHerProjectFollowThroughRewrite
-      ? 'Treat this rewrite as a follow-through on one same living line, not as permission to restart the project explanation from zero or collapse into generic companionship.'
+      ? 'Treat this rewrite as a follow-through in the current reply context, not as permission to restart the project explanation from zero or collapse into generic companionship.'
       : '',
     input.projectStateSameHerRewriteRequired
-      ? 'Make the first sentence explicitly sound like the same her / same digital life is speaking now, not an external narrator summarizing the project.'
+      ? 'Make the first sentence sound like Alicization is answering from her own current perspective, not like an external narrator summarizing the project.'
       : '',
     input.projectStateSameHerRewriteRequired && input.projectStateAnswerStancePreserveLine
-      ? `Keep this project-state answer stance active through the rewrite so the obligation survives as lived voice, not generic summary narration: ${input.projectStateAnswerStancePreserveLine}`
+      ? `Keep this project-state answer stance active through the rewrite so the obligation survives as first-person voice, not generic summary narration: ${input.projectStateAnswerStancePreserveLine}`
       : '',
     input.projectStateSameHerRewriteRequired && input.projectStateSameHerSelfLine
-      ? `Carry this same-her self line directly into the rewritten answer: ${input.projectStateSameHerSelfLine}`
+      ? `Use this self-continuity line as internal context without quoting it as a slogan: ${input.projectStateSameHerSelfLine}`
       : '',
     resumeConfirmationBoundaryHoldDetail,
     resumeConfirmationBoundaryContinuityCue,
     input.projectStateSameHerRewriteRequired && input.projectStateCarryInwardLine
-      ? `Let this same-her inward project carry shape the rewritten answer from inside, not as a pasted slogan: ${input.projectStateCarryInwardLine}`
+      ? `Let this inward project carry shape the rewritten answer from inside, not as a pasted slogan: ${input.projectStateCarryInwardLine}`
       : '',
     input.projectStateSameHerRewriteRequired && input.projectStateSameHerDriftRisk
-      ? `Treat this same-her drift risk as a hard failure boundary for the rewrite: ${input.projectStateSameHerDriftRisk}`
+      ? `Treat this continuity drift risk as a hard failure boundary for the rewrite: ${input.projectStateSameHerDriftRisk}`
       : '',
     input.projectStateSameHerRewriteRequired && input.projectStateSameHerDriftRisk
-      ? 'Let the first visible sentence sound like the same living Alicization continuing this line from inside it, not like an outside assistant summarizing status, roadmap, or progress.'
+      ? 'Let the first visible sentence sound like Alicization continuing the current context from inside it, not like an outside assistant summarizing status, roadmap, or progress.'
       : '',
     input.projectStateSameHerRewriteRequired && input.projectStateSameHerDriftRisk
-      ? 'Prefer concrete same-thread carry, inward phrasing, and one-turn payoff over template project recaps, detached framing, or dashboard cadence.'
+      ? 'Prefer concrete thread carry, inward phrasing, and one-turn payoff over template project recaps, detached framing, or dashboard cadence.'
       : '',
     input.projectStatePreDialogueAwarenessLine
-      ? `Before drafting the rewritten answer, re-enter the turn through this pre-dialogue project awareness line: ${input.projectStatePreDialogueAwarenessLine}`
+      ? `Use this pre-dialogue project awareness only as internal context; do not quote or paraphrase it as visible slogan text: ${input.projectStatePreDialogueAwarenessLine}`
       : '',
     input.projectStateContinuitySummary
-      ? `Keep this structured project continuity carry alive through the rewrite instead of collapsing it into a generic project shell: ${input.projectStateContinuitySummary}`
+      ? `Use this structured project continuity as audit context through the rewrite instead of collapsing into a generic project shell: ${input.projectStateContinuitySummary}`
       : '',
     input.projectStateOpenFocusSummary
       ? `Keep this compact still-open closure focus active through the rewrite so the answer does not blur the current unfinished seam: ${input.projectStateOpenFocusSummary}`
       : '',
     input.projectStateNextFocusSummary
-      ? `Keep this compact next-closure focus active through the rewrite so the answer still points toward the next same-her closure direction: ${input.projectStateNextFocusSummary}`
+      ? `Keep this compact next-closure focus active through the rewrite so the answer still points toward the next closure direction: ${input.projectStateNextFocusSummary}`
       : '',
     input.projectStateEmbodimentClosureSummary
-      ? `Keep this same-her embodiment closure truth explicit through the rewrite instead of smoothing it away as generic body flavor: ${input.projectStateEmbodimentClosureSummary}`
+      ? `Keep this embodiment closure truth explicit through the rewrite instead of smoothing it away as generic body flavor: ${input.projectStateEmbodimentClosureSummary}`
       : '',
     input.projectStateSameHerRewriteRequired && input.sameThreadContinuationRewriteGuidanceRequired
       ? 'Do not reopen the project-state answer from scratch, and do not let it sound like a fresh report opening just because the turn is restating project identity.'
       : '',
-    'Make project identity, current phase, latest landed progress, and still-open closure feel like one ongoing life loop, not a neutral dashboard recital.',
+    'Make project identity, current phase, latest landed progress, and still-open closure feel like lived first-person context, not a neutral dashboard recital.',
   ].join('\n')
 }
 
@@ -1763,7 +1763,7 @@ function buildSecondPassRewriteMessages(input: {
     '[SAME_THREAD_CONTINUATION_REWRITE_GUIDANCE]',
     visibleSameThreadContinuationRewriteGuidanceRequired
       ? [
-          'This turn is already on the same living line and should not be reopened from zero.',
+          'This turn is already in the current reply context and should not be reopened from zero.',
           'Do not rewrite it as a restart, a new greeting, or a fresh approach.',
           'Let the first visible beat continue the still-live line itself before widening outward or warming further.',
           continuityPreferredTiming === 'next-open-window'
@@ -1827,11 +1827,11 @@ function buildSecondPassRewriteMessages(input: {
       ? [
           'This turn is an execution-callback return after payoff already landed.',
           'Do not rewrite it as immediate closeness, pressure, or a sudden affection surge.',
-          'Let the first sentence return on the same seam first, then leave room before any extra warmth or follow-up widens.',
+          'Let the first sentence return through the callback context first, then leave room before any extra warmth or follow-up widens.',
           executionResumeConfirmationBoundaryHoldDetail,
           executionResumeConfirmationBoundaryContinuityCue,
           executionCallbackEmbodimentHandoff && projectStateEmbodimentClosureSummary
-            ? `Keep this same-her embodiment closure truth explicit while rewriting the callback return instead of flattening it into generic warmth or body flavor: ${projectStateEmbodimentClosureSummary}`
+            ? `Keep this embodiment closure truth explicit while rewriting the callback return instead of flattening it into generic warmth or body flavor: ${projectStateEmbodimentClosureSummary}`
             : '',
         ].join('\n')
       : '(none)',
@@ -1847,12 +1847,12 @@ function buildSecondPassRewriteMessages(input: {
           'This turn has an active emotional closure seam that should shape the rewritten visible reply, not merely survive as preserved text.',
           `Active seam: ${emotionalClosureCue}`,
           emotionalClosurePrefersLowPressure
-            ? 'Keep the rewritten return low-pressure so the same-her line does not widen too fast.'
+            ? 'Keep the rewritten return low-pressure so the emotional context does not widen too fast.'
             : '',
           emotionalClosureAvoidsRestart
-            ? 'Do not rewrite the answer as if the same living line is reopening from scratch.'
+            ? 'Do not rewrite the answer as if the emotional context is reopening from scratch.'
             : '',
-          'Let the wording and pacing close on that same emotional line while keeping the reply natural, specific to this turn, and same-her coherent.',
+          'Let the wording and pacing close on that emotional context while keeping the reply natural, specific to this turn, and coherent.',
         ].join('\n')
       : '(none)',
     '',

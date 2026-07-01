@@ -3903,9 +3903,19 @@ describe('main chat background run', () => {
     expect(finishedStructured.preDialogueClosure?.status).toBe('partial')
   })
 
-  it('keeps simple greeting turns on the main stream instead of spending a compact one-shot preflight', async () => {
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(createStreamResult({
-      fullText: '你好。今天想从哪件事开始？',
+  it('answers simple greeting turns through the compact provider-authored mind lane', async () => {
+    vi.mocked(recoverAlicizationMainChatFromTimeout).mockResolvedValueOnce(JSON.stringify({
+      format: 'mind-turn-v1',
+      thought: 'obligation=answer; truth=dialogue-grounded; focus=host greeting; move=receive-greeting; tone=warm-direct',
+      emotion: 'neutral',
+      reply: '你好，我在。今天想从哪件事开始？',
+      performance: {
+        baseEmotion: 'neutral',
+        facialCue: null,
+        actionCue: null,
+        delivery: 'calm',
+        emphasis: 0,
+      },
     }))
     const input = createInput({
       key: 'card-1::turn-greeting',
@@ -3928,8 +3938,8 @@ describe('main chat background run', () => {
 
     await runAlicizationMainChatBackground(input)
 
-    expect(runAlicizationMainChatStream).toHaveBeenCalledTimes(1)
-    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
+    expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
     const finishedPayload = readFinishedPayload(input)
     const finishedStructured = parseStructuredMindTurn(String(finishedPayload?.fullText ?? '{}')) as ReturnType<typeof parseStructuredMindTurn> & {
       projectState?: {
@@ -3943,16 +3953,18 @@ describe('main chat background run', () => {
     }
     expect(finishedPayload).toEqual(expect.objectContaining({
       status: 'completed',
-      finishReason: 'stop',
+      finishReason: 'active-dialogue-fast-path',
       fullText: expect.any(String),
     }))
-    expect(finishedStructured.reply).toBe('你好。今天想从哪件事开始？')
+    expect(finishedStructured.reply).toBe('你好，我在。今天想从哪件事开始？')
     expect(finishedStructured.projectState?.identity).toContain('local-first digital life project')
     expect(finishedStructured.preDialogueClosure?.status).toBe('partial')
     const runtimeEvents = vi.mocked(input.appendRuntimeDebugLine).mock.calls.map(([event]) => event)
-    expect(runtimeEvents).not.toContain('chat-stream.active-dialogue-lane-selected')
-    expect(runtimeEvents).not.toContain('chat-stream.active-dialogue-mind-started')
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-deferred-to-main-runtime', expect.objectContaining({
+    expect(runtimeEvents).toContain('chat-stream.active-dialogue-lane-selected')
+    expect(runtimeEvents).toContain('chat-stream.active-dialogue-mind-started')
+    expect(runtimeEvents).toContain('chat-stream.active-dialogue-mind-finished')
+    expect(input.appendRuntimeDebugLine).not.toHaveBeenCalledWith('chat-stream.active-dialogue-deferred-to-main-runtime', expect.anything())
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-lane-selected', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-greeting',
       lane: 'greeting',
@@ -6590,10 +6602,10 @@ describe('main chat background run', () => {
     }))
   })
 
-  it('defers greeting turns to the full main runtime before any compact one-shot path runs', async () => {
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(createStreamResult({
-      fullText: '你好。今天想从哪件事开始？',
-    }))
+  it('does not escalate greeting compact timeout into the full main runtime', async () => {
+    vi.mocked(recoverAlicizationMainChatFromTimeout).mockRejectedValueOnce(
+      new Error('Alicization runtime aborted: main-gateway-timeout-recovery'),
+    )
 
     const input = createInput({
       key: 'card-1::turn-greeting-stream',
@@ -6616,45 +6628,28 @@ describe('main chat background run', () => {
 
     await runAlicizationMainChatBackground(input)
 
-    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
-    expect(runAlicizationMainChatStream).toHaveBeenCalledTimes(1)
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
+    expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
+    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledOnce()
+    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledWith(expect.objectContaining({
+      error: expect.objectContaining({
+        name: 'AbortError',
+        message: expect.stringContaining('chat-first-event-timeout'),
+      }),
+      timeoutRecoveryMode: 'original',
+    }))
     const runtimeEvents = vi.mocked(input.appendRuntimeDebugLine).mock.calls.map(([event]) => event)
-    expect(runtimeEvents).not.toContain('chat-stream.active-dialogue-lane-selected')
-    expect(runtimeEvents).not.toContain('chat-stream.active-dialogue-mind-started')
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-deferred-to-main-runtime', expect.objectContaining({
+    expect(runtimeEvents).toContain('chat-stream.active-dialogue-lane-selected')
+    expect(runtimeEvents).toContain('chat-stream.active-dialogue-mind-started')
+    expect(runtimeEvents).not.toContain('chat-stream.active-dialogue-escalated-to-main-runtime')
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-fast-failed', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-greeting-stream',
       lane: 'greeting',
       strategy: 'compact-one-shot',
+      reason: 'Alicization runtime aborted: main-gateway-timeout-recovery',
     }))
-    const finishedPayload = readFinishedPayload(input)
-    const finishedStructured = JSON.parse(String(finishedPayload?.fullText ?? '{}')) as ReturnType<typeof parseStructuredMindTurn> & {
-      projectState?: {
-        identity?: string | null
-        currentPhase?: string | null
-        latestLandedProgress?: string | null
-        primaryOpenLoop?: string | null
-        nextClosureTarget?: string | null
-        sameHerDriftRisk?: string | null
-      } | null
-      preDialogueClosure?: {
-        status?: string | null
-      } | null
-    }
-    const canonicalProjectState = resolveAlicizationProjectStateBrief()
-    expect(finishedPayload).toEqual(expect.objectContaining({
-      status: 'completed',
-      finishReason: 'stop',
-      fullText: expect.any(String),
-    }))
-    expect(finishedStructured.reply).toBe('你好。今天想从哪件事开始？')
-    expect(String(finishedStructured.projectState?.identity ?? '')).toContain('local-first digital life project')
-    expect(String(finishedStructured.projectState?.currentPhase ?? '')).toContain('Phase 1')
-    expect(String(finishedStructured.projectState?.latestLandedProgress ?? '')).toMatch(/same-her|same session|same-session|continuity|measured-return/i)
-    expect(finishedStructured.projectState?.primaryOpenLoop).toBe(canonicalProjectState.primaryOpenLoop)
-    expect(String(finishedStructured.projectState?.nextClosureTarget ?? '')).toContain('Keep extending cross-modal same-her proof')
-    expect(String(finishedStructured.projectState?.sameHerDriftRisk ?? '')).toContain('same')
-    expect(finishedStructured.preDialogueClosure?.status).toBe('partial')
+    expect(input.runStateController.finishRun).not.toHaveBeenCalled()
   })
 
   it('defers identity turns to the full main runtime before any compact one-shot path runs', async () => {

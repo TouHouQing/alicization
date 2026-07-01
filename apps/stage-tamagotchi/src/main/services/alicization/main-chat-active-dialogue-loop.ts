@@ -69,6 +69,10 @@ import {
   isValidIanaTimeZone,
   resolveAlicizationTimeZoneFromMessages,
 } from './time-zone-governor'
+import {
+  allowsAlicizationDeterministicVisibleReply,
+  shouldAlicizationReplyStayProviderAuthored,
+} from './visible-reply/reply-authority-policy'
 
 export type AlicizationActiveDialogueFastPathLane
   = | 'greeting'
@@ -2584,10 +2588,7 @@ function buildDecisionLocalReply(decision: AlicizationActiveDialogueFastPathDeci
 function allowsDeterministicVisibleReplyForDecision(
   decision: Pick<AlicizationActiveDialogueFastPathDecision, 'lane' | 'strategy'>,
 ) {
-  if (decision.strategy !== 'infra-fallback-only')
-    return false
-  return decision.lane === 'utility-time'
-    || decision.lane === 'utility-date'
+  return allowsAlicizationDeterministicVisibleReply(decision)
 }
 
 function allowsDeterministicVisibleReplyMove(move: AlicizationMindSurfaceMove) {
@@ -2601,12 +2602,6 @@ function allowsDeterministicVisibleReplyMoves(moves: readonly AlicizationMindSur
   return Array.isArray(moves)
     && moves.length > 0
     && moves.every(allowsDeterministicVisibleReplyMove)
-}
-
-function isInfraFallbackOnlyDecision(
-  decision: Pick<AlicizationActiveDialogueFastPathDecision, 'strategy'>,
-) {
-  return decision.strategy === 'infra-fallback-only'
 }
 
 function appendFastPathReasonCode(reasonCodes: string[], code: string) {
@@ -2633,22 +2628,7 @@ function coerceInfraFallbackDecision(
 export function shouldAlicizationActiveDialogueStayLLMAuthored(
   decision: Pick<AlicizationActiveDialogueFastPathDecision, 'lane' | 'strategy' | 'reasonCodes'>,
 ) {
-  if (isInfraFallbackOnlyDecision(decision))
-    return false
-
-  if (
-    decision.lane === 'follow-up'
-    && (
-      decision.reasonCodes.includes('execution-carry-llm-authored')
-      || decision.reasonCodes.includes('prepared-execution-ledger')
-      || decision.reasonCodes.includes('memory-recollection-llm-authored')
-    )
-  ) {
-    return true
-  }
-
-  return decision.lane !== 'utility-time'
-    && decision.lane !== 'utility-date'
+  return shouldAlicizationReplyStayProviderAuthored(decision)
 }
 
 function violatesAuthoritativeClockEvidence(

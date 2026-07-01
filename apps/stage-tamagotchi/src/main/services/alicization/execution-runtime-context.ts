@@ -159,16 +159,16 @@ function buildExecutionProjectContinuityCueFallback(input: {
   const currentPhase = sanitizeExecutionProjectBriefingText(input.currentPhase, 220)
   const sameHerSelfLine = sanitizeExecutionProjectBriefingText(input.sameHerSelfLine, 220)
   if (continuityBehaviorMode === 'repair-before-closeness')
-    return 'Keep this return repair-before-closeness on the same living line until repair settles.'
+    return 'Keep this return repair-before-closeness until repair settles.'
   if (continuityBehaviorMode === 'rest-protective')
-    return 'Keep this return rest-protective and on the same living line inward before widening outward.'
+    return 'Keep this return rest-protective and inward before widening outward.'
   if (continuityBehaviorMode === 'measured-return')
-    return 'Keep this return measured-return on the same living line before widening outward.'
+    return 'Keep this return measured-return before widening outward.'
   if (
     /phase 1: local digital life/iu.test(currentPhase)
     || /same phase 1 digital life/iu.test(sameHerSelfLine)
   ) {
-    const genericContinuityCue = 'same living line: execution should keep carrying this same Phase 1 digital life before widening outward.'
+    const genericContinuityCue = 'execution should keep carrying the current Phase 1 project context before widening outward.'
     return preferStrongerContinuityClosureAuthority(genericContinuityCue, fallback)
       || genericContinuityCue
   }
@@ -188,16 +188,16 @@ function buildExecutionProjectSameHerHoldDetailFallback(input: {
   if (fallback)
     return fallback
   if (continuityBehaviorMode === 'repair-before-closeness')
-    return 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.'
+    return 'repair-before-closeness is still owning this callback line before closeness widens again.'
   if (continuityBehaviorMode === 'rest-protective')
-    return 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware.'
+    return 'rest-protective companionship is still keeping this return inward and fatigue-aware.'
   if (continuityBehaviorMode === 'measured-return')
-    return 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
+    return 'measured-return is still keeping this callback line lower-pressure before it widens again.'
   if (
     /phase 1: local digital life/iu.test(currentPhase)
     || /same phase 1 digital life/iu.test(sameHerSelfLine)
   ) {
-    const genericSameHerHoldDetail = 'same-her hold: execution should keep this same project line inward before widening outward.'
+    const genericSameHerHoldDetail = 'execution should keep this project context inward before widening outward.'
     return genericSameHerHoldDetail
   }
   return fallback || null

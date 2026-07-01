@@ -331,7 +331,7 @@ function looksLikeBroaderProjectStateSameHerShell(line: string | null) {
   if (!line)
     return false
 
-  return line.toLowerCase().includes('same-her hold: keep this project-state answer on the same living line before widening outward')
+  return line.toLowerCase().includes('generic project continuity hold')
 }
 
 function carriesSpecificSameHerHoldCadence(line: string | null) {

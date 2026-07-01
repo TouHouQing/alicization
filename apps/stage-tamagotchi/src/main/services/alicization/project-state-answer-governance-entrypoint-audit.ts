@@ -14,7 +14,7 @@ const projectStateSemanticsClassificationNeedle = 'const projectStateMergeReadin
 const projectStateCompletionTimelineNeedle = 'const projectStateCompletionTimelineCuePattern'
 const projectStateLanguageDriftNeedle = 'const projectStateLanguageDriftCuePattern'
 const projectStateAnswerPlanningNeedle = 'function looksLikeProjectStateDirectAnswerTurn('
-const projectStateAnswerPlanningLineNeedle = 'same digital life line: Phase 1 landed progress, when the goal is expected to close, and whether the thread drifted out of the host language or project line still need one direct answer.'
+const projectStateAnswerPlanningLineNeedle = 'project continuity direct-answer: Phase 1 landed progress, when the goal is expected to close, and whether the thread drifted out of the host language or project context still need one direct answer.'
 const projectStateResponseCharterNeedle = 'Keep direct project-state answers inward-first so the live payoff lands before any project-summary voice appears.'
 const projectStateResponseCharterRestartNeedle = 'Do not reopen this same-thread project-state turn from scratch or let it flatten into a fresh report opening.'
 const visibleReplyProjectStateResolutionNeedle = 'const projectState = resolveVisibleReplyProjectState({'

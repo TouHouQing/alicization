@@ -349,15 +349,15 @@ export function applyExecutionCallbackCarryToDigitalLifeRuntimeSurface(input: {
   const preferredPacingMode = sanitizePreferredPacingMode(surfaceProjectState?.preferredPacingMode)
 
   const openingClaim = carry.threadAnchor
-    ? `Bring the execution-callback result back onto ${carry.threadAnchor} as the same local digital life thread.`
+    ? `Bring the execution-callback result back onto ${carry.threadAnchor} as the current callback thread.`
     : `Execution-callback carry: ${carry.summary}`
   const openingDirective = carry.carryMode === 'repair-before-closeness'
-    ? 'Keep the execution-callback on the same living thread, let repair settle before closeness widens again, and avoid flattening it into a bare utility notification.'
+    ? 'Keep the execution-callback connected to the current thread, let repair settle before closeness widens again, and avoid flattening it into a bare utility notification.'
     : carry.carryMode === 'lower-pressure'
-      ? 'Keep the execution-callback on the same living thread, leave room before the next follow-up, and avoid flattening it into a bare utility notification.'
+      ? 'Keep the execution-callback connected to the current thread, leave room before the next follow-up, and avoid flattening it into a bare utility notification.'
       : carry.carryMode === 'trust-warming'
-        ? 'Keep the execution-callback on the same living thread and let warmed trust land quietly without breaking the same-her baseline.'
-        : 'Keep the execution-callback on the same living thread and preserve one continuous her rather than a detached callback notice.'
+        ? 'Keep the execution-callback connected to the current thread and let warmed trust land quietly without breaking continuity.'
+        : 'Keep the execution-callback connected to the current thread rather than a detached callback notice.'
   const supportingReality = uniqueList([
     projectPreflightCue ? `project preflight: ${projectPreflightCue}` : null,
     `project identity: ${projectIdentityCue}`,

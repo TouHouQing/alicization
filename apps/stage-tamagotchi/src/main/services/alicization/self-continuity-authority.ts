@@ -160,9 +160,9 @@ function buildProjectStateCarryLine(longHorizonMemory?: AlicizationLongHorizonMe
     return null
 
   return sanitizeText([
-    carriesProjectIdentity ? 'Same Phase 1 digital life.' : '',
+    carriesProjectIdentity ? 'Current Phase 1 project context.' : '',
     carriesLandedProgress ? 'Some closure already landed.' : '',
-    carriesOpenClosure ? 'Unfinished closure still needs the same living line.' : '',
+    carriesOpenClosure ? 'Unfinished closure still needs continuity.' : '',
   ].filter(Boolean).join(' '), 220) || null
 }
 
@@ -517,9 +517,9 @@ export function buildRuntimeSurfaceProjectStateContinuityFallback(
   ) || null
   const inwardLine = sanitizeText([
     embodimentCarryLine ? `Embodiment carry: ${embodimentCarryLine}` : '',
-    sameHerSelfLine ? `Same-her carry: ${sameHerSelfLine}` : '',
+    sameHerSelfLine ? `Continuity carry: ${sameHerSelfLine}` : '',
     latestProgress ? `Some closure already landed: ${latestProgress}` : '',
-    primaryOpenLoop ? `The same living line is still unfinished around ${primaryOpenLoop}` : '',
+    primaryOpenLoop ? `Continuity is still unfinished around ${primaryOpenLoop}` : '',
   ].filter(Boolean).join(' | '), 220) || null
   const authoritySummary = uniqueList([
     selfLine,

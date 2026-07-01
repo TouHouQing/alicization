@@ -105,6 +105,8 @@ export interface ChatAssistantStructuredPayload {
   } | null
   visibleReplyBlocked?: boolean
   nonHumanAuthoredStatus?: string | null
+  excludeFromPersonaLearning?: boolean
+  excludeFromMemoryCondensation?: boolean
   visibleReplyAuthority?: string | null
   policyLocked?: string
 }

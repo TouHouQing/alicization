@@ -413,10 +413,7 @@ function compactMindProjectSameHerLineForAwareness(value: unknown) {
   if (!normalized)
     return ''
 
-  const canonicalMatch = normalized.match(/Same Phase 1 digital life\./iu)?.[0]
-  return canonicalMatch
-    ? compactPromptText(canonicalMatch, 48)
-    : compactPromptText(normalized.split('. ')[0] ?? normalized, 72)
+  return compactPromptText(normalized.split('. ')[0] ?? normalized, 72)
 }
 
 function buildMindGovernanceTailAwarePreDialogueAwarenessLine(input: {

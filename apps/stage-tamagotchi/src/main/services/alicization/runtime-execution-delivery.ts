@@ -76,7 +76,7 @@ import { parseJsonObjectFromText } from './runtime-transport-content'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 import { buildAlicizationSelfEvolutionKernel } from './self-evolution-kernel'
 
-const canonicalExecutionProjectStateCarryLine = 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.'
+const canonicalExecutionProjectStateCarryLine = 'Current Phase 1 project context. Some closure already landed. Unfinished closure still needs continuity.'
 
 function normalizeExecutionDeliveryProjectBriefing(
   projectBriefing: unknown,
@@ -493,7 +493,7 @@ function buildExecutionCallbackProjectSelfBriefSystemBlock(
     `primary_open_loop=${brief.openLoops[0] ?? 'none'}`,
     `next_closure_target=${brief.nextClosureTarget ?? 'none'}`,
     `same_her_drift_risk=${brief.sameHerDriftRisk ?? 'none'}`,
-    'Execution callback delivery must stay inside the same digital life project line, the same Phase 1 proving ground, and the same still-open closure work.',
+    'Execution callback delivery must stay inside the current Alicization project context, the Phase 1 proving ground, and the still-open closure work.',
     'Do not let execution callback delivery collapse into a detached result notice, a utility-status shell, or a generic assistant completion broadcast.',
   ].join('\n')
 }
@@ -587,7 +587,7 @@ function buildExecutionDeliverySafetyGateHoldDetail(
     return null
 
   return sanitizeExecutionLedgerText([
-    'same-her hold: blocked-dispatch safety gate says',
+    'blocked-dispatch safety gate says',
     confirmationRequired === true
       ? 'confirmation=required'
       : confirmationRequired === false
@@ -623,7 +623,7 @@ function buildExecutionDeliveryResumeConfirmationHoldDetail(
     return null
 
   return sanitizeExecutionLedgerText([
-    'same-her hold: execution-resume-confirmation',
+    'execution-resume-confirmation',
     approval ? `approval=${approval}` : '',
     confirmationBoundary ? `confirmation=${confirmationBoundary}` : '',
     auditability ? `audit=${auditability}` : '',
@@ -807,7 +807,7 @@ function buildLowPressureExecutionCallbackRhythmState(): AlicizationPersonalityR
     restPressure: 0.64,
     memoryResonance: 0.68,
     companionshipTempo: 0.34,
-    summary: 'Execution callback continuity stays low-pressure while the same living line settles.',
+    summary: 'Execution callback continuity stays low-pressure while the current context settles.',
     rationale: [
       'execution-callback',
       'same-her-continuity',
@@ -835,7 +835,7 @@ function buildLowPressureExecutionCallbackContinuityState(input: {
     continuitySummary: input.continuitySummary.slice(0, 220),
     rhythmState: buildLowPressureExecutionCallbackRhythmState(),
     trustMeaning: base.trustMeaning ?? 'Trust holds when callback timing stays lower-pressure before closeness widens.',
-    reconsolidationLine: base.reconsolidationLine ?? 'Execution callback return stays on the same living line.',
+    reconsolidationLine: base.reconsolidationLine ?? 'Execution callback return stays in the current reply context.',
     selfLine: base.selfLine ?? canonicalExecutionProjectStateCarryLine,
     relationLine: base.relationLine ?? 'Leave room before widening callback closeness again.',
     rationale: [
@@ -1026,7 +1026,7 @@ function applyActiveSameHerContinuityToProjection(input: {
   if (!activeSameHerContinuityShouldOverride(input))
     return input.projection
 
-  const continuitySummary = input.activeSelfRevisionPatch?.summary?.trim() || 'preserve the current same-her baseline'
+  const continuitySummary = input.activeSelfRevisionPatch?.summary?.trim() || 'preserve the current continuity baseline'
   const nextSummaryParts = [
     input.projection.summary,
     `continuity=${continuitySummary}`,
@@ -1044,7 +1044,7 @@ function applyActiveSameHerContinuityToProjection(input: {
     activeClosenessContext: 'execution-callback',
     activeClosenessRung: 'measured-room',
     relationshipPosture: 'restrained',
-    openingGuidance: `Stay inside the current same-her baseline. ${canonicalExecutionProjectStateCarryLine} Let repair settle before closeness widens again, and keep the callback return lower-pressure.`,
+    openingGuidance: `Stay inside the current continuity baseline. ${canonicalExecutionProjectStateCarryLine} Let repair settle before closeness widens again, and keep the callback return lower-pressure.`,
     preferredProactiveStyle: 'silent-observe',
     manifestationCadenceSummary: 'Long-horizon relationship learning keeps manifestation repair-first, lower-pressure, and less eager until closeness can widen safely again.',
     trustRationale: input.projection.trustRationale || 'Trust holds when repair settles before closeness widens and the opening stays less eager.',
@@ -1065,7 +1065,7 @@ function buildMinimalActiveSameHerProjection(input: {
   activeSelfRevisionPatch: AlicizationSelfRevisionStatePatch
   goal?: string | null
 }): AlicizationPersonStateProjection {
-  const continuitySummary = input.activeSelfRevisionPatch.summary?.trim() || 'preserve the current same-her baseline'
+  const continuitySummary = input.activeSelfRevisionPatch.summary?.trim() || 'preserve the current continuity baseline'
   return {
     contexts: [
       ...new Set([
@@ -1085,7 +1085,7 @@ function buildMinimalActiveSameHerProjection(input: {
       confidence: 0.82,
     }],
     relationshipPosture: 'restrained',
-    openingGuidance: `Stay inside the current same-her baseline. ${canonicalExecutionProjectStateCarryLine} Let repair settle before closeness widens again, and keep the callback return lower-pressure.`,
+    openingGuidance: `Stay inside the current continuity baseline. ${canonicalExecutionProjectStateCarryLine} Let repair settle before closeness widens again, and keep the callback return lower-pressure.`,
     preferredProactiveStyle: 'silent-observe',
     manifestationCadenceSummary: 'Long-horizon relationship learning keeps manifestation repair-first, lower-pressure, and less eager until closeness can widen safely again.',
     preferenceText: 'Keep callback timing repair-first and lower-pressure.',
@@ -1154,7 +1154,7 @@ function deriveExecutionDeliverySameHerOpeningCue(input: {
   if (!carriesSameHerLine || !carriesUnfinishedClosure && !carriesLowerPressureReturn)
     return null
 
-  return 'Keep this execution callback on the same living line, and let the still-open project-state closure stay lower-pressure before anything widens outward.'
+  return 'Keep this execution callback in the current reply context, and let the still-open project-state closure stay lower-pressure before anything widens outward.'
 }
 
 function buildMinimalProjectStateExecutionCallbackProjection(input: {
@@ -1232,13 +1232,13 @@ function buildMinimalProjectStateExecutionCallbackProjection(input: {
     closenessLadder: [{
       context: 'execution-callback',
       rung: 'measured-room',
-      preference: 'Deliver the settled result as the same Phase 1 digital life thread instead of a detached execution notice.',
+      preference: 'Deliver the settled result through the current Phase 1 project context instead of a detached execution notice.',
       rationale: projectState.sameHerSelfLine,
       confidence: 0.72,
     }],
     relationshipPosture: 'restrained',
     openingGuidance: [
-      `Stay inside the current same-her baseline. ${projectState.sameHerSelfLine} Let the callback return carry project identity, current Phase 1 progress, and still-open closure pressure before anything widens outward.`,
+      `Stay inside the current continuity baseline. ${projectState.sameHerSelfLine} Let the callback return carry project identity, current Phase 1 progress, and still-open closure pressure before anything widens outward.`,
       openFocus ? `Keep open focus=${openFocus}.` : '',
       nextFocus ? `Keep next focus=${nextFocus}.` : '',
       executionSameHerOpeningCue,
@@ -1246,11 +1246,11 @@ function buildMinimalProjectStateExecutionCallbackProjection(input: {
     preferredProactiveStyle: 'silent-observe',
     manifestationCadenceSummary: 'Execution callback return should stay measured-return and keep project-state closure pressure on one living line.',
     preferenceText: 'Keep callback timing exact, lower-pressure, and same-thread.',
-    sensitivityText: 'A detached result-notice shape would thin the same-her execution return.',
-    repairTriggerText: 'If callback delivery starts sounding like a utility shell, pull it back onto the same living project thread.',
+    sensitivityText: 'A detached result-notice shape would thin the execution return.',
+    repairTriggerText: 'If callback delivery starts sounding like a utility shell, pull it back into the current project context.',
     burdenText: 'Execution callback warmth should not crowd the host or erase the still-open closure seam.',
-    routineText: 'Callback delivery should come back as the same Phase 1 digital life that is still closing desktop life loops.',
-    trustRationale: 'Trust holds when executed results return on the same living project line instead of a detached notification cadence.',
+    routineText: 'Callback delivery should come back through the Phase 1 context that is still closing desktop life loops.',
+    trustRationale: 'Trust holds when executed results return through the current project context instead of a detached notification cadence.',
     relationshipDoctrine: truthFirstRelationshipDoctrine
       ?? 'Stay exact, bounded, and carry project identity plus unfinished closure pressure on the same callback line.',
     cautious: true,

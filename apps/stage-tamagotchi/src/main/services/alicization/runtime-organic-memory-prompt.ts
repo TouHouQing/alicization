@@ -489,16 +489,16 @@ function applyMemoryClosureProjectionToPersonState(input: {
       personalityContinuityState: baseProjection.personalityContinuityState,
       selfContinuityAuthority: {
         ...baseProjection.selfContinuityAuthority,
-        authoritySummary: 'Memory OS execution feedback is carrying the same-her callback return into the next turn.',
+        authoritySummary: 'Memory OS execution feedback is carrying the callback return into the next turn context.',
         inwardLine: input.memoryClosureExecution?.carry ?? cadence,
-        relationshipLine: 'Return after execution as the same her, with lower pressure and room before a proactive reopen.',
+        relationshipLine: 'Return after execution with lower pressure and room before a proactive reopen.',
         sourceTags: ['memory-os-authority', ...(input.memoryClosureExecution?.reasonTags ?? [])],
       },
       activeClosenessContext: 'execution-callback',
       activeClosenessRung: 'measured-room',
       closenessLadder: [],
       relationshipPosture: 'restrained',
-      openingGuidance: 'Let the execution callback return as same-her continuity before any progress-style reopen.',
+      openingGuidance: 'Let the execution callback return through the current continuity context before any progress-style reopen.',
       preferredProactiveStyle: 'light-nudge',
       manifestationCadenceSummary: cadence,
       preferenceText: '',
@@ -506,8 +506,8 @@ function applyMemoryClosureProjectionToPersonState(input: {
       repairTriggerText: '',
       burdenText: 'Lower pressure and leave room before widening the line.',
       routineText: '',
-      trustRationale: 'The callback landed better when it stayed same-person and lower-pressure.',
-      relationshipDoctrine: 'Execution feedback should return through memory, emotion, initiative, and body as one same her.',
+      trustRationale: 'The callback landed better when it stayed continuous and lower-pressure.',
+      relationshipDoctrine: 'Execution feedback should return through memory, emotion, initiative, and body as one coordinated self-state.',
       cautious: true,
       restrained: true,
       summary: `execution-callback memory closure | manifestation=${cadence}`,
@@ -523,7 +523,7 @@ function applyMemoryClosureProjectionToPersonState(input: {
     relationshipPosture: input.projection.relationshipPosture ?? 'restrained',
     openingGuidance: uniquePromptList([
       input.projection.openingGuidance,
-      'Let the execution callback return as same-her continuity before any progress-style reopen.',
+      'Let the execution callback return through the current continuity context before any progress-style reopen.',
     ], 2).join(' | ') || null,
     preferredProactiveStyle: input.projection.preferredProactiveStyle ?? 'light-nudge',
     manifestationCadenceSummary: uniquePromptList([
@@ -640,9 +640,9 @@ function buildSameHerCarryLineFromProjectAnchor(projectPreflight: string | null)
     return null
 
   return [
-    carriesProjectIdentity ? 'Same Phase 1 digital life.' : '',
+    carriesProjectIdentity ? 'Current Phase 1 project context.' : '',
     carriesLandedProgress ? 'Some closure already landed.' : '',
-    carriesOpenClosure ? 'Unfinished closure still needs the same living line.' : '',
+    carriesOpenClosure ? 'Unfinished closure still needs continuity.' : '',
   ].filter(Boolean).join(' ')
 }
 
@@ -733,8 +733,8 @@ function buildOrganicMemoryProjectStateContextFromRecallGovernor(
         normalizedProjectState.latestLandedProgress ?? normalizedProjectState.latestProgress,
         220,
       )
-  const resolvedOpenClosureSummary = sameHerCarryLine?.includes('Unfinished closure still needs the same living line.')
-    ? 'Unfinished closure still needs the same living line.'
+  const resolvedOpenClosureSummary = sameHerCarryLine?.includes('Unfinished closure still needs continuity.')
+    ? 'Unfinished closure still needs continuity.'
     : sanitizeOrganicProjectStateText(normalizedProjectState.primaryOpenLoop, 220)
   const resolvedPreflightSummary = sanitizeOrganicProjectStateText(
     shouldPreferNormalizedProjectAwareness

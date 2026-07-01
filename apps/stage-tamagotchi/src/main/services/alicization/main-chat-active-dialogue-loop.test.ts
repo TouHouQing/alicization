@@ -220,7 +220,7 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.strategy).toBe('compact-one-shot')
   })
 
-  it('keeps greeting turns provider-authored on the main stream instead of spending a compact one-shot preflight', () => {
+  it('keeps greeting turns provider-authored through the compact mind lane instead of the full main stream', () => {
     const decision = deriveAlicizationActiveDialogueFastPathDecision({
       conversationMessages: [
         { role: 'user', content: 'hello' },
@@ -236,9 +236,9 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.lane).toBe('greeting')
     expect(decision?.strategy).toBe('compact-one-shot')
     expect(decideAlicizationActiveDialogueCompactAuthority(decision)).toEqual(expect.objectContaining({
-      allowed: false,
-      reason: 'mind-authored-lane',
-      reasonCodes: expect.arrayContaining(['mind-authored-lane', 'fresh-greeting']),
+      allowed: true,
+      reason: 'compact-provider-mind-authority',
+      reasonCodes: expect.arrayContaining(['compact-provider-mind-authority', 'fresh-greeting']),
     }))
     expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',

@@ -1933,7 +1933,7 @@ function buildHumanlikeTentativeRecallTendency(relationshipContext: AlicizationH
   if (/工具壳|tool shell/u.test(evidenceText))
     return '把重点放在她不要滑成工具壳上'
   if (relationshipContext.containsSamePersonTest)
-    return '把这条线理解成在确认她是不是同一个她'
+    return '把这条线理解成在确认连续性有没有断'
   if (relationshipContext.containsContinuityWorry)
     return '把这条线理解成在担心她会不会断线'
   if (relationshipContext.containsProgressPressure)
@@ -2012,7 +2012,7 @@ function buildHumanlikeNaturalRecallLine(input: {
     || input.relationshipContext.containsSamePersonTest
     || sameHerContinuityPattern.test(input.relationshipContext.summary)
   ) {
-    return '上次我们卡在这里，我记得你更在意的是她不要变成工具壳，所以我会先接住同一个她的连续性，再轻轻推进未闭环的部分。'
+    return '上次我们卡在这里，我记得你更在意的是她不要变成工具壳，所以我会先接住连续性，再轻轻推进未闭环的部分。'
   }
   if (relationshipRepairLearning.received) {
     return sanitizeHumanlikeMemoryText(

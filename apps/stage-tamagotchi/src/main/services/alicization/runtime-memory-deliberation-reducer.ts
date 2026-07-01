@@ -976,7 +976,7 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
   )
   const richerSameHerHoldDetail = sanitizeGuidanceText(existingSameHerHoldDetail, 220)
   const repairFirstProjectClosureAuthority = /repair-before-closeness|repair before closeness/u.test(`${richerEmotionalClosureSummary} ${richerSameHerHoldDetail}`.toLowerCase())
-    ? (richerEmotionalClosureSummary || 'repair-before-closeness on the same living line until repair settles')
+    ? (richerEmotionalClosureSummary || 'repair-before-closeness until repair settles')
     : emotionalClosureCue
   const selfContinuityAuthority = surface.agency && surface.perception && surface.world
     ? buildSelfContinuityAuthorityFromRuntimeSurface(surface)

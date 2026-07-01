@@ -250,7 +250,7 @@ function hasQuietSameHerContinuityCarry(input: {
     input.recollectionIntent?.rationale,
   ].filter(Boolean).join(' ').toLowerCase()
 
-  return /quiet same-her continuity|same-her-inward-carry|quiet-companionship|same living line stayed inward|same living line holds inward|line stayed inward|line holds inward|same living line.*rather than widening outward|安静陪着|先别外扩|同一条线.*内收/u.test(text)
+  return /quiet continuity|current thread stayed inward|current thread holds inward|line stayed inward|line holds inward|current thread.*rather than widening outward|安静陪着|先别外扩|当前线程.*内收/u.test(text)
 }
 
 function hasCorrectedSamePersonContinuityCarry(input: {

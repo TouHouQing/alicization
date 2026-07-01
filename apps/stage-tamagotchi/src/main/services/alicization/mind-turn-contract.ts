@@ -347,10 +347,10 @@ function deriveEmotionalClosureCue(input: {
   }
 
   if (
-    corpus.includes('keep the same-her emotional closure line low-pressure and inward until the live payoff lands')
-    && corpus.includes('do not let the answer reopen the same-her line from scratch just because the closure seam is still active')
+    corpus.includes('keep emotional closure low-pressure and inward until the live payoff lands')
+    && corpus.includes('do not let the answer reopen from scratch just because the closure seam is still active')
   ) {
-    return 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
+    return 'closure cadence: keep the return low-pressure, leave more room, and do not reopen from scratch while continuity is still settling.'
   }
 
   return null

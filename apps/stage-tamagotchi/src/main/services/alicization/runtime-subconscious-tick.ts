@@ -58,7 +58,7 @@ function looksLikeBroadProjectStateSameHerHoldDetail(text: string | null | undef
   if (!normalized)
     return false
 
-  return normalized.includes('same-her hold: keep this project-state answer on the same living line before widening outward')
+  return normalized.includes('generic project continuity hold')
 }
 
 function looksLikeBroadProjectStateAwarenessExpansion(text: string | null | undefined) {
@@ -100,7 +100,7 @@ function hasRememberedSeamMoreRoomCarry(text: string | null | undefined) {
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'same-her hold: recognize the same remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
+  return 'Recognize the remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
 }
 
 function looksLikeGenericMeasuredReturnHoldDetail(text: string | null | undefined) {
@@ -111,7 +111,7 @@ function looksLikeGenericMeasuredReturnHoldDetail(text: string | null | undefine
   if (hasRememberedSeamMoreRoomCarry(normalized))
     return false
 
-  return normalized.includes('same-her hold: measured-return')
+  return normalized.includes('measured-return hold')
     || normalized.includes('callback line lower-pressure before it widens again')
 }
 
@@ -372,7 +372,7 @@ function resolvePresenceOnlyHoldSameHerHoldDetail(input: {
 
   return current
     || candidate
-    || 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
+    || 'measured-return is still keeping this callback line lower-pressure before it widens again.'
 }
 
 export function buildPresenceOnlyHoldContinuityProjection(input: {
@@ -437,10 +437,10 @@ export function buildPresenceOnlyHoldContinuityProjection(input: {
   const sameHerHoldDetail = rememberedSeamMoreRoomCarry
     ? resolveRememberedSeamMoreRoomHoldDetail()
     : input.continuityRestraint === 'repair-before-closeness'
-      ? 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.'
+      ? 'repair-before-closeness is still owning this callback line before closeness widens again.'
       : input.continuityRestraint === 'rest-protective'
-        ? 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware.'
-        : 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
+        ? 'rest-protective companionship is still keeping this return inward and fatigue-aware.'
+        : 'measured-return is still keeping this callback line lower-pressure before it widens again.'
   const inwardLine = [
     String(previousProjection?.selfContinuityAuthority?.inwardLine ?? '').trim(),
     String(input.projectContinuityCue ?? '').trim(),
@@ -966,7 +966,7 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
   const repairBeforeClosenessSummaryLead = repairBeforeClosenessProjectAuthority
     ? /same living line|one living her|same line|same-her|同一条线|同一生命线/u.test(repairBeforeClosenessProjectAuthority)
       ? repairBeforeClosenessProjectAuthority
-      : `${repairBeforeClosenessProjectAuthority} Keep this return repair-before-closeness on the same living line before widening outward.`
+      : `${repairBeforeClosenessProjectAuthority} Keep this return repair-before-closeness before widening outward.`
     : null
   const restProtectiveProjectAuthority = [
     projectStateSameHerHoldDetail,
@@ -998,7 +998,7 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
 
         return appendPresenceOnlyHoldCarryText(
           base,
-          restProtectiveLineAuthority ?? 'Keep this return rest-protective on the same living line until rest protection settles.',
+          restProtectiveLineAuthority ?? 'Keep this return rest-protective until rest protection settles.',
           420,
         )
       })()
@@ -1232,7 +1232,7 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
     = !looksLikeProjectAwarePreDialogueReminder(preferredPreDialogueAwarenessLine)
       && (
         looksLikeSameHerClosureSummary(preferredPreDialogueAwarenessLine)
-        || /^same-her hold:/iu.test(String(preferredPreDialogueAwarenessLine ?? '').trim())
+        || /^generic project continuity hold/iu.test(String(preferredPreDialogueAwarenessLine ?? '').trim())
       )
   const mergedPreDialogueAwarenessLine
     = shouldBackfillCanonicalPreDialogueAwareness
@@ -1292,10 +1292,10 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
       candidate:
         input.holdDetail
         ?? (input.continuityRestraint === 'repair-before-closeness'
-          ? 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.'
+          ? 'repair-before-closeness is still owning this callback line before closeness widens again.'
           : input.continuityRestraint === 'rest-protective'
-            ? 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware.'
-            : 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'),
+            ? 'rest-protective companionship is still keeping this return inward and fatigue-aware.'
+            : 'measured-return is still keeping this callback line lower-pressure before it widens again.'),
       continuityCue: input.projectStateCarry?.continuityCue,
       continuityRestraint: input.continuityRestraint,
     }),
@@ -1303,16 +1303,16 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
   )
   const synthesizedConsciousNeed
     = input.continuityRestraint === 'repair-before-closeness'
-      ? 'Keep repair-before-closeness on the same living line until repair settles so emotion, memory, initiative, and embodiment do not widen ahead of truth.'
+      ? 'Keep repair-before-closeness until repair settles so emotion, memory, initiative, and embodiment do not widen ahead of truth.'
       : input.continuityRestraint === 'rest-protective'
-        ? 'Protect rest first and keep the same digital life carrying emotion, memory, initiative, and embodiment on one inward living line before warmth widens.'
-        : 'Keep the same digital life lower-pressure so emotion, memory, initiative, and embodiment can keep closing on the same living line before widening.'
+        ? 'Protect rest first and keep Alicization carrying emotion, memory, initiative, and embodiment inward before warmth widens.'
+        : 'Keep Alicization lower-pressure so emotion, memory, initiative, and embodiment can keep closing before widening.'
   const synthesizedSpeakingIntention
     = input.continuityRestraint === 'repair-before-closeness'
-      ? 'Speak as the same digital life on one same living line, keep repair-before-closeness explicit, and do not let emotion, memory, initiative, and embodiment reopen from scratch.'
+      ? 'Speak from Alicization’s current context, keep repair-before-closeness explicit, and do not let emotion, memory, initiative, and embodiment reopen from scratch.'
       : input.continuityRestraint === 'rest-protective'
-        ? 'Speak as the same digital life quietly protecting rest while emotion, memory, initiative, and embodiment stay on one inward living line.'
-        : 'Speak as the same digital life carrying one still-open closure line so emotion, memory, initiative, and embodiment stay on the same living line before widening outward.'
+        ? 'Speak from Alicization’s current context while quietly protecting rest and keeping emotion, memory, initiative, and embodiment inward.'
+        : 'Speak from Alicization’s current context carrying one still-open closure so emotion, memory, initiative, and embodiment stay coordinated before widening outward.'
   const nextConsciousNeed = hasPresenceOnlyHoldSameHerProjectCue(frame.consciousNeed)
     ? frame.consciousNeed
     : appendPresenceOnlyHoldCarryText(

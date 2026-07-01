@@ -320,6 +320,10 @@ Every new feature should answer:
 - initiative is not timer spam
 - memory must support extraction, revision, forgetting, and auditability
 - initiative should depend on relationship, context, emotion, events, and rhythm rather than only scheduled triggers
+- memory should be treated as a layered system with short-term context, long-term episodes, retrieval planning, traceable evidence, and reversible cleanup
+- query expansion is recall planning, not free-form rewriting; retrieval must respect intent, entity, time, relationship, and budget constraints
+- persona learning must be distilled from cleaned, reviewable behavior examples rather than raw transcripts or failure fallbacks
+- retrieval, compression, and training decisions should remain explainable enough to debug why something was remembered, forgotten, or not recalled
 
 ### Collaboration Rules
 

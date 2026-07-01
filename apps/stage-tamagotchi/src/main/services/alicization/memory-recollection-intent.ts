@@ -471,7 +471,7 @@ function inferRecollectionWhyNow(input: {
     && input.emotionalKernel?.initiativeMode === 'hold'
     && hasInwardSelfContinuityEmbodimentTone(input.emotionalKernel ?? null)
   ) {
-    return 'The current emotional kernel is holding inward same-her continuity, so recollection should recover lived self-line continuity before outward memory detail.'
+    return 'The current emotional kernel is holding inward continuity, so recollection should recover lived self-state continuity before outward memory detail.'
   }
   if (input.proceduralWeight >= Math.max(input.conversationHistoryWeight, input.relationshipWeight, input.autobiographicalWeight))
     return 'The current task feels similar to something Alicization has already gone through, so procedure memory should decide what comes back first.'

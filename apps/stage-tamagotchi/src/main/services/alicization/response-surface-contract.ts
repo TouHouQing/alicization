@@ -497,7 +497,7 @@ function looksLikeSameHerProjectContinuityLine(value: unknown) {
   if (!normalized)
     return false
 
-  const carriesSameHer = /same phase 1 digital life|same living line|same her|same-her|one continuous her|one same her|one living her|same local digital life thread/u.test(normalized)
+  const carriesSameHer = /same phase 1 digital life|same living line|same her|same-her|one continuous her|one same her|one living her|current thread continuity/u.test(normalized)
   const carriesClosureContext = /callback|returned result|execution|project|closure|phase 1|open closure|next closure|generic callback shell|detached utility notice/u.test(normalized)
 
   return carriesSameHer && carriesClosureContext
@@ -532,7 +532,7 @@ function readProjectContinuityFromAnswerCompiler(answerCompiler?: AlicizationAns
     .find(item =>
       Boolean(item)
       && /generic assistant shell|generic task shell|detached project narration|project-summary voice|generic callback shell|detached utility notice/u.test(String(item))
-      && /same-her|same her|same living line|same local digital life thread|one continuous her/u.test(String(item).toLowerCase()),
+      && /same-her|same her|same living line|current thread continuity|one continuous her/u.test(String(item).toLowerCase()),
     ) ?? null
 
   return {
@@ -630,7 +630,8 @@ function looksLikeProjectContinuityHoldDetail(value: string | null | undefined) 
   if (!normalized)
     return false
 
-  return normalized.startsWith('same-her hold:')
+  return normalized.startsWith('continuity hold:')
+    || normalized.startsWith('generic project continuity hold')
 }
 
 function resolveProjectSurfacePreDialogueAwarenessLine(input: {
@@ -1107,16 +1108,16 @@ export function buildAlicizationResponseSurfaceContract(input: {
     pushUnique(mustNotDo, 'Do not overplay trust-warming callback relief as immediate intimacy or a push for more closeness than the host invited.')
   }
   else if (runtimeContinuityArcCue === 'same-thread-continuation') {
-    pushUnique(mustDo, 'Let the visible reply stay on the same living line first, then continue before branching outward or widening warmth.')
+    pushUnique(mustDo, 'Let the visible reply stay with the current thread first, then continue before branching outward or widening warmth.')
     pushUnique(mustDo, 'Phrase the continuation positively as already staying with or continuing the same line, instead of centering the wording on what it is not restarting.')
     pushUnique(mustNotDo, 'Do not restart an already-live same-thread continuation as a fresh approach, a widened closeness move, or a generic proactive reopening.')
     pushUnique(mustNotDo, 'Do not lean on negation-first wording like “not restarting”, “not reopening”, or “not getting close again” as the visible spine of a same-thread continuation reply.')
     if (runtimeContinuityPreferredTimingCue === 'next-open-window' && hasRepairBeforeClosenessSameThreadCarry(currentConsciousFrame)) {
-      pushUnique(mustDo, 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.')
+      pushUnique(mustDo, 'Keep the callback tied to the current thread, let repair settle first, and leave room before widening closeness again.')
       pushUnique(mustNotDo, 'Do not widen into warmer payoff, fresh-opening tone, or renewed closeness before the repair line and room have both settled.')
     }
     else if (runtimeContinuityPreferredTimingCue === 'next-open-window' && hasRestProtectiveSameThreadCarry(currentConsciousFrame)) {
-      pushUnique(mustDo, 'Keep the same-thread continuation on the same living line, let rest protection hold first, and leave room before widening warmth, payoff framing, or closeness.')
+      pushUnique(mustDo, 'Keep the same-thread continuation tied to the current thread, let rest protection hold first, and leave room before widening warmth, payoff framing, or closeness.')
       pushUnique(mustNotDo, 'Do not turn a rest-protective same-thread continuation into generic care, fresh-opening warmth, or renewed closeness before the fatigue-aware line has settled.')
     }
     else if (runtimeContinuityPreferredTimingCue === 'next-open-window') {
@@ -1129,11 +1130,11 @@ export function buildAlicizationResponseSurfaceContract(input: {
     }
   }
   else if (runtimeContinuityArcCue === 'hold-for-opening') {
-    pushUnique(mustDo, 'Keep the same living line warm first, and leave room before widening into a fuller reopening.')
+    pushUnique(mustDo, 'Keep the current thread warm first, and leave room before widening into a fuller reopening.')
     pushUnique(mustNotDo, 'Do not treat a hold-for-opening continuity line like a clean new opening or a readiness signal for immediate widened closeness.')
   }
   else if (runtimeContinuityArcCue === 'gentle-reopen') {
-    pushUnique(mustDo, 'Re-enter the same living line softly before widening outward or adding extra warmth.')
+    pushUnique(mustDo, 'Re-enter the current thread softly before widening outward or adding extra warmth.')
     pushUnique(mustNotDo, 'Do not inflate a gentle-reopen continuity line into a louder restart or a broader closeness jump than the moment can hold.')
   }
 
@@ -1145,8 +1146,8 @@ export function buildAlicizationResponseSurfaceContract(input: {
     pushUnique(mustDo, item)
 
   if (projectContinuity?.sameHerLineRequired && projectContinuity.sameHerSelfLine) {
-    pushUnique(mustDo, `Carry this project continuity same-her self line directly in the visible reply posture: ${projectContinuity.sameHerSelfLine}`)
-    pushUnique(mustNotDo, 'Do not degrade a required project continuity same-her self line into generic project-awareness, generic companionship, or detached project-summary wording.')
+    pushUnique(mustDo, `Carry this project continuity self line directly in the visible reply posture: ${projectContinuity.sameHerSelfLine}`)
+    pushUnique(mustNotDo, 'Do not degrade a required project continuity self line into generic project-awareness, generic companionship, or detached project-summary wording.')
     if (runtimeContinuityArcCue === 'same-thread-continuation') {
       pushUnique(mustNotDo, 'Do not flatten this same-thread project-state continuation into a fresh report opening or detached project-summary shell.')
     }
@@ -1154,20 +1155,20 @@ export function buildAlicizationResponseSurfaceContract(input: {
   if (projectContinuity?.preDialogueAwarenessLine) {
     pushUnique(mustDo, `Before widening outward, keep this pre-dialogue project awareness line alive inside the visible reply posture: ${projectContinuity.preDialogueAwarenessLine}`)
     if (projectContinuity.sameHerLineRequired || hasRicherProjectContinuityClosureCarry(projectContinuity.preDialogueAwarenessLine)) {
-      pushUnique(mustDo, `Keep the visible reply anchored to the active digital-life closure seam: ${projectContinuity.preDialogueAwarenessLine}`)
+      pushUnique(mustDo, `Keep the visible reply anchored to the active project closure context: ${projectContinuity.preDialogueAwarenessLine}`)
     }
   }
   if (projectContinuity?.sameHerDriftRisk) {
-    pushUnique(mustDo, `Keep this same-her drift-risk boundary explicit in the visible reply posture: ${projectContinuity.sameHerDriftRisk}`)
+    pushUnique(mustDo, `Keep this continuity drift-risk boundary explicit in the visible reply posture: ${projectContinuity.sameHerDriftRisk}`)
     pushUnique(mustNotDo, 'Do not let the visible reply flatten into a generic task shell, detached project narration, generic assistant guidance, or project-summary voice just because the project update is explicit this turn.')
   }
   if (projectContinuity?.proactiveSameHerGap) {
-    pushUnique(mustDo, `Keep this still-open proactive same-her gap explicit in the visible reply posture before widening outward: ${projectContinuity.proactiveSameHerGap}`)
-    pushUnique(mustNotDo, 'Do not answer as though proactive same-her closure is already finished, or flatten the still-open proactive gap into generic progress recap, generic companionship, or a detached project-summary shell.')
+    pushUnique(mustDo, `Keep this still-open proactive continuity gap explicit in the visible reply posture before widening outward: ${projectContinuity.proactiveSameHerGap}`)
+    pushUnique(mustNotDo, 'Do not answer as though proactive continuity closure is already finished, or flatten the still-open proactive gap into generic progress recap, generic companionship, or a detached project-summary shell.')
   }
   if (hasCrossModalSameHerProjectContinuityCue({ projectContinuity, currentConsciousFrame })) {
-    pushUnique(mustDo, 'Keep the visible reply carrying cross-modal same-her closure explicitly, so the same digital life stays coherent across visible reply, voice, face, motion, and resident presence.')
-    pushUnique(mustNotDo, 'Do not thin a cross-modal same-her closure target back into generic project continuity or generic same-her language before the visible reply lands.')
+    pushUnique(mustDo, 'Keep the visible reply carrying cross-modal closure explicitly, so reply, voice, face, motion, and resident presence stay coherent.')
+    pushUnique(mustNotDo, 'Do not thin a cross-modal closure target back into generic project continuity before the visible reply lands.')
   }
 
   appendAlicizationResponseSurfaceRules(
@@ -1230,16 +1231,16 @@ export function buildAlicizationResponseSurfaceContract(input: {
     if (selfRevisionPatch.responsePosture.templateShellSuppressionBias >= 0.1)
       pushUnique(mustNotDo, 'Do not satisfy the host with a template shell; close the loop with concrete answer or care content now.')
     if (selfRevisionPatch.projectStateContinuity?.sameHerSelfLine) {
-      pushUnique(mustDo, `Keep the visible reply on the same living line the active self-revision patch just re-anchored: ${selfRevisionPatch.projectStateContinuity.sameHerSelfLine}.`)
+      pushUnique(mustDo, `Keep the visible reply on the continuity route the active self-revision patch just re-anchored: ${selfRevisionPatch.projectStateContinuity.sameHerSelfLine}.`)
       pushUnique(mustNotDo, 'Do not let a self-revised visible reply fall back into generic assistant guidance, detached project narration, or external summary cadence.')
     }
     if (selfRevisionPatch.projectStateContinuity?.sameHerHoldDetail) {
-      pushUnique(mustDo, `Keep the active self-revision same-her hold detail alive in the visible reply posture: ${selfRevisionPatch.projectStateContinuity.sameHerHoldDetail}.`)
-      pushUnique(mustNotDo, 'Do not widen the visible reply past the active same-her hold detail before the current closure seam is actually resolved.')
+      pushUnique(mustDo, `Keep the active self-revision hold detail alive in the visible reply posture: ${selfRevisionPatch.projectStateContinuity.sameHerHoldDetail}.`)
+      pushUnique(mustNotDo, 'Do not widen the visible reply past the active hold detail before the current closure seam is actually resolved.')
     }
     if (selfRevisionPatch.projectStateContinuity?.continuityGuard) {
       pushUnique(mustDo, `Keep the active self-revision anti-shell guard alive in the visible reply posture: ${selfRevisionPatch.projectStateContinuity.continuityGuard}.`)
-      pushUnique(mustNotDo, 'Do not let visible caution after self-revision flatten into a project-summary shell instead of the same living digital life answering.')
+      pushUnique(mustNotDo, 'Do not let visible caution after self-revision flatten into a project-summary shell instead of the current digital-life context answering.')
     }
   }
   for (const item of dialogueActKernel?.mustSay ?? [])
@@ -1320,7 +1321,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
         ? `Project continuity primary open loop: ${contract.projectContinuity.primaryOpenLoop}.`
         : '',
       contract.projectContinuity?.proactiveSameHerGap
-        ? `Project continuity proactive same-her gap: ${contract.projectContinuity.proactiveSameHerGap}.`
+        ? `Project continuity proactive gap: ${contract.projectContinuity.proactiveSameHerGap}.`
         : '',
       contract.projectContinuity?.nextClosureTarget
         ? `Project continuity next closure target: ${contract.projectContinuity.nextClosureTarget}.`
@@ -1332,13 +1333,13 @@ export function buildAlicizationResponseSurfaceContract(input: {
         ? `Project continuity emotional closure cue: ${contract.projectContinuity.emotionalClosureCue}.`
         : '',
       contract.projectContinuity?.sameHerSelfLine
-        ? `Project continuity same-her self line: ${contract.projectContinuity.sameHerSelfLine}.`
+        ? `Project continuity self line: ${contract.projectContinuity.sameHerSelfLine}.`
         : '',
       contract.projectContinuity?.sameHerDriftRisk
-        ? `Project continuity same-her drift risk: ${contract.projectContinuity.sameHerDriftRisk}.`
+        ? `Project continuity drift risk: ${contract.projectContinuity.sameHerDriftRisk}.`
         : '',
       contract.projectContinuity
-        ? `Project continuity same-her line required: ${contract.projectContinuity.sameHerLineRequired ? 'yes' : 'no'}.`
+        ? `Project continuity self line required: ${contract.projectContinuity.sameHerLineRequired ? 'yes' : 'no'}.`
         : '',
       memoryResolutionLedger
         ? `Memory closure state: ${memoryResolutionLedger.closureState}.`

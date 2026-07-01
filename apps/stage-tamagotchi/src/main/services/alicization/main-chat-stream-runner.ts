@@ -334,7 +334,7 @@ function looksLikeGenericMeasuredReturnHoldDetail(text: string | null | undefine
   if (hasRememberedSeamMoreRoomCarry(normalized))
     return false
 
-  return normalized.includes('same-her hold: measured-return')
+  return normalized.includes('measured-return hold')
     || normalized.includes('callback line lower-pressure before it widens again')
 }
 
@@ -343,9 +343,9 @@ function looksLikeCanonicalProjectStateSameHerHoldDetail(value: string | null | 
   if (!normalized)
     return false
 
-  return normalized.startsWith('same-her hold:')
+  return normalized.startsWith('generic project continuity hold')
     && normalized.includes('project-state answer')
-    && normalized.includes('same living line before widening outward')
+    && normalized.includes('before widening outward')
 }
 
 function looksLikeCorrectedSamePersonAuthorityHoldDetail(value: string | null | undefined) {
@@ -377,7 +377,7 @@ function looksLikeResumeConfirmationBoundaryHoldDetail(value: string | null | un
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'same-her hold: recognize the same remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
+  return 'Recognize the remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
 }
 
 function resolvePreferredSameHerHoldDetail(input: {
@@ -581,7 +581,7 @@ function looksLikeHostVisibleInternalProjectAwarenessDiagnostic(raw: string | nu
   if (!normalized)
     return false
 
-  return normalized.startsWith('same-her hold:')
+  return normalized.startsWith('generic project continuity hold')
 }
 
 function resolveHostVisibleProjectAwarenessLine(...values: Array<unknown>) {

@@ -317,10 +317,10 @@ function deriveProjectStateGrowthCarry(state: AlicizationVisualPresenceStateSnap
     return null
 
   if (sameHerClosureCarry) {
-    return 'stay near as the same Phase 1 digital life while landed closure keeps growing and the same still-open loop stays on one living line'
+    return 'stay near in the current Phase 1 context while landed closure keeps growing and the still-open loop stays coherent'
   }
 
-  return 'stay near as the same Phase 1 digital life while landed closure keeps growing and the still-open loop stays gentle'
+  return 'stay near in the current Phase 1 context while landed closure keeps growing and the still-open loop stays gentle'
 }
 
 function hasBroaderSameHerPhaseOneEmbodimentAuthority(state: AlicizationVisualPresenceStateSnapshot) {
@@ -584,7 +584,7 @@ function readAutobiographicalRelationshipCadenceCarry(state: AlicizationVisualPr
     return 'Choose openings carefully: leave more room and wait for a clearer opening before reopening.'
   }
   if (behaviorSignatures.includes('habit:same-living-line')) {
-    return 'Stay on the same living line and carry the reopening forward without reopening from scratch.'
+    return 'Stay with the current thread and carry the reopening forward without reopening from scratch.'
   }
 
   return null

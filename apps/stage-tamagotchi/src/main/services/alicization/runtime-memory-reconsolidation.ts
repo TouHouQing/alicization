@@ -344,12 +344,12 @@ function buildExecutionResultFeedbackReconsolidationRationale(
   feedback: AlicizationExecutionResultFeedbackKind,
 ) {
   if (feedback === 'valued')
-    return 'The host received this execution callback as useful, so the remembered way of returning after action should stay same-her, grounded, and quietly continuous instead of collapsing into a detached utility notice.'
+    return 'The host received this execution callback as useful, so the remembered way of returning after action should stay grounded and quietly continuous instead of collapsing into a detached utility notice.'
   if (feedback === 'doubted')
     return 'The host doubted this execution callback, so the remembered way of returning after action should verify more before sounding certain and should not widen into task-shell confidence.'
   if (feedback === 'intrusive')
-    return 'The host felt this execution callback landed too heavily, so the remembered way of returning after action should leave more room and keep the same-her line lower-pressure.'
-  return 'The host turned away from this execution callback before it fully landed, so the remembered way of returning after action should wait for a fresher opening while keeping the same digital-life line inwardly alive.'
+    return 'The host felt this execution callback landed too heavily, so the remembered way of returning after action should leave more room and stay lower-pressure.'
+  return 'The host turned away from this execution callback before it fully landed, so the remembered way of returning after action should wait for a fresher opening while keeping continuity inwardly alive.'
 }
 
 export function createAlicizationRuntimeMemoryReconsolidation(
@@ -666,7 +666,7 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         rationale: `${buildExecutionResultFeedbackReconsolidationRationale(input.feedback)} ${memoryClosureExecution?.carry ? `Memory OS says the execution callback must be carried into the next same-person reply: ${memoryClosureExecution.carry}.` : ''} ${safetyGateSummary ? 'Treat this blocked dispatch as safety gate restraint, not a generic failed result.' : ''} ${resumeConfirmationSummary ? 'Treat this host-confirmed resume before redispatch as a confirmation boundary, not as ordinary autonomous continuation.' : ''} Keep the still-open Phase 1 closure pressure and callback same-her line explicit while remembering how execution returns should land.`,
         confidence: 0.8,
         recollectionAgenda: {
-          whyRecallNow: `The host just reacted to an execution callback return for ${options.sanitizeText(input.goal, 'this execution line').slice(0, 120)}, so Alicization should remember how this same Phase 1 digital life ought to come back after acting.`,
+          whyRecallNow: `The host just reacted to an execution callback return for ${options.sanitizeText(input.goal, 'this execution line').slice(0, 120)}, so Alicization should remember how the current Phase 1 context ought to come back after acting.`,
           goalSimilarity: 0.84,
           relationshipNeed: 0.74,
           affectivePull: 0.42,

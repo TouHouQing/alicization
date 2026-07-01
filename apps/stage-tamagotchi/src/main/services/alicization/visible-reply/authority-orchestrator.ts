@@ -1,7 +1,12 @@
 import type { AlicizationVisibleReplyExecution } from '../../../../shared/eventa'
 import type { AlicizationActiveDialogueFastPathDecision } from '../main-chat-active-dialogue-loop'
 
-import { shouldAlicizationActiveDialogueStayLLMAuthored } from '../main-chat-active-dialogue-loop'
+import {
+  resolveAlicizationChatFailureSurface,
+  type AlicizationChatFailureKind,
+} from '@proj-alicization/stage-shared'
+
+import { shouldAlicizationReplyStayProviderAuthored } from './reply-authority-policy'
 
 export interface AlicizationVisibleReplyAuthorityDecision {
   allowed: boolean
@@ -41,7 +46,7 @@ export function decideAlicizationActiveDialogueCompactAuthority(
     }
   }
 
-  if (shouldAlicizationActiveDialogueStayLLMAuthored(decision)) {
+  if (shouldAlicizationReplyStayProviderAuthored(decision)) {
     return {
       allowed: false,
       reason: 'mind-authored-lane',
@@ -70,13 +75,24 @@ export function buildAlicizationMindAuthoringFailureArtifact(input: {
   stage: 'main-gateway-timeout' | 'visible-reply-second-pass' | 'provider-recovery'
   turnId?: string | null
   reasonCodes?: string[]
+  failureKind?: AlicizationChatFailureKind
+  userText?: string
 }) {
   const reason = input.reason.trim().slice(0, 180) || 'mind-authoring-failed'
+  const failureKind = input.failureKind ?? (input.stage === 'main-gateway-timeout' ? 'timeout' : 'stream-failure')
+  const failureSurface = resolveAlicizationChatFailureSurface({
+    kind: failureKind,
+    userText: input.userText,
+  })
   return {
     format: 'mind-turn-v1',
     thought: `transport_failure=${input.stage}; visible_reply=blocked; reason=${reason}`,
     emotion: 'thinking',
-    reply: '',
+    reply: failureSurface.reply,
+    visibleReplySource: failureSurface.visibleReplySource,
+    excludeFromPersonaLearning: failureSurface.excludeFromPersonaLearning,
+    excludeFromMemoryCondensation: failureSurface.excludeFromMemoryCondensation,
+    auditCategory: failureSurface.auditCategory,
     performance: {
       baseEmotion: 'thinking',
       facialCue: null,
@@ -87,7 +103,7 @@ export function buildAlicizationMindAuthoringFailureArtifact(input: {
     visibleReplyAuthority: 'llm-second-pass-rewrite',
     visibleReplyRewriteRequest: null,
     visibleReplyBlocked: true,
-    nonHumanAuthoredStatus: reason,
+    nonHumanAuthoredStatus: failureSurface.nonHumanAuthoredStatus,
     reasonCodes: uniqueList([
       'normal-reply-requires-provider-mind',
       'non-human-authored-visible-fallback-blocked',

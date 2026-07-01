@@ -817,7 +817,7 @@ function buildProjectClosureProposalWhy(input: {
         rawSameHerSelfLine && hasChineseProjectSameLineContinuityCue(rawSameHerSelfLine.toLowerCase())
           ? rawSameHerSelfLine
           : phaseOneDigitalLife && continuousHer
-            ? 'Same Phase 1 digital life; same living line.'
+            ? 'Current Phase 1 project context; continuity stays active.'
             : sanitizeText(sameHerSelfLine, 96)
       )
     : ''

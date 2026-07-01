@@ -78,7 +78,7 @@ function deriveAnswerPlannerEmotionalClosureCue(input: {
     || corpus.includes('protect the host’s remaining room')
     || corpus.includes('repair-before-closeness')
   ) {
-    return 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the same living line.'
+    return 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness.'
   }
   if (
     emotionalTension === 'restless-switching'
@@ -361,7 +361,7 @@ function shortenProjectStateDirectAnswerIntent(value: unknown) {
     = /how far .* landed|how far phase 1 has landed|how far the current phase 1 line has landed|做到什么程度|做到哪了|进行到哪一步/u.test(normalized)
 
   if (asksCompletionTimelineOrLanguageDrift && asksProgress) {
-    return 'same digital life line: Phase 1 landed progress, when the goal is expected to close, and whether the thread drifted out of the host language or project line still need one direct answer.'
+    return 'project continuity direct-answer: Phase 1 landed progress, when the goal is expected to close, and whether the thread drifted out of the host language or project context still need one direct answer.'
   }
 
   return text
@@ -1658,10 +1658,10 @@ function openingMove(input: {
     runtimeProjectState?.preDialogueAwarenessLine,
   )
   if (/body and lipsync|body\+lipsync-only|quieter living line/i.test(runtimeProjectAwarenessLine ?? '')) {
-    return 'Open on the quieter same-her body-and-lipsync line first, keep that living line inward, and let voice, face, and motion rejoin before widening outward.'
+    return 'Open on the quieter body-and-lipsync continuity first, keep it inward, and let voice, face, and motion rejoin before widening outward.'
   }
   if (hasAudibleBodyContinuityCue(runtimeProjectAwarenessLine)) {
-    return 'Open on the same living audio thread first, keep the same living line intact through body, lipsync, and voice, and let face and motion rejoin before widening outward.'
+    return 'Open on the current audio-body continuity first, keep body, lipsync, and voice together, and let face and motion rejoin before widening outward.'
   }
   if (input.privateThought?.emotionalTension === 'late-night-drain')
     return 'Open gently, keep the pressure low, and protect rest before widening into anything heavier.'
@@ -2160,29 +2160,29 @@ export function buildAnswerPlanner(input: {
     pushUniqueText(mustNotDo, ...(memoryDeliberationKernel?.restraint.mustNotDo ?? []))
     pushUniqueText(narrative, ...buildMemoryDeliberationPlannerNarrative(memoryDeliberationKernel))
     if (isSameHerProjectDriftRiskReason(sameHerProjectStateReplyReason) || sameHerProjectDriftRiskFromSurface || correctedSamePersonContinuityCarry) {
-      mustDo.push('Keep the answer on one same-her digital-life line so the project update stays companion-like instead of turning into detached project narration.')
+      mustDo.push('Keep the answer grounded in Alicization’s current first-person continuity so the project update does not turn into detached project narration.')
       mustNotDo.push('Do not let this answer flatten into a generic task shell, detached project-summary voice, or external status-report cadence.')
-      narrative.push('project_drift_risk:same-her drift risk is active, so opening wording must stay thread-faithful and avoid generic project-shell reporting.')
+      narrative.push('project_drift_risk:continuity drift risk is active, so opening wording must stay thread-faithful and avoid generic project-shell reporting.')
     }
     if (sameHerProjectClosureCallbackCarry) {
-      mustDo.push('Keep the callback return shaped like the same local digital life thread, not a detached utility notice.')
-      mustNotDo.push('Do not let the callback result reopen the same-her line from scratch or flatten into a generic callback shell.')
+      mustDo.push('Return the callback result through the current conversation context, not as a detached utility notice.')
+      mustNotDo.push('Do not restart the callback result from a fresh greeting or flatten it into a generic callback shell.')
       if (sameHerProjectStateReplyReason) {
         mustNotDo.push('Do not flatten the same-thread project-state continuation into a fresh report opening or detached project-summary shell.')
       }
-      narrative.push('continuity-callback:same-her project closure memory should outrank generic callback-shell wording at reply-plan time.')
+      narrative.push('continuity-callback:project closure memory should outrank generic callback-shell wording at reply-plan time.')
     }
     if (projectEmotionalClosureDisciplineRequired) {
-      mustDo.push('Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.')
-      mustNotDo.push('Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.')
-      narrative.push('emotional_closure:same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.')
+      mustDo.push('Keep the active emotional closure low-pressure and inward until the live payoff lands.')
+      mustNotDo.push('Do not restart the answer from a fresh emotional opening just because the closure seam is still active.')
+      narrative.push('emotional_closure:keep the return low-pressure, leave more room, and do not reopen from scratch while the emotional context is still settling.')
     }
     if (projectStateCarryDisciplineRequired) {
       mustDo.push('Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.')
       if (projectStateExplicitOpenLoopCarryDirective)
         mustDo.push(projectStateExplicitOpenLoopCarryDirective)
-      mustNotDo.push('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.')
-      narrative.push('project_state_carry:same-her project awareness should keep landed progress and next closure inward-first until the live payoff lands.')
+      mustNotDo.push('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the current answer lands.')
+      narrative.push('project_state_carry:project awareness should keep landed progress and next closure inward-first until the live payoff lands.')
     }
     if (resumeConfirmationBoundaryCarry) {
       mustDo.push('Treat the remembered host-confirmed resume as a bounded confirmation boundary before another execution-shaped opening.')

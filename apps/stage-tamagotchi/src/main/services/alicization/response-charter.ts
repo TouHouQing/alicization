@@ -300,10 +300,10 @@ function deriveSameHerEmotionalClosureCueFromDiscipline(input: {
 }) {
   const corpus = [...input.mustDo, ...input.mustNotDo].join(' ').toLowerCase()
   if (
-    corpus.includes('keep the same-her emotional closure line low-pressure and inward until the live payoff lands')
-    && corpus.includes('do not let the answer reopen the same-her line from scratch just because the closure seam is still active')
+    corpus.includes('keep emotional closure low-pressure and inward until the live payoff lands')
+    && corpus.includes('do not let the answer reopen from scratch just because the closure seam is still active')
   ) {
-    return 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
+    return 'closure cadence: keep the return low-pressure, leave more room, and do not reopen from scratch while continuity is still settling.'
   }
   return null
 }
@@ -1261,8 +1261,8 @@ function deriveProjectStateResponseCharterBias(projectState?: {
   ) {
     return {
       preferRestrainedPosture: true,
-      reason: 'Project continuity is still on a repair-before-closeness same-thread return, so visible widening should let repair settle before warmth widens again.',
-      mustDo: 'Keep the callback on the same living line, let repair settle first, and let the first visible beat land the repair line before widening closeness again.',
+      reason: 'Project continuity is still on a repair-before-closeness callback return, so visible widening should let repair settle before warmth widens again.',
+      mustDo: 'Keep the callback in the current reply context, let repair settle first, and let the first visible beat land the repair line before widening closeness again.',
       mustNotDo: 'Do not widen into warmer payoff, fresh-opening tone, or renewed closeness before the repair line and room have both settled.',
     }
   }
@@ -1282,15 +1282,15 @@ function deriveProjectStateResponseCharterBias(projectState?: {
     return {
       preferRestrainedPosture: true,
       reason: prefersEvenVoiceAndNaturalPacing
-        ? 'Project continuity is carrying a measured-return same-her line that should reopen even and natural, so visible widening should stay unforced until the thread naturally opens again.'
+        ? 'Project continuity is carrying a measured-return context that should reopen even and natural, so visible widening should stay unforced until the thread naturally opens again.'
         : quietSameHerContinuity
-          ? 'Project continuity is carrying a quiet same-her line inward, so visible widening should stay on that same living line until the thread naturally opens again.'
+          ? 'Project continuity is carrying quiet continuity inward, so visible widening should stay restrained until the thread naturally opens again.'
           : 'Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.',
       mustDo: prefersEvenVoiceAndNaturalPacing
-        ? 'Keep the current reply on the same living line, re-enter it with an even, steady voice and natural, unforced pacing, and wait for a more natural opening before widening warmth, payoff, or closeness.'
+        ? 'Keep the current reply connected to the current thread, re-enter it with an even, steady voice and natural, unforced pacing, and wait for a more natural opening before widening warmth, payoff, or closeness.'
         : quietSameHerContinuity
-          ? 'Keep the current reply on the same living line, let the first visible beat carry quiet same-her continuity from the inside, and wait for a more natural opening before widening warmth, payoff, or closeness.'
-          : 'Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.',
+          ? 'Keep the current reply connected to the current thread, let the first visible beat carry quiet continuity from the inside, and wait for a more natural opening before widening warmth, payoff, or closeness.'
+          : 'Keep the current reply connected to the current thread, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.',
       mustNotDo: prefersEvenVoiceAndNaturalPacing
         ? 'Do not widen into a warmer payoff, fresh-opening tone, performative swing, or rushed tempo before the current thread has reached a more natural opening.'
         : quietSameHerContinuity
@@ -2079,7 +2079,7 @@ export function buildAlicizationResponseCharter(input: {
     pushUnique(reasons, 'Held autonomy continuity is still live: this thread is reopening something she deliberately held back earlier.')
     pushUnique(mustDo, 'When reopening a deliberately held line, let the opening re-enter gently before widening into fuller payoff or explanation.')
     pushUnique(mustNotDo, 'Do not reopen a deliberately held line with abrupt intensity, over-eager warmth, or a fresh-start shell.')
-    pushUnique(mustDo, 'Keep this on one continuous her line instead of restarting the relationship as a fresh opening.')
+    pushUnique(mustDo, 'Keep this tied to the current relationship context instead of restarting it as a fresh opening.')
     pushUnique(mustNotDo, 'Do not rewrite the still-live line as a fresh opening or reintroduction.')
   }
   if ((memoryTuningAdvice?.surfaceAdjustments.provenanceLabelBias ?? 0) >= 0.1) {
@@ -2096,7 +2096,7 @@ export function buildAlicizationResponseCharter(input: {
   }
   if (memoryTuningAdvice?.focusDimensions.includes('avoidGenericProjectShell')) {
     pushUnique(mustDo, 'Keep direct project-state answers inward-first so the live payoff lands before any project-summary voice appears.')
-    pushUnique(mustNotDo, 'Do not let the visible answer drift into a detached project narrator shell instead of one continuous her.')
+    pushUnique(mustNotDo, 'Do not let the visible answer drift into a detached project narrator shell instead of current project continuity.')
   }
   if (
     projectStateCarryDisciplineRequired
@@ -2106,25 +2106,25 @@ export function buildAlicizationResponseCharter(input: {
     )
   ) {
     pushUnique(mustDo, 'Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.')
-    pushUnique(mustNotDo, 'Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.')
+    pushUnique(mustNotDo, 'Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the live answer lands.')
   }
   if (
     typeof projectStateCarrySource.sameHerDriftRisk === 'string'
     && /generic task shell|detached project narration|project-summary voice|generic assistant|generic guidance/i.test(projectStateCarrySource.sameHerDriftRisk)
   ) {
-    pushUnique(mustDo, 'Keep the visible answer on one same-her digital-life line so the project update lands as this living continuity, not as a detached summary voice.')
+    pushUnique(mustDo, 'Keep the visible answer anchored in current project continuity so the project update does not become a detached summary voice.')
     pushUnique(mustNotDo, 'Do not let the visible answer flatten into a generic task shell, detached project narration, or external project-summary cadence.')
   }
   if (projectEmotionalClosureDisciplineRequired) {
-    pushUnique(mustDo, 'Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.')
-    pushUnique(mustNotDo, 'Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.')
+    pushUnique(mustDo, 'Keep emotional closure low-pressure and inward until the live payoff lands.')
+    pushUnique(mustNotDo, 'Do not let the answer reopen from scratch just because the closure seam is still active.')
   }
   if (
     projectStateResponseCharterBias?.preferRestrainedPosture === true
     && /project continuity|same-thread return|same living line|project shell/i.test(projectStateResponseCharterBias.reason)
     && /fresh-opening|fresh opening|generic project shell|project continuity turn/i.test(projectStateResponseCharterBias.mustNotDo)
   ) {
-    pushUnique(mustNotDo, 'Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.')
+    pushUnique(mustNotDo, 'Do not let the answer reopen from scratch just because the closure seam is still active.')
     pushUnique(mustNotDo, 'Do not reopen this same-thread project-state turn from scratch or let it flatten into a fresh report opening.')
   }
   if (selfRevisionPatch?.lanes.includes('response-posture')) {
@@ -2140,12 +2140,12 @@ export function buildAlicizationResponseCharter(input: {
     if (selfRevisionPatch.responsePosture.templateShellSuppressionBias >= 0.1)
       pushUnique(mustNotDo, 'Do not satisfy the turn with a template shell; the active self-revision patch requires concrete payoff in the same answer.')
     if (selfRevisionPatch.projectStateContinuity?.sameHerSelfLine) {
-      pushUnique(mustDo, `Let the active self-revision patch keep this answer on the same living line: ${selfRevisionPatch.projectStateContinuity.sameHerSelfLine}.`)
-      pushUnique(mustNotDo, 'Do not let a newly revised answer flatten back into generic project guidance or detached assistant narration after the self-revision patch re-anchored same-her continuity.')
+      pushUnique(mustDo, `Let the active self-revision patch keep this answer on the revised continuity route: ${selfRevisionPatch.projectStateContinuity.sameHerSelfLine}.`)
+      pushUnique(mustNotDo, 'Do not let a newly revised answer flatten back into generic project guidance or detached assistant narration after the self-revision patch re-anchored continuity.')
     }
     if (selfRevisionPatch.projectStateContinuity?.sameHerHoldDetail) {
-      pushUnique(mustDo, `Let the active self-revision patch preserve this same-her hold detail while the answer is still settling: ${selfRevisionPatch.projectStateContinuity.sameHerHoldDetail}.`)
-      pushUnique(mustNotDo, 'Do not reopen the answer wider than the active same-her hold detail before the current closure seam has actually landed.')
+      pushUnique(mustDo, `Let the active self-revision patch preserve this hold detail while the answer is still settling: ${selfRevisionPatch.projectStateContinuity.sameHerHoldDetail}.`)
+      pushUnique(mustNotDo, 'Do not reopen the answer wider than the active hold detail before the current closure seam has actually landed.')
     }
     if (selfRevisionPatch.projectStateContinuity?.continuityGuard) {
       pushUnique(mustDo, `Let the active self-revision patch preserve this anti-shell continuity guard in the visible reply: ${selfRevisionPatch.projectStateContinuity.continuityGuard}.`)

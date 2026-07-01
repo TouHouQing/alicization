@@ -566,17 +566,17 @@ function deriveSelfRevisionPatchSameHerHoldDetail(selfRevisionPatch?: Alicizatio
     return null
 
   if (/repair-before-closeness|repair before closeness|repair-first|repair first/u.test(merged))
-    return 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.'
+    return 'repair-before-closeness is still owning this callback line before closeness widens again.'
 
   if (
     /vulnerable-care|vulnerable care|fragile care|care-before-analysis|care before analysis|care arrive before analysis|care arrives before analysis|analysis-heavy|analysis heavy/u.test(merged)
     && /same living line|same line|same-her|same her|line stays inward|holds inward/u.test(merged)
   ) {
-    return 'same-her hold: rest-protective vulnerable-care keeps this return care-before-analysis, lighter, and inward on the same living line.'
+    return 'rest-protective vulnerable-care keeps this return care-before-analysis, lighter, and inward.'
   }
 
   if (/rest-protective|rest protective|rest protection|quiet-companionship|quiet companionship|fatigue-aware|late-night-drain|line holds inward|holds inward|quietly inward/u.test(merged)) {
-    return 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware.'
+    return 'rest-protective companionship is still keeping this return inward and fatigue-aware.'
   }
 
   return null
@@ -648,7 +648,7 @@ function hasRememberedSeamMoreRoomCarry(text: string | null | undefined) {
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'same-her hold: recognize the same remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
+  return 'Recognize the remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
 }
 
 function guidanceIndicatesEvenNaturalReentry(guidance: string) {

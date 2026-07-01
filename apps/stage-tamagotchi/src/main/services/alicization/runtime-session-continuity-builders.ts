@@ -851,7 +851,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     const repairBeforeClosenessSummaryLead = repairBeforeClosenessProjectAuthority
       ? /same living line|one living her|same line|same-her|同一条线|同一生命线/u.test(repairBeforeClosenessProjectAuthority)
         ? repairBeforeClosenessProjectAuthority
-        : `${repairBeforeClosenessProjectAuthority} Keep this return repair-before-closeness on the same living line before widening outward.`
+        : `${repairBeforeClosenessProjectAuthority} Keep this return repair-before-closeness before widening outward.`
       : null
 
     if (shouldUseDeferredProactiveLine) {

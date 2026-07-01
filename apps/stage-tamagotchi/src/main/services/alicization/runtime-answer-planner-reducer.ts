@@ -93,7 +93,7 @@ function deriveSameHerEmotionalClosureCueFromGovernance(governance: AlicizationM
       || corpus.includes('reopen the same-her line from scratch')
   if (!hasLowPressureCarry || !hasAntiRestartCarry)
     return null
-  return 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
+  return 'closure cadence: keep the return low-pressure, leave more room, and do not reopen from scratch while continuity is still settling.'
 }
 
 function normalizePreferredBlinkCadence(raw: unknown): AlicizationRuntimeProjectStateDigest['preferredBlinkCadence'] {

@@ -359,10 +359,10 @@ export function buildAutobiographicalEpisodesFromPreparedMirror(input: {
           : 'The finished execution line stayed in memory as a shared callback continuity.',
       relationshipMeaning: projectStateBias.anthropomorphicMemoryClosureStillOpen
         ? currentCarryMode === 'lower-pressure'
-          ? 'A successful callback can still ask for space, and that spacing should remain part of the bond because unfinished Phase 1 closure still belongs to the same living self.'
+          ? 'A successful callback can still ask for space, and that spacing should remain part of the bond because unfinished Phase 1 closure still belongs to the ongoing self-continuity.'
           : currentCarryMode === 'trust-warming'
-            ? 'A useful callback can quietly warm trust without collapsing the boundary into generic intimacy, and that unfinished Phase 1 closure pressure should stay on the same living line.'
-            : 'The callback line should remain part of lived relationship continuity rather than vanish as tooling residue, because unfinished Phase 1 closure still belongs to the same living self.'
+            ? 'A useful callback can quietly warm trust without collapsing the boundary into generic intimacy, and that unfinished Phase 1 closure pressure should stay in the current continuity context.'
+            : 'The callback line should remain part of lived relationship continuity rather than vanish as tooling residue, because unfinished Phase 1 closure still belongs to the ongoing self-continuity.'
         : currentCarryMode === 'lower-pressure'
           ? 'A successful callback can still ask for space, and that spacing should remain part of the bond.'
           : currentCarryMode === 'trust-warming'

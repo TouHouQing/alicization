@@ -1029,15 +1029,15 @@ function deriveExecutionLikeSameHerHoldDetail(input: {
   const genericRepairMenu = /measured-return\s*\/\s*repair-before-closeness|one measured-return,\s*repair-before-closeness,\s*or rest-protective|measured-return,\s*repair-before-closeness,\s*or rest-protective/u.test(combined)
 
   if (explicitRepairAuthority && !genericRepairMenu) {
-    return 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.'
+    return 'repair-before-closeness is still owning this callback line before closeness widens again.'
   }
 
   if (/reopened too eagerly|too eagerly|more room this time|keep more room this time|leave more room|do not reopen it with the same eagerness|不要重开得太快|这次更要留白|这次要更慢一点|上次太急/u.test(combined)) {
-    return 'same-her hold: recognize the same remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
+    return 'Recognize the remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
   }
 
   if (/measured-return|lower-pressure|one step more reversible|still settling|leave room|留白|放轻|别立刻把温度放大/u.test(combined)) {
-    return 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
+    return 'measured-return is still keeping this callback line lower-pressure before it widens again.'
   }
 
   return ''

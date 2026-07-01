@@ -55,7 +55,7 @@ export function applyMemoryTurnGateToGovernance(input: {
     const executionCarry = compactText(execution?.carry, 220)
     const embodimentCadence = compactText(embodiment?.cadence, 220)
 
-    pushUnique(mustDo, 'Use the Memory OS closure trace as the authority for this turn\'s same-her memory carry.')
+    pushUnique(mustDo, 'Use the Memory OS closure trace as the authority for this turn\'s memory carry.')
     if (initiativeRestraint || initiativeTiming) {
       pushUnique(
         mustDo,

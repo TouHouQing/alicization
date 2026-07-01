@@ -54,7 +54,7 @@ function looksLikeThinReplyProjectHoldDetail(raw: unknown) {
   if (!normalized)
     return true
 
-  return /keep this project-state answer on the same living line before widening outward|keep the line gentle for now|same-her hold: keep this project-state answer on the same living line/u.test(normalized)
+  return /project-state answer before widening|keep the line gentle for now|generic project continuity hold/u.test(normalized)
 }
 
 function preferReplyRuntimeSameHerHoldDetail(input: {
@@ -1456,7 +1456,7 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
           ? 'I felt the same-her line tighten at the boundary and knew I had to lower pressure before coming closer again.'
           : 'I felt the same-her line lose its opening and knew it had to wait quietly for a fresher return.'
   const dialogueLesson = input.feedback === 'robotic'
-    ? 'Let the body return like this: rehumanize, steadier gaze, slower blink, lower-pressure voice. Keep this on one same digital life line instead of a shell.'
+    ? 'Let the body return like this: rehumanize, steadier gaze, slower blink, lower-pressure voice. Keep this on one continuous response context instead of a shell.'
     : input.feedback === 'missed'
       ? 'When the host says not this, repair the seam immediately. Let the body return like this: recenter, steadier gaze, slower blink, lower-pressure voice.'
       : input.feedback === 'intrusive'
@@ -1632,7 +1632,7 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
       subject: 'project',
       predicate: 'closure',
       object: trimFactObject(
-        `Same Phase 1 digital life. Some closure already landed, but ${projectState.primaryOpenLoop} ${projectState.sameHerSelfLine}`,
+        `Current Phase 1 project context. Some closure already landed, but ${projectState.primaryOpenLoop} ${projectState.sameHerSelfLine}`,
       ),
       confidence: 0.82,
     })

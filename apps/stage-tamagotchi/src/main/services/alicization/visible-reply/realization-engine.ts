@@ -38,7 +38,7 @@ import { buildPrioritizedProjectStateRewritePreserveLines } from '../runtime-gov
 import { parseJsonObjectFromText } from '../runtime-transport-content'
 
 const sameHerProjectFollowThroughPreserveLine
-  = 'Keep this same-her project follow-through on one already-live line: continue the landed progress and still-open closure from inside the same digital life instead of restarting as a fresh project report or generic companionship shell.'
+  = 'Keep this project follow-through in the current reply context: continue the landed progress and still-open closure instead of restarting as a fresh project report or generic companionship shell.'
 
 function looksLikeRicherProjectClosureCarry(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
@@ -302,7 +302,7 @@ function looksLikeGenericMeasuredReturnHoldDetail(text: string | null | undefine
   if (hasRememberedSeamMoreRoomCarry(normalized))
     return false
 
-  return normalized.includes('same-her hold: measured-return')
+  return normalized.includes('measured-return hold')
     || normalized.includes('callback line lower-pressure before it widens again')
 }
 
@@ -311,9 +311,9 @@ function looksLikeCanonicalProjectStateSameHerHoldDetail(value: string | null | 
   if (!normalized)
     return false
 
-  return normalized.startsWith('same-her hold:')
+  return normalized.startsWith('generic project continuity hold')
     && normalized.includes('project-state answer')
-    && normalized.includes('same living line before widening outward')
+    && normalized.includes('before widening outward')
 }
 
 function looksLikeCadenceAwareSameHerHoldDetail(value: string | null | undefined) {
@@ -321,12 +321,12 @@ function looksLikeCadenceAwareSameHerHoldDetail(value: string | null | undefined
   if (!normalized)
     return false
 
-  return normalized === 'same-her hold: keep the return lower-pressure and slower before the line widens again.'
-    || normalized === 'same-her hold: keep the remembered return quieter, longer, and more restrained before widening the line again.'
+  return normalized === 'cadence hold: keep the return lower-pressure and slower before the line widens again.'
+    || normalized === 'cadence hold: keep the remembered return quieter, longer, and more restrained before widening the line again.'
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'same-her hold: recognize the same remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
+  return 'remembered-seam hold: recognize the remembered relationship cue, but keep more room this time so the return does not reopen with the same eagerness as before.'
 }
 
 function resolvePreferredSameHerHoldDetail(input: {
@@ -1571,14 +1571,14 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
   const projectStateInitiativeClosureSummary = preferRicherProjectStateAuditText({
     current:
       preparedCurrentConsciousSpeakingIntention
-      && /initiative should|same digital life carrying memory, emotion, and embodiment|same living line before widening|rechecking on the same living line/u.test(
+      && /initiative should|memory, emotion, and embodiment|continuity before widening|rechecking/u.test(
         preparedCurrentConsciousSpeakingIntention.toLowerCase(),
       )
         ? preparedCurrentConsciousSpeakingIntention
         : null,
     candidate:
       preparedCurrentConsciousNeed
-      && /initiative should|same digital life carrying memory, emotion, and embodiment|same living line before widening|rechecking on the same living line/u.test(
+      && /initiative should|memory, emotion, and embodiment|continuity before widening|rechecking/u.test(
         preparedCurrentConsciousNeed.toLowerCase(),
       )
         ? preparedCurrentConsciousNeed

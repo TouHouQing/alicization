@@ -743,7 +743,7 @@ function preferRicherProjectStateAuditText(input: {
   const scoreClosureSeamStrength = (value: string) => {
     const lower = value.toLowerCase()
     let score = 0
-    if (lower.includes('same-her hold:') || lower.includes('same her hold:'))
+    if (lower.includes('continuity hold:') || lower.includes('generic project continuity hold'))
       score += 10
     if (lower.includes('repair-before-closeness'))
       score += 8
@@ -789,7 +789,7 @@ function readRuntimeProjectStateSameHerLivingLine(body: Pick<AlicizationChatMeta
   if (!carriesSameLivingLine)
     return null
 
-  return 'Keep the same living line inward for now, and leave room before widening outward again'
+  return 'Keep the current thread inward for now, and leave room before widening outward again'
 }
 
 function readRuntimeProjectEmotionalClosureSameHerLine(body: Pick<AlicizationChatMetaEvent, 'runtimeDigest'>) {
@@ -888,7 +888,7 @@ function readRuntimeProjectEmotionalClosureSameHerLine(body: Pick<AlicizationCha
     return projectStateEmotionalClosureCue
 
   if (carriesMeasuredReturnLivingLine || carriesSameHerMeasuredReturn)
-    return 'Keep the same living line inward for now, and leave room before widening outward again'
+    return 'Keep the current thread inward for now, and leave room before widening outward again'
 
   if (
     normalized.includes('repair-before-closeness')
@@ -948,7 +948,7 @@ function resolveRepairBeforeClosenessSameHerReason(
   if (!carriesExecutionCallbackRoomFirstDrift && !carriesExplicitRepairFirstRestraint)
     return null
 
-  return 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again'
+  return 'Keep the callback tied to the current thread, let repair settle first, and leave room before widening closeness again'
 }
 
 function resolveResidentPresenceSnapshotFallback(
@@ -1118,8 +1118,8 @@ function isSameHerProjectClosureAuthority(raw: string | null | undefined) {
 
   const normalized = raw.trim().toLowerCase()
   const carriesNamedSameHerHold
-    = normalized.includes('same-her hold:')
-      || normalized.includes('same her hold:')
+    = normalized.includes('continuity hold:')
+      || normalized.includes('generic project continuity hold')
   const carriesMeasuredReturnAuthority
     = normalized.includes('same remembered seam')
       || normalized.includes('remembered seam')
@@ -1163,8 +1163,8 @@ function isSpecificMeasuredReturnSameHerHoldDetail(raw: string | null | undefine
 
   const normalized = raw.trim().toLowerCase()
   const carriesNamedSameHerHold
-    = normalized.includes('same-her hold:')
-      || normalized.includes('same her hold:')
+    = normalized.includes('continuity hold:')
+      || normalized.includes('generic project continuity hold')
   if (!carriesNamedSameHerHold)
     return false
 
@@ -1213,9 +1213,9 @@ function shouldMarkPhase1OpenGrowth(input: {
 
   return (
     continuityReason.includes('same-digital-life-project-thread')
-    || continuityReason.includes('Same Phase 1 digital life. Some closure already landed.')
+    || continuityReason.includes('current project continuity has already landed')
     || continuityReason.includes('same phase 1 digital life, some closure has already landed')
-    || continuityReason.includes('Keep the same living line inward for now')
+    || continuityReason.includes('Keep the current thread inward for now')
     || (
       isCanonicalRepairBeforeClosenessReason(continuityReason)
       && (
@@ -1428,7 +1428,7 @@ function resolveContinuityReasonSummary(
             ?? runtimeProjectStateSameHerLivingLine
             ?? runtimeProjectEmotionalClosureSameHerLine
             ?? normalizedSameHerInwardCarry
-            ?? 'Keep the same living line inward for now, and leave room before widening outward again')
+            ?? 'Keep the current thread inward for now, and leave room before widening outward again')
       : preferredSameHerReason
     if (shouldPreferCanonicalMeasuredReturnProjectClosure && runtimeProjectStateSameHerLivingLine) {
       return embodimentClosureSummary
@@ -1515,7 +1515,7 @@ function shouldPromoteMeasuredReturnProjectClosureVoiceFallback(input: {
     return false
   if (input.continuityTiming !== 'next-open-window')
     return false
-  if (!input.continuityReasonSummary?.includes('Keep the same living line inward for now'))
+  if (!input.continuityReasonSummary?.includes('Keep the current thread inward for now'))
     return false
 
   return (
@@ -1871,7 +1871,7 @@ function resolveResidentPresenceSummary(body: Pick<AlicizationChatMetaEvent, 'di
     )
   const residentCompanionshipReason = residentTimingCompanionshipReason(residentMode)
   const carriesCanonicalSameHerInwardResidentReason = typeof residentCompanionshipReason === 'string'
-    && residentCompanionshipReason.includes('Keep the same living line inward for now')
+    && residentCompanionshipReason.includes('Keep the current thread inward for now')
   const finerResidentTimingReason = hasRememberedSeamMoreRoomReasonTag(residentReasonTags)
     ? residentCompanionshipReason
     : null
@@ -3392,7 +3392,7 @@ export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMeta
       continuityReasonSummary === explicitProjectContinuityCue
       || isCompactProjectRouteCarry(continuityReasonSummary)
       || isSameHerProjectClosureLine(continuityReasonSummary)
-      || continuityReasonSummary.includes('Keep the same living line inward for now')
+      || continuityReasonSummary.includes('Keep the current thread inward for now')
       || continuityReasonSummary.includes('keep the next return measured-return')
       || continuityReasonSummary.includes('leave this same living line inward for now')
     )

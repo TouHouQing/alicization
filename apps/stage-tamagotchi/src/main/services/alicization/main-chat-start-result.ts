@@ -118,7 +118,7 @@ function scoreMainChatStartProjectDetail(value: unknown, kind: 'awareness' | 'sa
   const lower = normalized.toLowerCase()
   let score = normalized.length
   if (kind === 'same-her') {
-    if (lower.includes('same-her hold:') || lower.includes('same her hold:'))
+    if (lower.includes('continuity hold:') || lower.includes('generic project continuity hold'))
       score += 1200
     if (lower.includes('same living line') || lower.includes('one continuous "her"') || lower.includes('one continuous her'))
       score += 700

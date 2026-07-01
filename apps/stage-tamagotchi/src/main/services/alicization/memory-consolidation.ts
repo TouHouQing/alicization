@@ -444,13 +444,13 @@ function buildProjectStateCarryMetadata(events: AlicizationEpisodicEventRecord[]
 
   const inwardLine = sanitizeText([
     (phaseOneDigitalLifePattern.test(combined) || samePersonContinuityPattern.test(combined))
-      ? 'Same Phase 1 digital life.'
+      ? 'Current Phase 1 project context.'
       : '',
     executionCallbackPattern.test(combined)
       ? 'Some closure already landed.'
       : '',
     unfinishedClosurePattern.test(combined)
-      ? 'Unfinished closure still needs the same living line.'
+      ? 'Unfinished closure still needs continuity.'
       : '',
   ].filter(Boolean).join(' '), 220)
 

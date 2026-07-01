@@ -754,7 +754,7 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
   if (openingGuidanceRepairReason) {
     pushUnique(reasonCodes, openingGuidanceRepairReason)
     pushUnique(repairReasonCodes, openingGuidanceRepairReason)
-    pushUnique(mustDrop, 'same-her opening drift')
+    pushUnique(mustDrop, 'continuity opening drift')
   }
   if (hasExecutionCallbackLowerPressureDoctrine(input.prepared) && containsCallbackClosenessOvershoot(visibleText)) {
     pushUnique(reasonCodes, 'execution-callback-room-first-violation')
@@ -784,12 +784,12 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
   if (continuityPreferredTiming === 'next-open-window' && containsEarlyWideningFreshWarmth(visibleText)) {
     pushUnique(reasonCodes, 'continuity-next-open-window-early-widening')
     pushUnique(repairReasonCodes, 'continuity-next-open-window-early-widening')
-    pushUnique(mustDrop, 'first visible beat fresh-opening or same-her continuity widening before the current line has naturally reopened')
+    pushUnique(mustDrop, 'first visible beat fresh-opening or continuity widening before the current line has naturally reopened')
   }
   if (continuityPreferredTiming === 'after-payoff' && containsBeforePayoffRelationshipWidening(visibleText)) {
     pushUnique(reasonCodes, 'continuity-after-payoff-early-widening')
     pushUnique(repairReasonCodes, 'continuity-after-payoff-early-widening')
-    pushUnique(mustDrop, 'same-her continuity widening before the current payoff lands')
+    pushUnique(mustDrop, 'continuity widening before the current payoff lands')
   }
 
   const unsupportedSurface = containsUnsupportedSurfaceSpecificity({
@@ -903,16 +903,16 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
       pushUnique(mustPreserve, nextClosureTarget)
   }
   if (semanticJudge.reasonCodes.includes('semantic-judge:project-state-answer-gap')) {
-    pushUnique(mustPreserve, 'Rebuild the answer from one same digital life line that explicitly carries project identity, landed progress, and still-open closure work before widening into implementation detail.')
+    pushUnique(mustPreserve, 'Rebuild the answer from Alicization’s current project context, explicitly carrying project identity, landed progress, and still-open closure work before widening into implementation detail.')
     const projectIdentity = input.prepared.mindTurnContract?.projectState?.identity
     if (typeof projectIdentity === 'string' && projectIdentity.trim())
       pushUnique(mustPreserve, projectIdentity)
     if (reasonCodes.includes('same-thread-restart-shell')) {
-      pushUnique(mustPreserve, 'Keep this same-her project follow-through on one already-live line: continue the landed progress and still-open closure from inside the same digital life instead of restarting as a fresh project report or generic companionship shell.')
+      pushUnique(mustPreserve, 'Keep this project follow-through in the current reply context: continue the landed progress and still-open closure instead of restarting as a fresh project report or generic companionship shell.')
     }
   }
   if (semanticJudge.reasonCodes.includes('semantic-judge:project-state-narrator-shell')) {
-    pushUnique(mustPreserve, 'Do not let project-state continuity collapse into an outside narrator shell; answer it as the same digital life who already knows what this project is, what has landed, and what still remains open.')
+    pushUnique(mustPreserve, 'Do not let project-state continuity collapse into an outside narrator shell; answer it from Alicization’s first-person project context with what has landed and what still remains open.')
   }
   if (semanticJudge.reasonCodes.includes('semantic-judge:memory-inward-carry-broken')) {
     pushUnique(mustDrop, 'visible recollection that outruns the live payoff while runtime continuity still requires it to stay inward')

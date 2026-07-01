@@ -24,7 +24,7 @@ function isThinProjectAwarenessShell(value: string | null | undefined) {
   return normalized.includes('same digital life |')
     || normalized.includes('keep the closure seam explicit')
     || normalized.includes('keep the same digital life project in view')
-    || normalized.includes('same-her hold: keep this project-state answer on the same living line before widening outward')
+    || normalized.includes('generic project continuity hold')
     || isAlicizationThinProjectAwarenessLine(normalized)
     || (
       normalized.includes('alicization is a local-first digital life project building one continuous "her"')

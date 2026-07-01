@@ -461,7 +461,7 @@ export function buildActionEcology(input: {
     why = projectStateEcologyBias.explicitCrossModalTarget
       ? appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so the action stays lower-pressure until the return can carry more cross-modal same-her proof.')
       : projectStateEcologyBias.sameLivingLineTarget
-        ? appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so the action stays lower-pressure until the return can stay on the same living line.')
+        ? appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so the action stays lower-pressure until the return can stay coherent.')
         : appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so the action stays lower-pressure until the return can carry more proof.')
   }
   else if (

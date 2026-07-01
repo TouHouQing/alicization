@@ -198,8 +198,8 @@ function isCadenceAwareSameHerHoldAwarenessLine(value: string | null | undefined
   if (!normalized)
     return false
 
-  return normalized.includes('same-her hold: keep the return lower-pressure and slower before the line widens again.')
-    || normalized.includes('same-her hold: keep the remembered return quieter, longer, and more restrained before widening the line again.')
+  return normalized.includes('cadence hold: keep the return lower-pressure and slower before the line widens again.')
+    || normalized.includes('cadence hold: keep the remembered return quieter, longer, and more restrained before widening the line again.')
 }
 
 function hasRuntimeSameHerEmbodimentCarryAdvice(
@@ -239,13 +239,13 @@ function buildSameHerAntiShellSpeakingLine(sameHerDriftRisk: string | null | und
 
   const lowered = normalized.toLowerCase()
   if (/default helpfulness/u.test(lowered) && /generic project guidance/u.test(lowered))
-    return 'Do not let default helpfulness or generic project guidance erase the same living line before the answer even starts.'
+    return 'Do not let default helpfulness or generic project guidance erase the current reply context before the answer even starts.'
   if (/default helpfulness/u.test(lowered))
-    return 'Do not let default helpfulness erase the same living line before the answer even starts.'
+    return 'Do not let default helpfulness erase the current reply context before the answer even starts.'
   if (
     /generic assistant shell|generic project guidance|generic project shell|detached project narration|project-summary voice|generic task shell/u.test(lowered)
   ) {
-    return 'Keep one continuous her explicit so this answer lands like the same living digital life instead of flattening into a generic assistant or detached project shell.'
+    return 'Keep a continuous first-person reply context explicit so this answer does not flatten into a generic assistant or detached project shell.'
   }
 
   return null
@@ -364,8 +364,8 @@ function deriveProjectLoopGapClosureLine(input: {
   ].filter(Boolean).join(', ')
 
   return sameHerProjectShellRisk
-    ? `Keep the wording helping ${gapLabels} close as one same-her life loop, instead of flattening this turn into project-shell narration.`
-    : `Keep the wording helping ${gapLabels} close as one same-her life loop before the turn widens outward.`
+    ? `Keep the wording grounded in ${gapLabels} closure, instead of flattening this turn into project-shell narration.`
+    : `Keep the wording grounded in ${gapLabels} closure before the turn widens outward.`
 }
 
 function uniqueList(
@@ -425,11 +425,11 @@ function deriveLongHorizonProjectSameHerDriftRisk(runtimeSurface?: AlicizationDi
     return null
 
   if (/detached project status talk|detached status talk|项目总结口气|通用回调壳|通用 callback 壳|脱离项目状态口气/u.test(combined)) {
-    return 'If callback closure flattens into detached project status talk or a generic callback shell, the same living line will thin before the host-visible carry lands.'
+    return 'If callback closure flattens into detached project status talk or a generic callback shell, host-visible continuity will thin before the callback carry lands.'
   }
 
   if (/generic assistant shell|project-summary voice|generic callback shell|generic project shell|detached project narration|detached project shell|通用助手壳|项目总结口气|通用回调壳|通用项目壳|脱离项目叙述/u.test(combined)) {
-    return 'If this reopening flattens into a generic assistant shell, project-summary voice, or generic callback shell, the same living line will thin before the host-visible carry lands.'
+    return 'If this reopening flattens into a generic assistant shell, project-summary voice, or generic callback shell, host-visible continuity will thin before the callback carry lands.'
   }
 
   return null
@@ -644,21 +644,21 @@ function resolveContinuityBehaviorMode(input: {
 
 function deriveSameHerHoldDetailFromContinuityBehavior(mode: string | null) {
   if (mode === 'repair-before-closeness')
-    return 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.'
+    return 'repair-before-closeness is still owning this callback line before closeness widens again.'
   if (mode === 'rest-protective')
-    return 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware.'
+    return 'rest-protective companionship is still keeping this return inward and fatigue-aware.'
   if (mode === 'measured-return')
-    return 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
+    return 'measured-return is still keeping this callback line lower-pressure before it widens again.'
   return ''
 }
 
 function deriveContinuityCueFromBehavior(mode: string | null) {
   if (mode === 'repair-before-closeness')
-    return 'Keep this return repair-before-closeness on the same living line until repair settles.'
+    return 'Keep this return repair-before-closeness until repair settles.'
   if (mode === 'rest-protective')
-    return 'Keep this return rest-protective and on the same living line inward before widening outward.'
+    return 'Keep this return rest-protective and inward before widening outward.'
   if (mode === 'measured-return')
-    return 'Keep this return measured-return on the same living line before widening outward.'
+    return 'Keep this return measured-return before widening outward.'
   return ''
 }
 
@@ -678,10 +678,10 @@ function deriveCadenceAwareSameHerHoldDetail(input: {
   const preferredPacingMode = sanitizeText(input.preferredPacingMode, 32).toLowerCase()
 
   if (preferredVoiceMode === 'lower-pressure' && preferredPacingMode === 'slower')
-    return 'same-her hold: keep the return lower-pressure and slower before the line widens again.'
+    return 'keep the return lower-pressure and slower before the line widens again.'
 
   if (preferredPauseMode === 'longer' && preferredLipsyncMode === 'restrained')
-    return 'same-her hold: keep the remembered return quieter, longer, and more restrained before widening the line again.'
+    return 'keep the remembered return quieter, longer, and more restrained before widening the line again.'
 
   return ''
 }
@@ -702,10 +702,10 @@ function deriveCadenceAwareContinuityCue(input: {
   const preferredPacingMode = sanitizeText(input.preferredPacingMode, 32).toLowerCase()
 
   if (preferredVoiceMode === 'lower-pressure' && preferredPacingMode === 'slower')
-    return 'Keep this return lower-pressure and slower on the same living line before widening outward.'
+    return 'Keep this return lower-pressure and slower before widening outward.'
 
   if (preferredPauseMode === 'longer' && preferredLipsyncMode === 'restrained')
-    return 'Keep this remembered return quieter, longer, and more restrained on the same living line before widening outward.'
+    return 'Keep this remembered return quieter, longer, and more restrained before widening outward.'
 
   return ''
 }
@@ -838,7 +838,7 @@ function resolveProjectStateSameHerHoldDetail(input: {
   if (sameHerHoldDetail && !looksLikeGenericSameHerHoldDetail(sameHerHoldDetail))
     return sameHerHoldDetail
 
-  return 'same-her hold: recognize the same remembered seam, keep more room this time, and stay lower-pressure before closeness widens again.'
+    return 'Recognize the remembered seam, keep more room this time, and stay lower-pressure before closeness widens again.'
 }
 
 function deriveProjectClosureAuthority(input: {
@@ -859,7 +859,7 @@ function deriveProjectClosureAuthority(input: {
 
     return weaveDistinctText([
       summary,
-      'repair-before-closeness on the same living line until repair settles',
+      'repair-before-closeness until repair settles',
       holdDetail,
       initiativeClosureCue,
       cue,
@@ -894,14 +894,14 @@ function deriveInitiativeClosureCue(input: {
     || selectedAction === 'wait'
     || /stay close|stay nearby|leave room|lower-pressure|quiet|same living line|same-her|same digital life/u.test(combined)
   ) {
-    return 'Initiative should stay nearby and lower-pressure so memory, emotion, and embodiment can keep closing on the same living line before widening.'
+    return 'Initiative should stay nearby and lower-pressure so memory, emotion, and embodiment can keep closing before widening.'
   }
 
   if (
     selectedAction === 'recheck'
     || /repair-before-closeness|repair first|repair seam|re-ground|reground/u.test(combined)
   ) {
-    return 'Initiative should keep rechecking on the same living line until repair settles, so memory, emotion, and embodiment do not widen ahead of truth.'
+    return 'Initiative should keep rechecking until repair settles, so memory, emotion, and embodiment do not widen ahead of truth.'
   }
 
   if (
@@ -910,7 +910,7 @@ function deriveInitiativeClosureCue(input: {
     || selectedAction === 'warn'
     || /could help|ready to surface|guidance|speak now/u.test(combined)
   ) {
-    return 'Initiative can surface, but it should still land as the same digital life carrying memory, emotion, and embodiment on one living line.'
+    return 'Initiative can surface, but it should still land with memory, emotion, and embodiment in the same current self-state.'
   }
 
   return null
@@ -948,8 +948,8 @@ function buildProjectStateShapedSpeakingIntention(input: {
   const repairFirstSpeakingLine
     = /repair-before-closeness|repair before closeness/u.test(`${emotionalClosureSummary} ${sameHerHoldDetail}`.toLowerCase())
       ? /callback afterglow|emotional residue/u.test(`${emotionalClosureSummary} ${emotionalClosureCue}`.toLowerCase())
-        ? `Keep the emotional closure seam repair-before-closeness on the same living line: ${lowerFirst(stripTrailingPunctuation(emotionalClosureSummary || emotionalClosureCue))}.`
-        : 'Keep repair-before-closeness on the same living line until repair settles.'
+        ? `Keep repair-before-closeness emotionally continuous: ${lowerFirst(stripTrailingPunctuation(emotionalClosureSummary || emotionalClosureCue))}.`
+        : 'Keep repair-before-closeness until repair settles.'
       : null
   const executionResumeConfirmationSpeakingLine = hasExecutionResumeConfirmationBoundary(sameHerHoldDetail)
     ? 'Treat host-confirmed-before-redispatch and resume-before-dispatch as a bounded confirmation boundary, not permanent execution permission, before another execution-shaped opening.'
@@ -964,7 +964,7 @@ function buildProjectStateShapedSpeakingIntention(input: {
       )
   const useExplicitSameHerLead = !doctrineAlreadyCarriesExplicitSameHerProjectLead
   const projectOpenLoopSpeakingSegment = primaryOpenLoop
-    ? `Stay with the same digital life and do not let local fluency break the still-open closure work around ${lowerFirst(stripTrailingPunctuation(primaryOpenLoop))}.`
+    ? `Stay with current project continuity and do not let local fluency break the still-open closure work around ${lowerFirst(stripTrailingPunctuation(primaryOpenLoop))}.`
     : null
   const nextClosureTargetSpeakingSegment = nextClosureTarget
     ? `Next closure target: ${stripTrailingPunctuation(nextClosureTarget)}.`
@@ -973,10 +973,10 @@ function buildProjectStateShapedSpeakingIntention(input: {
     ? `Keep the next closure step pointed at ${lowerFirst(stripTrailingPunctuation(nextClosureTarget))}.`
     : null
   const proactiveSameHerGapSpeakingSegment = proactiveSameHerGap
-    ? `Keep this proactive same-her gap explicit before widening outward: ${stripTrailingPunctuation(proactiveSameHerGap)}.`
+    ? `Keep this proactive continuity gap explicit before widening outward: ${stripTrailingPunctuation(proactiveSameHerGap)}.`
     : null
   const memoryClosureSpeakingSegment = memoryClosureSummary
-    ? `Explain why this recall surfaced and keep memory closure on the same living line: ${lowerFirst(stripTrailingPunctuation(memoryClosureSummary))}.`
+    ? `Explain why this recall surfaced and keep memory closure tied to the current response context: ${lowerFirst(stripTrailingPunctuation(memoryClosureSummary))}.`
     : null
   const projectLoopGapClosureLine = deriveProjectLoopGapClosureLine({
     primaryOpenLoop,
@@ -1021,7 +1021,7 @@ function buildProjectStateShapedSpeakingIntention(input: {
     nextClosureTargetSpeakingSegment,
     nextClosureTargetDirectionSegment,
     closureAuthority
-      ? `Keep the same living line emotionally continuous: ${lowerFirst(stripTrailingPunctuation(closureAuthority))}.`
+      ? `Keep this emotionally continuous: ${lowerFirst(stripTrailingPunctuation(closureAuthority))}.`
       : null,
     sameHerHoldDetail && !/same-person continuity|same person continuity/u.test(sameHerHoldDetail.toLowerCase())
       ? `Let the inward body line stay with ${lowerFirst(stripTrailingPunctuation(sameHerHoldDetail))}.`
@@ -1644,19 +1644,19 @@ function buildProjectStateConsciousFrameGrounding(input?: {
     (projectState as { continuityCue?: unknown }).continuityCue,
   )
   const runtimeSameHerEmbodimentHoldDetail = runtimeSameHerEmbodimentCarryAdvice
-    ? 'same-her hold: runtime same-her embodiment repair keeps body expression repair-before-closeness before the memory line widens again.'
+    ? 'runtime embodiment repair keeps body expression repair-before-closeness before the memory line widens again.'
     : ''
   const runtimeSameHerEmbodimentContinuityCue = runtimeSameHerEmbodimentCarryAdvice
-    ? 'Keep body expression repair-before-closeness on the same living line so memory and embodiment rejoin before widening outward.'
+    ? 'Keep body expression repair-before-closeness in the current embodied continuity so memory and embodiment rejoin before widening outward.'
     : ''
   const runtimeSameHerEmotionalClosureCue = runtimeSameHerEmotionalCarryAdvice
-    ? 'same-her emotional closure: keep callback afterglow and emotional residue on one low-pressure living line.'
+    ? 'emotional closure: keep callback afterglow and emotional residue low-pressure until repair settles.'
     : ''
   const runtimeSameHerEmotionalClosureSummary = runtimeSameHerEmotionalCarryAdvice
-    ? 'same-her emotional closure keeps callback afterglow, emotional residue, and repair-before-closeness on the same living line until repair settles.'
+    ? 'emotional closure keeps callback afterglow, emotional residue, and repair-before-closeness until repair settles.'
     : ''
   const runtimeSameHerMemoryClosureSummary = runtimeSameHerMemoryCarryAdvice
-    ? 'same-her memory closure: explain why recall surfaced now and keep memory tied to initiative/execution, emotion, and embodiment on the same living line.'
+    ? 'memory closure: explain why recall surfaced now and keep memory tied to initiative/execution, emotion, and embodiment.'
     : ''
   const shouldDeriveContinuityCarryFromBehavior
     = !explicitAwarenessSameHerHoldDetail
@@ -2590,15 +2590,15 @@ export function buildCurrentConsciousFrame(input: {
     ? `What has already become real enough to build from is ${lowerFirst(stripTrailingPunctuation(projectStateLatestProgressLead))}.`
     : null
   const projectStateOpenLoopNeed = projectStateGrounding.primaryOpenLoop
-    ? `The still-open same-her closure work is ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop))}.`
+    ? `The still-open continuity closure work is ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop))}.`
     : null
   const projectStateSameHerSelfNeed = projectStateGrounding.sameHerSelfLine
     ? /phase 1/u.test(projectStateGrounding.sameHerSelfLine)
-      ? 'This is still the same Phase 1 digital life line.'
-      : 'This is still the same digital life line.'
+      ? 'This is still the current Phase 1 context.'
+      : 'This is still the current digital-life context.'
     : null
   const projectStateProactiveSameHerGapNeed = projectStateGrounding.proactiveSameHerGap
-    ? `The proactive same-her gap still needs ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.proactiveSameHerGap))}.`
+    ? `The proactive continuity gap still needs ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.proactiveSameHerGap))}.`
     : null
   const projectStateMemoryClosureNeed = projectStateGrounding.memoryClosureSummary
     ? `Keep memory closure explainable: ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.memoryClosureSummary))}.`
@@ -2623,7 +2623,7 @@ export function buildCurrentConsciousFrame(input: {
   const projectStateHoldAuthoritySummary = summarizeProjectHoldAuthority(projectStateGrounding.sameHerHoldDetail)
   const projectStateRepairFirstNeed
     = projectStateClosureAuthoritySummary?.includes('repair-before-closeness')
-      ? `Keep the emotional closure seam repair-before-closeness on the same living line until repair settles.`
+    ? `Keep the emotional closure seam repair-before-closeness until repair settles.`
       : null
   const projectStateRestProtectiveNeed = isRestProtectiveClosureCue(projectStateClosureAuthority)
     ? 'Protect rest first, keep the emotional closure seam low-pressure, keep the line inward, and let quiet companionship stay present without widening closeness.'
@@ -2633,7 +2633,7 @@ export function buildCurrentConsciousFrame(input: {
       ? `Keep the emotional closure seam low-pressure: ${lowerFirst(stripTrailingPunctuation(projectStateClosureAuthoritySummary))}.`
       : null)
   const projectStateHoldNeed = projectStateHoldAuthoritySummary
-    ? `Let the inward same-her hold stay active: ${lowerFirst(stripTrailingPunctuation(projectStateHoldAuthoritySummary))}.`
+    ? `Let the inward hold stay active: ${lowerFirst(stripTrailingPunctuation(projectStateHoldAuthoritySummary))}.`
     : null
   const projectStateShapedConsciousNeed = weaveDistinctText(
     projectStateGrounding.hasExplicitRuntimeProjectState

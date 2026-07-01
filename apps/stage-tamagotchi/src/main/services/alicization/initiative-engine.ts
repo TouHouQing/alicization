@@ -1108,7 +1108,7 @@ function deriveProjectStateInitiativeBias(input?: {
     initiativeExplanation: requiresLifeLoopClosure
       ? sanitizeText([
           latestLandedProgress ? `some closure has already landed through ${lowerFirst(latestLandedProgress)}` : '',
-          phaseOneDigitalLife ? 'I am still growing as the same Phase 1 digital life' : '',
+          phaseOneDigitalLife ? 'I am still growing inside the current Phase 1 context' : '',
           sameHerSelfLine ? lowerFirst(sanitizeText(sameHerSelfLine, 180)) : '',
           primaryOpenLoop ? `but ${lowerFirst(sanitizeText(primaryOpenLoop, 200))} is still not closed yet` : '',
           sameHerClosureDirection && nextClosureTarget.includes('cross-modal')
@@ -1199,8 +1199,8 @@ function summarizeInitiativeLandedProgress(text: string) {
     return 'execution callback project-carry'
   if (/project-state carry already survives into later turns/i.test(normalized))
     return 'project-state carry already survives into later turns'
-  if (/dialogue feedback now writes same-her project closure back into long-horizon reinforcement/i.test(normalized))
-    return 'dialogue feedback now writes same-her project closure back into long-horizon reinforcement'
+  if (/dialogue feedback now writes (?:same-her )?project closure back into long-horizon reinforcement/i.test(normalized))
+    return 'dialogue feedback now writes project closure back into long-horizon reinforcement'
   if (/continuity, memory, execution, same-session mirror carry/i.test(normalized))
     return 'continuity, memory, and execution closure already landed together often enough to build from'
 
@@ -2104,7 +2104,7 @@ export function buildInitiativeSnapshot(input: {
     && /memory and initiative still need stronger end-to-end closure/iu.test(rawProjectStateCarryThought)
     ? joinConciseSentencesPrioritized({
         priorityParts: [
-          'Same Phase 1 digital life',
+          'Current Phase 1 project context',
           'Some closure already landed through same-session mirror carry',
           'memory and initiative still need stronger end-to-end closure',
           projectStateCarryNextClosureTarget,
@@ -2124,13 +2124,13 @@ export function buildInitiativeSnapshot(input: {
   )
   const projectStateThoughtOpenLoop = deriveInitiativeOpenLoopPhrase(projectStateCarryThought)
   const projectStateCarryIdentity = sanitizeText(input.projectState?.currentPhase, 120).toLowerCase().includes('phase 1')
-    ? 'same Phase 1 digital life'
+    ? 'current Phase 1 project context'
     : ''
   const projectStateThoughtIdentityCarry = /same phase 1 digital life/u.test(projectStateCarryThought)
-    ? projectStateCarryThought.match(/same phase 1 digital life/i)?.[0] ?? ''
+    ? 'current Phase 1 project context'
     : ''
   const canonicalProjectStateIdentityCarry = !projectStateCarryIdentity && projectStateBias.requiresLifeLoopClosure
-    ? 'same Phase 1 digital life'
+    ? 'current Phase 1 project context'
     : ''
   const projectStateRepairCarry = [
     projectStateEmotionalClosureCarry,
@@ -2170,7 +2170,7 @@ export function buildInitiativeSnapshot(input: {
     && (
       projectStateCarryThought.includes('repair-before-closeness')
       || projectStateCarryThought.includes('generic assistant nudge')
-      || projectStateCarryThought.includes('Same Phase 1 digital life')
+      || projectStateCarryThought.includes('Current Phase 1 project context')
     )
     ? projectStateCarryThought
     : ''
@@ -2185,7 +2185,7 @@ export function buildInitiativeSnapshot(input: {
   )
   const summaryOnlyProjectStateHasStructuredCarry = Boolean(
     !rawProjectStateCarryThought
-    && (projectStateCarryIdentity || /same phase 1 digital life/iu.test(projectStateSameHerCarry))
+            && (projectStateCarryIdentity || /current phase 1 project context|same phase 1 digital life/iu.test(projectStateSameHerCarry))
     && projectStateCarryLatestLandedProgress === 'same-session mirror carry'
     && /memory and initiative still need stronger end-to-end closure/iu.test(projectStateCarryOpenLoop)
     && projectStateCarryNextClosureTarget,
@@ -2229,7 +2229,7 @@ export function buildInitiativeSnapshot(input: {
   const structuredProjectStateThoughtSummary = privateThoughtHasStructuredProjectCarry
     ? joinConciseSentencesPrioritized({
         priorityParts: [
-          projectStateThoughtIdentityCarry || 'Same Phase 1 digital life',
+          projectStateThoughtIdentityCarry || 'Current Phase 1 project context',
           'Some closure already landed through same-session mirror carry',
           'but memory and initiative still need stronger end-to-end closure',
           projectStateCarryNextClosureTarget,
@@ -2241,7 +2241,7 @@ export function buildInitiativeSnapshot(input: {
   const structuredProjectStateAliasSummary = summaryOnlyProjectStateHasStructuredCarry
     ? joinConciseSentencesPrioritized({
         priorityParts: [
-          'Same Phase 1 digital life',
+          'Current Phase 1 project context',
           'Some closure already landed through same-session mirror carry',
           'but memory and initiative still need stronger end-to-end closure',
           projectStateCarryNextClosureTarget,

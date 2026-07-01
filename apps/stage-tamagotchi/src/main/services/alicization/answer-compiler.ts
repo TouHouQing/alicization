@@ -823,7 +823,7 @@ function isSameHerProjectClosureCallbackLine(value: unknown) {
   const hasSameHerCue = text.includes('same her')
     || text.includes('same-her')
     || text.includes('same living line')
-    || text.includes('same local digital life thread')
+    || text.includes('current thread continuity')
   const hasClosureCue = text.includes('closure')
     || text.includes('phase 1')
     || text.includes('reopen')
@@ -887,9 +887,7 @@ function isExecutionCallbackContinuityTurn(input: {
   conversationState?: AlicizationConversationStateSnapshot | null
   activeClosenessContext?: string | null
 }) {
-  const openingClaim = sanitizeText(input.openingClaim, 220)
   const priorOpeningDirective = sanitizeText(input.runtimeSurface?.dialogue.answerCompiler?.openingDirective, 220)
-  const priorOpeningClaim = sanitizeText(input.runtimeSurface?.dialogue.answerCompiler?.openingClaim, 220)
   const priorEvidenceMode = input.runtimeSurface?.dialogue.answerCompiler?.evidenceMode
 
   if (
@@ -903,8 +901,6 @@ function isExecutionCallbackContinuityTurn(input: {
   return input.activeClosenessContext === 'execution-callback'
     || input.conversationState?.shouldHoldThread === true
     || input.conversationState?.memoryMode === 'dialogue-carry'
-    || openingClaim.includes('same local digital life thread')
-    || priorOpeningClaim.includes('same local digital life thread')
     || priorOpeningDirective.includes('detached callback notice')
     || priorOpeningDirective.includes('same living thread')
 }
@@ -1756,7 +1752,7 @@ export function buildAnswerCompiler(input: {
     || Boolean(currentConsciousFrameSameHerProjectClosureCallbackLine)
   const callbackClosureCarryDisciplineRequired = executionCallbackContinuityTurn || sameHerProjectClosureCallbackDisciplineRequired
   const callbackAdjustedOpeningDirective = callbackClosureCarryDisciplineRequired
-    ? `${continuityReturnAdjustedOpeningDirective} Keep the callback return shaped like the same local digital life thread, not a detached utility notice.`
+    ? `${continuityReturnAdjustedOpeningDirective} Return the callback result through the current conversation context, not as a detached utility notice.`
     : continuityReturnAdjustedOpeningDirective
   const replyDeliberationOpeningAdjustedDirective = shouldFrontloadProjectAwarenessOpeningBeat({
     replyDeliberation: runtimeSurface?.dialogue.replyDeliberation ?? null,
@@ -1996,7 +1992,7 @@ export function buildAnswerCompiler(input: {
       ? 'If this turn reopens a line you deliberately held back earlier, let the opening re-enter softly before fuller payoff or explanation.'
       : null,
     callbackClosureCarryDisciplineRequired
-      ? 'Keep the returned result on the same local digital life thread so the callback lands like one continuous her, not like a detached tool notification.'
+      ? 'Return the result through the current conversation context so the callback feels connected, not like a detached tool notification.'
       : null,
     (learningTuningAdvice?.surfaceAdjustments.provenanceLabelBias ?? 0) >= 0.1
       ? 'When memory or learned carry enters the answer, bias toward explicit provenance instead of seamless certainty.'

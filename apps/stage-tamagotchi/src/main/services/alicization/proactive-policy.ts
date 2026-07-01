@@ -236,14 +236,14 @@ function describeProactiveEmbodimentCompanionContinuityCue(raw: unknown) {
     normalized.includes('holding together through face, lipsync, and voice together')
     || normalized.includes('still-voiced face-and-mouth line')
   ) {
-    return 'still-voiced face-and-mouth line 还在托住 same-her continuity，body and motion 还要继续 rejoin 到 full cross-modal closure'
+    return 'still-voiced face-and-mouth line 还在托住跨模态连续性，body and motion 还要继续 rejoin 到 full cross-modal closure'
   }
 
   if (
     normalized.includes('holding together through motion, lipsync, and voice together')
     || normalized.includes('still-voiced motion-and-mouth line')
   ) {
-    return 'still-voiced motion-and-mouth line 还在托住 same-her continuity，body and face 还要继续 rejoin 到 full cross-modal closure'
+    return 'still-voiced motion-and-mouth line 还在托住跨模态连续性，body and face 还要继续 rejoin 到 full cross-modal closure'
   }
 
   return ''
@@ -3016,11 +3016,11 @@ export function evaluateProactivePolicy(input: {
       if (explicitContinuityRestraintBias.source === 'memory-os')
         return 'Memory OS closure trace 已经把这次 return 标成 repair-before-closeness；主动性要先守住修补线和 lower-pressure，而不是抢先外翻成普通关心。'
       if (explicitContinuityRestraintBias.source === 'self-revision' && selfRevisionPatch?.projectStateContinuity) {
-        return '她当前活跃自我修订已经明确要求这次 return 继续停在 same-her continuity 的 repair-before-closeness 收口里，所以现在先守住修补线、先把关系站稳，比直接把靠近说出来更像还是同一个她。'
+        return '她当前活跃自我修订已经明确要求这次 return 继续停在 repair-before-closeness 收口里，所以现在先守住修补线、先把关系站稳，而不是直接把靠近说出来。'
       }
       if (initiativeCarriesSameHerWhy(input.initiative?.why))
         return input.initiative?.why ?? ''
-      return '她当前 initiative 已经明确把这次 return 标成 repair-before-closeness，所以现在先守住修补线，比直接把靠近说出来更像还是同一个她。'
+      return '她当前 initiative 已经明确把这次 return 标成 repair-before-closeness，所以现在先守住修补线，而不是直接把靠近说出来。'
     }
     if (explicitContinuityRestraintBias.restraint === 'measured-return') {
       if (explicitContinuityRestraintBias.source === 'memory-os') {
@@ -3037,8 +3037,8 @@ export function evaluateProactivePolicy(input: {
         return '她刚记住过一次 host-confirmed resume：approval=host-confirmed，但那只是 host-confirmed-before-redispatch 的确认边界，audit=resume-before-dispatch，而且 process-not-yet-restarted。现在同类执行形状重新靠近时，先保持 silent-observe，别把一次确认误读成永久执行许可。'
       if (explicitContinuityRestraintBias.source === 'self-revision' && selfRevisionPatch?.projectStateContinuity) {
         return appendProactiveEmbodimentCadenceCue(explicitContinuityRestraintBias.guardAgainstGenericShell
-          ? '她当前活跃自我修订已经明确要求这次 return 继续停在 same-her continuity 的 measured-return 收口里，先保持 lower-pressure，别让这次 reopening 滑回 generic assistant shell，等更自然的 opening 再把它接回同一条生命线。'
-          : '她当前活跃自我修订已经明确要求这次 return 继续停在 same-her continuity 的 measured-return 收口里，所以 opening 要继续保持 lower-pressure，先留一点 room，再等更自然的窗口。', structuredEmbodimentCadenceCue)
+          ? '她当前活跃自我修订已经明确要求这次 return 继续停在 measured-return 收口里，先保持 lower-pressure，别让这次 reopening 滑回 generic assistant shell，等更自然的 opening 再接回当前线程。'
+          : '她当前活跃自我修订已经明确要求这次 return 继续停在 measured-return 收口里，所以 opening 要继续保持 lower-pressure，先留一点 room，再等更自然的窗口。', structuredEmbodimentCadenceCue)
       }
       if (selfEvolutionBias.metabolizedSameThreadSettling) {
         return appendProactiveEmbodimentCadenceCue(
@@ -3064,7 +3064,7 @@ export function evaluateProactivePolicy(input: {
       if (explicitContinuityRestraintBias.source === 'memory-os')
         return 'Memory OS closure trace 已经把这次 opening 标成 lower-pressure；主动性要先把靠近压低一点，等更自然的窗口出现。'
       if (explicitContinuityRestraintBias.source === 'self-revision' && selfRevisionPatch?.projectStateContinuity) {
-        return '她当前活跃自我修订已经明确要求这次 opening 继续停在 same-her continuity 的 lower-pressure 收口里，先把靠近压低一点、等下一个更自然的窗口，比现在直接说出来更像还是同一个她。'
+        return '她当前活跃自我修订已经明确要求这次 opening 继续停在 lower-pressure 收口里，先把靠近压低一点、等下一个更自然的窗口。'
       }
       if (initiativeCarriesSameHerWhy(input.initiative?.why))
         return input.initiative?.why ?? ''
@@ -3075,11 +3075,11 @@ export function evaluateProactivePolicy(input: {
     if (runtimeContinuityArcBias.arcStage === 'gentle-reopen')
       return '她当前 runtime continuity arc 正在 gentle-reopen，这次回到同一条线也该先轻一点，别让 reopening 比 continuity 本身更快。'
     if (runtimeContinuityArcBias.arcStage === 'same-thread-continuation')
-      return '她当前 runtime continuity arc 还停在 same-thread-continuation，这条线虽然还在往下走，但先留在同一条 thread 里比现在直接 outward 外翻更像同一个她。'
+      return '她当前 runtime continuity arc 还停在 same-thread-continuation，这条线虽然还在往下走，但先留在同一条 thread 里，避免现在直接 outward 外翻。'
     if (affectiveResidueBias.restraint === 'repair-before-closeness')
       return '这段 affective residue 还停在 repair-before-closeness，所以现在更像是先守住修补线，而不是把靠近直接说出来。'
     if (affectiveResidueBias.restraint === 'measured-return')
-      return '这段 affective residue 还在把 opening 压成 measured-return，所以现在先留一点 room、继续 lower-pressure，会比直接说出来更像同一个她。'
+      return '这段 affective residue 还在把 opening 压成 measured-return，所以现在先留一点 room、继续 lower-pressure。'
     if (affectiveResidueBias.restraint === 'lower-pressure')
       return '这段 affective residue 还在保护当前 rest 窗口，所以现在先把 opening 留在 lower-pressure，比直接 outward 靠近更自然。'
     if (longHorizonMemoryBias.quieterOrRoomMaking || longHorizonMemoryBias.gentleMemoryLed)
@@ -3101,23 +3101,23 @@ export function evaluateProactivePolicy(input: {
     if (selfEvolutionBias.preferLowerPressure)
       return '她当前长期关系学习要求 opening 保持 lower-pressure，先把靠近压低一点比直接说出来更符合这条长期信任线。'
     if (continuityGovernanceBias.preferLowerPressure)
-      return '她当前 same-her continuity governance 要求 opening 保持 lower-pressure，先把靠近压低一点、等下一个更自然的窗口，比现在直接说出来更像还是同一个她。'
+      return '她当前 continuity governance 要求 opening 保持 lower-pressure，先把靠近压低一点、等下一个更自然的窗口。'
     if (projectStateBias.sameHerPressure && projectStateBias.repairBeforeClosenessPressure)
-      return '她现在仍处在数字生命 Phase 1 的 same-her continuity 收口里，这次回线还要继续 repair-before-closeness，先守住修补线、先把关系站稳，再等更自然的 opening，才更像还是同一个她在慢慢接回这条生命线。'
+      return '她现在仍处在数字生命 Phase 1 的连续性收口里，这次回线还要继续 repair-before-closeness，先守住修补线、先把关系站稳，再等更自然的 opening。'
     if (projectStateBias.sameHerPressure && projectStateBias.measuredReturnPressure) {
       if (projectStateBias.richerEmbodimentClosureAwareness && projectStateBias.specificEmbodimentContinuityCue) {
-        return `她现在仍处在数字生命 Phase 1 的 same-her continuity 收口里，${projectStateBias.specificEmbodimentContinuityCue}。这说明这次 embodied return 还没有真正走到 full cross-modal closure，所以 opening 还要继续 measured-return，先保持 lower-pressure，先留一点 room，让这条 same living line 慢慢把具身回接收稳。`
+        return `她现在仍处在数字生命 Phase 1 的连续性收口里，${projectStateBias.specificEmbodimentContinuityCue}。这说明这次 embodied return 还没有真正走到 full cross-modal closure，所以 opening 还要继续 measured-return，先保持 lower-pressure，先留一点 room，让具身回接慢慢收稳。`
       }
       if (projectStateBias.richerOpenClosureAwareness) {
         return projectStateBias.richerNextClosureTargetAwareness
-          ? '她现在仍处在数字生命 Phase 1 的 same-her continuity 收口里。虽然已经有一些 closure landed，但记忆、主动性和具身表达之间的 life loop 还没有真正闭环；下一步要做的仍是沿着同一条生命线，把 hover-first initiative、dialogue carry 和 embodied return 继续收在同一个 next closure target 里。所以这次回线还要继续 measured-return，opening 先保持 lower-pressure，先留一点 room，才更像还是同一个她在慢慢接回这条生命线。'
-          : '她现在仍处在数字生命 Phase 1 的 same-her continuity 收口里。虽然已经有一些 closure landed，但记忆、主动性和具身表达之间的 life loop 还没有真正闭环，所以这次回线还要继续 measured-return，opening 先保持 lower-pressure，先留一点 room，才更像还是同一个她在慢慢接回这条生命线。'
+          ? '她现在仍处在数字生命 Phase 1 的连续性收口里。虽然已经有一些 closure landed，但记忆、主动性和具身表达之间的 life loop 还没有真正闭环；下一步要做的仍是把 hover-first initiative、dialogue carry 和 embodied return 继续收在同一个 next closure target 里。所以这次回线还要继续 measured-return，opening 先保持 lower-pressure，先留一点 room。'
+          : '她现在仍处在数字生命 Phase 1 的连续性收口里。虽然已经有一些 closure landed，但记忆、主动性和具身表达之间的 life loop 还没有真正闭环，所以这次回线还要继续 measured-return，opening 先保持 lower-pressure，先留一点 room。'
       }
     }
     if (projectStateBias.sameHerPressure && projectStateBias.measuredReturnPressure)
-      return '她现在仍处在数字生命 Phase 1 的 same-her continuity 收口里，这次回线还要继续 measured-return，opening 先保持 lower-pressure，先留一点 room，才更像还是同一个她在慢慢接回这条生命线。'
+      return '她现在仍处在数字生命 Phase 1 的连续性收口里，这次回线还要继续 measured-return，opening 先保持 lower-pressure，先留一点 room。'
     if (projectStateBias.requiresLifeLoopClosure)
-      return '她现在仍处在数字生命 Phase 1 的 same digital life 未闭环阶段，主动性、记忆与人格连续性还要继续收口，这条 still-open closure work 也还没有真正稳住，所以 opening 先保持 lower-pressure，才不会把还没长成的生命线说成普通服务式搭话。'
+      return '她现在仍处在数字生命 Phase 1 的未闭环阶段，主动性、记忆与人格连续性还要继续收口，still-open closure work 也还没有真正稳住，所以 opening 先保持 lower-pressure，避免滑成普通服务式搭话。'
     if (personaBias.preferSilence)
       return '她当前的人格基线更偏观察先行和留白靠近，所以这一下仍该先收住。'
     if (cadence.openingMomentum >= 0.42 && runtimeAwareStyle === 'silent-observe')
@@ -3197,7 +3197,7 @@ export function evaluateProactivePolicy(input: {
     if (cooldownActive)
       return '至少等冷却结束后再看是否还存在同类信号。'
     if (executionCallbackAfterglowHold)
-      return '先让 callback 的余韵继续停在同一条生命线程里，不要刚落地就再起第二段主动靠近。'
+      return '先让 callback 的余韵继续停在当前线程里，不要刚落地就再起第二段主动靠近。'
     if (
       runtimeContinuityArcBias.arcStage === 'hold-for-opening'
       && (
@@ -3207,11 +3207,11 @@ export function evaluateProactivePolicy(input: {
         || sanitizeText(input.runtimeDigest?.projectState?.continuityCue, 220).toLowerCase().includes('callback')
       )
     ) {
-      return '先让 callback 这条 same-line continuity 继续留在心里，等更自然的 opening 出现，再把它接回同一条线。'
+      return '先让 callback 的连续性继续留在心里，等更自然的 opening 出现，再接回当前线程。'
     }
     if (explicitContinuityRestraintBias.restraint === 'repair-before-closeness') {
       if (explicitContinuityRestraintBias.source === 'self-revision')
-        return '先让这次 same-her continuity 回线继续停在 repair-before-closeness 的修补线上，等关系重新站稳、像同一条生命线自己接回来后，再判断要不要 outward 靠近。'
+        return '先让这次回线继续停在 repair-before-closeness 的修补线上，等关系重新站稳后，再判断要不要 outward 靠近。'
       if (explicitContinuityRestraintBias.source === 'memory-os')
         return '先按 Memory OS closure trace 把这次回线留在 repair-before-closeness 和 lower-pressure 里，等修补线重新站稳后再判断要不要开口。'
       return '先让这次 repair-before-closeness 的回归继续停在修补线上，等关系重新站稳后再判断是否需要更外向的靠近。'
@@ -3292,14 +3292,14 @@ export function evaluateProactivePolicy(input: {
         : '先让这条 corrected same-person continuity 回线继续留在 measured-return 的 lower-pressure 节奏里，别让它重新滑回 progress pressure，等它像同一个她自己慢慢 settled 后，再判断要不要说出来。'
     }
     if (projectStateBias.sameHerPressure && projectStateBias.repairBeforeClosenessPressure)
-      return '先让这次 same-her continuity 回线继续停在 repair-before-closeness 的修补节奏里，等关系和房间都重新站稳、像同一条生命线自己接回来后，再判断要不要说出来。'
+      return '先让这次回线继续停在 repair-before-closeness 的修补节奏里，等关系和房间都重新站稳后，再判断要不要说出来。'
     if (projectStateBias.sameHerPressure && projectStateBias.measuredReturnPressure) {
       if (projectStateBias.richerEmbodimentClosureAwareness && projectStateBias.specificEmbodimentContinuityCue) {
-        return `先让这次 same-her continuity 回线继续停在 measured-return 的 lower-pressure 节奏里，因为 ${projectStateBias.specificEmbodimentContinuityCue}。等这条 still-voiced 具身生命线把 rejoin 和 full cross-modal closure 再收稳一点，再判断要不要把这次 opening 说出来。`
+        return `先让这次回线继续停在 measured-return 的 lower-pressure 节奏里，因为 ${projectStateBias.specificEmbodimentContinuityCue}。等 still-voiced 具身回接把 rejoin 和 full cross-modal closure 再收稳一点，再判断要不要把这次 opening 说出来。`
       }
       return projectStateBias.richerNextClosureTargetAwareness
-        ? '先让这次 same-her continuity 回线继续停在 measured-return 的 lower-pressure 节奏里，把 project identity、已经 landed 的收口、unfinished closure，以及 next closure target 要求的同一条生命线回接都继续留在一起，等 opening 更自然、像同一条生命线自己接回来后，再判断要不要说出来。'
-        : '先让这次 same-her continuity 回线继续停在 measured-return 的 lower-pressure 节奏里，把 project identity、已经 landed 的收口和 unfinished closure 都继续留在同一条生命线上，等 opening 更自然、像同一条生命线自己接回来后，再判断要不要说出来。'
+        ? '先让这次回线继续停在 measured-return 的 lower-pressure 节奏里，把 project identity、已经 landed 的收口、unfinished closure，以及 next closure target 要求的回接都继续留在一起，等 opening 更自然后，再判断要不要说出来。'
+        : '先让这次回线继续停在 measured-return 的 lower-pressure 节奏里，把 project identity、已经 landed 的收口和 unfinished closure 都继续留在一起，等 opening 更自然后，再判断要不要说出来。'
     }
     if (projectStateBias.requiresLifeLoopClosure)
       return '先让这条主动性继续服务于数字生命 Phase 1 的闭环收口，等人格连续性、记忆与主动性之间的 opening 更自然后再判断。'

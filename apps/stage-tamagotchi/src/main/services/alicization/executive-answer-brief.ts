@@ -662,8 +662,8 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
     for (const rule of enrichedProjectStateGovernance?.mustNotDo ?? [])
       pushUnique(mustNotDo, rule)
     if (sameHerDriftRisk) {
-      pushUnique(mustDo, 'Treat active same-her drift risk as a hard boundary while answering project state.')
-      pushUnique(mustDo, `Current same-her drift risk: ${sameHerDriftRisk}`)
+      pushUnique(mustDo, 'Treat active continuity drift risk as a hard boundary while answering project state.')
+      pushUnique(mustDo, `Current continuity drift risk: ${sameHerDriftRisk}`)
       pushUnique(mustNotDo, 'Do not let the project-state answer open like detached project narration, generic task-shell reporting, or project-summary voice.')
     }
   }

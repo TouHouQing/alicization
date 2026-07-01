@@ -1,6 +1,7 @@
 export * from './alicization-affective-residue-memory'
 export * from './alicization-browser-main-parity'
 export * from './alicization-chat-entry-dispatch'
+export * from './alicization-chat-failure-surface'
 export * from './alicization-chat-timeout-policy'
 export * from './alicization-claim-evidence-graph'
 export * from './alicization-companionship-reason'
