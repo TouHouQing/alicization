@@ -1,0 +1,163 @@
+import type {
+  WorkingMemoryLongTermCleanedCandidate,
+  WorkingMemoryLongTermCleaningTransaction,
+} from './working-memory-long-term-cleaning'
+import type { WorkingMemoryLongTermQueueItem } from './working-memory-long-term-queue'
+
+import {
+  normalizeWorkingMemoryText,
+  uniqueWorkingMemoryTexts,
+} from './working-memory'
+import { createWorkingMemoryLongTermCleaningTransaction } from './working-memory-long-term-cleaning'
+
+const fixedFallbackTemplatePattern = /我在。同一条本地数字生命的线还在|同一条本地数字生命的线还在|我先轻一点留在这里|你想说什么，我就接住/u
+const promptResiduePattern = /ALICIZATION_|same-her|same living line|project_state|Phase 1|mustDo|mustNotDo|answerPlanner|WorkingMemory owner/iu
+const correctionCuePattern = /固定模板|固定回复|模板化|人格|数字生命|不想要|不要固定|你搞错|不是这个/u
+
+const minimumAutomaticConfidence = 0.7
+const minimumAutomaticSalience = 0.6
+
+function candidateText(item: WorkingMemoryLongTermQueueItem) {
+  return [
+    item.summary,
+    item.reason,
+    ...item.evidenceSnippets,
+  ].map(text => normalizeWorkingMemoryText(text, 320)).filter(Boolean).join(' ')
+}
+
+function buildRetrievalCues(item: WorkingMemoryLongTermQueueItem) {
+  return uniqueWorkingMemoryTexts([
+    '固定模板',
+    '数字生命人格',
+    '人格纠正',
+    item.summary,
+  ], 8, 80)
+}
+
+function buildCleanedCandidate(input: {
+  transaction: WorkingMemoryLongTermCleaningTransaction
+  now: number
+}): WorkingMemoryLongTermCleanedCandidate {
+  const item = input.transaction.item
+  return {
+    id: `${input.transaction.id}:candidate`,
+    queueItemId: input.transaction.queueItemId,
+    source: 'working-memory-owner',
+    kind: item.kind,
+    cardId: input.transaction.cardId,
+    sessionId: input.transaction.sessionId,
+    summary: item.summary,
+    reason: item.reason,
+    sourceTurnIds: item.sourceTurnIds,
+    evidenceSnippets: item.evidenceSnippets,
+    retrievalCues: buildRetrievalCues(item),
+    entities: ['user', 'alicization'],
+    relationshipMeaning: item.kind === 'correction'
+      ? 'The user corrected how Alicization should express her own continuous digital-life persona.'
+      : null,
+    salience: item.salience,
+    confidence: item.confidence,
+    sensitivity: item.sensitivity,
+    trainingEligibility: 'blocked',
+    createdAt: Number.isFinite(input.now) ? Number(input.now) : Date.now(),
+  }
+}
+
+function rejectionReasonsFor(input: {
+  transaction: WorkingMemoryLongTermCleaningTransaction
+  text: string
+}) {
+  const item = input.transaction.item
+  const reasons = [
+    ...input.transaction.rejectionReasons,
+    ...input.transaction.contaminationFlags,
+  ]
+
+  if (item.source !== 'working-memory-owner')
+    reasons.push('wrong-source')
+  if (item.status !== 'pending-cleaning')
+    reasons.push('non-pending-status')
+  if (item.sourceTurnIds.length === 0)
+    reasons.push('missing-source-turns')
+  if (item.evidenceSnippets.length === 0)
+    reasons.push('missing-evidence')
+  if (fixedFallbackTemplatePattern.test(input.text))
+    reasons.push('fixed-fallback-template')
+  if (promptResiduePattern.test(input.text))
+    reasons.push('prompt-residue')
+
+  return uniqueWorkingMemoryTexts(reasons, 12, 180)
+}
+
+function reviewReasonsFor(input: {
+  transaction: WorkingMemoryLongTermCleaningTransaction
+  text: string
+}) {
+  const item = input.transaction.item
+  const reasons: string[] = []
+
+  if (item.sensitivity === 'private' || item.sensitivity === 'secret')
+    reasons.push('private-or-secret')
+  if (item.confidence < minimumAutomaticConfidence)
+    reasons.push('low-confidence')
+  if (item.salience < minimumAutomaticSalience)
+    reasons.push('low-salience')
+  if (item.kind !== 'correction')
+    reasons.push('unsupported-kind')
+  if (item.kind === 'correction' && !correctionCuePattern.test(input.text))
+    reasons.push('weak-correction-cue')
+
+  return uniqueWorkingMemoryTexts(reasons, 12, 180)
+}
+
+export function cleanWorkingMemoryLongTermQueueItem(input: {
+  cardId: string
+  sessionId: string
+  item: WorkingMemoryLongTermQueueItem
+  now: number
+}): WorkingMemoryLongTermCleaningTransaction {
+  const transaction = createWorkingMemoryLongTermCleaningTransaction(input)
+  const text = candidateText(transaction.item)
+  const rejectionReasons = rejectionReasonsFor({ transaction, text })
+  const reviewReasons = rejectionReasons.length > 0
+    ? []
+    : reviewReasonsFor({ transaction, text })
+
+  if (rejectionReasons.length > 0) {
+    return {
+      ...transaction,
+      status: 'rejected',
+      decision: 'reject',
+      rejectionReasons,
+      reviewReasons: [],
+      nextAttemptAt: null,
+      updatedAt: Number.isFinite(input.now) ? Number(input.now) : Date.now(),
+    }
+  }
+
+  if (reviewReasons.length > 0) {
+    return {
+      ...transaction,
+      status: 'needs-user-review',
+      decision: 'review',
+      rejectionReasons: [],
+      reviewReasons,
+      nextAttemptAt: null,
+      updatedAt: Number.isFinite(input.now) ? Number(input.now) : Date.now(),
+    }
+  }
+
+  return {
+    ...transaction,
+    status: 'admitted',
+    decision: 'admit',
+    cleanedCandidate: buildCleanedCandidate({
+      transaction,
+      now: input.now,
+    }),
+    rejectionReasons: [],
+    reviewReasons: [],
+    nextAttemptAt: null,
+    updatedAt: Number.isFinite(input.now) ? Number(input.now) : Date.now(),
+  }
+}
