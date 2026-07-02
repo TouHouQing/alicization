@@ -4,9 +4,12 @@ import type {
   AlicizationDialogueWorldThreadSnapshot,
 } from '../../../../shared/eventa'
 import type {
+  WorkingMemoryAuditState,
+  WorkingMemoryLongTermCandidate,
   WorkingMemoryQuestion,
   WorkingMemoryFailureKind,
   WorkingMemorySnapshot,
+  WorkingMemoryTask,
   WorkingMemoryTurn,
 } from './working-memory'
 
@@ -16,7 +19,11 @@ import {
   normalizeWorkingMemoryTurn,
   uniqueWorkingMemoryTexts,
 } from './working-memory'
-import { createLongTermCandidatesFromWorkingTurns } from './working-memory-policy'
+import { compressWorkingMemorySnapshot } from './working-memory-compressor'
+import {
+  createLongTermCandidatesFromWorkingTurns,
+  shouldExcludeTurnFromLongTermCandidate,
+} from './working-memory-policy'
 
 export interface WorkingMemoryRecentTurnInput {
   turnId?: string | null
@@ -35,10 +42,11 @@ export interface BuildWorkingMemorySnapshotInput {
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
   executionCarry?: string | null
+  previousSnapshot?: WorkingMemorySnapshot | null
 }
 
 function detectCorrectionScope(text: string) {
-  if (/人格|固定回复|固定模板|数字生命|persona|same-her/iu.test(text))
+  if (/人格|固定回复|固定模板|旧模板|模板化|数字生命|persona|same-her/iu.test(text))
     return 'persona' as const
   if (/记忆|回想|长期|短期/iu.test(text))
     return 'memory' as const
@@ -53,9 +61,111 @@ function looksLikeCorrection(text: string) {
   return /不是这个|不想要|不要固定|固定回复|固定模板|我需要|你搞错|你错了|别这样|不要这样/u.test(text)
 }
 
+function looksLikeThinContinuationCue(text: string) {
+  const normalized = normalizeWorkingMemoryText(text, 80)
+  return /^(继续|继续吧|接着|接着说|继续这个|继续上面|go on|continue|keep going)[。.!！?？]*$/iu.test(normalized)
+}
+
+function matchesResolvedWorkingMemoryText(text: string, resolvedTexts: string[]) {
+  const normalized = normalizeWorkingMemoryText(text, 220)
+  return resolvedTexts.some((resolved) => {
+    const normalizedResolved = normalizeWorkingMemoryText(resolved, 220)
+    return Boolean(
+      normalizedResolved
+      && (
+        normalized === normalizedResolved
+        || normalized.includes(normalizedResolved)
+        || normalizedResolved.includes(normalized)
+      ),
+    )
+  })
+}
+
+function filterResolvedWorkingMemoryEntries<T extends { text: string }>(entries: T[], resolvedTexts: string[]) {
+  if (resolvedTexts.length === 0)
+    return entries
+  return entries.filter(entry => !matchesResolvedWorkingMemoryText(entry.text, resolvedTexts))
+}
+
+function mergeWorkingMemoryTextEntries<T extends { text: string; sourceTurnId: string | null }>(
+  current: T[],
+  previous: T[] | null | undefined,
+  maxItems = 8,
+  maxChars = 220,
+) {
+  const result: T[] = []
+  const seen = new Set<string>()
+  for (const item of [...current, ...(previous ?? [])]) {
+    const text = normalizeWorkingMemoryText(item.text, maxChars)
+    if (!text || seen.has(text))
+      continue
+    seen.add(text)
+    result.push({
+      ...item,
+      text,
+    })
+    if (result.length >= maxItems)
+      break
+  }
+  return result
+}
+
+function mergeWorkingMemoryStrings(current: string[], previous: string[] | null | undefined, maxItems = 8, maxChars = 220) {
+  return uniqueWorkingMemoryTexts([
+    ...current,
+    ...(previous ?? []),
+  ], maxItems, maxChars)
+}
+
+function mergeLongTermCandidates(
+  current: WorkingMemoryLongTermCandidate[],
+  previous: WorkingMemoryLongTermCandidate[] | null | undefined,
+) {
+  const result: WorkingMemoryLongTermCandidate[] = []
+  const seen = new Set<string>()
+  for (const candidate of [...current, ...(previous ?? [])]) {
+    const summary = normalizeWorkingMemoryText(candidate.summary, 260)
+    const reason = normalizeWorkingMemoryText(candidate.reason, 260)
+    const sourceTurnIds = uniqueWorkingMemoryTexts(candidate.sourceTurnIds, 12, 120)
+    const key = [
+      candidate.kind,
+      summary,
+      reason,
+      sourceTurnIds.join(','),
+    ].join('|')
+    if (!summary || seen.has(key))
+      continue
+    seen.add(key)
+    result.push({
+      ...candidate,
+      summary,
+      reason,
+      sourceTurnIds,
+    })
+    if (result.length >= 6)
+      break
+  }
+  return result
+}
+
+function mergeAudit(current: WorkingMemoryAuditState, previous: WorkingMemoryAuditState | null | undefined): WorkingMemoryAuditState {
+  return {
+    failureTurnIds: mergeWorkingMemoryStrings(current.failureTurnIds, previous?.failureTurnIds, 20, 120),
+    excludedLongTermCandidateTurnIds: mergeWorkingMemoryStrings(
+      current.excludedLongTermCandidateTurnIds,
+      previous?.excludedLongTermCandidateTurnIds,
+      20,
+      120,
+    ),
+    notes: mergeWorkingMemoryStrings(current.notes, previous?.notes, 8, 220),
+  }
+}
+
 function detectFailureKindFromVisibleText(text: string): WorkingMemoryFailureKind | null {
   if (/^超时了[。.]?$/u.test(text))
     return 'timeout'
+  if (/execution_callback_status:failed|execution_status:failed|callback failed|tool failed|执行回调失败|工具失败/iu.test(text))
+    return 'tool-error'
   if (/provider|供应方|模型服务|模型调用/u.test(text) && /失败|错误|error|failed/iu.test(text))
     return 'provider-error'
   if (/工具|tool/u.test(text) && /失败|错误|error|failed/iu.test(text))
@@ -120,22 +230,46 @@ function buildQuestions(input: BuildWorkingMemorySnapshotInput): WorkingMemoryQu
   }))
 }
 
+function deriveActiveTaskStatus(input: {
+  dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
+  executionCarry?: string | null
+  previousSnapshot?: WorkingMemorySnapshot | null
+}): WorkingMemoryTask['status'] {
+  const executionCarry = normalizeWorkingMemoryText(input.executionCarry, 900).toLowerCase()
+  if (/execution_callback_status:failed|execution_status:failed|status:failed|tool failed|error|failed|失败|报错|卡住|blocked/iu.test(executionCarry))
+    return 'blocked'
+  if (/execution_callback_status:(running|pending)|execution_status:(running|pending)|status:(running|pending)|in[_-]?progress|waiting|执行中|等待工具/iu.test(executionCarry))
+    return 'waiting-tool'
+
+  const lastOutcome = normalizeWorkingMemoryText(input.dialogueWorldThread?.lastOutcome, 40)
+  const openLoopCount = input.dialogueWorldThread?.openLoops?.length ?? 0
+  if (/^(aligned|resolved|none|deferred)$/u.test(lastOutcome) && openLoopCount === 0)
+    return 'settled'
+  if (lastOutcome === 'pending')
+    return 'active'
+
+  return input.previousSnapshot?.activeTask?.status ?? 'waiting-user'
+}
+
 export function buildWorkingMemorySnapshot(input: BuildWorkingMemorySnapshotInput): WorkingMemorySnapshot {
   const snapshot = createEmptyWorkingMemorySnapshot({
     cardId: input.cardId,
     sessionId: input.sessionId,
     now: input.now,
   })
+  const previousSnapshot = input.previousSnapshot ?? null
   const recentRawTurns = mapRecentTurns(input)
   const firstTurn = recentRawTurns[0] ?? null
   const lastTurn = recentRawTurns.at(-1) ?? null
+  const currentUserTextIsThinContinuation = looksLikeThinContinuationCue(input.currentUserText)
   const threadTitle = normalizeWorkingMemoryText(
     input.dialogueWorldThread?.activeThread
     || input.conversationState?.jointThread
     || input.conversationState?.primaryTurnAnchor
-    || input.currentUserText,
+    || (currentUserTextIsThinContinuation ? null : input.currentUserText),
     220,
   )
+  const hasFreshThreadSignal = Boolean(threadTitle)
   const currentUserMove = normalizeWorkingMemoryText(
     input.conversationState?.hostMove
     || input.dialogueWorldThread?.lastUserMove
@@ -150,69 +284,140 @@ export function buildWorkingMemorySnapshot(input: BuildWorkingMemorySnapshotInpu
       : input.conversationState?.memoryMode === 'scene-anchored'
         ? 'execution'
         : 'casual'
-
-  return {
-    ...snapshot,
-    turnRange: {
-      fromTurnId: firstTurn?.turnId ?? null,
-      toTurnId: lastTurn?.turnId ?? null,
-    },
-    recentRawTurns,
-    currentThread: threadTitle
-      ? {
-          title: threadTitle,
-          currentUserMove,
-          currentAliceMove: normalizeWorkingMemoryText(input.dialogueWorldThread?.lastAssistantMove, 220) || null,
-          primaryAnchor: normalizeWorkingMemoryText(input.conversationState?.primaryTurnAnchor ?? input.dialogueWorldThread?.primaryTurnAnchor, 180) || null,
-          mode: currentThreadMode,
-          shouldHold: input.conversationState?.shouldHoldThread ?? input.dialogueWorldThread?.lastOutcome === 'pending',
-          confidence: Math.max(input.conversationState?.confidence ?? 0, input.dialogueWorldThread?.confidence ?? 0),
-        }
-      : null,
-    activeTask: input.conversationState?.activeProject
-      ? {
-          summary: normalizeWorkingMemoryText(input.conversationState.activeProject, 220),
-          status: input.dialogueWorldThread?.lastOutcome === 'pending' ? 'active' : 'waiting-user',
-          evidenceTurnIds: lastTurn ? [lastTurn.turnId] : [],
-        }
-      : null,
-    unresolvedQuestions: buildQuestions(input),
-    commitments: uniqueWorkingMemoryTexts([
+  const mergedThreadTitle = threadTitle || previousSnapshot?.currentThread?.title || null
+  const mergedThreadCurrentUserMove = currentUserMove || previousSnapshot?.currentThread?.currentUserMove || null
+  const mergedThreadCurrentAliceMove = normalizeWorkingMemoryText(input.dialogueWorldThread?.lastAssistantMove, 220) || previousSnapshot?.currentThread?.currentAliceMove || null
+  const mergedThreadPrimaryAnchor = normalizeWorkingMemoryText(input.conversationState?.primaryTurnAnchor ?? input.dialogueWorldThread?.primaryTurnAnchor, 180) || previousSnapshot?.currentThread?.primaryAnchor || null
+  const mergedThreadMode = hasFreshThreadSignal
+    ? currentThreadMode
+    : previousSnapshot?.currentThread?.mode ?? null
+  const dialogueThreadShouldHold = input.dialogueWorldThread
+    ? input.dialogueWorldThread.lastOutcome === 'pending'
+    : undefined
+  const mergedThreadShouldHold = input.conversationState?.shouldHoldThread ?? dialogueThreadShouldHold ?? previousSnapshot?.currentThread?.shouldHold ?? false
+  const mergedThreadConfidence = Math.max(input.conversationState?.confidence ?? 0, input.dialogueWorldThread?.confidence ?? 0, previousSnapshot?.currentThread?.confidence ?? 0)
+  const activeProjectSummary = normalizeWorkingMemoryText(input.conversationState?.activeProject, 220) || previousSnapshot?.activeTask?.summary || null
+  const activeProjectStatus = activeProjectSummary
+    ? deriveActiveTaskStatus(input)
+    : null
+  const mergedEvidenceTurnIds = uniqueWorkingMemoryTexts([
+    ...(lastTurn ? [lastTurn.turnId] : []),
+    ...(previousSnapshot?.activeTask?.evidenceTurnIds ?? []),
+  ], 12, 120)
+  const resolvedWorkingMemoryTexts = uniqueWorkingMemoryTexts(
+    input.dialogueWorldThread?.recentlyResolvedLoops ?? [],
+    12,
+    220,
+  )
+  const currentUnresolvedQuestions = filterResolvedWorkingMemoryEntries(mergeWorkingMemoryTextEntries(
+    buildQuestions(input),
+    previousSnapshot?.unresolvedQuestions,
+    8,
+    220,
+  ), resolvedWorkingMemoryTexts)
+  const currentCommitments = filterResolvedWorkingMemoryEntries(mergeWorkingMemoryTextEntries(
+    uniqueWorkingMemoryTexts([
       ...(input.conversationState?.activeCommitments ?? []),
       ...(input.dialogueWorldThread?.openLoops ?? []),
     ], 8, 220).map(text => ({
       text,
       sourceTurnId: null,
     })),
-    userCorrections: recentRawTurns
+    previousSnapshot?.commitments,
+    8,
+    220,
+  ), resolvedWorkingMemoryTexts)
+  const currentUserCorrections = mergeWorkingMemoryTextEntries(
+    recentRawTurns
       .filter(turn => turn.role === 'user' && looksLikeCorrection(turn.text))
       .map(turn => ({
         text: turn.text,
         sourceTurnId: turn.turnId,
         scope: detectCorrectionScope(turn.text),
       })),
-    relationshipPosture: relationFrame
+    previousSnapshot?.userCorrections,
+    8,
+    220,
+  )
+  const currentRelationshipPosture = relationFrame
+    ? {
+        summary: `relation=${relationFrame}`,
+        source: 'conversation-state' as const,
+      }
+    : previousSnapshot?.relationshipPosture ?? null
+  const currentEmotionalPosture = input.currentConsciousFrame?.consciousTension
+    ? {
+        summary: normalizeWorkingMemoryText(input.currentConsciousFrame.consciousTension, 260),
+        source: 'conscious-frame' as const,
+      }
+    : previousSnapshot?.emotionalPosture ?? null
+  const currentExecutionState = input.executionCarry
+    ? {
+        summary: normalizeWorkingMemoryText(input.executionCarry, 260),
+        source: 'execution-callback' as const,
+      }
+    : previousSnapshot?.executionState ?? null
+  const mergedMemoryQueryHints = mergeWorkingMemoryStrings([
+    ...(input.conversationState?.memoryQueryHints ?? []),
+    ...(input.dialogueWorldThread?.recallKeys ?? []),
+  ], previousSnapshot?.memoryQueryHints, 8, 120)
+  const mergedLongTermCandidates = mergeLongTermCandidates(
+    createLongTermCandidatesFromWorkingTurns(recentRawTurns),
+    previousSnapshot?.longTermCandidates,
+  )
+  const failureTurnIds = recentRawTurns
+    .filter(turn => Boolean(turn.failureKind))
+    .map(turn => turn.turnId)
+  const excludedLongTermCandidateTurnIds = recentRawTurns
+    .filter(shouldExcludeTurnFromLongTermCandidate)
+    .map(turn => turn.turnId)
+  const mergedAudit = mergeAudit({
+    failureTurnIds,
+    excludedLongTermCandidateTurnIds,
+    notes: [
+      failureTurnIds.length > 0 ? 'failure turns are audit-only and excluded from long-term candidates' : '',
+      excludedLongTermCandidateTurnIds.length > 0 ? 'non-learning turns are excluded from long-term candidates' : '',
+    ].filter(Boolean),
+  }, previousSnapshot?.audit)
+  const mergedSnapshot: WorkingMemorySnapshot = {
+    ...snapshot,
+    turnRange: {
+      fromTurnId: firstTurn?.turnId ?? null,
+      toTurnId: lastTurn?.turnId ?? null,
+    },
+    recentRawTurns,
+    compressedTimeline: previousSnapshot?.compressedTimeline ?? [],
+    currentThread: mergedThreadTitle
       ? {
-          summary: `relation=${relationFrame}`,
-          source: 'conversation-state',
+          title: mergedThreadTitle,
+          currentUserMove: mergedThreadCurrentUserMove || '',
+          currentAliceMove: mergedThreadCurrentAliceMove,
+          primaryAnchor: mergedThreadPrimaryAnchor,
+          mode: mergedThreadMode ?? 'casual',
+          shouldHold: mergedThreadShouldHold,
+          confidence: mergedThreadConfidence,
         }
-      : null,
-    emotionalPosture: input.currentConsciousFrame?.consciousTension
+      : previousSnapshot?.currentThread ?? null,
+    activeTask: activeProjectSummary
       ? {
-          summary: normalizeWorkingMemoryText(input.currentConsciousFrame.consciousTension, 260),
-          source: 'conscious-frame',
+          summary: activeProjectSummary,
+          status: activeProjectStatus ?? 'waiting-user',
+          evidenceTurnIds: mergedEvidenceTurnIds,
         }
-      : null,
-    executionState: input.executionCarry
-      ? {
-          summary: normalizeWorkingMemoryText(input.executionCarry, 260),
-          source: 'execution-callback',
-        }
-      : null,
-    memoryQueryHints: uniqueWorkingMemoryTexts([
-      ...(input.conversationState?.memoryQueryHints ?? []),
-      ...(input.dialogueWorldThread?.recallKeys ?? []),
-    ], 8, 120),
-    longTermCandidates: createLongTermCandidatesFromWorkingTurns(recentRawTurns),
+      : previousSnapshot?.activeTask ?? null,
+    unresolvedQuestions: currentUnresolvedQuestions,
+    commitments: currentCommitments,
+    userCorrections: currentUserCorrections,
+    relationshipPosture: currentRelationshipPosture,
+    emotionalPosture: currentEmotionalPosture,
+    executionState: currentExecutionState,
+    memoryQueryHints: mergedMemoryQueryHints,
+    longTermCandidates: mergedLongTermCandidates,
+    compression: previousSnapshot?.compression ?? snapshot.compression,
+    audit: mergedAudit,
   }
+  return compressWorkingMemorySnapshot(mergedSnapshot, {
+    now: input.now,
+    maxRawTurns: 6,
+  })
 }

@@ -10,6 +10,8 @@ import type { Message } from '@xsai/shared-chat'
 import type {
   AlicizationAnswerPlannerSnapshot,
   AlicizationChatStartPayload,
+  AlicizationConversationStateSnapshot,
+  AlicizationCurrentConsciousFrameSnapshot,
   AlicizationMindTurnContractSnapshot,
   AlicizationMindTurnGovernance,
   AlicizationRecallGovernorSnapshot,
@@ -18,6 +20,7 @@ import type {
   AlicizationSensoryCaptureHealth,
   AlicizationSensoryCapturePermission,
   CharacterPerformanceCapabilitiesManifest,
+  AlicizationDialogueWorldThreadSnapshot,
 } from '../../../shared/eventa'
 import type {
   AlicizationAgentSessionContinuityInput,
@@ -40,6 +43,9 @@ import type {
   MainGatewayExecutionToolContext,
 } from './main-chat-execution-surface'
 import type { AlicizationMainChatRuntimeSurface } from './main-chat-runtime-surface'
+import type { WorkingMemorySnapshot } from './life-core/working-memory'
+import type { WorkingMemoryRecentTurnInput } from './life-core/working-memory-builder'
+import type { WorkingMemoryStore } from './life-core/working-memory-store'
 import type { AlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
 import type { AlicizationExecutionLedgerContext } from './memory-ledger-runtime'
 import type { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
@@ -93,6 +99,12 @@ import { buildAlicizationMindTurnContractSystemBlock } from './mind-turn-contrac
 import { buildAlicizationPersonMemoryCapsule } from './person-memory-capsule'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import {
+  buildWorkingMemoryPromptBlock,
+  injectWorkingMemorySystemBlock,
+} from './life-core/working-memory-prompt-view'
+import { buildWorkingMemorySnapshot } from './life-core/working-memory-builder'
+import { createWorkingMemoryStore } from './life-core/working-memory-store'
+import {
   deriveRuntimeProjectionRelationshipCarry,
   resolvePreparedRuntimeProjectPreDialogueAwarenessSummary,
 } from './prepared-runtime-continuity'
@@ -132,6 +144,7 @@ import {
   mergeUniqueRules,
   sanitizeToolPhaseSegment,
 } from './runtime-turn-composition'
+import { readTransportContentAsText } from './runtime-transport-content'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
 import {
 
@@ -286,6 +299,7 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
   buildPerformanceManifestSystemBlocks: (manifest: CharacterPerformanceCapabilitiesManifest | null) => string[]
   dialogueSessionManager?: AlicizationDialogueSessionManager
   dialogueSessionMirrorTtlMs?: number
+  workingMemoryStore?: WorkingMemoryStore
   persistAutobiographicalEpisodesFromPreparedMirror?: (input: {
     cardId: string
     decisionTraceId?: string | null
@@ -485,6 +499,89 @@ function normalizePreparedExecutionText(raw: unknown, maxChars = 320) {
     return null
   const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
   return normalized || null
+}
+
+function readLatestUserMessageText(messages: Message[]) {
+  const latestUserMessage = [...messages].reverse().find(message => message?.role === 'user')
+  return normalizePreparedExecutionText(readTransportContentAsText(latestUserMessage?.content), 1200) || ''
+}
+
+function buildWorkingMemoryRecentTurns(
+  messages: Message[],
+  now: number,
+  executionCarryText: string | null,
+): WorkingMemoryRecentTurnInput[] {
+  const visibleMessages = messages
+    .filter(message => message?.role === 'user' || message?.role === 'assistant')
+    .slice(-6)
+  const recentMessages = visibleMessages.at(-1)?.role === 'user'
+    ? visibleMessages.slice(0, -1)
+    : visibleMessages
+
+  const recentTurns: WorkingMemoryRecentTurnInput[] = recentMessages
+    .map((message, index): WorkingMemoryRecentTurnInput | null => {
+      const text = normalizePreparedExecutionText(readTransportContentAsText(message.content), 1200)
+      if (!text)
+        return null
+      return message.role === 'assistant'
+        ? {
+            turnId: `message-${index + 1}`,
+            assistantText: text,
+            createdAt: now - (recentMessages.length - index),
+          }
+        : {
+            turnId: `message-${index + 1}`,
+            userText: text,
+            createdAt: now - (recentMessages.length - index),
+          }
+    })
+    .filter((turn): turn is WorkingMemoryRecentTurnInput => Boolean(turn))
+
+  if (executionCarryText) {
+    recentTurns.push({
+      turnId: 'execution-carry',
+      assistantText: executionCarryText,
+      createdAt: now,
+    })
+  }
+
+  return recentTurns
+}
+
+function buildWorkingMemoryPromptBlockFromRuntime(input: {
+  cardId: string
+  currentConsciousFrame: AlicizationCurrentConsciousFrameSnapshot | null
+  conversationState: AlicizationConversationStateSnapshot | null
+  dialogueWorldThread: AlicizationDialogueWorldThreadSnapshot | null
+  executionCallbackRecallText: string
+  executionLedgerRecallText: string
+  messages: Message[]
+  now: number
+  previousSnapshot?: WorkingMemorySnapshot | null
+  sessionId: string
+}) {
+  const executionCarryText = [
+    input.executionCallbackRecallText,
+    input.executionLedgerRecallText,
+  ].map(text => normalizePreparedExecutionText(text, 1200)).filter(Boolean).join('\n') || null
+
+  const snapshot = buildWorkingMemorySnapshot({
+    cardId: input.cardId,
+    sessionId: input.sessionId,
+    now: input.now,
+    currentUserText: readLatestUserMessageText(input.messages),
+    recentTurns: buildWorkingMemoryRecentTurns(input.messages, input.now, executionCarryText),
+    conversationState: input.conversationState as any,
+    dialogueWorldThread: input.dialogueWorldThread as any,
+    currentConsciousFrame: input.currentConsciousFrame as any,
+    executionCarry: executionCarryText,
+    previousSnapshot: input.previousSnapshot,
+  })
+
+  return {
+    block: buildWorkingMemoryPromptBlock(snapshot),
+    snapshot,
+  }
 }
 
 function cloneRuntimeSurfaceForDiagnostics(
@@ -7483,6 +7580,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       getNow: options.getNow,
       staleAfterMs: options.dialogueSessionMirrorTtlMs,
     })
+  const workingMemoryStore = options.workingMemoryStore ?? createWorkingMemoryStore()
 
   async function prepareExecution(input: {
     payload: AlicizationChatStartPayload
@@ -8511,6 +8609,20 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         ? ['visible-reply-authority-settled']
         : ['visible-reply-authority-missing'],
     })
+    const workingMemorySessionId = agentTurn.conversationSessionId ?? payload.turnId
+    const workingMemoryPrompt = buildWorkingMemoryPromptBlockFromRuntime({
+      cardId: payload.cardId,
+      currentConsciousFrame: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame ?? null,
+      conversationState: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.conversationState ?? null,
+      dialogueWorldThread: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.dialogueWorldThread ?? null,
+      executionCallbackRecallText: executionCallbackContext.recallText,
+      executionLedgerRecallText: executionLedgerContext.recallText,
+      messages: runtimeSurface.messages,
+      now,
+      previousSnapshot: workingMemoryStore.get(payload.cardId, workingMemorySessionId),
+      sessionId: workingMemorySessionId,
+    })
+    workingMemoryStore.upsert(workingMemoryPrompt.snapshot)
     const fresherRuntimeSurfaceForProviderFacing
       = preparedRuntimeSurfaceSelection.fresherRuntimeSurface
         ?? runtimeSurfaceForBuilder
@@ -9623,6 +9735,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         ...messages,
       ]
     }
+    messages = injectWorkingMemorySystemBlock(messages, workingMemoryPrompt.block)
     runtimeSurface.messages = messages
 
     if (options.onPreparedExecutionDiagnostics) {

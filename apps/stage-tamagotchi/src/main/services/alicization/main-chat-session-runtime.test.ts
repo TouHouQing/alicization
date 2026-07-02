@@ -64,6 +64,22 @@ type PreparedPreludeWithRuntimeSurface = AlicizationPreparedMainChatPrelude & {
   }
 }
 
+function findWorkingMemoryBlock(messages: Message[]) {
+  return messages.find(message =>
+    message.role === 'system'
+    && typeof message.content === 'string'
+    && message.content.includes('[ALICIZATION_WORKING_MEMORY]'),
+  )?.content as string | undefined
+}
+
+function countWorkingMemoryBlocks(messages: Message[]) {
+  return messages.filter(message =>
+    message.role === 'system'
+    && typeof message.content === 'string'
+    && message.content.includes('[ALICIZATION_WORKING_MEMORY]'),
+  ).length
+}
+
 const executionChannels = [
   'cli',
   'codex',
@@ -7922,6 +7938,210 @@ describe('main chat session runtime', () => {
       && typeof message.content === 'string'
       && message.content.includes('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]'),
     )).toBe(true)
+  })
+
+  function createWorkingMemoryRuntimeFixture() {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 87.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
+      buildOrganicMemorySystemBlocks: () => ['[ORGANIC]'],
+      buildPerformanceManifestSystemBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({
+        text: '',
+        source: 'none' as const,
+      })),
+      resolveCardHostName: vi.fn(async () => 'Kirito'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    return {
+      getSensorySnapshot,
+      runtime,
+    }
+  }
+
+  it('assembles a working-memory block for a normal turn and carries the current user move', async () => {
+    const { runtime } = createWorkingMemoryRuntimeFixture()
+    const prelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '继续这个本地数字生命的工作记忆线。',
+      } as Message],
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-normal',
+        messages: [{
+          role: 'user',
+          content: '继续这个本地数字生命的工作记忆线。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    const block = findWorkingMemoryBlock(result.messages)
+    expect(block).toContain('[ALICIZATION_WORKING_MEMORY]')
+    expect(block).toContain('thread=')
+    expect(block).toContain('task=')
+    expect(block).toContain('questions=')
+    expect(block).toContain('execution=')
+    expect(block).toContain('继续这个本地数字生命的工作记忆线。')
+    expect(countWorkingMemoryBlocks(result.messages)).toBe(1)
+  })
+
+  it('flows correction and failure signals into the short-term memory snapshot', async () => {
+    const { runtime } = createWorkingMemoryRuntimeFixture()
+    const prelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '不是这个，别再用旧模板了。',
+      } as Message],
+    })
+    prelude.executionCallbackContextPromise = Promise.resolve({
+      actions: [],
+      callbacks: [{
+        channel: 'cli',
+        createdAt: 10,
+        decisionTraceId: 'trace-failure',
+        goal: 'repair the working-memory prompt',
+        outcome: 'tool failed',
+        sessionId: 'session-1',
+        status: 'failed',
+        summary: 'Failed to repair the working-memory prompt: tool failed',
+        threadId: 'thread-failure',
+        turnId: 'turn-failure',
+      }],
+      continuitySignals: [],
+      recallText: 'execution_callback_channel:cli execution_callback_status:failed execution_callback_goal:repair the working-memory prompt execution_callback_outcome:tool failed',
+      systemBlock: '[ALICIZATION_EXECUTION_CALLBACKS]',
+    })
+    prelude.executionLedgerContextPromise = Promise.resolve({
+      entries: [{
+        activityAt: 10,
+        channel: 'cli',
+        eventKinds: ['dispatch', 'error'],
+        goal: 'repair the working-memory prompt',
+        outcome: 'tool failed',
+        status: 'failed',
+        summary: 'Failed to repair the working-memory prompt: tool failed',
+      }],
+      recallText: 'execution_channel:cli execution_status:failed',
+      systemBlock: '[ALICIZATION_EXECUTION_LEDGER]',
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-correction',
+        messages: [{
+          role: 'user',
+          content: '不是这个，别再用旧模板了。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    const block = findWorkingMemoryBlock(result.messages)
+    expect(block).toContain('corrections=persona:不是这个，别再用旧模板了。')
+    expect(block).toContain('execution=execution_callback_channel:cli execution_callback_status:failed')
+    expect(block).toContain('audit=failures=')
+    expect(block).toContain('long_term_candidates=correction:不是这个，别再用旧模板了。')
+    expect(countWorkingMemoryBlocks(result.messages)).toBe(1)
+  })
+
+  it('persists short-term corrections across turns in the same runtime session', async () => {
+    const { runtime } = createWorkingMemoryRuntimeFixture()
+    const firstPrelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '不是这个，别再用旧模板了。',
+      } as Message],
+    })
+
+    await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-persist-1',
+        messages: [{
+          role: 'user',
+          content: '不是这个，别再用旧模板了。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: firstPrelude,
+    })
+
+    const secondPrelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '继续',
+      } as Message],
+    })
+    const secondResult = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-persist-2',
+        messages: [{
+          role: 'user',
+          content: '继续',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: secondPrelude,
+    })
+
+    const block = findWorkingMemoryBlock(secondResult.messages)
+    expect(block).toContain('corrections=persona:不是这个，别再用旧模板了。')
+    expect(block).toContain('thread=')
+    expect(block).toContain('user=继续')
+    expect(countWorkingMemoryBlocks(secondResult.messages)).toBe(1)
   })
 
   it('fills provider-facing project-state gaps from the live runtime conscious frame before falling back to canonical project brief', async () => {
