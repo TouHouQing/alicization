@@ -130,7 +130,7 @@ export function cleanWorkingMemoryLongTermQueueItem(input: {
       rejectionReasons,
       reviewReasons: [],
       nextAttemptAt: null,
-      updatedAt: Number.isFinite(input.now) ? Number(input.now) : Date.now(),
+      updatedAt: input.now,
     }
   }
 
@@ -143,7 +143,7 @@ export function cleanWorkingMemoryLongTermQueueItem(input: {
       rejectionReasons: [],
       reviewReasons,
       nextAttemptAt: null,
-      updatedAt: Number.isFinite(input.now) ? Number(input.now) : Date.now(),
+      updatedAt: input.now,
     }
   }
 
@@ -154,7 +154,7 @@ export function cleanWorkingMemoryLongTermQueueItem(input: {
     cleanedCandidate: buildCleanedCandidate({ transaction }),
     rejectionReasons: [],
     reviewReasons: [],
-    nextAttemptAt: Number.isFinite(input.now) ? Number(input.now) : Date.now(),
-    updatedAt: Number.isFinite(input.now) ? Number(input.now) : Date.now(),
+    nextAttemptAt: input.now,
+    updatedAt: input.now,
   }
 }
