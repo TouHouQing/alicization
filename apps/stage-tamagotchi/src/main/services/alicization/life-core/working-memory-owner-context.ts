@@ -135,6 +135,42 @@ export function buildWorkingMemoryOwnerSystemBlock(context: WorkingMemoryOwnerCo
   return uniqueWorkingMemoryTexts(lines, lines.length, 500).join('\n')
 }
 
+function obligationPayload(line: string, prefix: RegExp) {
+  return compact(line.replace(prefix, ''), 240)
+}
+
+export function buildWorkingMemoryOwnerReplyGovernance(context: WorkingMemoryOwnerContext) {
+  const mustDo = uniqueWorkingMemoryTexts([
+    ...context.obligations.map((line) => {
+      if (line.startsWith('respect_correction('))
+        return `Respect WorkingMemory correction: ${obligationPayload(line, /^respect_correction\([^)]*\):/u)}`
+      if (line.startsWith('answer_unresolved_question:'))
+        return `Answer WorkingMemory unresolved question before widening: ${obligationPayload(line, /^answer_unresolved_question:/u)}`
+      if (line.startsWith('honor_commitment:'))
+        return `Honor WorkingMemory commitment: ${obligationPayload(line, /^honor_commitment:/u)}`
+      if (line.startsWith('carry_task('))
+        return `Carry WorkingMemory active task: ${obligationPayload(line, /^carry_task\(([^)]*)\):/u).replace(/^/u, `${line.match(/^carry_task\(([^)]*)\):/u)?.[1] ?? 'active'}:`)}`
+      if (line.startsWith('hold_thread:'))
+        return `Stay on WorkingMemory thread: ${obligationPayload(line, /^hold_thread:/u)}`
+      if (line.startsWith('carry_execution:'))
+        return `Carry WorkingMemory execution state plainly: ${obligationPayload(line, /^carry_execution:/u)}`
+      return ''
+    }),
+  ], 12, 320)
+
+  const mustNotDo = uniqueWorkingMemoryTexts([
+    'Do not replace WorkingMemory owner state with generic project-status narration or fixed fallback wording.',
+    context.audit.failureTurnIds.length > 0
+      ? 'Do not treat WorkingMemory failure/audit-only turns as learned personality or long-term memory.'
+      : '',
+  ], 4, 320)
+
+  return {
+    mustDo,
+    mustNotDo,
+  }
+}
+
 function deriveEpisodeTension(snapshot: WorkingMemorySnapshot): AlicizationVisualEpisode['emotionalTension'] {
   const text = [
     snapshot.emotionalPosture?.summary,

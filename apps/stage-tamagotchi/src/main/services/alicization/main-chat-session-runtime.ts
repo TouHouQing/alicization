@@ -105,6 +105,7 @@ import {
 import { buildWorkingMemorySnapshot } from './life-core/working-memory-builder'
 import {
   buildWorkingMemoryOwnerContext,
+  buildWorkingMemoryOwnerReplyGovernance,
   buildWorkingMemoryOwnerSystemBlock,
   projectWorkingMemoryOwnerEpisodes,
 } from './life-core/working-memory-owner-context'
@@ -593,12 +594,19 @@ function buildWorkingMemoryPromptBlockFromRuntime(input: {
 }
 
 function applyWorkingMemoryOwnerToDigitalLifeRuntimeSurface(input: {
+  ownerContext: ReturnType<typeof buildWorkingMemoryOwnerContext>
   surface: AlicizationDigitalLifeRuntimeSurface | null
   snapshot: WorkingMemorySnapshot
 }): AlicizationDigitalLifeRuntimeSurface | null {
   const surface = ensurePreparedRuntimeSurfaceShape(input.surface)
   if (!surface)
     return surface
+  const replyGovernance = buildWorkingMemoryOwnerReplyGovernance(input.ownerContext)
+  const existingAnswerPlanner = surface.dialogue.answerPlanner ?? {
+    mustDo: [],
+    mustNotDo: [],
+    governingProject: null,
+  }
 
   return {
     ...surface,
@@ -608,6 +616,20 @@ function applyWorkingMemoryOwnerToDigitalLifeRuntimeSurface(input: {
         input.snapshot,
         surface.memory.workingMemoryEpisodes ?? [],
       ),
+    },
+    dialogue: {
+      ...surface.dialogue,
+      answerPlanner: {
+        ...existingAnswerPlanner,
+        mustDo: mergeUniqueRules([
+          ...((existingAnswerPlanner.mustDo as string[] | null | undefined) ?? []),
+          ...replyGovernance.mustDo,
+        ]),
+        mustNotDo: mergeUniqueRules([
+          ...((existingAnswerPlanner.mustNotDo as string[] | null | undefined) ?? []),
+          ...replyGovernance.mustNotDo,
+        ]),
+      } as typeof surface.dialogue.answerPlanner,
     },
   } satisfies AlicizationDigitalLifeRuntimeSurface
 }
@@ -8672,6 +8694,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     })
     workingMemoryStore.upsert(workingMemoryPrompt.snapshot)
     const workingMemoryOwnedRuntimeSurface = applyWorkingMemoryOwnerToDigitalLifeRuntimeSurface({
+      ownerContext: workingMemoryPrompt.ownerContext,
       surface: runtimeSurface.digitalLifeRuntimeSurface,
       snapshot: workingMemoryPrompt.snapshot,
     })

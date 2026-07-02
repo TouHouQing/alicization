@@ -8019,6 +8019,22 @@ describe('main chat session runtime', () => {
         content: '继续这个本地数字生命的工作记忆线。',
       } as Message],
     })
+    prelude.perceptionAugmentation.digitalLifeRuntimeSurface.dialogue.conversationState = {
+      activeCommitments: [],
+      activeProject: 'WorkingMemory owner 第二层',
+      confidence: 0.82,
+      hostMove: '继续这个本地数字生命的工作记忆线。',
+      jointThread: '继续这个本地数字生命的工作记忆线。',
+      memoryMode: 'task-thread',
+      memoryQueryHints: ['WorkingMemory owner'],
+      primaryTurnAnchor: 'WorkingMemory owner',
+      relationFrame: 'steady',
+      shouldHoldThread: true,
+      unansweredQuestion: null,
+    } as any
+    prelude.perceptionAugmentation.digitalLifeSpine = deriveAlicizationDigitalLifeSpineFromSurface(
+      prelude.perceptionAugmentation.digitalLifeRuntimeSurface,
+    )
 
     const result = await runtime.prepareExecution({
       payload: {
@@ -8079,6 +8095,14 @@ describe('main chat session runtime', () => {
     }))
     expect(episodes.some(episode => episode.summary === 'carry the same runtime continuity line')).toBe(true)
     expect(ownerEpisode?.summary).toContain('thread=继续这个本地数字生命的工作记忆线。')
+
+    const answerPlanner = prelude.perceptionAugmentation.digitalLifeRuntimeSurface.dialogue.answerPlanner
+    expect(answerPlanner?.mustDo).toEqual(expect.arrayContaining([
+      expect.stringContaining('Carry WorkingMemory execution state plainly: execution_callback_channel:cli'),
+    ]))
+    expect(answerPlanner?.mustNotDo).toEqual(expect.arrayContaining([
+      'Do not replace WorkingMemory owner state with generic project-status narration or fixed fallback wording.',
+    ]))
   })
 
   it('flows correction and failure signals into the short-term memory snapshot', async () => {

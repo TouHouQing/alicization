@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { createEmptyWorkingMemorySnapshot } from './working-memory'
 import {
   buildWorkingMemoryOwnerContext,
+  buildWorkingMemoryOwnerReplyGovernance,
   buildWorkingMemoryOwnerSystemBlock,
   projectWorkingMemoryOwnerEpisodes,
 } from './working-memory-owner-context'
@@ -65,6 +66,18 @@ describe('working memory owner context', () => {
     expect(block).toContain('thread=B 线短期记忆 owner')
     expect(block).toContain('task=active:让 WorkingMemory 成为短期记忆链路 owner')
     expect(block).toContain('failure_audit_only=turn-failed:alice')
+
+    const replyGovernance = buildWorkingMemoryOwnerReplyGovernance(context)
+    expect(replyGovernance.mustDo).toEqual(expect.arrayContaining([
+      'Respect WorkingMemory correction: 不要固定模板回复，要数字生命自身人格',
+      'Answer WorkingMemory unresolved question before widening: 如何避免它只是另一个提示块？',
+      'Honor WorkingMemory commitment: 先做短期记忆 owner，再做长期记忆',
+      'Carry WorkingMemory active task: active:让 WorkingMemory 成为短期记忆链路 owner',
+    ]))
+    expect(replyGovernance.mustNotDo).toEqual(expect.arrayContaining([
+      'Do not replace WorkingMemory owner state with generic project-status narration or fixed fallback wording.',
+      'Do not treat WorkingMemory failure/audit-only turns as learned personality or long-term memory.',
+    ]))
   })
 
   it('projects the owner context into runtime working-memory episodes without marking it as sediment', () => {
