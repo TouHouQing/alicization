@@ -120,10 +120,11 @@ export function createWorkingMemoryLongTermCleaningTransaction(input: {
 }): WorkingMemoryLongTermCleaningTransaction {
   const idempotencyKey = buildWorkingMemoryLongTermIdempotencyKey(input)
   const now = Number.isFinite(input.now) ? Number(input.now) : Date.now()
+  const queueItemId = normalizeWorkingMemoryText(input.item.id, 240)
   return {
     id: `wm-lt-clean:${idempotencyKey}`,
     idempotencyKey,
-    queueItemId: normalizeWorkingMemoryText(input.item.id, 240),
+    queueItemId,
     source: 'working-memory-owner',
     cardId: normalizeWorkingMemoryText(input.cardId, 120) || 'default',
     sessionId: normalizeWorkingMemoryText(input.sessionId, 160) || 'detached',
@@ -131,6 +132,7 @@ export function createWorkingMemoryLongTermCleaningTransaction(input: {
     decision: 'pending',
     item: {
       ...input.item,
+      id: queueItemId,
       summary: normalizeWorkingMemoryText(input.item.summary, 260),
       reason: normalizeWorkingMemoryText(input.item.reason, 260),
       sourceTurnIds: uniqueWorkingMemoryTexts(input.item.sourceTurnIds, 12, 120),

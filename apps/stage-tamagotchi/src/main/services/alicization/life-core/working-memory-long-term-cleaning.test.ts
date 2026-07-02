@@ -64,6 +64,35 @@ describe('working memory long-term cleaning domain', () => {
     })
   })
 
+  it('keeps transaction and item queue ids aligned after normalization', () => {
+    const normalizedQueueItemId = 'queue:'.repeat(40)
+    const transaction = createWorkingMemoryLongTermCleaningTransaction({
+      cardId: 'default',
+      sessionId: 'session-1',
+      item: queueItem({
+        id: `  ${'queue:'.repeat(80)}  `,
+      }),
+      now: 2_500,
+    })
+
+    expect(transaction.queueItemId).toBe(normalizedQueueItemId)
+    expect(transaction.item.id).toBe(normalizedQueueItemId)
+  })
+
+  it('forces training off on both transaction and normalized item', () => {
+    const transaction = createWorkingMemoryLongTermCleaningTransaction({
+      cardId: 'default',
+      sessionId: 'session-1',
+      item: queueItem({
+        allowTraining: true,
+      }),
+      now: 2_500,
+    })
+
+    expect(transaction.allowTraining).toBe(false)
+    expect(transaction.item.allowTraining).toBe(false)
+  })
+
   it('normalizes unknown status to dead-lettered instead of pretending it is valid', () => {
     expect(normalizeWorkingMemoryLongTermCleaningStatus('admitted')).toBe('admitted')
     expect(normalizeWorkingMemoryLongTermCleaningStatus('unexpected')).toBe('dead-lettered')
