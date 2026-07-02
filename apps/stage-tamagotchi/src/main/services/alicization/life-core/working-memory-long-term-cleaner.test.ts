@@ -60,6 +60,22 @@ describe('working memory long-term cleaner', () => {
     expect(result.allowTraining).toBe(false)
   })
 
+  it('normalizes non-finite cleaner time before admission', () => {
+    const result = cleanWorkingMemoryLongTermQueueItem({
+      cardId: 'default',
+      sessionId: 'session-1',
+      item: item(),
+      now: Number.NaN,
+    })
+
+    expect(result.status).toBe('admitted')
+    expect(result.updatedAt).toBe(0)
+    expect(result.nextAttemptAt).toBe(0)
+    expect(result.cleanedCandidate).toEqual(expect.objectContaining({
+      createdAt: 2_000,
+    }))
+  })
+
   it('rejects wrong source candidates', () => {
     const result = clean({
       source: 'external' as WorkingMemoryLongTermQueueItem['source'],

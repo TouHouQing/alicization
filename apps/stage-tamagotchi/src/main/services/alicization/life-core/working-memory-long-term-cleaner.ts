@@ -115,7 +115,11 @@ export function cleanWorkingMemoryLongTermQueueItem(input: {
   item: WorkingMemoryLongTermQueueItem
   now: number
 }): WorkingMemoryLongTermCleaningTransaction {
-  const transaction = createWorkingMemoryLongTermCleaningTransaction(input)
+  const now = Number.isFinite(input.now) ? Number(input.now) : 0
+  const transaction = createWorkingMemoryLongTermCleaningTransaction({
+    ...input,
+    now,
+  })
   const text = candidateText(transaction.item)
   const rejectionReasons = rejectionReasonsFor({ transaction, text })
   const reviewReasons = rejectionReasons.length > 0
@@ -130,7 +134,7 @@ export function cleanWorkingMemoryLongTermQueueItem(input: {
       rejectionReasons,
       reviewReasons: [],
       nextAttemptAt: null,
-      updatedAt: input.now,
+      updatedAt: now,
     }
   }
 
@@ -143,7 +147,7 @@ export function cleanWorkingMemoryLongTermQueueItem(input: {
       rejectionReasons: [],
       reviewReasons,
       nextAttemptAt: null,
-      updatedAt: input.now,
+      updatedAt: now,
     }
   }
 
@@ -154,7 +158,7 @@ export function cleanWorkingMemoryLongTermQueueItem(input: {
     cleanedCandidate: buildCleanedCandidate({ transaction }),
     rejectionReasons: [],
     reviewReasons: [],
-    nextAttemptAt: input.now,
-    updatedAt: input.now,
+    nextAttemptAt: now,
+    updatedAt: now,
   }
 }
