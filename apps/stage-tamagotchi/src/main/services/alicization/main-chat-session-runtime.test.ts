@@ -80,6 +80,14 @@ function countWorkingMemoryBlocks(messages: Message[]) {
   ).length
 }
 
+function findWorkingMemoryOwnerBlock(messages: Message[]) {
+  return messages.find(message =>
+    message.role === 'system'
+    && typeof message.content === 'string'
+    && message.content.includes('[ALICIZATION_WORKING_MEMORY_OWNER]'),
+  )?.content as string | undefined
+}
+
 const executionChannels = [
   'cli',
   'codex',
@@ -8033,6 +8041,44 @@ describe('main chat session runtime', () => {
     expect(block).toContain('execution=')
     expect(block).toContain('继续这个本地数字生命的工作记忆线。')
     expect(countWorkingMemoryBlocks(result.messages)).toBe(1)
+  })
+
+  it('projects the working-memory owner into the runtime surface instead of leaving it prompt-only', async () => {
+    const { runtime } = createWorkingMemoryRuntimeFixture()
+    const prelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '继续这个本地数字生命的工作记忆线。',
+      } as Message],
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-owner',
+        messages: [{
+          role: 'user',
+          content: '继续这个本地数字生命的工作记忆线。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    const ownerBlock = findWorkingMemoryOwnerBlock(result.messages)
+    expect(ownerBlock).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
+    expect(ownerBlock).toContain('owner=working-memory')
+    expect(ownerBlock).toContain('authority=WorkingMemory is the authoritative short-term dialogue state')
+
+    const episodes = prelude.perceptionAugmentation.digitalLifeRuntimeSurface.memory.workingMemoryEpisodes
+    const ownerEpisode = episodes.find(episode => episode.scene === 'working-memory-owner')
+    expect(ownerEpisode).toEqual(expect.objectContaining({
+      scene: 'working-memory-owner',
+      emotionalTension: 'focused-flow',
+      sedimentCandidate: false,
+    }))
+    expect(episodes.some(episode => episode.summary === 'carry the same runtime continuity line')).toBe(true)
+    expect(ownerEpisode?.summary).toContain('thread=继续这个本地数字生命的工作记忆线。')
   })
 
   it('flows correction and failure signals into the short-term memory snapshot', async () => {

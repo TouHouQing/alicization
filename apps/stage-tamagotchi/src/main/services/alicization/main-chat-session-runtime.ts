@@ -103,6 +103,11 @@ import {
   injectWorkingMemorySystemBlock,
 } from './life-core/working-memory-prompt-view'
 import { buildWorkingMemorySnapshot } from './life-core/working-memory-builder'
+import {
+  buildWorkingMemoryOwnerContext,
+  buildWorkingMemoryOwnerSystemBlock,
+  projectWorkingMemoryOwnerEpisodes,
+} from './life-core/working-memory-owner-context'
 import { createWorkingMemoryStore } from './life-core/working-memory-store'
 import {
   deriveRuntimeProjectionRelationshipCarry,
@@ -577,11 +582,34 @@ function buildWorkingMemoryPromptBlockFromRuntime(input: {
     executionCarry: executionCarryText,
     previousSnapshot: input.previousSnapshot,
   })
+  const ownerContext = buildWorkingMemoryOwnerContext(snapshot)
 
   return {
     block: buildWorkingMemoryPromptBlock(snapshot),
+    ownerBlock: buildWorkingMemoryOwnerSystemBlock(ownerContext),
+    ownerContext,
     snapshot,
   }
+}
+
+function applyWorkingMemoryOwnerToDigitalLifeRuntimeSurface(input: {
+  surface: AlicizationDigitalLifeRuntimeSurface | null
+  snapshot: WorkingMemorySnapshot
+}): AlicizationDigitalLifeRuntimeSurface | null {
+  const surface = ensurePreparedRuntimeSurfaceShape(input.surface)
+  if (!surface)
+    return surface
+
+  return {
+    ...surface,
+    memory: {
+      ...surface.memory,
+      workingMemoryEpisodes: projectWorkingMemoryOwnerEpisodes(
+        input.snapshot,
+        surface.memory.workingMemoryEpisodes ?? [],
+      ),
+    },
+  } satisfies AlicizationDigitalLifeRuntimeSurface
 }
 
 function cloneRuntimeSurfaceForDiagnostics(
@@ -8643,6 +8671,14 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       sessionId: workingMemorySessionId,
     })
     workingMemoryStore.upsert(workingMemoryPrompt.snapshot)
+    const workingMemoryOwnedRuntimeSurface = applyWorkingMemoryOwnerToDigitalLifeRuntimeSurface({
+      surface: runtimeSurface.digitalLifeRuntimeSurface,
+      snapshot: workingMemoryPrompt.snapshot,
+    })
+    if (workingMemoryOwnedRuntimeSurface) {
+      runtimeSurface.digitalLifeRuntimeSurface = workingMemoryOwnedRuntimeSurface
+      prelude.perceptionAugmentation.digitalLifeRuntimeSurface = workingMemoryOwnedRuntimeSurface
+    }
     const fresherRuntimeSurfaceForProviderFacing
       = preparedRuntimeSurfaceSelection.fresherRuntimeSurface
         ?? runtimeSurfaceForBuilder
@@ -9787,6 +9823,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         ...messages,
       ]
     }
+    messages = injectWorkingMemorySystemBlock(messages, workingMemoryPrompt.ownerBlock)
     messages = injectWorkingMemorySystemBlock(messages, workingMemoryPrompt.block)
     runtimeSurface.messages = messages
 
