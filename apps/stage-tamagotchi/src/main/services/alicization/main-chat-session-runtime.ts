@@ -1111,6 +1111,23 @@ function normalizeProviderFacingProjectText(raw: unknown, maxChars = 1600) {
   return normalized || null
 }
 
+function looksLikeNarrowContinuityCadenceAwarenessLine(value: unknown) {
+  const normalized = normalizeProviderFacingProjectText(value, 420)
+  if (!normalized)
+    return false
+
+  const lowerCased = normalized.toLowerCase()
+  if (
+    /alicization|local-first digital life|phase 1|before answering|before speaking|what has already landed|latest landed|still-open|the still-open closure|same phase 1 digital life/u.test(
+      lowerCased,
+    )
+  ) {
+    return false
+  }
+
+  return /measured-return|repair-before-closeness|rest-protective|lower-pressure|callback line/u.test(lowerCased)
+}
+
 const PROVIDER_FACING_PROJECT_AWARENESS_PLACEHOLDER_VALUES = new Set([
   'none',
   'null',
@@ -2979,7 +2996,6 @@ function readRuntimeProjectStateFromSurface(
   )
     ? preferredDirectAwarenessLine
     : null
-  const effectiveRuntimeAwarenessLine = verbatimRuntimeAwarenessLine ?? resolvedRuntimeAwarenessLine
   const anchoredRuntimeAwarenessLine = buildProviderFacingProjectAwarenessLine({
     identity,
     currentPhase,
@@ -2988,6 +3004,10 @@ function readRuntimeProjectStateFromSurface(
     primaryOpenLoop,
     nextClosureTarget,
   })
+  const effectiveRuntimeAwarenessLineCandidate = verbatimRuntimeAwarenessLine ?? resolvedRuntimeAwarenessLine
+  const effectiveRuntimeAwarenessLine = looksLikeNarrowContinuityCadenceAwarenessLine(effectiveRuntimeAwarenessLineCandidate)
+    ? anchoredRuntimeAwarenessLine ?? canonicalAwarenessLine
+    : effectiveRuntimeAwarenessLineCandidate
   const runtimeCompanionWouldOverNarrowAwareness = embodimentHeadlineWouldOverNarrowProjectAwareness({
     headlineLine: explicitCompanionHeadlineLine,
     awarenessLine: effectiveRuntimeAwarenessLine,
@@ -9080,7 +9100,10 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const preferredSeedAwarenessIsHoldOnlyDetail = Boolean(
       preferredSeedAwarenessLine
       && !preferredSeedAwarenessLine.startsWith('Before answering')
-      && carriesLivedInSameHerAuthorityLine(preferredSeedAwarenessLine)
+      && (
+        carriesLivedInSameHerAuthorityLine(preferredSeedAwarenessLine)
+        || looksLikeNarrowContinuityCadenceAwarenessLine(preferredSeedAwarenessLine)
+      )
       && !awarenessCarriesBroaderProjectFrame(preferredSeedAwarenessLine),
     )
     const shouldPreferMirrorContinuityPreflightOverStructuredSeedAwareness = Boolean(
@@ -9128,6 +9151,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       12000,
     )
     const canonicalPreDialogueAwarenessLine = canonicalProjectStateBrief.preDialogueAwarenessLine ?? null
+    const canonicalSameHerSelfLine = normalizeProviderFacingProjectText(canonicalProjectStateBrief.sameHerSelfLine, 1600)
     const preferredSeedHasSummaryOnlyProjectStateAliases = Boolean(
       /summary-only/iu.test(preferredSeedLatestLandedProgress ?? '')
       || /summary-only/iu.test(preferredSeedPrimaryOpenLoop ?? '')
@@ -9150,6 +9174,21 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       && preferredSeedDirectDialogueAwarenessLooksThin
     ) {
       preferredSeedAwarenessLine = canonicalPreDialogueAwarenessLine
+    }
+    if (
+      !preferredSeedPayloadProjectState.hasDirectPayloadProjectAwarenessLine
+      && !preferredSeedHasSummaryOnlyProjectStateAliases
+      && preferredSeedAwarenessIsHoldOnlyDetail
+      && preferredSeedDirectDialogueAwarenessLooksThin
+    ) {
+      const preferredSeedHasRuntimeSpecificSameHer = Boolean(
+        preferredSeedSameHerSelfLine
+        && canonicalSameHerSelfLine
+        && preferredSeedSameHerSelfLine !== canonicalSameHerSelfLine,
+      )
+      preferredSeedAwarenessLine = preferredSeedHasRuntimeSpecificSameHer
+        ? preferredSeedAnchoredAwarenessLine ?? canonicalPreDialogueAwarenessLine
+        : canonicalPreDialogueAwarenessLine
     }
     if (
       preferredSeedAwarenessLine
@@ -9424,14 +9463,27 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const builderSurface = options.onPreparedExecutionDiagnostics
       ? cloneRuntimeSurfaceForDiagnostics(builderSurfaceSource)
       : null
+    const finalPreferredSeedAwarenessLine = (() => {
+      if (!looksLikeNarrowContinuityCadenceAwarenessLine(preferredSeedAwarenessLine))
+        return preferredSeedAwarenessLine
+
+      const preferredSeedHasRuntimeSpecificSameHer = Boolean(
+        preferredSeedSameHerSelfLine
+        && canonicalSameHerSelfLine
+        && preferredSeedSameHerSelfLine !== canonicalSameHerSelfLine,
+      )
+      return preferredSeedHasRuntimeSpecificSameHer
+        ? preferredSeedAnchoredAwarenessLine ?? canonicalPreDialogueAwarenessLine
+        : canonicalPreDialogueAwarenessLine ?? preferredSeedAnchoredAwarenessLine ?? preferredSeedAwarenessLine
+    })()
     applyProviderFacingProjectStateToRuntimeSurface({
       runtimeSurface,
       projectState: {
         ...fresherRuntimeProjectState,
         preflightSummary: preferredSeedPreflightSummary,
-        preDialogueAwarenessLine: preferredSeedAwarenessLine,
-        awarenessLine: preferredSeedAwarenessLine,
-        preDialogueAwarenessSummary: preferredSeedAwarenessLine,
+        preDialogueAwarenessLine: finalPreferredSeedAwarenessLine,
+        awarenessLine: finalPreferredSeedAwarenessLine,
+        preDialogueAwarenessSummary: finalPreferredSeedAwarenessLine,
         companionHeadlineLine: preferredSeedCompanionHeadlineLine,
         nextClosureTarget: preferredSeedNextClosureTarget,
         latestLandedProgress: preferredSeedLatestLandedProgress,

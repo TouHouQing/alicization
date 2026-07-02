@@ -135,8 +135,8 @@ function shouldPreferFreshCallbackOverLedgerEntry(
 }
 
 const executionResultFollowUpCuePattern = /刚才|刚刚|结果|进展|状态|成功了吗|失败了吗|跑完|完成了没|完成没有|还在等我确认吗|等我确认|要我确认|是不是卡住了|卡住了没|还卡着吗|那个命令|那个任务|上个任务|callback|result|status|how did it go|what happened|did it finish|did it fail|did it work|waiting for confirmation|stuck|blocked/i
-const executionResultSameHerProjectLine = 'Current Phase 1 project context. Some closure already landed. Unfinished closure still needs continuity.'
-const executionResultProjectBoundary = 'This execution-result follow-up still belongs to Alicization’s current local-first project context, not a detached task shell.'
+const executionResultSameHerProjectLine = 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.'
+const executionResultProjectBoundary = 'This execution-result follow-up still belongs to the same local-first digital life project and one living her, not a detached task shell.'
 const executionResultProjectBoundaryCn = '这个执行结果回合仍然属于 Alicization 当前的本地优先项目上下文，不要把它说成脱离主体的任务壳。'
 
 function isExecutionResultFollowUp(messages: Message[]) {
@@ -209,12 +209,12 @@ export function buildMainChatExecutionReplyVisibleSurfaceRules(
   )
   pushUnique(
     mustDo,
-    'Keep the execution-result payoff in the current Phase 1 project context instead of reopening as detached task reporting.',
+    'Keep the execution-result payoff on the same Phase 1 digital-life line instead of reopening as detached task reporting.',
   )
 
   pushUnique(mustNotDo, 'Do not bury the executor result behind scene narration, comfort language, or persona-preface.')
   pushUnique(mustNotDo, 'Do not imply the task re-ran in this exact turn unless new tool output appears now.')
-  pushUnique(mustNotDo, 'Do not let the callback reopen as generic task-shell or project-status narration divorced from the current reply context.')
+  pushUnique(mustNotDo, 'Do not let the callback reopen as generic task-shell or project-status narration divorced from the same living line.')
 
   return {
     mustDo,
@@ -292,7 +292,7 @@ export function buildMainChatExecutionReplyObligationSystemBlock(obligation: Ali
   return [
     '[ALICIZATION_EXECUTION_REPLY_OBLIGATION]',
     'This turn is following up on a recent executor result and must pay that result off directly.',
-    'Alicization is a local-first digital life project, and this callback follow-up still belongs to the current reply context.',
+    'Alicization is a local-first digital life project, and this callback follow-up still belongs to that same living line.',
     `project_identity=${projectBrief.identity}`,
     `project_phase=${projectBrief.currentPhase}`,
     latestLandedProgress ? `latest_landed_progress=${latestLandedProgress}` : '',

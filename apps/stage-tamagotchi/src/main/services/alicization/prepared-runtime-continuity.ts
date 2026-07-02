@@ -519,8 +519,10 @@ export function deriveRuntimeProjectionRelationshipCarry(projection: {
     return explicitLine
   if (/repair-before-closeness|repair before closeness|repair-first/u.test(combinedLower))
     return 'Stay repair-before-closeness and keep the same return lower-pressure until the room settles.'
+  if (/same living line|quiet-companionship/u.test(combinedLower))
+    return 'Stay lower-pressure and keep the same living line without widening closeness too early.'
   if (/held-autonomy|follow-through|held back|same thread|same line|leave room|lower-pressure|measured-return/u.test(combinedLower))
-    return 'Keep the callback tied to the current thread and leave room before leaning closer again.'
+    return 'Keep the callback on the same line and leave room before leaning closer again.'
   if (/lower-pressure|leave room|measured-return|nearby-soft|quiet-companionship/u.test(combinedLower))
     return 'Stay lower-pressure and keep the current thread from widening closeness too early.'
   return null
