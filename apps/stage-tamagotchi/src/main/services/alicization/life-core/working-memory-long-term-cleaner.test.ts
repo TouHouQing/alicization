@@ -37,12 +37,15 @@ describe('working memory long-term cleaner', () => {
     expect(result.status).toBe('admitted')
     expect(result.decision).toBe('admit')
     expect(result.cleanedCandidate).toEqual(expect.objectContaining({
+      id: 'cleaned:queue-1',
       kind: 'correction',
       summary: '不要固定模板回复，要数字生命自身人格。',
       trainingEligibility: 'blocked',
+      createdAt: 2_000,
       retrievalCues: expect.arrayContaining(['固定模板', '数字生命人格', '人格纠正']),
       entities: expect.arrayContaining(['user', 'alicization']),
     }))
+    expect(result.nextAttemptAt).toBe(3_000)
     expect(result.rejectionReasons).toEqual([])
     expect(result.reviewReasons).toEqual([])
     expect(result.allowTraining).toBe(false)
@@ -77,6 +80,7 @@ describe('working memory long-term cleaner', () => {
     })
 
     expect(result.status).toBe('rejected')
+    expect(result.cleanedCandidate).toBeNull()
     expect(result.rejectionReasons).toEqual(expect.arrayContaining(['failure-turn']))
   })
 
@@ -93,6 +97,9 @@ describe('working memory long-term cleaner', () => {
 
     expect(result.status).toBe('needs-user-review')
     expect(result.decision).toBe('review')
+    expect(result.cleanedCandidate).toEqual(expect.objectContaining({
+      trainingEligibility: 'blocked',
+    }))
     expect(result.reviewReasons).toEqual(expect.arrayContaining([
       'private-or-secret',
       'low-confidence',

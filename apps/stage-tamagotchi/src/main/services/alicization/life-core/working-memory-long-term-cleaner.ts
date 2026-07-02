@@ -36,11 +36,10 @@ function buildRetrievalCues(item: WorkingMemoryLongTermQueueItem) {
 
 function buildCleanedCandidate(input: {
   transaction: WorkingMemoryLongTermCleaningTransaction
-  now: number
 }): WorkingMemoryLongTermCleanedCandidate {
   const item = input.transaction.item
   return {
-    id: `${input.transaction.id}:candidate`,
+    id: `cleaned:${item.id}`,
     queueItemId: input.transaction.queueItemId,
     source: 'working-memory-owner',
     kind: item.kind,
@@ -59,7 +58,7 @@ function buildCleanedCandidate(input: {
     confidence: item.confidence,
     sensitivity: item.sensitivity,
     trainingEligibility: 'blocked',
-    createdAt: Number.isFinite(input.now) ? Number(input.now) : Date.now(),
+    createdAt: item.createdAt,
   }
 }
 
@@ -140,6 +139,7 @@ export function cleanWorkingMemoryLongTermQueueItem(input: {
       ...transaction,
       status: 'needs-user-review',
       decision: 'review',
+      cleanedCandidate: buildCleanedCandidate({ transaction }),
       rejectionReasons: [],
       reviewReasons,
       nextAttemptAt: null,
@@ -151,13 +151,10 @@ export function cleanWorkingMemoryLongTermQueueItem(input: {
     ...transaction,
     status: 'admitted',
     decision: 'admit',
-    cleanedCandidate: buildCleanedCandidate({
-      transaction,
-      now: input.now,
-    }),
+    cleanedCandidate: buildCleanedCandidate({ transaction }),
     rejectionReasons: [],
     reviewReasons: [],
-    nextAttemptAt: null,
+    nextAttemptAt: Number.isFinite(input.now) ? Number(input.now) : Date.now(),
     updatedAt: Number.isFinite(input.now) ? Number(input.now) : Date.now(),
   }
 }
