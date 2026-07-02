@@ -4,11 +4,13 @@ import type {
   WorkingMemoryTask,
   WorkingMemoryThread,
 } from './working-memory'
+import type { WorkingMemoryLongTermQueueItem } from './working-memory-long-term-queue'
 
 import {
   normalizeWorkingMemoryText,
   uniqueWorkingMemoryTexts,
 } from './working-memory'
+import { buildWorkingMemoryLongTermCandidateQueue } from './working-memory-long-term-queue'
 
 export interface WorkingMemoryOwnerContext {
   version: 'working-memory-owner-context-v1'
@@ -35,6 +37,7 @@ export interface WorkingMemoryOwnerContext {
     excludedLongTermCandidateTurnIds: string[]
     notes: string[]
   }
+  longTermQueue: WorkingMemoryLongTermQueueItem[]
 }
 
 function numberOrZero(raw: unknown) {
@@ -104,11 +107,22 @@ export function buildWorkingMemoryOwnerContext(snapshot: WorkingMemorySnapshot):
       excludedLongTermCandidateTurnIds: uniqueWorkingMemoryTexts(snapshot.audit.excludedLongTermCandidateTurnIds, 20, 120),
       notes: uniqueWorkingMemoryTexts(snapshot.audit.notes, 8, 220),
     },
+    longTermQueue: buildWorkingMemoryLongTermCandidateQueue(snapshot),
   }
 }
 
 function renderOwnerList(label: string, values: string[]) {
   return `${label}=${values.length > 0 ? values.join(' ; ') : 'none'}`
+}
+
+function renderLongTermQueue(queue: WorkingMemoryLongTermQueueItem[]) {
+  if (queue.length === 0)
+    return 'long_term_queue=none'
+  return `long_term_queue=${queue.map(item => [
+    item.status,
+    item.kind,
+    compact(item.summary, 180),
+  ].filter(Boolean).join(':')).join(' ; ')}`
 }
 
 export function buildWorkingMemoryOwnerSystemBlock(context: WorkingMemoryOwnerContext) {
@@ -129,6 +143,7 @@ export function buildWorkingMemoryOwnerSystemBlock(context: WorkingMemoryOwnerCo
       : 'task=none',
     renderOwnerList('obligations', context.obligations),
     renderOwnerList('memory_query_hints', context.queryHints),
+    renderLongTermQueue(context.longTermQueue),
     renderOwnerList('failure_audit_only', context.audit.failureTurnIds),
     renderOwnerList('excluded_long_term', context.audit.excludedLongTermCandidateTurnIds),
   ]

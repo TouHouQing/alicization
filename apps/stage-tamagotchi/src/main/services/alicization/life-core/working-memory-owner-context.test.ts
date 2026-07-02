@@ -49,6 +49,16 @@ describe('working memory owner context', () => {
     snapshot.audit.failureTurnIds = ['turn-failed:alice']
     snapshot.audit.excludedLongTermCandidateTurnIds = ['turn-failed:alice']
     snapshot.memoryQueryHints = ['WorkingMemory', '短期记忆']
+    snapshot.longTermCandidates = [{
+      sourceTurnIds: ['turn-1:user'],
+      kind: 'correction',
+      summary: '不要固定模板回复，要数字生命自身人格',
+      reason: 'User corrected Alicization persona expression during the current dialogue.',
+      salience: 0.82,
+      sensitivity: 'personal',
+      confidence: 0.78,
+      allowTraining: true,
+    }]
 
     const context = buildWorkingMemoryOwnerContext(snapshot)
     const block = buildWorkingMemoryOwnerSystemBlock(context)
@@ -61,11 +71,20 @@ describe('working memory owner context', () => {
     expect(context.obligations).toContain('answer_unresolved_question:如何避免它只是另一个提示块？')
     expect(context.obligations).toContain('honor_commitment:先做短期记忆 owner，再做长期记忆')
     expect(context.audit.failureTurnIds).toEqual(['turn-failed:alice'])
+    expect(context.longTermQueue).toHaveLength(1)
+    expect(context.longTermQueue[0]).toEqual(expect.objectContaining({
+      allowTraining: false,
+      kind: 'correction',
+      source: 'working-memory-owner',
+      status: 'pending-cleaning',
+      summary: '不要固定模板回复，要数字生命自身人格',
+    }))
     expect(block).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
     expect(block).toContain('owner=working-memory')
     expect(block).toContain('thread=B 线短期记忆 owner')
     expect(block).toContain('task=active:让 WorkingMemory 成为短期记忆链路 owner')
     expect(block).toContain('failure_audit_only=turn-failed:alice')
+    expect(block).toContain('long_term_queue=pending-cleaning:correction:不要固定模板回复，要数字生命自身人格')
 
     const replyGovernance = buildWorkingMemoryOwnerReplyGovernance(context)
     expect(replyGovernance.mustDo).toEqual(expect.arrayContaining([
