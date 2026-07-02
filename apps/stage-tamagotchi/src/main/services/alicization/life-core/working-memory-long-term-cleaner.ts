@@ -13,6 +13,7 @@ import { createWorkingMemoryLongTermCleaningTransaction } from './working-memory
 const fixedFallbackTemplatePattern = /我在。同一条本地数字生命的线还在|同一条本地数字生命的线还在|我先轻一点留在这里|你想说什么，我就接住/u
 const promptResiduePattern = /ALICIZATION_|same-her|same living line|project_state|Phase 1|mustDo|mustNotDo|answerPlanner|WorkingMemory owner/iu
 const correctionCuePattern = /固定模板|固定回复|模板化|人格|数字生命|不想要|不要固定|你搞错|不是这个/u
+const personaCorrectionCuePattern = /固定模板|固定回复|模板化|人格|数字生命|不要固定/u
 
 const minimumAutomaticConfidence = 0.7
 const minimumAutomaticSalience = 0.6
@@ -25,17 +26,29 @@ function candidateText(item: WorkingMemoryLongTermQueueItem) {
   ].map(text => normalizeWorkingMemoryText(text, 320)).filter(Boolean).join(' ')
 }
 
-function buildRetrievalCues(item: WorkingMemoryLongTermQueueItem) {
+function buildRetrievalCues(input: {
+  item: WorkingMemoryLongTermQueueItem
+  personaCorrection: boolean
+}) {
+  if (input.personaCorrection) {
+    return uniqueWorkingMemoryTexts([
+      '固定模板',
+      '数字生命人格',
+      '人格纠正',
+      input.item.summary,
+    ], 8, 80)
+  }
+
   return uniqueWorkingMemoryTexts([
-    '固定模板',
-    '数字生命人格',
-    '人格纠正',
-    item.summary,
+    input.item.summary,
+    input.item.reason,
+    ...input.item.evidenceSnippets,
   ], 8, 80)
 }
 
 function buildCleanedCandidate(input: {
   transaction: WorkingMemoryLongTermCleaningTransaction
+  personaCorrection: boolean
 }): WorkingMemoryLongTermCleanedCandidate {
   const item = input.transaction.item
   return {
@@ -49,9 +62,12 @@ function buildCleanedCandidate(input: {
     reason: item.reason,
     sourceTurnIds: item.sourceTurnIds,
     evidenceSnippets: item.evidenceSnippets,
-    retrievalCues: buildRetrievalCues(item),
+    retrievalCues: buildRetrievalCues({
+      item,
+      personaCorrection: input.personaCorrection,
+    }),
     entities: ['user', 'alicization'],
-    relationshipMeaning: item.kind === 'correction'
+    relationshipMeaning: input.personaCorrection
       ? 'The user corrected how Alicization should express her own continuous digital-life persona.'
       : null,
     salience: item.salience,
@@ -103,8 +119,12 @@ function reviewReasonsFor(input: {
     reasons.push('low-salience')
   if (item.kind !== 'correction')
     reasons.push('unsupported-kind')
-  if (item.kind === 'correction' && !correctionCuePattern.test(input.text))
-    reasons.push('weak-correction-cue')
+  if (item.kind === 'correction') {
+    if (!correctionCuePattern.test(input.text))
+      reasons.push('weak-correction-cue')
+    else if (!personaCorrectionCuePattern.test(input.text))
+      reasons.push('weak-persona-correction-cue')
+  }
 
   return uniqueWorkingMemoryTexts(reasons, 12, 180)
 }
@@ -143,7 +163,10 @@ export function cleanWorkingMemoryLongTermQueueItem(input: {
       ...transaction,
       status: 'needs-user-review',
       decision: 'review',
-      cleanedCandidate: buildCleanedCandidate({ transaction }),
+      cleanedCandidate: buildCleanedCandidate({
+        transaction,
+        personaCorrection: false,
+      }),
       rejectionReasons: [],
       reviewReasons,
       nextAttemptAt: null,
@@ -155,7 +178,10 @@ export function cleanWorkingMemoryLongTermQueueItem(input: {
     ...transaction,
     status: 'admitted',
     decision: 'admit',
-    cleanedCandidate: buildCleanedCandidate({ transaction }),
+    cleanedCandidate: buildCleanedCandidate({
+      transaction,
+      personaCorrection: true,
+    }),
     rejectionReasons: [],
     reviewReasons: [],
     nextAttemptAt: now,

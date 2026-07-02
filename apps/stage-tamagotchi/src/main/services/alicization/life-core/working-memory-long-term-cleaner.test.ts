@@ -53,6 +53,7 @@ describe('working memory long-term cleaner', () => {
       createdAt: 2_000,
       retrievalCues: expect.arrayContaining(['固定模板', '数字生命人格', '人格纠正']),
       entities: expect.arrayContaining(['user', 'alicization']),
+      relationshipMeaning: expect.stringContaining('continuous digital-life persona'),
     }))
     expect(result.nextAttemptAt).toBe(3_000)
     expect(result.rejectionReasons).toEqual([])
@@ -74,6 +75,29 @@ describe('working memory long-term cleaner', () => {
     expect(result.cleanedCandidate).toEqual(expect.objectContaining({
       createdAt: 2_000,
     }))
+  })
+
+  it('routes generic corrections to review without persona retrieval semantics', () => {
+    const result = clean({
+      summary: '你搞错了，不是这个任务。',
+      reason: 'User corrected the selected task.',
+      evidenceSnippets: ['你搞错了，不是这个任务。'],
+      salience: 0.91,
+      confidence: 0.93,
+    })
+
+    expect(result.status).toBe('needs-user-review')
+    expect(result.decision).toBe('review')
+    expect(result.reviewReasons).toContain('weak-persona-correction-cue')
+    expect(result.cleanedCandidate).toEqual(expect.objectContaining({
+      trainingEligibility: 'blocked',
+      relationshipMeaning: null,
+    }))
+    expect(result.cleanedCandidate?.retrievalCues).not.toEqual(expect.arrayContaining([
+      '固定模板',
+      '数字生命人格',
+      '人格纠正',
+    ]))
   })
 
   it('rejects wrong source candidates', () => {
@@ -181,7 +205,13 @@ describe('working memory long-term cleaner', () => {
     expect(result.cleanedCandidate).toEqual(expect.objectContaining({
       kind: 'preference',
       trainingEligibility: 'blocked',
+      relationshipMeaning: null,
     }))
+    expect(result.cleanedCandidate?.retrievalCues).not.toEqual(expect.arrayContaining([
+      '固定模板',
+      '数字生命人格',
+      '人格纠正',
+    ]))
     expect(result.reviewReasons).toContain('unsupported-kind')
   })
 
