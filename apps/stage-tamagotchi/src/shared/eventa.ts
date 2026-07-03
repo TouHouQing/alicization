@@ -646,6 +646,194 @@ export interface AlicizationMemoryMigrationResult {
   marker: string
 }
 
+export type AlicizationMemoryWorkbenchStatus = 'ok' | 'degraded' | 'error'
+export type AlicizationMemoryWorkbenchKind =
+  | 'fact'
+  | 'episode'
+  | 'reflection'
+  | 'consolidation'
+  | 'procedure'
+  | 'relationship'
+  | 'preference'
+  | 'candidate'
+
+export type AlicizationMemoryWorkbenchSensitivity = 'public' | 'personal' | 'private' | 'secret'
+export type AlicizationMemoryWorkbenchVisibility = 'explicit' | 'inward-only'
+export type AlicizationMemoryWorkbenchTrainingState = 'allowed' | 'blocked'
+export type AlicizationMemoryWorkbenchReviewDecision = 'approve' | 'reject' | 'tombstone' | 'inward-only' | 'no-training'
+
+export interface AlicizationWorkingMemoryWorkbenchSnapshot {
+  cardId: string
+  sessionId: string
+  updatedAt: number
+  threadTitle: string | null
+  threadMode: string | null
+  currentUserMove: string | null
+  activeTask: string | null
+  taskStatus: string | null
+  unresolvedQuestions: string[]
+  commitments: string[]
+  userCorrections: string[]
+  relationshipPosture: string | null
+  emotionalPosture: string | null
+  queryHints: string[]
+  longTermQueue: Array<{
+    id: string
+    kind: string
+    summary: string
+    reason: string
+    salience: number
+    sensitivity: AlicizationMemoryWorkbenchSensitivity
+    confidence: number
+    allowTraining: boolean
+  }>
+  failureTurnIds: string[]
+}
+
+export interface AlicizationMemoryWorkbenchItem {
+  id: string
+  kind: AlicizationMemoryWorkbenchKind
+  summary: string
+  evidenceSnippets: string[]
+  sourceIds: string[]
+  confidence: number
+  salience: number
+  sensitivity: AlicizationMemoryWorkbenchSensitivity
+  visibility: AlicizationMemoryWorkbenchVisibility
+  training: AlicizationMemoryWorkbenchTrainingState
+  source: string
+  createdAt: number
+  updatedAt: number
+  lastAccessedAt: number | null
+  tombstoned: boolean
+}
+
+export interface AlicizationLongTermMemoryWorkbenchSummary {
+  total: number
+  byKind: Partial<Record<AlicizationMemoryWorkbenchKind, number>>
+  items: AlicizationMemoryWorkbenchItem[]
+}
+
+export interface AlicizationLongTermMemoryReviewItem {
+  id: string
+  transactionId: string
+  status: string
+  kind: string
+  summary: string
+  evidenceSnippets: string[]
+  reviewReasons: string[]
+  sensitivity: AlicizationMemoryWorkbenchSensitivity
+  visibleMode: AlicizationMemoryWorkbenchVisibility
+  allowTraining: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export interface AlicizationLongTermMemoryReviewSummary {
+  pending: number
+  items: AlicizationLongTermMemoryReviewItem[]
+}
+
+export interface AlicizationMemoryWorkbenchHealth {
+  status: AlicizationMemoryWorkbenchStatus
+  queue: {
+    pending: number
+    review: number
+    applied: number
+    failed: number
+    deadLettered: number
+  }
+  recall: {
+    lastLatencyMs: number | null
+    p95LatencyMs: number | null
+    lastError: string | null
+  }
+  embedding: {
+    providerConfigured: boolean
+    modelId: string | null
+    dimensions: number | null
+    reindexRequired: boolean
+  }
+  errors: string[]
+}
+
+export interface AlicizationMemoryWorkbenchSnapshot {
+  cardId: string
+  sessionId: string | null
+  updatedAt: number
+  workingMemory: AlicizationWorkingMemoryWorkbenchSnapshot | null
+  longTerm: AlicizationLongTermMemoryWorkbenchSummary
+  review: AlicizationLongTermMemoryReviewSummary
+  health: AlicizationMemoryWorkbenchHealth
+}
+
+export interface AlicizationMemoryWorkbenchSnapshotPayload extends AlicizationCardScope {
+  sessionId?: string | null
+}
+
+export interface AlicizationMemoryWorkbenchListPayload extends AlicizationCardScope {
+  kind?: AlicizationMemoryWorkbenchKind | 'all'
+  query?: string
+  sensitivity?: AlicizationMemoryWorkbenchSensitivity | 'all'
+  visibility?: AlicizationMemoryWorkbenchVisibility | 'all'
+  training?: AlicizationMemoryWorkbenchTrainingState | 'all'
+  source?: string
+  limit?: number
+  cursor?: string | null
+}
+
+export interface AlicizationMemoryWorkbenchListResult {
+  items: AlicizationMemoryWorkbenchItem[]
+  nextCursor: string | null
+}
+
+export interface AlicizationMemoryReviewActionPayload extends AlicizationCardScope {
+  reviewItemId: string
+  decision: AlicizationMemoryWorkbenchReviewDecision
+  reason?: string | null
+}
+
+export interface AlicizationMemoryRecallProbePayload extends AlicizationCardScope {
+  query: string
+  sessionId?: string | null
+  includeWorkingMemory?: boolean
+  limit?: number
+}
+
+export interface AlicizationMemoryRecallProbeResult {
+  query: string
+  intent: {
+    mode: string
+    shouldRecall: boolean
+    confidence: number
+    rationale: string
+    temporalFocus: string
+    riskFlags: string[]
+  }
+  plan: {
+    keywordQueries: string[]
+    phraseQueries: string[]
+    charGramQueries: string[]
+    semanticQueries: string[]
+    episodicQueries: string[]
+    threadHints: string[]
+    negativeCues: string[]
+    confidencePolicy: string
+  }
+  evidence: Array<{
+    id: string
+    kind: string
+    summary: string
+    source: string
+    score: number
+    visibleMode: string
+    queryMatches: string[]
+    rankReasons: string[]
+  }>
+  latencyMs: number
+  errors: string[]
+}
+
 export type AlicizationSubconsciousFragmentSourceKind = SharedAlicizationSubconsciousFragmentSourceKind
 
 export interface AlicizationActiveThought {
@@ -3481,6 +3669,10 @@ export const electronAlicizationMemoryRetrieveFacts = defineInvokeEventa<Aliciza
 export const electronAlicizationMemoryUpsertFacts = defineInvokeEventa<void, AlicizationMemoryUpsertFactsPayload>('eventa:invoke:electron:alicization:memory:upsert-facts')
 export const electronAlicizationMemoryImportLegacy = defineInvokeEventa<AlicizationMemoryMigrationResult, AlicizationCardScope & AlicizationMemoryLegacySnapshot>('eventa:invoke:electron:alicization:memory:import-legacy')
 export const electronAlicizationGetOrganicMemorySnapshot = defineInvokeEventa<AlicizationOrganicMemorySnapshot, AlicizationCardScope>('eventa:invoke:electron:alicization:memory:get-organic-snapshot')
+export const electronAlicizationMemoryWorkbenchGetSnapshot = defineInvokeEventa<AlicizationMemoryWorkbenchSnapshot, AlicizationMemoryWorkbenchSnapshotPayload>('eventa:invoke:electron:alicization:memory-workbench:get-snapshot')
+export const electronAlicizationMemoryWorkbenchListLongTerm = defineInvokeEventa<AlicizationMemoryWorkbenchListResult, AlicizationMemoryWorkbenchListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-long-term')
+export const electronAlicizationMemoryWorkbenchApplyReviewAction = defineInvokeEventa<AlicizationLongTermMemoryReviewItem | null, AlicizationMemoryReviewActionPayload>('eventa:invoke:electron:alicization:memory-workbench:apply-review-action')
+export const electronAlicizationMemoryWorkbenchRecallProbe = defineInvokeEventa<AlicizationMemoryRecallProbeResult, AlicizationMemoryRecallProbePayload>('eventa:invoke:electron:alicization:memory-workbench:recall-probe')
 export const electronAlicizationSearchOrganicSubconsciousFragments = defineInvokeEventa<AlicizationSubconsciousFragment[], AlicizationCardScope & { query: string, limit?: number }>('eventa:invoke:electron:alicization:memory:search-subconscious-fragments')
 export const electronAlicizationGetPerformanceManifest = defineInvokeEventa<CharacterPerformanceCapabilitiesManifest | null, AlicizationCardScope>('eventa:invoke:electron:alicization:performance:get-manifest')
 export const electronAlicizationSetPerformanceManifest = defineInvokeEventa<void, AlicizationCardScope & { manifest: CharacterPerformanceCapabilitiesManifest | null }>('eventa:invoke:electron:alicization:performance:set-manifest')
