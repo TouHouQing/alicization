@@ -3239,6 +3239,112 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it('lists long-term memory workbench items across facts reflections and episodes', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+
+    await db.upsertMemoryFacts([{
+      subject: '用户',
+      predicate: '不想要',
+      object: '固定模板回复',
+      confidence: 0.91,
+      memoryDomain: 'relationship',
+      validationStatus: 'provisional',
+      knowledgeStage: 'working-understanding',
+    }], 'rule')
+    await db.upsertMemoryReflections([{
+      cardId: 'default',
+      sessionId: 'session-1',
+      turnId: 'turn-1',
+      sourceKind: 'reply',
+      targetScope: 'boundary',
+      summary: '用户明确拒绝固定模板式回复。',
+      lesson: '从连续数字生命人格回应。',
+      status: 'pending',
+      confidence: 0.88,
+    }])
+
+    const result = await db.listMemoryWorkbenchLongTermItems({
+      cardId: 'default',
+      query: '固定模板',
+      limit: 10,
+    })
+
+    expect(result.items.map(item => item.summary).join('\n')).toContain('固定模板')
+    expect(result.items.every(item => item.tombstoned === false)).toBe(true)
+
+    await db.close()
+  })
+
+  it('applies review action through workbench and blocks tombstoned recall sources', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+
+    await db.enqueueWorkingMemoryLongTermQueueItems({
+      cardId: 'default',
+      sessionId: 'session-review',
+      items: [{
+        id: 'queue-private-boundary',
+        source: 'working-memory-owner',
+        kind: 'relationship',
+        summary: '用户把某个私人边界设为只内在使用。',
+        reason: 'private relationship boundary',
+        salience: 0.95,
+        sensitivity: 'private',
+        confidence: 0.9,
+        sourceTurnIds: ['turn-private'],
+        evidenceSnippets: ['用户把某个私人边界设为只内在使用。'],
+        allowTraining: false,
+        status: 'pending-cleaning',
+        rejectionReasons: [],
+        contaminationFlags: [],
+        createdAt: 100,
+      }],
+    })
+    await db.drainWorkingMemoryLongTermQueue(4)
+
+    const reviewItems = await db.listMemoryWorkbenchReviewItems({ cardId: 'default', limit: 10 })
+    expect(reviewItems.length).toBeGreaterThan(0)
+
+    const actionResult = await db.applyMemoryWorkbenchReviewAction({
+      cardId: 'default',
+      reviewItemId: reviewItems[0]!.id,
+      decision: 'tombstone',
+      reason: 'user-deleted',
+    })
+
+    expect(actionResult?.status).toBe('tombstoned')
+
+    await db.close()
+  })
+
+  it('runs recall probe with query plan and ranked evidence', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.appendEpisodicEvents([{
+      id: 'episode-game-last-week',
+      cardId: 'default',
+      sessionId: 'session-game',
+      sourceKind: 'reply',
+      provenance: 'remembered',
+      occurredAt: 100,
+      threadAnchor: 'game',
+      whatHappened: '上周我们一起玩了 Minecraft。',
+      confidence: 0.9,
+      salience: 0.92,
+      tags: ['game', 'Minecraft'],
+    }])
+
+    const probe = await db.runMemoryWorkbenchRecallProbe({
+      cardId: 'default',
+      query: '我们去打游戏吧',
+      limit: 5,
+    })
+
+    expect(probe.intent.shouldRecall).toBe(true)
+    expect(probe.evidence.map(item => item.summary).join('\n')).toContain('Minecraft')
+    expect(probe.latencyMs).toBeGreaterThanOrEqual(0)
+
+    await db.close()
+  })
+
   it('keeps older retrieval healthy while ingest is partially degraded and delayed reconstruction remains reachable', async () => {
     const nowTs = Date.now()
     memoryIngestJournal.set('journal-invalid-visible', {

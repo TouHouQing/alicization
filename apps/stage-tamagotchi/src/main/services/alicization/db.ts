@@ -36,6 +36,14 @@ import type {
   AlicizationMemoryLegacySnapshot,
   AlicizationMemoryMigrationResult,
   AlicizationMemoryProvenance,
+  AlicizationLongTermMemoryReviewItem,
+  AlicizationMemoryRecallProbeResult,
+  AlicizationMemoryWorkbenchItem,
+  AlicizationMemoryWorkbenchKind,
+  AlicizationMemoryWorkbenchReviewDecision,
+  AlicizationMemoryWorkbenchSensitivity,
+  AlicizationMemoryWorkbenchTrainingState,
+  AlicizationMemoryWorkbenchVisibility,
   AlicizationMemoryReflectionInput,
   AlicizationMemoryReflectionRecord,
   AlicizationMemoryReflectionStatus,
@@ -1349,6 +1357,31 @@ export interface AlicizationDbService {
     activeTask?: string | null
     limit?: number
   }) => Promise<LongTermMemoryEvidenceBundle>
+  listMemoryWorkbenchLongTermItems: (input: {
+    cardId: string
+    kind?: AlicizationMemoryWorkbenchKind | 'all'
+    query?: string
+    sensitivity?: AlicizationMemoryWorkbenchSensitivity | 'all'
+    visibility?: AlicizationMemoryWorkbenchVisibility | 'all'
+    training?: AlicizationMemoryWorkbenchTrainingState | 'all'
+    source?: string
+    limit?: number
+    cursor?: string | null
+  }) => Promise<{ items: AlicizationMemoryWorkbenchItem[], nextCursor: string | null }>
+  listMemoryWorkbenchReviewItems: (input: { cardId: string, limit?: number }) => Promise<AlicizationLongTermMemoryReviewItem[]>
+  applyMemoryWorkbenchReviewAction: (input: {
+    cardId: string
+    reviewItemId: string
+    decision: AlicizationMemoryWorkbenchReviewDecision
+    reason?: string | null
+  }) => Promise<AlicizationLongTermMemoryReviewItem | null>
+  runMemoryWorkbenchRecallProbe: (input: {
+    cardId: string
+    query: string
+    sessionId?: string | null
+    includeWorkingMemory?: boolean
+    limit?: number
+  }) => Promise<AlicizationMemoryRecallProbeResult>
   enqueueWorkingMemoryLongTermQueueItems: (input: {
     cardId: string
     sessionId: string
@@ -5132,6 +5165,238 @@ export async function setupAlicizationDb(
     })
   }
 
+  function safeMemoryWorkbenchLimit(limit: unknown, fallback = 50) {
+    return Math.max(1, Math.min(100, Math.floor(Number(limit ?? fallback))))
+  }
+
+  function memoryWorkbenchMatchesQuery(item: AlicizationMemoryWorkbenchItem, query: string) {
+    if (!query)
+      return true
+    const haystack = [
+      item.summary,
+      item.source,
+      item.kind,
+      ...item.evidenceSnippets,
+      ...item.sourceIds,
+    ].join(' ').toLowerCase()
+    return haystack.includes(query.toLowerCase())
+  }
+
+  function projectLongTermEvidenceCandidateForWorkbench(
+    candidate: ReturnType<typeof memoryFactToLongTermEvidenceCandidate>,
+  ): AlicizationMemoryWorkbenchItem {
+    const updatedAt = Number.isFinite(candidate.updatedAt) ? Number(candidate.updatedAt) : 0
+    const sensitivity = candidate.sensitivity ?? 'personal'
+    return {
+      id: candidate.id,
+      kind: candidate.kind,
+      summary: candidate.summary,
+      evidenceSnippets: candidate.cues ?? [],
+      sourceIds: [candidate.id],
+      confidence: candidate.confidence,
+      salience: candidate.salience ?? 0,
+      sensitivity,
+      visibility: sensitivity === 'private' || sensitivity === 'secret' ? 'inward-only' : 'explicit',
+      training: 'allowed',
+      source: candidate.source,
+      createdAt: candidate.occurredAt ?? updatedAt,
+      updatedAt,
+      lastAccessedAt: null,
+      tombstoned: false,
+    }
+  }
+
+  function projectLongTermReviewItemForWorkbench(item: LongTermMemoryReviewItem): AlicizationLongTermMemoryReviewItem {
+    return {
+      id: item.id,
+      transactionId: item.transactionId,
+      status: item.status,
+      kind: item.kind,
+      summary: item.summary,
+      evidenceSnippets: item.evidenceSnippets,
+      reviewReasons: item.reviewReasons,
+      sensitivity: item.sensitivity,
+      visibleMode: item.visibleMode,
+      allowTraining: item.allowTraining,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    }
+  }
+
+  async function listMemoryWorkbenchLongTermItems(input: {
+    cardId: string
+    kind?: AlicizationMemoryWorkbenchKind | 'all'
+    query?: string
+    sensitivity?: AlicizationMemoryWorkbenchSensitivity | 'all'
+    visibility?: AlicizationMemoryWorkbenchVisibility | 'all'
+    training?: AlicizationMemoryWorkbenchTrainingState | 'all'
+    source?: string
+    limit?: number
+    cursor?: string | null
+  }) {
+    const safeLimit = safeMemoryWorkbenchLimit(input.limit)
+    const query = normalizeOrganicMemoryText(input.query, 240)
+    const [facts, reflections, episodes, consolidations] = await Promise.all([
+      listMemoryFacts().catch(() => []),
+      memoryRelationshipRuntime.listMemoryReflections({ cardId: input.cardId, limit: safeLimit * 4 }).catch(() => []),
+      listRecentEpisodicEvents(safeLimit * 4).catch(() => []),
+      listMemoryConsolidations(safeLimit * 4).catch(() => []),
+    ])
+    const candidates = [
+      ...facts.map(memoryFactToLongTermEvidenceCandidate),
+      ...reflections.map(memoryReflectionToLongTermEvidenceCandidate),
+      ...episodes.filter(event => event.cardId === input.cardId).map(episodicEventToLongTermEvidenceCandidate),
+      ...consolidations.map(memoryConsolidationToLongTermEvidenceCandidate),
+    ]
+    const tombstonedSourceIds = await listTombstonedLongTermMemorySourceIds(candidates.map(candidate => candidate.id))
+    const items = candidates
+      .filter(candidate => !tombstonedSourceIds.has(candidate.id))
+      .map(projectLongTermEvidenceCandidateForWorkbench)
+      .filter(item => !input.kind || input.kind === 'all' || item.kind === input.kind)
+      .filter(item => !input.sensitivity || input.sensitivity === 'all' || item.sensitivity === input.sensitivity)
+      .filter(item => !input.visibility || input.visibility === 'all' || item.visibility === input.visibility)
+      .filter(item => !input.training || input.training === 'all' || item.training === input.training)
+      .filter(item => !input.source || item.source === input.source)
+      .filter(item => memoryWorkbenchMatchesQuery(item, query))
+      .sort((left, right) => right.updatedAt - left.updatedAt)
+      .slice(0, safeLimit)
+    return {
+      items,
+      nextCursor: null,
+    }
+  }
+
+  async function listMemoryWorkbenchReviewItems(input: { cardId: string, limit?: number }) {
+    return (await listLongTermMemoryReviewItems(input)).map(projectLongTermReviewItemForWorkbench)
+  }
+
+  async function applyMemoryWorkbenchReviewAction(input: {
+    cardId: string
+    reviewItemId: string
+    decision: AlicizationMemoryWorkbenchReviewDecision
+    reason?: string | null
+  }) {
+    if (input.decision === 'inward-only' || input.decision === 'no-training') {
+      const item = (await listMemoryWorkbenchReviewItems({ cardId: input.cardId, limit: 64 }))
+        .find(row => row.id === input.reviewItemId)
+      return item ?? null
+    }
+    const decision: LongTermMemoryReviewDecision = input.decision === 'approve'
+      ? 'approve'
+      : input.decision === 'tombstone'
+        ? 'tombstone'
+        : 'reject'
+    const result = await applyLongTermMemoryReviewDecision({
+      cardId: input.cardId,
+      reviewItemId: input.reviewItemId,
+      decision,
+    })
+    return result ? projectLongTermReviewItemForWorkbench(result) : null
+  }
+
+  async function runMemoryWorkbenchRecallProbe(input: {
+    cardId: string
+    query: string
+    sessionId?: string | null
+    includeWorkingMemory?: boolean
+    limit?: number
+  }): Promise<AlicizationMemoryRecallProbeResult> {
+    const startedAt = now()
+    const query = normalizeOrganicMemoryText(input.query, 600)
+    if (!query) {
+      return {
+        query: '',
+        intent: {
+          mode: 'none',
+          shouldRecall: false,
+          confidence: 0,
+          rationale: 'empty-query',
+          temporalFocus: 'unspecified',
+          riskFlags: ['empty-query'],
+        },
+        plan: {
+          keywordQueries: [],
+          phraseQueries: [],
+          charGramQueries: [],
+          semanticQueries: [],
+          episodicQueries: [],
+          threadHints: [],
+          negativeCues: [],
+          confidencePolicy: 'direct',
+        },
+        evidence: [],
+        latencyMs: now() - startedAt,
+        errors: [],
+      }
+    }
+    try {
+      const bundle = await retrieveLongTermMemoryEvidence({
+        cardId: input.cardId,
+        currentUserText: query,
+        limit: input.limit,
+      })
+      return {
+        query,
+        intent: {
+          mode: bundle.intent.mode,
+          shouldRecall: bundle.intent.shouldRecall,
+          confidence: bundle.intent.confidence,
+          rationale: bundle.intent.rationale,
+          temporalFocus: bundle.intent.temporalFocus,
+          riskFlags: bundle.intent.riskFlags,
+        },
+        plan: {
+          keywordQueries: bundle.plan.keywordQueries,
+          phraseQueries: bundle.plan.phraseQueries,
+          charGramQueries: bundle.plan.charGramQueries,
+          semanticQueries: bundle.plan.semanticQueries,
+          episodicQueries: bundle.plan.episodicQueries,
+          threadHints: bundle.plan.threadHints,
+          negativeCues: bundle.plan.negativeCues,
+          confidencePolicy: bundle.plan.confidencePolicy,
+        },
+        evidence: bundle.evidence.map(item => ({
+          id: item.candidate.id,
+          kind: item.candidate.kind,
+          summary: item.candidate.summary,
+          source: item.candidate.source,
+          score: item.score,
+          visibleMode: item.visibleMode,
+          queryMatches: item.queryMatches,
+          rankReasons: item.rankReasons,
+        })),
+        latencyMs: now() - startedAt,
+        errors: [],
+      }
+    }
+    catch (error) {
+      return {
+        query,
+        intent: {
+          mode: 'none',
+          shouldRecall: false,
+          confidence: 0,
+          rationale: 'recall-probe-failed',
+          temporalFocus: 'unspecified',
+          riskFlags: ['recall-probe-failed'],
+        },
+        plan: {
+          keywordQueries: [],
+          phraseQueries: [],
+          charGramQueries: [],
+          semanticQueries: [],
+          episodicQueries: [],
+          threadHints: [],
+          negativeCues: [],
+          confidencePolicy: 'direct',
+        },
+        evidence: [],
+        latencyMs: now() - startedAt,
+        errors: [error instanceof Error ? error.message : String(error)],
+      }
+    }
+  }
+
   async function runMemoryPrune() {
     const currentTs = now()
 
@@ -5481,6 +5746,10 @@ export async function setupAlicizationDb(
     listMemoryFacts,
     retrieveMemoryFacts,
     retrieveLongTermMemoryEvidence,
+    listMemoryWorkbenchLongTermItems,
+    listMemoryWorkbenchReviewItems,
+    applyMemoryWorkbenchReviewAction,
+    runMemoryWorkbenchRecallProbe,
     enqueueWorkingMemoryLongTermQueueItems,
     drainWorkingMemoryLongTermQueue,
     listLongTermMemoryReviewItems,
