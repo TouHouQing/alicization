@@ -38,6 +38,7 @@ import type {
   AlicizationMemoryProvenance,
   AlicizationLongTermMemoryReviewItem,
   AlicizationMemoryRecallProbeResult,
+  AlicizationMemoryWorkbenchHealth,
   AlicizationMemoryWorkbenchItem,
   AlicizationMemoryWorkbenchKind,
   AlicizationMemoryWorkbenchReviewDecision,
@@ -1382,6 +1383,9 @@ export interface AlicizationDbService {
     includeWorkingMemory?: boolean
     limit?: number
   }) => Promise<AlicizationMemoryRecallProbeResult>
+  getMemoryWorkbenchQueueHealth: (input: { cardId: string }) => Promise<AlicizationMemoryWorkbenchHealth['queue']>
+  getMemoryWorkbenchRecallHealth: (input: { cardId: string }) => Promise<AlicizationMemoryWorkbenchHealth['recall']>
+  getMemoryWorkbenchEmbeddingHealth: (input: { cardId: string }) => Promise<AlicizationMemoryWorkbenchHealth['embedding']>
   enqueueWorkingMemoryLongTermQueueItems: (input: {
     cardId: string
     sessionId: string
@@ -5397,6 +5401,36 @@ export async function setupAlicizationDb(
     }
   }
 
+  async function getMemoryWorkbenchQueueHealth(input: { cardId: string }): Promise<AlicizationMemoryWorkbenchHealth['queue']> {
+    void input
+    return {
+      pending: 0,
+      review: 0,
+      applied: 0,
+      failed: 0,
+      deadLettered: 0,
+    }
+  }
+
+  async function getMemoryWorkbenchRecallHealth(input: { cardId: string }): Promise<AlicizationMemoryWorkbenchHealth['recall']> {
+    void input
+    return {
+      lastLatencyMs: null,
+      p95LatencyMs: null,
+      lastError: null,
+    }
+  }
+
+  async function getMemoryWorkbenchEmbeddingHealth(input: { cardId: string }): Promise<AlicizationMemoryWorkbenchHealth['embedding']> {
+    void input
+    return {
+      providerConfigured: false,
+      modelId: null,
+      dimensions: null,
+      reindexRequired: false,
+    }
+  }
+
   async function runMemoryPrune() {
     const currentTs = now()
 
@@ -5750,6 +5784,9 @@ export async function setupAlicizationDb(
     listMemoryWorkbenchReviewItems,
     applyMemoryWorkbenchReviewAction,
     runMemoryWorkbenchRecallProbe,
+    getMemoryWorkbenchQueueHealth,
+    getMemoryWorkbenchRecallHealth,
+    getMemoryWorkbenchEmbeddingHealth,
     enqueueWorkingMemoryLongTermQueueItems,
     drainWorkingMemoryLongTermQueue,
     listLongTermMemoryReviewItems,

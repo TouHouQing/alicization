@@ -63,4 +63,41 @@ describe('memory workbench projection', () => {
     expect(result.health.status).toBe('degraded')
     expect(result.health.errors).toContain('long-term-list-failed')
   })
+
+  it('uses the provided WorkingMemory lookup before falling back to null', async () => {
+    const snapshot = createEmptyWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-ui',
+      now: 300,
+    })
+
+    const result = await buildMemoryWorkbenchSnapshot({
+      cardId: 'default',
+      sessionId: 'session-ui',
+      now: () => 301,
+      getWorkingMemory: () => snapshot,
+      listLongTermItems: async () => [],
+      listReviewItems: async () => [],
+      getQueueHealth: async () => ({
+        pending: 0,
+        review: 0,
+        applied: 0,
+        failed: 0,
+        deadLettered: 0,
+      }),
+      getRecallHealth: async () => ({
+        lastLatencyMs: null,
+        p95LatencyMs: null,
+        lastError: null,
+      }),
+      getEmbeddingHealth: async () => ({
+        providerConfigured: false,
+        modelId: null,
+        dimensions: null,
+        reindexRequired: false,
+      }),
+    })
+
+    expect(result.workingMemory?.sessionId).toBe('session-ui')
+  })
 })

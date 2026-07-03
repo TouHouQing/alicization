@@ -15,12 +15,17 @@ import {
   electronAlicizationMemoryImportLegacy,
   electronAlicizationMemoryRetrieveFacts,
   electronAlicizationMemoryUpsertFacts,
+  electronAlicizationMemoryWorkbenchApplyReviewAction,
+  electronAlicizationMemoryWorkbenchGetSnapshot,
+  electronAlicizationMemoryWorkbenchListLongTerm,
+  electronAlicizationMemoryWorkbenchRecallProbe,
   electronAlicizationReminderSchedule,
   electronAlicizationRunMemoryPrune,
   electronAlicizationSearchOrganicSubconsciousFragments,
   electronAlicizationSetPerformanceManifest,
   electronAlicizationUpdateMemoryStats,
 } from '../../../shared/eventa'
+import { buildMemoryWorkbenchSnapshot } from './memory-workbench'
 import {
   resolveAlicizationAutonomousDialogueFamilyClassification,
   resolveAlicizationAutonomousDialogueOrigin,
@@ -76,7 +81,53 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     errorMessageFrom,
     workingMemoryStore,
   } = options
-  void workingMemoryStore
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchGetSnapshot, async payload => await withCardScope(payload.cardId, async () => {
+    const cardId = cardIdFrom(payload)
+    const sessionId = normalizeSessionId(payload.sessionId) || null
+    const alicizationDb = getAlicizationDb()
+
+    return await buildMemoryWorkbenchSnapshot({
+      cardId,
+      sessionId,
+      now: () => Date.now(),
+      getWorkingMemory: () => sessionId
+        ? workingMemoryStore.get(cardId, sessionId)
+        : workingMemoryStore.latest(cardId),
+      listLongTermItems: async () => (await alicizationDb.listMemoryWorkbenchLongTermItems({ cardId, limit: 24 })).items,
+      listReviewItems: async () => await alicizationDb.listMemoryWorkbenchReviewItems({ cardId, limit: 24 }),
+      getQueueHealth: async () => await alicizationDb.getMemoryWorkbenchQueueHealth({ cardId }),
+      getRecallHealth: async () => await alicizationDb.getMemoryWorkbenchRecallHealth({ cardId }),
+      getEmbeddingHealth: async () => await alicizationDb.getMemoryWorkbenchEmbeddingHealth({ cardId }),
+    })
+  }))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchListLongTerm, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().listMemoryWorkbenchLongTermItems({
+    cardId: cardIdFrom(payload),
+    kind: payload.kind,
+    query: payload.query,
+    sensitivity: payload.sensitivity,
+    visibility: payload.visibility,
+    training: payload.training,
+    source: payload.source,
+    limit: payload.limit,
+    cursor: payload.cursor,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchApplyReviewAction, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().applyMemoryWorkbenchReviewAction({
+    cardId: cardIdFrom(payload),
+    reviewItemId: sanitizeText(payload.reviewItemId),
+    decision: payload.decision,
+    reason: sanitizeText(payload.reason, '') || null,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchRecallProbe, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().runMemoryWorkbenchRecallProbe({
+    cardId: cardIdFrom(payload),
+    query: sanitizeText(payload.query),
+    sessionId: normalizeSessionId(payload.sessionId) || null,
+    includeWorkingMemory: payload.includeWorkingMemory === true,
+    limit: payload.limit,
+  })))
 
   registerInvokeHandler(electronAlicizationGetMemoryStats, async scope => await withCardScope(cardIdFrom(scope), async () => await getAlicizationDb().getMemoryStats()))
   registerInvokeHandler(electronAlicizationGetOrganicMemorySnapshot, async scope => await withCardScope(cardIdFrom(scope), async () => await getOrganicMemorySnapshot()))
