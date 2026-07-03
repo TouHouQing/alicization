@@ -523,6 +523,48 @@ pages:
   memory:
     description: Where memories got stored, and organized
     title: Memory
+    workbench:
+      title: Memory Center
+      description: Inspect, review, test, and clean Alicization short-term and long-term memory.
+      tabs:
+        working: Current Working Memory
+        long_term: Long-Term Memory
+        review: Review Queue
+        probe: Recall Probe
+        persona: Persona Candidates
+        health: Health & Audit
+      actions:
+        refresh: Refresh
+        approve: Approve
+        reject: Reject
+        tombstone: Delete and Block
+        inward_only: Inward Only
+        no_training: No Training
+        run_probe: Run Probe
+      states:
+        empty_working: No working memory snapshot yet. Send one dialogue turn and refresh.
+        empty_long_term: No matching long-term memory yet.
+        empty_review: No memories currently need your review.
+        empty_probe: Enter a sentence to see what she would recall.
+        loading: Loading memory state...
+      fields:
+        health: Memory Health
+        pending_review: Pending Review
+        recall_latency: Recall Latency
+        queue: Queue
+        embedding: Embedding
+        thread: Thread
+        active_task: Active Task
+        corrections: User Corrections
+        commitments: Commitments
+        questions: Open Questions
+        query_hints: Query Hints
+        evidence: Evidence
+        rank_reasons: Rank Reasons
+        sensitivity: Sensitivity
+        visibility: Visibility
+        training: Training
+        errors: Errors
   data:
     title: Data
     description: Manage stored Alicization data, exports, and resets

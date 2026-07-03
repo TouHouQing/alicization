@@ -514,6 +514,48 @@ pages:
   memory:
     description: 存放记忆的地方，以及策略
     title: 记忆体
+    workbench:
+      title: 记忆中心
+      description: 查看、审核、测试和清理 Alicization 的短期记忆与长期记忆。
+      tabs:
+        working: 当前短期记忆
+        long_term: 长期记忆
+        review: 待审核
+        probe: 召回测试
+        persona: 人格候选
+        health: 健康与审计
+      actions:
+        refresh: 刷新
+        approve: 批准
+        reject: 拒绝
+        tombstone: 删除并屏蔽
+        inward_only: 只内在使用
+        no_training: 禁止训练
+        run_probe: 运行召回测试
+      states:
+        empty_working: 还没有可显示的短期记忆快照。发送一轮对话后再刷新。
+        empty_long_term: 还没有匹配的长期记忆。
+        empty_review: 当前没有需要你审核的记忆。
+        empty_probe: 输入一句话，查看她会回想起什么。
+        loading: 正在读取记忆状态...
+      fields:
+        health: 记忆健康
+        pending_review: 待审核
+        recall_latency: 召回延迟
+        queue: 队列
+        embedding: 向量模型
+        thread: 当前线程
+        active_task: 活跃任务
+        corrections: 用户纠正
+        commitments: 承诺
+        questions: 未解决问题
+        query_hints: 查询提示
+        evidence: 证据
+        rank_reasons: 排名理由
+        sensitivity: 敏感度
+        visibility: 可见策略
+        training: 训练
+        errors: 错误
   data:
     title: Data
     description: 管理存储 Alicization 数据、导出和重置
