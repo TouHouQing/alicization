@@ -8326,11 +8326,14 @@ describe('main chat session runtime', () => {
     })
 
     const recallBlock = findLongTermMemoryRecallBlock(result.messages)
+    const text = result.messages.map(message => String(message.content)).join('\n')
     expect(retrieveLongTermMemoryEvidence).toHaveBeenCalledWith(expect.objectContaining({
       cardId: 'default',
       currentUserText: '我们去打游戏吧',
       limit: 5,
     }))
+    expect(text).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
+    expect(text).toContain('[ALICIZATION_RECALLED_MEMORY]')
     expect(recallBlock).toContain('intent=episodic')
     expect(recallBlock).toContain('Minecraft')
     expect(recallBlock).toContain('source=episodic_events:episode-game-last-week')

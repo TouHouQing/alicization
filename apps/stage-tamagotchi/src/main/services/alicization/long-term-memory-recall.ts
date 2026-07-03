@@ -329,8 +329,22 @@ export function buildLongTermMemoryRecallBlock(input: {
   maxItems?: number
 }) {
   const evidence = input.bundle.evidence.slice(0, Math.max(0, Math.min(8, Math.floor(input.maxItems ?? 5))))
-  if (!input.bundle.intent.shouldRecall || evidence.length === 0)
-    return null
+  const riskFlags = input.bundle.intent.riskFlags
+  const hasExplicitFailure = riskFlags.some(flag => flag.includes('failed') || flag.includes('error'))
+  if (!input.bundle.intent.shouldRecall || evidence.length === 0) {
+    if (!hasExplicitFailure)
+      return null
+
+    return [
+      '[ALICIZATION_RECALLED_MEMORY]',
+      `intent=${input.bundle.intent.mode}`,
+      `confidence=${input.bundle.confidence.toFixed(2)}`,
+      `budget=${input.bundle.budgetClass}`,
+      `temporal_focus=${input.bundle.intent.temporalFocus}`,
+      `risk_flags=${riskFlags.join(',') || 'none'}`,
+      'items=',
+    ].join('\n')
+  }
 
   const lines = [
     '[ALICIZATION_RECALLED_MEMORY]',
@@ -338,6 +352,7 @@ export function buildLongTermMemoryRecallBlock(input: {
     `confidence=${input.bundle.confidence.toFixed(2)}`,
     `budget=${input.bundle.budgetClass}`,
     `temporal_focus=${input.bundle.intent.temporalFocus}`,
+    `risk_flags=${riskFlags.join(',') || 'none'}`,
     'items=',
     ...evidence.map((item) => {
       const prefix = item.visibleMode === 'tentative'
