@@ -6,6 +6,7 @@ import type {
   AlicizationReminderSchedulePayload,
 } from '../../../shared/eventa'
 import type { AlicizationKnowledgeAssimilationRuntime } from './knowledge-assimilation-runtime'
+import type { WorkingMemoryStore } from './life-core/working-memory-store'
 
 import {
   electronAlicizationGetMemoryStats,
@@ -52,6 +53,7 @@ interface RegisterAlicizationMemoryInvokeHandlersOptions {
   sanitizeText: (raw: unknown, fallback?: string) => string
   normalizeSessionId: (raw: unknown) => string
   errorMessageFrom: (error: unknown) => string | undefined
+  workingMemoryStore: WorkingMemoryStore
 }
 
 export function registerAlicizationMemoryInvokeHandlers(options: RegisterAlicizationMemoryInvokeHandlersOptions) {
@@ -72,7 +74,9 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     sanitizeText,
     normalizeSessionId,
     errorMessageFrom,
+    workingMemoryStore,
   } = options
+  void workingMemoryStore
 
   registerInvokeHandler(electronAlicizationGetMemoryStats, async scope => await withCardScope(cardIdFrom(scope), async () => await getAlicizationDb().getMemoryStats()))
   registerInvokeHandler(electronAlicizationGetOrganicMemorySnapshot, async scope => await withCardScope(cardIdFrom(scope), async () => await getOrganicMemorySnapshot()))

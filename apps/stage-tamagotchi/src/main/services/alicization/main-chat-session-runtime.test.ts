@@ -18,6 +18,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { createAlicizationAgentRuntime } from './agent-runtime'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
+import { createWorkingMemoryStore } from './life-core/working-memory-store'
 import {
   __alicizationTestOnly,
   buildEffectiveDigitalLifeSpine,
@@ -7948,7 +7949,9 @@ describe('main chat session runtime', () => {
     )).toBe(true)
   })
 
-  function createWorkingMemoryRuntimeFixture() {
+  function createWorkingMemoryRuntimeFixture(
+    overrides: Partial<Parameters<typeof createAlicizationMainChatSessionRuntime>[0]> = {},
+  ) {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,
@@ -8003,6 +8006,7 @@ describe('main chat session runtime', () => {
       tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+      ...overrides,
     })
 
     return {
@@ -8010,6 +8014,34 @@ describe('main chat session runtime', () => {
       runtime,
     }
   }
+
+  it('uses the injected WorkingMemory store so UI and dialogue share the same short-term owner', async () => {
+    const workingMemoryStore = createWorkingMemoryStore()
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      workingMemoryStore,
+    })
+    const prelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '继续把记忆中心 UI 做成可视闭环',
+      } as Message],
+    })
+
+    await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-visible',
+        messages: [
+          { role: 'user', content: '继续把记忆中心 UI 做成可视闭环' },
+        ],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    const latest = workingMemoryStore.latest('default')
+    expect(latest?.currentThread?.currentUserMove).toContain('记忆中心 UI')
+  })
 
   it('assembles a working-memory block for a normal turn and carries the current user move', async () => {
     const { runtime } = createWorkingMemoryRuntimeFixture()

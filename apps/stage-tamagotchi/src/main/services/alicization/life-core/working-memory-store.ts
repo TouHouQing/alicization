@@ -10,6 +10,8 @@ function cloneSnapshot(snapshot: WorkingMemorySnapshot): WorkingMemorySnapshot {
 
 export interface WorkingMemoryStore {
   get: (cardId: string, sessionId: string) => WorkingMemorySnapshot | null
+  latest: (cardId: string) => WorkingMemorySnapshot | null
+  list: (cardId: string) => WorkingMemorySnapshot[]
   upsert: (snapshot: WorkingMemorySnapshot) => void
   clear: (cardId?: string, sessionId?: string) => void
 }
@@ -20,6 +22,16 @@ export function createWorkingMemoryStore(): WorkingMemoryStore {
     get(cardId, sessionId) {
       const snapshot = snapshots.get(key(cardId, sessionId))
       return snapshot ? cloneSnapshot(snapshot) : null
+    },
+    latest(cardId) {
+      const [snapshot] = this.list(cardId)
+      return snapshot ?? null
+    },
+    list(cardId) {
+      return [...snapshots.values()]
+        .filter(snapshot => snapshot.cardId === cardId)
+        .sort((left, right) => right.updatedAt - left.updatedAt)
+        .map(cloneSnapshot)
     },
     upsert(snapshot) {
       snapshots.set(key(snapshot.cardId, snapshot.sessionId), cloneSnapshot(snapshot))

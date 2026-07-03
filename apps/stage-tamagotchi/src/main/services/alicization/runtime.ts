@@ -173,6 +173,7 @@ import { createAlicizationMainChatRunStateController } from './main-chat-run-sta
 import {
   createAlicizationMainChatSessionRuntime,
 } from './main-chat-session-runtime'
+import { createWorkingMemoryStore } from './life-core/working-memory-store'
 import { acceptAlicizationMainChatStart } from './main-chat-start-acceptance'
 import {
   resolveAlicizationChatStartPayloadPreDialogueSendIdentity,
@@ -3341,7 +3342,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     shouldSuppressWeakGenericBrowserInspectionAnchor,
   })
   mainChatRuntime.bindInspectionIntentFromMessageHistory(sensoryRuntime.resolveInspectionIntentFromMessageHistory)
+  const workingMemoryStore = createWorkingMemoryStore()
   const mainChatSessionRuntime = createAlicizationMainChatSessionRuntime({
+    workingMemoryStore,
     buildMainRuntimeCorePromptBlocks,
     buildOrganicMemorySystemBlocks,
     buildPerformanceManifestSystemBlocks,
@@ -8127,6 +8130,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     sanitizeText,
     normalizeSessionId,
     errorMessageFrom,
+    workingMemoryStore,
   })
   registerAlicizationDialogueInvokeHandlers({
     registerInvokeHandler: (channel, handler) => defineInvokeHandler(context, channel as never, handler as never),
