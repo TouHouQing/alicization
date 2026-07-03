@@ -1,7 +1,12 @@
 import type { AlicizationPersistentPresenceAuthoritySnapshot } from '@proj-alicization/stage-shared'
 
 import type {
+  AlicizationMemoryRecallProbeConfidencePolicy,
+  AlicizationMemoryRecallProbeEvidenceKind,
+  AlicizationMemoryRecallProbeEvidenceVisibility,
+  AlicizationMemoryRecallProbeMode,
   AlicizationMemoryRecallProbeResult,
+  AlicizationMemoryRecallProbeTemporalFocus,
   AlicizationMemoryWorkbenchSnapshot,
   AlicizationVisualPresenceStateSnapshot,
 } from './eventa'
@@ -17,15 +22,78 @@ const memoryWorkbenchSnapshot: AlicizationMemoryWorkbenchSnapshot = {
   cardId: 'default',
   sessionId: 'session-1',
   updatedAt: 1,
-  workingMemory: null,
+  workingMemory: {
+    cardId: 'default',
+    sessionId: 'session-1',
+    updatedAt: 1,
+    threadTitle: 'Phase 1 memory contracts',
+    threadMode: 'implementation',
+    currentUserMove: 'tighten reviewer feedback',
+    activeTask: 'shared eventa contracts',
+    taskStatus: 'review-fix',
+    unresolvedQuestions: ['Should review kind stay bounded?'],
+    commitments: ['Only touch shared contracts'],
+    userCorrections: ['Include correction candidates'],
+    relationshipPosture: 'attuned',
+    emotionalPosture: 'focused',
+    queryHints: ['memory workbench', 'correction'],
+    longTermQueue: [
+      {
+        id: 'candidate-1',
+        kind: 'correction',
+        summary: 'Host corrected the memory contract kind boundary.',
+        reason: 'Reviewer identified existing correction candidate kind.',
+        salience: 0.9,
+        sensitivity: 'personal',
+        confidence: 0.88,
+        allowTraining: false,
+      },
+    ],
+    failureTurnIds: ['turn-1'],
+  },
   longTerm: {
-    total: 0,
-    byKind: {},
-    items: [],
+    total: 1,
+    byKind: {
+      correction: 1,
+    },
+    items: [
+      {
+        id: 'memory-1',
+        kind: 'correction',
+        summary: 'Correction memories are first-class workbench rows.',
+        evidenceSnippets: ['kind: correction'],
+        sourceIds: ['candidate-1'],
+        confidence: 0.86,
+        salience: 0.8,
+        sensitivity: 'personal',
+        visibility: 'explicit',
+        training: 'blocked',
+        source: 'working-memory',
+        createdAt: 1,
+        updatedAt: 1,
+        lastAccessedAt: null,
+        tombstoned: false,
+      },
+    ],
   },
   review: {
-    pending: 0,
-    items: [],
+    pending: 1,
+    items: [
+      {
+        id: 'review-1',
+        transactionId: 'transaction-1',
+        status: 'pending',
+        kind: 'correction',
+        summary: 'Review queue can carry correction candidates.',
+        evidenceSnippets: ['review correction'],
+        reviewReasons: ['bounded kind coverage'],
+        sensitivity: 'personal',
+        visibleMode: 'explicit',
+        allowTraining: false,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ],
   },
   health: {
     status: 'ok',
@@ -71,13 +139,35 @@ const recallProbe: AlicizationMemoryRecallProbeResult = {
     negativeCues: [],
     confidencePolicy: 'direct',
   },
-  evidence: [],
+  evidence: [
+    {
+      id: 'memory-episode-1',
+      kind: 'episode',
+      summary: 'The host and Alicization played a game together.',
+      source: 'long-term-memory',
+      score: 0.76,
+      visibleMode: 'tentative',
+      queryMatches: ['打游戏'],
+      rankReasons: ['episodic cue match'],
+    },
+  ],
   latencyMs: 1,
   errors: [],
 }
 
+const recallMode: AlicizationMemoryRecallProbeMode = recallProbe.intent.mode
+const temporalFocus: AlicizationMemoryRecallProbeTemporalFocus = recallProbe.intent.temporalFocus
+const confidencePolicy: AlicizationMemoryRecallProbeConfidencePolicy = recallProbe.plan.confidencePolicy
+const evidenceKind: AlicizationMemoryRecallProbeEvidenceKind = recallProbe.evidence[0].kind
+const evidenceVisibility: AlicizationMemoryRecallProbeEvidenceVisibility = recallProbe.evidence[0].visibleMode
+
 void memoryWorkbenchSnapshot
 void recallProbe
+void recallMode
+void temporalFocus
+void confidencePolicy
+void evidenceKind
+void evidenceVisibility
 
 export type EventaSnapshotExtendsAuthority = Expect<
   Extends<AlicizationVisualPresenceStateSnapshot, AlicizationPersistentPresenceAuthoritySnapshot>

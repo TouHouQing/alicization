@@ -655,12 +655,18 @@ export type AlicizationMemoryWorkbenchKind =
   | 'procedure'
   | 'relationship'
   | 'preference'
+  | 'correction'
   | 'candidate'
 
 export type AlicizationMemoryWorkbenchSensitivity = 'public' | 'personal' | 'private' | 'secret'
 export type AlicizationMemoryWorkbenchVisibility = 'explicit' | 'inward-only'
 export type AlicizationMemoryWorkbenchTrainingState = 'allowed' | 'blocked'
 export type AlicizationMemoryWorkbenchReviewDecision = 'approve' | 'reject' | 'tombstone' | 'inward-only' | 'no-training'
+export type AlicizationMemoryRecallProbeMode = 'none' | 'episodic' | 'relationship' | 'preference' | 'procedure' | 'task' | 'mixed'
+export type AlicizationMemoryRecallProbeTemporalFocus = 'current' | 'recent' | 'recent-or-mid' | 'cross-session' | 'distant' | 'unspecified'
+export type AlicizationMemoryRecallProbeConfidencePolicy = 'direct' | 'tentative' | 'inward-only'
+export type AlicizationMemoryRecallProbeEvidenceKind = 'fact' | 'reflection' | 'episode' | 'consolidation'
+export type AlicizationMemoryRecallProbeEvidenceVisibility = 'explicit' | 'inward-only' | 'tentative'
 
 export interface AlicizationWorkingMemoryWorkbenchSnapshot {
   cardId: string
@@ -679,7 +685,7 @@ export interface AlicizationWorkingMemoryWorkbenchSnapshot {
   queryHints: string[]
   longTermQueue: Array<{
     id: string
-    kind: string
+    kind: AlicizationMemoryWorkbenchKind
     summary: string
     reason: string
     salience: number
@@ -718,7 +724,7 @@ export interface AlicizationLongTermMemoryReviewItem {
   id: string
   transactionId: string
   status: string
-  kind: string
+  kind: AlicizationMemoryWorkbenchKind
   summary: string
   evidenceSnippets: string[]
   reviewReasons: string[]
@@ -803,11 +809,11 @@ export interface AlicizationMemoryRecallProbePayload extends AlicizationCardScop
 export interface AlicizationMemoryRecallProbeResult {
   query: string
   intent: {
-    mode: string
+    mode: AlicizationMemoryRecallProbeMode
     shouldRecall: boolean
     confidence: number
     rationale: string
-    temporalFocus: string
+    temporalFocus: AlicizationMemoryRecallProbeTemporalFocus
     riskFlags: string[]
   }
   plan: {
@@ -818,15 +824,15 @@ export interface AlicizationMemoryRecallProbeResult {
     episodicQueries: string[]
     threadHints: string[]
     negativeCues: string[]
-    confidencePolicy: string
+    confidencePolicy: AlicizationMemoryRecallProbeConfidencePolicy
   }
   evidence: Array<{
     id: string
-    kind: string
+    kind: AlicizationMemoryRecallProbeEvidenceKind
     summary: string
     source: string
     score: number
-    visibleMode: string
+    visibleMode: AlicizationMemoryRecallProbeEvidenceVisibility
     queryMatches: string[]
     rankReasons: string[]
   }>
