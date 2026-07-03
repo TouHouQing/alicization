@@ -29,4 +29,14 @@ describe('mind replay humanlike memory audit panel wiring', () => {
     expect(source).toContain('embodimentRecallStrength')
     expect(source).toContain('embodimentModalityRisk')
   })
+
+  it('keeps memory workbench separate from trace-specific mind replay audit', () => {
+    const mindReplaySource = readFileSync(new URL('../../../stage-pages/src/pages/devtools/mind-replay.vue', import.meta.url), 'utf8')
+    const auditPanelSource = readFileSync(new URL('../../../stage-pages/src/pages/devtools/components/mind-replay-humanlike-memory-audit-panel.vue', import.meta.url), 'utf8')
+
+    expect(mindReplaySource).toContain('MindReplayHumanlikeMemoryAuditPanel')
+    expect(auditPanelSource).toContain('useAlicizationHumanlikeMemoryAuditStore')
+    expect(mindReplaySource).not.toContain('useAlicizationMemoryWorkbenchStore')
+    expect(auditPanelSource).not.toContain('useAlicizationMemoryWorkbenchStore')
+  })
 })

@@ -6,7 +6,7 @@ import { useLocalStorage } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import { useStageThreeRuntimeDiagnosticsStore } from '../../stores/stage-three-runtime-diagnostics'
 import { useStageWindowLifecycleStore } from '../../stores/stage-window-lifecycle'
@@ -112,6 +112,7 @@ import { buildVrmAuthorityComparisonView } from './performance-visualizer-vrm-au
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const diagnostics = useStageThreeRuntimeDiagnosticsStore()
 const replayStore = useAlicizationMindReplayStore()
 const selfEvolutionInspector = useAlicizationSelfEvolutionInspectorStore()
@@ -1132,6 +1133,10 @@ function cycleAuthorityRendererDriftFilter() {
         ? 'none'
         : 'all'
 }
+
+function openMemoryWorkbench() {
+  void router.push('/settings/memory')
+}
 </script>
 
 <template>
@@ -1150,6 +1155,13 @@ function cycleAuthorityRendererDriftFilter() {
         @click="() => selfEvolutionInspector.refresh()"
       >
         {{ formatSpeechDisplayText(selfEvolutionLoading ? 'refreshing-self-evolution' : 'refresh-self-evolution') }}
+      </ButtonBar>
+      <ButtonBar
+        icon="i-solar:database-bold-duotone"
+        :text="t('settings.pages.memory.workbench.title')"
+        @click="openMemoryWorkbench"
+      >
+        {{ t('settings.pages.memory.workbench.title') }}
       </ButtonBar>
       <ButtonBar
         :icon="authorityOnlyDriftRows ? 'i-solar:filter-bold-duotone' : 'i-solar:filter-line-duotone'"
