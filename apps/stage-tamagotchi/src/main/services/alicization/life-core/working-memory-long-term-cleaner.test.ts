@@ -196,23 +196,91 @@ describe('working memory long-term cleaner', () => {
     expect(result.reviewReasons).toContain('low-salience')
   })
 
-  it('routes unsupported kinds to review with a blocked cleaned candidate', () => {
+  it('admits clear preference candidates while keeping training blocked', () => {
     const result = clean({
       kind: 'preference',
+      summary: '用户明确喜欢回复先说结论，再给必要细节。',
+      reason: 'User stated a stable response preference.',
+      evidenceSnippets: ['我喜欢你先说结论，再给必要细节。'],
+      salience: 0.78,
+      confidence: 0.82,
     })
 
-    expect(result.status).toBe('needs-user-review')
+    expect(result.status).toBe('admitted')
+    expect(result.decision).toBe('admit')
     expect(result.cleanedCandidate).toEqual(expect.objectContaining({
       kind: 'preference',
       trainingEligibility: 'blocked',
-      relationshipMeaning: null,
+      retrievalCues: expect.arrayContaining(['用户偏好']),
     }))
-    expect(result.cleanedCandidate?.retrievalCues).not.toEqual(expect.arrayContaining([
-      '固定模板',
-      '数字生命人格',
-      '人格纠正',
-    ]))
-    expect(result.reviewReasons).toContain('unsupported-kind')
+    expect(result.reviewReasons).toEqual([])
+  })
+
+  it('admits clear episode procedure and relationship candidates with reviewable evidence', () => {
+    expect(clean({
+      id: 'queue-episode',
+      kind: 'episode',
+      summary: '上周我们一起玩过 Minecraft，用户说下次还想继续联机探索。',
+      reason: 'Shared episode with time and activity anchor.',
+      evidenceSnippets: ['上周我们一起玩过 Minecraft，下次继续联机。'],
+      salience: 0.82,
+      confidence: 0.84,
+    })).toEqual(expect.objectContaining({
+      status: 'admitted',
+      decision: 'admit',
+      cleanedCandidate: expect.objectContaining({
+        kind: 'episode',
+        retrievalCues: expect.arrayContaining(['共同经历']),
+      }),
+    }))
+
+    expect(clean({
+      id: 'queue-procedure',
+      kind: 'procedure',
+      summary: '用户认可长期记忆开发按红测、实现、验证的方式推进。',
+      reason: 'User approved a reusable working procedure.',
+      evidenceSnippets: ['可以，按红测、实现、验证继续。'],
+      salience: 0.78,
+      confidence: 0.82,
+    })).toEqual(expect.objectContaining({
+      status: 'admitted',
+      decision: 'admit',
+      cleanedCandidate: expect.objectContaining({
+        kind: 'procedure',
+        retrievalCues: expect.arrayContaining(['可复用流程']),
+      }),
+    }))
+
+    expect(clean({
+      id: 'queue-relationship',
+      kind: 'relationship',
+      summary: '用户希望出错或超时时直接说明问题，不要固定安抚模板。',
+      reason: 'Relationship boundary for failure transparency.',
+      evidenceSnippets: ['如果某个链路节点出错了就直接告诉用户有问题。'],
+      salience: 0.86,
+      confidence: 0.86,
+    })).toEqual(expect.objectContaining({
+      status: 'admitted',
+      decision: 'admit',
+      cleanedCandidate: expect.objectContaining({
+        kind: 'relationship',
+        retrievalCues: expect.arrayContaining(['关系边界']),
+      }),
+    }))
+  })
+
+  it('routes vague non-correction candidates to review instead of automatic write', () => {
+    const result = clean({
+      kind: 'preference',
+      summary: '用户说这样也行。',
+      reason: 'Vague preference-like statement.',
+      evidenceSnippets: ['这样也行。'],
+      salience: 0.76,
+      confidence: 0.78,
+    })
+
+    expect(result.status).toBe('needs-user-review')
+    expect(result.reviewReasons).toContain('weak-preference-cue')
   })
 
   it('routes weak correction cues to review', () => {

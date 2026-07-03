@@ -115,16 +115,6 @@ function renderOwnerList(label: string, values: string[]) {
   return `${label}=${values.length > 0 ? values.join(' ; ') : 'none'}`
 }
 
-function renderLongTermQueue(queue: WorkingMemoryLongTermQueueItem[]) {
-  if (queue.length === 0)
-    return 'long_term_queue=none'
-  return `long_term_queue=${queue.map(item => [
-    item.status,
-    item.kind,
-    compact(item.summary, 180),
-  ].filter(Boolean).join(':')).join(' ; ')}`
-}
-
 export function buildWorkingMemoryOwnerSystemBlock(context: WorkingMemoryOwnerContext) {
   const lines = [
     '[ALICIZATION_WORKING_MEMORY_OWNER]',
@@ -143,7 +133,6 @@ export function buildWorkingMemoryOwnerSystemBlock(context: WorkingMemoryOwnerCo
       : 'task=none',
     renderOwnerList('obligations', context.obligations),
     renderOwnerList('memory_query_hints', context.queryHints),
-    renderLongTermQueue(context.longTermQueue),
     renderOwnerList('failure_audit_only', context.audit.failureTurnIds),
     renderOwnerList('excluded_long_term', context.audit.excludedLongTermCandidateTurnIds),
   ]

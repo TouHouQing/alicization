@@ -10,6 +10,10 @@ import {
 
 const correctionPattern = /不是这个|不想要|不要固定|固定模板|你搞错|你错了|别这样|不要这样/u
 const correctionContextPattern = /我需要.*(固定回复|固定模板|人格|记忆|回复)|(固定回复|固定模板|人格|记忆).*(我需要)/u
+const preferencePattern = /我喜欢|我不喜欢|偏好|习惯|以后.*(要|不要|别).*(回复|方式|节奏)|希望.*(回复|方式|节奏)/u
+const episodePattern = /上周|昨天|今天|那次|一起.*(玩|做|完成)|我们一起|共同经历|下次继续|联机/u
+const procedurePattern = /以后.*(按|照).*流程|按.*(红测|实现|验证|流程|步骤)|流程推进|复用.*方式|先.*再/u
+const relationshipPattern = /出错|超时|直接说明|关系边界|修复|透明|不要固定安抚|固定安抚模板/u
 const commitmentPattern = /我会|我先|我已经|接下来|继续|开始|完成|修复|提交|commit|push|编译/u
 const fallbackTemplatePattern = /我在。同一条本地数字生命的线还在|同一条本地数字生命的线还在|我先轻一点留在这里|你想说什么，我就接住/u
 
@@ -53,16 +57,71 @@ export function createLongTermCandidatesFromWorkingTurns(turns: WorkingMemoryTur
   for (const turn of turns) {
     if (shouldExcludeTurnFromLongTermCandidate(turn))
       continue
-    if (turn.role === 'user' && (correctionPattern.test(turn.text) || correctionContextPattern.test(turn.text))) {
+    if (turn.role !== 'user')
+      continue
+
+    const text = normalizeWorkingMemoryText(turn.text, 400)
+    if (!text)
+      continue
+
+    const base = {
+      sourceTurnIds: [turn.turnId],
+      summary: normalizeWorkingMemoryText(turn.text, 260),
+      sensitivity: 'personal' as const,
+      allowTraining: false,
+    }
+
+    if (relationshipPattern.test(text)) {
       candidates.push({
-        sourceTurnIds: [turn.turnId],
+        ...base,
+        kind: 'relationship',
+        reason: 'User stated a relationship boundary or repair preference that should shape future replies.',
+        salience: 0.84,
+        confidence: 0.82,
+      })
+      continue
+    }
+
+    if (preferencePattern.test(text)) {
+      candidates.push({
+        ...base,
+        kind: 'preference',
+        reason: 'User stated a stable preference that should be remembered for future dialogue.',
+        salience: 0.76,
+        confidence: 0.78,
+      })
+      continue
+    }
+
+    if (episodePattern.test(text)) {
+      candidates.push({
+        ...base,
+        kind: 'episode',
+        reason: 'User referred to a shared event or durable episode worth recalling later.',
+        salience: 0.8,
+        confidence: 0.78,
+      })
+      continue
+    }
+
+    if (procedurePattern.test(text)) {
+      candidates.push({
+        ...base,
+        kind: 'procedure',
+        reason: 'User approved or described a reusable procedure for future work.',
+        salience: 0.78,
+        confidence: 0.8,
+      })
+      continue
+    }
+
+    if (correctionPattern.test(text) || correctionContextPattern.test(text)) {
+      candidates.push({
+        ...base,
         kind: 'correction',
-        summary: normalizeWorkingMemoryText(turn.text, 260),
         reason: 'User corrected Alicization behavior, memory use, or persona expression during the current dialogue.',
         salience: 0.82,
-        sensitivity: 'personal',
         confidence: 0.78,
-        allowTraining: false,
       })
     }
   }

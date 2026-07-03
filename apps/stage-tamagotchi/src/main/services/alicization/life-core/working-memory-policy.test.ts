@@ -71,6 +71,48 @@ describe('working memory policy', () => {
     }))).toBe(true)
   })
 
+  it('creates long-term candidates for clear preference episode procedure and relationship signals', () => {
+    const candidates = createLongTermCandidatesFromWorkingTurns([
+      turn({
+        turnId: 'preference',
+        role: 'user',
+        text: '我喜欢你先说结论，再给必要细节。',
+      }),
+      turn({
+        turnId: 'episode',
+        role: 'user',
+        text: '上周我们一起玩过 Minecraft，下次继续联机探索。',
+      }),
+      turn({
+        turnId: 'procedure',
+        role: 'user',
+        text: '以后长期记忆开发按红测、实现、验证这个流程推进。',
+      }),
+      turn({
+        turnId: 'relationship',
+        role: 'user',
+        text: '如果出错或超时了就直接说明问题，不要固定安抚模板。',
+      }),
+      turn({
+        turnId: 'vague',
+        role: 'user',
+        text: '这样也行。',
+      }),
+    ])
+
+    expect(candidates.map(candidate => candidate.kind)).toEqual([
+      'preference',
+      'episode',
+      'procedure',
+      'relationship',
+    ])
+    expect(candidates.find(candidate => candidate.kind === 'preference')).toEqual(expect.objectContaining({
+      sourceTurnIds: ['preference'],
+      allowTraining: false,
+    }))
+    expect(candidates.some(candidate => candidate.sourceTurnIds.includes('vague'))).toBe(false)
+  })
+
   it('demotes failed turns even if they start with high raw importance', () => {
     const failure = turn({
       turnId: 'failure-high',

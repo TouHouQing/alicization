@@ -186,22 +186,6 @@ function renderAuditLine(audit: WorkingMemoryAuditState) {
   ])}`
 }
 
-function renderLongTermCandidate(candidate: WorkingMemoryLongTermCandidate) {
-  return joinLine([
-    `${candidate.kind}:${candidate.summary}`,
-    `reason=${candidate.reason}`,
-    `sensitivity=${candidate.sensitivity}`,
-    `confidence=${formatScore(candidate.confidence) ?? '0.00'}`,
-    `training=${candidate.allowTraining ? 'yes' : 'no'}`,
-  ], ' | ') ?? ''
-}
-
-function renderLongTermCandidatesLine(candidates: WorkingMemoryLongTermCandidate[]) {
-  if (candidates.length === 0)
-    return 'long_term_candidates=none'
-  return `long_term_candidates=${candidates.map(renderLongTermCandidate).filter(Boolean).join(' ; ')}`
-}
-
 function normalizeQuestions(questions: WorkingMemoryQuestion[]) {
   return uniqueWorkingMemoryTexts(questions.map(item => item.text), 8, 220)
 }
@@ -360,7 +344,6 @@ export function buildWorkingMemoryPromptView(snapshot: WorkingMemorySnapshot): W
         renderPostureLine('execution', modules.executionState),
         renderCompressionLine(modules.compression),
         renderAuditLine(modules.audit),
-        renderLongTermCandidatesLine(modules.longTermCandidates),
       ]),
     },
   }

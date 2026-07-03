@@ -61,6 +61,7 @@ import type {
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationEventGraphNeighborhood } from './memory-event-graph-runtime'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
+import type { WorkingMemoryLongTermQueueItem } from './life-core/working-memory-long-term-queue'
 
 import { randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
@@ -85,6 +86,27 @@ import { createAlicizationMemoryRelationshipRuntime } from './memory-relationshi
 import { createAlicizationMemoryRetrievalTelemetryRuntime } from './memory-retrieval-telemetry'
 import { buildAlicizationMemoryStatsProjection } from './memory-stats-projection'
 import { createAlicizationMemorySubconsciousRuntime } from './memory-subconscious-runtime'
+import { cleanWorkingMemoryLongTermQueueItem } from './life-core/working-memory-long-term-cleaner'
+import { createWorkingMemoryLongTermCleaningTransaction } from './life-core/working-memory-long-term-cleaning'
+import { createWorkingMemoryLongTermCleaningStoreRuntime } from './life-core/working-memory-long-term-cleaning-store'
+import { projectWorkingMemoryLongTermCandidate } from './life-core/working-memory-long-term-projection'
+import {
+  episodicEventToLongTermEvidenceCandidate,
+  memoryConsolidationToLongTermEvidenceCandidate,
+  memoryFactToLongTermEvidenceCandidate,
+  memoryReflectionToLongTermEvidenceCandidate,
+} from './long-term-memory-evidence'
+import {
+  buildLongTermMemoryEvidenceBundle,
+  buildLongTermMemoryQueryPlan,
+  deriveLongTermMemoryRecallIntent,
+} from './long-term-memory-recall'
+import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
+import type { LongTermMemoryReviewDecision, LongTermMemoryReviewItem } from './long-term-memory-review-queue'
+import {
+  applyLongTermMemoryReviewDecision as applyLongTermMemoryReviewDecisionToTransaction,
+  createLongTermMemoryReviewItemFromTransaction,
+} from './long-term-memory-review-queue'
 import {
   deriveConsolidationMemoryTier,
   deriveEpisodicMemoryTier,
@@ -1319,6 +1341,41 @@ export interface AlicizationDbService {
   applyMemoryFactCorrections: (corrections: AlicizationKnowledgeAssimilationCorrection[]) => Promise<void>
   listMemoryFacts: () => Promise<AlicizationMemoryFact[]>
   retrieveMemoryFacts: (query: string, limit?: number) => Promise<AlicizationMemoryFact[]>
+  retrieveLongTermMemoryEvidence: (input: {
+    cardId: string
+    currentUserText: string
+    workingMemoryQueryHints?: string[]
+    currentThreadTitle?: string | null
+    activeTask?: string | null
+    limit?: number
+  }) => Promise<LongTermMemoryEvidenceBundle>
+  enqueueWorkingMemoryLongTermQueueItems: (input: {
+    cardId: string
+    sessionId: string
+    items: WorkingMemoryLongTermQueueItem[]
+  }) => Promise<void>
+  drainWorkingMemoryLongTermQueue: (limit?: number) => Promise<{
+    cleaned: number
+    admitted: number
+    applied: number
+    rejected: number
+    review: number
+    failed: number
+    pending: number
+  }>
+  listLongTermMemoryReviewItems: (input: {
+    cardId: string
+    limit?: number
+  }) => Promise<LongTermMemoryReviewItem[]>
+  applyLongTermMemoryReviewDecision: (input: {
+    cardId: string
+    reviewItemId: string
+    decision: LongTermMemoryReviewDecision
+  }) => Promise<LongTermMemoryReviewItem | null>
+  tombstoneLongTermMemorySources: (input: {
+    sourceIds: string[]
+    reason?: string | null
+  }) => Promise<void>
   upsertMemoryReflections: (entries: AlicizationMemoryReflectionInput[]) => Promise<AlicizationMemoryReflectionRecord[]>
   listMemoryReflections: (input: {
     cardId: string
@@ -1509,6 +1566,14 @@ export async function setupAlicizationDb(
   const countPendingMemoryIngestEntries = memoryIngestJournalRuntime.countPendingEntries
   const deriveMemoryIngestHealth = memoryIngestJournalRuntime.deriveHealth
   const drainMemoryIngestJournal = memoryIngestJournalRuntime.drainJournal
+  const workingMemoryLongTermCleaningStore = createWorkingMemoryLongTermCleaningStoreRuntime({
+    database,
+    now,
+    run,
+    get,
+    all,
+    runInTransaction,
+  })
 
   async function initializeSchema() {
     await run(database, 'PRAGMA journal_mode = WAL;')
@@ -1566,6 +1631,43 @@ export async function setupAlicizationDb(
       )
     `)
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_ingest_journal_status_created_at ON memory_ingest_journal(status, created_at ASC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS working_memory_long_term_transactions (
+        id TEXT PRIMARY KEY,
+        idempotency_key TEXT NOT NULL UNIQUE,
+        queue_item_id TEXT NOT NULL,
+        card_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        queue_item_json TEXT NOT NULL,
+        cleaned_candidate_json TEXT,
+        projections_json TEXT,
+        allow_training INTEGER NOT NULL DEFAULT 0,
+        rejection_reasons_json TEXT NOT NULL,
+        review_reasons_json TEXT NOT NULL,
+        contamination_flags_json TEXT NOT NULL,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        next_attempt_at INTEGER,
+        applied_at INTEGER
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_wm_long_term_transactions_status_next ON working_memory_long_term_transactions(status, next_attempt_at ASC, created_at ASC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_wm_long_term_transactions_card_session ON working_memory_long_term_transactions(card_id, session_id, created_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS long_term_memory_tombstones (
+        id TEXT PRIMARY KEY,
+        source_id TEXT NOT NULL UNIQUE,
+        reason TEXT,
+        created_at INTEGER NOT NULL
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_long_term_memory_tombstones_source_id ON long_term_memory_tombstones(source_id)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS memory_reflections (
@@ -4581,6 +4683,261 @@ export async function setupAlicizationDb(
     parseJsonStringArray,
     normalizeOrganicMemoryText,
   })
+
+  async function persistWorkingMemoryLongTermTransaction(
+    transaction: Parameters<typeof workingMemoryLongTermCleaningStore.updateTransaction>[0],
+    status: Parameters<typeof workingMemoryLongTermCleaningStore.updateTransaction>[1],
+  ) {
+    await enqueueWrite(async () => {
+      await workingMemoryLongTermCleaningStore.updateTransaction(transaction, status)
+    })
+  }
+
+  async function enqueueWorkingMemoryLongTermQueueItems(input: {
+    cardId: string
+    sessionId: string
+    items: WorkingMemoryLongTermQueueItem[]
+  }) {
+    if (input.items.length === 0)
+      return
+
+    const currentTs = now()
+    const transactions = input.items.map(item =>
+      createWorkingMemoryLongTermCleaningTransaction({
+        cardId: input.cardId,
+        sessionId: input.sessionId,
+        item,
+        now: currentTs,
+      }),
+    )
+
+    await enqueueWrite(async () => {
+      await workingMemoryLongTermCleaningStore.enqueueTransactions(transactions)
+    })
+  }
+
+  async function drainWorkingMemoryLongTermQueue(limit = 4) {
+    let cleaned = 0
+    let admitted = 0
+    let applied = 0
+    let rejected = 0
+    let review = 0
+    let failed = 0
+
+    const rows = await workingMemoryLongTermCleaningStore.listDueTransactions(limit, now())
+    for (const row of rows) {
+      try {
+        const cleanedTransaction = row.status === 'admitted' && row.decision === 'admit' && row.cleanedCandidate
+          ? {
+              ...row,
+              status: 'admitted' as const,
+              reviewReasons: [],
+              rejectionReasons: [],
+              updatedAt: now(),
+              nextAttemptAt: now(),
+            }
+          : cleanWorkingMemoryLongTermQueueItem({
+              cardId: row.cardId,
+              sessionId: row.sessionId,
+              item: row.item,
+              now: now(),
+            })
+        cleaned += 1
+
+        if (cleanedTransaction.status === 'rejected') {
+          rejected += 1
+          await persistWorkingMemoryLongTermTransaction(cleanedTransaction, 'rejected')
+          continue
+        }
+
+        if (cleanedTransaction.status === 'needs-user-review') {
+          review += 1
+          await persistWorkingMemoryLongTermTransaction(cleanedTransaction, 'needs-user-review')
+          continue
+        }
+
+        if (!cleanedTransaction.cleanedCandidate) {
+          failed += 1
+          await persistWorkingMemoryLongTermTransaction({
+            ...cleanedTransaction,
+            status: 'dead-lettered',
+            decision: 'reject',
+            lastError: 'admitted transaction missing cleaned candidate',
+            updatedAt: now(),
+            nextAttemptAt: null,
+          }, 'dead-lettered')
+          continue
+        }
+
+        admitted += 1
+        const projectionTs = now()
+        const projections = projectWorkingMemoryLongTermCandidate({
+          candidate: cleanedTransaction.cleanedCandidate,
+          now: projectionTs,
+        })
+
+        await persistWorkingMemoryLongTermTransaction({
+          ...cleanedTransaction,
+          projections,
+          status: 'admitted',
+          updatedAt: projectionTs,
+          nextAttemptAt: projectionTs,
+        }, 'admitted')
+
+        if (projections.memoryFacts.length > 0)
+          await upsertMemoryFacts(projections.memoryFacts, 'rule')
+        if (projections.memoryReflections.length > 0)
+          await memoryRelationshipRuntime.upsertMemoryReflections(projections.memoryReflections)
+        if (projections.episodicEvents.length > 0)
+          await appendEpisodicEvents(projections.episodicEvents)
+        if (projections.personaReinforcements.length > 0)
+          await memoryRelationshipRuntime.appendPersonaReinforcementEvents(projections.personaReinforcements)
+
+        await persistWorkingMemoryLongTermTransaction({
+          ...cleanedTransaction,
+          projections,
+          status: 'applied',
+          updatedAt: now(),
+          appliedAt: now(),
+          nextAttemptAt: null,
+        }, 'applied')
+        applied += 1
+      }
+      catch (error) {
+        failed += 1
+        await persistWorkingMemoryLongTermTransaction({
+          ...row,
+          status: 'dead-lettered',
+          lastError: error instanceof Error ? error.message : String(error),
+          attemptCount: row.attemptCount + 1,
+          updatedAt: now(),
+          nextAttemptAt: null,
+        }, 'dead-lettered')
+      }
+    }
+
+    const pending = (await workingMemoryLongTermCleaningStore.listDueTransactions(32, now())).length
+    return {
+      cleaned,
+      admitted,
+      applied,
+      rejected,
+      review,
+      failed,
+      pending,
+    }
+  }
+
+  async function listLongTermMemoryReviewItems(input: {
+    cardId: string
+    limit?: number
+  }): Promise<LongTermMemoryReviewItem[]> {
+    const rows = await workingMemoryLongTermCleaningStore.listReviewTransactions({
+      cardId: input.cardId,
+      limit: input.limit,
+    })
+    return rows
+      .map(transaction => createLongTermMemoryReviewItemFromTransaction({
+        transaction,
+        now: now(),
+      }))
+      .filter((item): item is LongTermMemoryReviewItem => Boolean(item))
+  }
+
+  async function applyLongTermMemoryReviewDecision(input: {
+    cardId: string
+    reviewItemId: string
+    decision: LongTermMemoryReviewDecision
+  }): Promise<LongTermMemoryReviewItem | null> {
+    const reviewItemId = input.reviewItemId.trim()
+    if (!reviewItemId)
+      return null
+
+    const rows = await workingMemoryLongTermCleaningStore.listReviewTransactions({
+      cardId: input.cardId,
+      limit: 64,
+    })
+    for (const transaction of rows) {
+      const reviewItem = createLongTermMemoryReviewItemFromTransaction({
+        transaction,
+        now: now(),
+      })
+      if (!reviewItem || reviewItem.id !== reviewItemId)
+        continue
+
+      const result = applyLongTermMemoryReviewDecisionToTransaction({
+        item: reviewItem,
+        transaction,
+        decision: input.decision,
+        now: now(),
+      })
+      await persistWorkingMemoryLongTermTransaction(result.transaction, result.transaction.status)
+      return result.item
+    }
+    return null
+  }
+
+  function normalizeLongTermMemorySourceIds(sourceIds: string[]) {
+    const seen = new Set<string>()
+    const result: string[] = []
+    for (const sourceId of sourceIds) {
+      const normalized = sourceId.trim()
+      if (!normalized || seen.has(normalized))
+        continue
+      seen.add(normalized)
+      result.push(normalized)
+    }
+    return result
+  }
+
+  async function tombstoneLongTermMemorySources(input: {
+    sourceIds: string[]
+    reason?: string | null
+  }) {
+    const sourceIds = normalizeLongTermMemorySourceIds(input.sourceIds)
+    if (sourceIds.length === 0)
+      return
+
+    const createdAt = now()
+    const reason = input.reason?.trim() || null
+    await enqueueWrite(async () => {
+      await runInTransaction(database, async () => {
+        for (const sourceId of sourceIds) {
+          await run(
+            database,
+            `
+            INSERT OR REPLACE INTO long_term_memory_tombstones (
+              id,
+              source_id,
+              reason,
+              created_at
+            ) VALUES (?, ?, ?, ?)
+            `,
+            [
+              `ltm-tombstone:${sourceId}`,
+              sourceId,
+              reason,
+              createdAt,
+            ],
+          )
+        }
+      })
+    })
+  }
+
+  async function listTombstonedLongTermMemorySourceIds(sourceIds: string[]) {
+    const sourceSet = new Set(normalizeLongTermMemorySourceIds(sourceIds))
+    if (sourceSet.size === 0)
+      return new Set<string>()
+
+    const rows = await all<{ source_id: string }>(
+      database,
+      'SELECT source_id FROM long_term_memory_tombstones',
+      [],
+    )
+    return new Set(rows.map(row => row.source_id).filter(sourceId => sourceSet.has(sourceId)))
+  }
+
   const memorySubconsciousRuntime = createAlicizationMemorySubconsciousRuntime({
     database,
     now,
@@ -4694,6 +5051,85 @@ export async function setupAlicizationDb(
     await recordMemoryGraphRetrievalLatency(now() - retrievalStartedAt)
 
     return returned
+  }
+
+  async function retrieveLongTermMemoryEvidence(input: {
+    cardId: string
+    currentUserText: string
+    workingMemoryQueryHints?: string[]
+    currentThreadTitle?: string | null
+    activeTask?: string | null
+    limit?: number
+  }): Promise<LongTermMemoryEvidenceBundle> {
+    const intent = deriveLongTermMemoryRecallIntent({
+      currentUserText: input.currentUserText,
+      workingMemoryQueryHints: input.workingMemoryQueryHints,
+      currentThreadTitle: input.currentThreadTitle,
+      activeTask: input.activeTask,
+    })
+    const plan = buildLongTermMemoryQueryPlan({
+      intent,
+      currentUserText: input.currentUserText,
+      workingMemoryQueryHints: input.workingMemoryQueryHints,
+      currentThreadTitle: input.currentThreadTitle,
+      activeTask: input.activeTask,
+    })
+    const safeLimit = Math.max(1, Math.min(8, Math.floor(input.limit ?? 5)))
+    if (!intent.shouldRecall) {
+      return buildLongTermMemoryEvidenceBundle({
+        intent,
+        plan,
+        candidates: [],
+        now: now(),
+        limit: safeLimit,
+      })
+    }
+
+    const recallSeed = [
+      plan.normalizedQuery,
+      ...plan.keywordQueries,
+      ...plan.phraseQueries,
+      ...plan.charGramQueries,
+      ...plan.semanticQueries,
+      ...plan.episodicQueries,
+    ].filter(Boolean).join(' ')
+    const sourceLimit = Math.max(8, safeLimit * 4)
+    const [
+      facts,
+      reflections,
+      episodes,
+      consolidations,
+    ] = await Promise.all([
+      retrieveMemoryFacts(recallSeed, sourceLimit).catch(() => []),
+      memoryRelationshipRuntime.listMemoryReflections({
+        cardId: input.cardId,
+        limit: sourceLimit,
+      }).catch(() => []),
+      searchEpisodicEvents({
+        recallSeed,
+        limit: sourceLimit,
+      }).catch(() => []),
+      searchMemoryConsolidations({
+        query: recallSeed,
+        limit: sourceLimit,
+      }).catch(() => []),
+    ])
+
+    const candidates = [
+      ...facts.map(memoryFactToLongTermEvidenceCandidate),
+      ...reflections.map(memoryReflectionToLongTermEvidenceCandidate),
+      ...episodes.map(episodicEventToLongTermEvidenceCandidate),
+      ...consolidations.map(memoryConsolidationToLongTermEvidenceCandidate),
+    ]
+    const tombstonedSourceIds = await listTombstonedLongTermMemorySourceIds(candidates.map(candidate => candidate.id))
+
+    return buildLongTermMemoryEvidenceBundle({
+      intent,
+      plan,
+      now: now(),
+      limit: safeLimit,
+      candidates: candidates.filter(candidate => !tombstonedSourceIds.has(candidate.id)),
+    })
   }
 
   async function runMemoryPrune() {
@@ -5044,6 +5480,12 @@ export async function setupAlicizationDb(
     applyMemoryFactCorrections,
     listMemoryFacts,
     retrieveMemoryFacts,
+    retrieveLongTermMemoryEvidence,
+    enqueueWorkingMemoryLongTermQueueItems,
+    drainWorkingMemoryLongTermQueue,
+    listLongTermMemoryReviewItems,
+    applyLongTermMemoryReviewDecision,
+    tombstoneLongTermMemorySources,
     upsertMemoryReflections: memoryRelationshipRuntime.upsertMemoryReflections,
     listMemoryReflections: memoryRelationshipRuntime.listMemoryReflections,
     appendRelationshipOutcomes: memoryRelationshipRuntime.appendRelationshipOutcomes,

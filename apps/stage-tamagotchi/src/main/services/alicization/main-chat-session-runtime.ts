@@ -46,6 +46,7 @@ import type { AlicizationMainChatRuntimeSurface } from './main-chat-runtime-surf
 import type { WorkingMemorySnapshot } from './life-core/working-memory'
 import type { WorkingMemoryRecentTurnInput } from './life-core/working-memory-builder'
 import type { WorkingMemoryStore } from './life-core/working-memory-store'
+import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
 import type { AlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
 import type { AlicizationExecutionLedgerContext } from './memory-ledger-runtime'
 import type { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
@@ -110,6 +111,7 @@ import {
   projectWorkingMemoryOwnerEpisodes,
 } from './life-core/working-memory-owner-context'
 import { createWorkingMemoryStore } from './life-core/working-memory-store'
+import { buildLongTermMemoryRecallBlock } from './long-term-memory-recall'
 import {
   deriveRuntimeProjectionRelationshipCarry,
   resolvePreparedRuntimeProjectPreDialogueAwarenessSummary,
@@ -306,6 +308,20 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
   dialogueSessionManager?: AlicizationDialogueSessionManager
   dialogueSessionMirrorTtlMs?: number
   workingMemoryStore?: WorkingMemoryStore
+  enqueueWorkingMemoryLongTermQueue?: (input: {
+    cardId: string
+    sessionId: string
+    items: ReturnType<typeof buildWorkingMemoryOwnerContext>['longTermQueue']
+  }) => Promise<void>
+  drainWorkingMemoryLongTermQueue?: (limit?: number) => Promise<unknown>
+  retrieveLongTermMemoryEvidence?: (input: {
+    cardId: string
+    currentUserText: string
+    workingMemoryQueryHints?: string[]
+    currentThreadTitle?: string | null
+    activeTask?: string | null
+    limit?: number
+  }) => Promise<LongTermMemoryEvidenceBundle>
   persistAutobiographicalEpisodesFromPreparedMirror?: (input: {
     cardId: string
     decisionTraceId?: string | null
@@ -8693,6 +8709,58 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       sessionId: workingMemorySessionId,
     })
     workingMemoryStore.upsert(workingMemoryPrompt.snapshot)
+    const longTermMemoryRecallBlock = options.retrieveLongTermMemoryEvidence
+      ? buildLongTermMemoryRecallBlock({
+          bundle: await options.retrieveLongTermMemoryEvidence({
+            cardId: payload.cardId,
+            currentUserText: readLatestUserMessageText(runtimeSurface.messages),
+            workingMemoryQueryHints: workingMemoryPrompt.ownerContext.queryHints,
+            currentThreadTitle: workingMemoryPrompt.ownerContext.current.threadTitle,
+            activeTask: workingMemoryPrompt.ownerContext.current.activeTask,
+            limit: 5,
+          }).catch(() => ({
+            intent: {
+              mode: 'none',
+              shouldRecall: false,
+              confidence: 0,
+              rationale: 'Long-term memory recall failed.',
+              temporalFocus: 'unspecified',
+              targetKinds: [],
+              queryHints: [],
+              riskFlags: ['recall-failed'],
+            },
+            plan: {
+              rawQuery: readLatestUserMessageText(runtimeSurface.messages),
+              normalizedQuery: readLatestUserMessageText(runtimeSurface.messages),
+              keywordQueries: [],
+              phraseQueries: [],
+              charGramQueries: [],
+              semanticQueries: [],
+              episodicQueries: [],
+              temporalHints: [],
+              entityHints: [],
+              procedureHints: [],
+              threadHints: [],
+              negativeCues: [],
+              confidencePolicy: 'direct',
+              riskFlags: ['recall-failed'],
+              targetKinds: [],
+            },
+            evidence: [],
+            confidence: 0,
+            budgetClass: 'none',
+          })),
+        })
+      : null
+    if (workingMemoryPrompt.ownerContext.longTermQueue.length > 0 && options.enqueueWorkingMemoryLongTermQueue) {
+      void options.enqueueWorkingMemoryLongTermQueue({
+        cardId: payload.cardId,
+        sessionId: workingMemorySessionId,
+        items: workingMemoryPrompt.ownerContext.longTermQueue,
+      }).then(async () => {
+        await options.drainWorkingMemoryLongTermQueue?.(4)
+      }).catch(() => {})
+    }
     const workingMemoryOwnedRuntimeSurface = applyWorkingMemoryOwnerToDigitalLifeRuntimeSurface({
       ownerContext: workingMemoryPrompt.ownerContext,
       surface: runtimeSurface.digitalLifeRuntimeSurface,
@@ -9848,6 +9916,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     }
     messages = injectWorkingMemorySystemBlock(messages, workingMemoryPrompt.ownerBlock)
     messages = injectWorkingMemorySystemBlock(messages, workingMemoryPrompt.block)
+    messages = injectWorkingMemorySystemBlock(messages, longTermMemoryRecallBlock)
     runtimeSurface.messages = messages
 
     if (options.onPreparedExecutionDiagnostics) {

@@ -14,6 +14,10 @@ const fixedFallbackTemplatePattern = /我在。同一条本地数字生命的线
 const promptResiduePattern = /ALICIZATION_|same-her|same living line|project_state|Phase 1|mustDo|mustNotDo|answerPlanner|WorkingMemory owner/iu
 const correctionCuePattern = /固定模板|固定回复|模板化|人格|数字生命|不想要|不要固定|你搞错|不是这个/u
 const personaCorrectionCuePattern = /固定模板|固定回复|模板化|人格|数字生命|不要固定/u
+const preferenceCuePattern = /我喜欢|我不喜欢|偏好|习惯|明确喜欢|希望.*(回复|方式)|以后.*(要|不要|别)/u
+const episodeCuePattern = /一起|共同|经历|上周|昨天|今天|那次|玩过|完成|任务节点|下次/u
+const procedureCuePattern = /流程|步骤|方式|按|红测|验证|先.*再|认可|复用|推进/u
+const relationshipCuePattern = /关系|边界|修复|出错|超时|直接说明|透明|不要.*模板|固定安抚|人格/u
 
 const minimumAutomaticConfidence = 0.7
 const minimumAutomaticSalience = 0.6
@@ -39,6 +43,38 @@ function buildRetrievalCues(input: {
     ], 8, 80)
   }
 
+  if (input.item.kind === 'preference') {
+    return uniqueWorkingMemoryTexts([
+      '用户偏好',
+      input.item.summary,
+      ...input.item.evidenceSnippets,
+    ], 8, 80)
+  }
+
+  if (input.item.kind === 'episode') {
+    return uniqueWorkingMemoryTexts([
+      '共同经历',
+      input.item.summary,
+      ...input.item.evidenceSnippets,
+    ], 8, 80)
+  }
+
+  if (input.item.kind === 'procedure') {
+    return uniqueWorkingMemoryTexts([
+      '可复用流程',
+      input.item.summary,
+      ...input.item.evidenceSnippets,
+    ], 8, 80)
+  }
+
+  if (input.item.kind === 'relationship') {
+    return uniqueWorkingMemoryTexts([
+      '关系边界',
+      input.item.summary,
+      ...input.item.evidenceSnippets,
+    ], 8, 80)
+  }
+
   return uniqueWorkingMemoryTexts([
     input.item.summary,
     input.item.reason,
@@ -51,6 +87,16 @@ function buildCleanedCandidate(input: {
   personaCorrection: boolean
 }): WorkingMemoryLongTermCleanedCandidate {
   const item = input.transaction.item
+  const relationshipMeaning = input.personaCorrection
+    ? 'The user corrected how Alicization should express her own continuous digital-life persona.'
+    : item.kind === 'episode'
+      ? '共同经历'
+      : item.kind === 'relationship'
+        ? 'A relationship boundary or repair pattern that should shape future replies.'
+        : item.kind === 'procedure'
+          ? 'A reusable way of working that should support future task continuity.'
+          : null
+
   return {
     id: `cleaned:${item.id}`,
     queueItemId: input.transaction.queueItemId,
@@ -67,14 +113,27 @@ function buildCleanedCandidate(input: {
       personaCorrection: input.personaCorrection,
     }),
     entities: ['user', 'alicization'],
-    relationshipMeaning: input.personaCorrection
-      ? 'The user corrected how Alicization should express her own continuous digital-life persona.'
-      : null,
+    relationshipMeaning,
     salience: item.salience,
     confidence: item.confidence,
     sensitivity: item.sensitivity,
     trainingEligibility: 'blocked',
     createdAt: item.createdAt,
+  }
+}
+
+function cuePatternForKind(kind: WorkingMemoryLongTermQueueItem['kind']) {
+  switch (kind) {
+    case 'preference':
+      return preferenceCuePattern
+    case 'episode':
+      return episodeCuePattern
+    case 'procedure':
+      return procedureCuePattern
+    case 'relationship':
+      return relationshipCuePattern
+    default:
+      return null
   }
 }
 
@@ -117,13 +176,16 @@ function reviewReasonsFor(input: {
     reasons.push('low-confidence')
   if (item.salience < minimumAutomaticSalience)
     reasons.push('low-salience')
-  if (item.kind !== 'correction')
-    reasons.push('unsupported-kind')
   if (item.kind === 'correction') {
     if (!correctionCuePattern.test(input.text))
       reasons.push('weak-correction-cue')
     else if (!personaCorrectionCuePattern.test(input.text))
       reasons.push('weak-persona-correction-cue')
+  }
+  else {
+    const pattern = cuePatternForKind(item.kind)
+    if (!pattern || !pattern.test(input.text))
+      reasons.push(`weak-${item.kind}-cue`)
   }
 
   return uniqueWorkingMemoryTexts(reasons, 12, 180)
@@ -180,7 +242,7 @@ export function cleanWorkingMemoryLongTermQueueItem(input: {
     decision: 'admit',
     cleanedCandidate: buildCleanedCandidate({
       transaction,
-      personaCorrection: true,
+      personaCorrection: transaction.item.kind === 'correction',
     }),
     rejectionReasons: [],
     reviewReasons: [],

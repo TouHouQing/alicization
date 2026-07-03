@@ -89,6 +89,14 @@ function findWorkingMemoryOwnerBlock(messages: Message[]) {
   )?.content as string | undefined
 }
 
+function findLongTermMemoryRecallBlock(messages: Message[]) {
+  return messages.find(message =>
+    message.role === 'system'
+    && typeof message.content === 'string'
+    && message.content.includes('[ALICIZATION_RECALLED_MEMORY]'),
+  )?.content as string | undefined
+}
+
 const executionChannels = [
   'cli',
   'codex',
@@ -8194,8 +8202,139 @@ describe('main chat session runtime', () => {
     expect(block).toContain('corrections=persona:不是这个，别再用旧模板了。')
     expect(block).toContain('execution=execution_callback_channel:cli execution_callback_status:failed')
     expect(block).toContain('audit=failures=')
-    expect(block).toContain('long_term_candidates=correction:不是这个，别再用旧模板了。')
+    expect(block).not.toContain('long_term_candidates=')
     expect(countWorkingMemoryBlocks(result.messages)).toBe(1)
+  })
+
+  it('enqueues WorkingMemory owner long-term queue without blocking visible reply planning', async () => {
+    const enqueueWorkingMemoryLongTermQueue = vi.fn(async () => {})
+    const drainWorkingMemoryLongTermQueue = vi.fn(async () => ({
+      cleaned: 0,
+      admitted: 0,
+      applied: 0,
+      rejected: 0,
+      review: 0,
+      failed: 0,
+      pending: 0,
+    }))
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      enqueueWorkingMemoryLongTermQueue,
+      drainWorkingMemoryLongTermQueue,
+    })
+    const prelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '我不想要固定模板回复，我需要她数字生命自身的人格回复。',
+      } as Message],
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-long-term-queue',
+        messages: [{
+          role: 'user',
+          content: '我不想要固定模板回复，我需要她数字生命自身的人格回复。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(findWorkingMemoryBlock(result.messages)).toContain('[ALICIZATION_WORKING_MEMORY]')
+    expect(enqueueWorkingMemoryLongTermQueue).toHaveBeenCalledWith(expect.objectContaining({
+      cardId: 'default',
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          source: 'working-memory-owner',
+          kind: 'correction',
+          summary: expect.stringContaining('固定模板'),
+        }),
+      ]),
+    }))
+    expect(drainWorkingMemoryLongTermQueue).toHaveBeenCalledWith(4)
+  })
+
+  it('injects recalled long-term memory after WorkingMemory owner context', async () => {
+    const retrieveLongTermMemoryEvidence = vi.fn(async () => ({
+      intent: {
+        mode: 'episodic' as const,
+        shouldRecall: true,
+        confidence: 0.82,
+        rationale: 'Shared gaming memory is relevant.',
+        temporalFocus: 'recent-or-mid' as const,
+        targetKinds: ['episode' as const],
+        queryHints: ['我们去打游戏吧'],
+        riskFlags: [],
+      },
+      plan: {
+        rawQuery: '我们去打游戏吧',
+        normalizedQuery: '我们去打游戏吧',
+        keywordQueries: ['游戏'],
+        phraseQueries: ['打游戏'],
+        charGramQueries: ['游戏'],
+        semanticQueries: ['共同经历'],
+        episodicQueries: ['上周一起打游戏'],
+        temporalHints: ['上周'],
+        entityHints: ['游戏'],
+        procedureHints: [],
+        threadHints: [],
+        negativeCues: [],
+        confidencePolicy: 'direct' as const,
+        riskFlags: [],
+        targetKinds: ['episode' as const],
+      },
+      evidence: [{
+        candidate: {
+          id: 'episode-game-last-week',
+          kind: 'episode' as const,
+          summary: '上周你们一起玩过 Minecraft，用户说下次还想继续联机探索。',
+          source: 'episodic_events',
+          confidence: 0.84,
+          salience: 0.8,
+        },
+        score: 0.86,
+        queryMatches: ['游戏'],
+        rankReasons: ['target-kind'],
+        visibleMode: 'explicit' as const,
+      }],
+      confidence: 0.84,
+      budgetClass: 'light' as const,
+    }))
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      retrieveLongTermMemoryEvidence,
+    })
+    const prelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '我们去打游戏吧',
+      } as Message],
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-long-term-memory-recall',
+        messages: [{
+          role: 'user',
+          content: '我们去打游戏吧',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    const recallBlock = findLongTermMemoryRecallBlock(result.messages)
+    expect(retrieveLongTermMemoryEvidence).toHaveBeenCalledWith(expect.objectContaining({
+      cardId: 'default',
+      currentUserText: '我们去打游戏吧',
+      limit: 5,
+    }))
+    expect(recallBlock).toContain('intent=episodic')
+    expect(recallBlock).toContain('Minecraft')
+    expect(recallBlock).toContain('source=episodic_events:episode-game-last-week')
+    expect(recallBlock).not.toContain('long_term_queue')
   })
 
   it('persists short-term corrections across turns in the same runtime session', async () => {

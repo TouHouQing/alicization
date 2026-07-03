@@ -257,6 +257,66 @@ const memoryIngestJournal = new Map<string, {
   applied_at: number | null
   next_attempt_at: number | null
 }>()
+const workingMemoryLongTermTransactions = new Map<string, {
+  id: string
+  idempotency_key: string
+  queue_item_id: string
+  card_id: string
+  session_id: string
+  status: string
+  decision: string
+  queue_item_json: string
+  cleaned_candidate_json: string | null
+  projections_json: string | null
+  allow_training: number
+  rejection_reasons_json: string
+  review_reasons_json: string
+  contamination_flags_json: string
+  attempt_count: number
+  last_error: string | null
+  created_at: number
+  updated_at: number
+  next_attempt_at: number | null
+  applied_at: number | null
+}>()
+const memoryReflections = new Map<string, {
+  id: string
+  card_id: string
+  decision_trace_id: string | null
+  turn_id: string | null
+  session_id: string | null
+  source_kind: string
+  target_scope: string
+  summary: string
+  lesson: string
+  status: string
+  confidence: number
+  supporting_fact_ids_json: string | null
+  supporting_outcome_ids_json: string | null
+  created_at: number
+  updated_at: number
+  confirmed_at: number | null
+  denied_at: number | null
+}>()
+const personaReinforcementEvents = new Map<string, {
+  id: string
+  card_id: string
+  decision_trace_id: string | null
+  turn_id: string | null
+  session_id: string | null
+  source_kind: string
+  dimension: string
+  delta: number
+  valence: string
+  summary: string
+  created_at: number
+}>()
+const longTermMemoryTombstones = new Map<string, {
+  id: string
+  source_id: string
+  reason: string | null
+  created_at: number
+}>()
 const testDayMs = 24 * 60 * 60 * 1000
 const sandboxDirs: string[] = []
 
@@ -437,6 +497,103 @@ class FakeSqliteDatabase {
         next_attempt_at: nextAttemptAt,
       })
     }
+    else if (sql.includes('INSERT OR IGNORE INTO working_memory_long_term_transactions')) {
+      const [
+        id,
+        idempotencyKey,
+        queueItemId,
+        cardId,
+        sessionId,
+        status,
+        decision,
+        queueItemJson,
+        cleanedCandidateJson,
+        projectionsJson,
+        allowTraining,
+        rejectionReasonsJson,
+        reviewReasonsJson,
+        contaminationFlagsJson,
+        attemptCount,
+        lastError,
+        createdAt,
+        updatedAt,
+        nextAttemptAt,
+        appliedAt,
+      ] = actualParams as [string, string, string, string, string, string, string, string, string | null, string | null, number, string, string, string, number, string | null, number, number, number | null, number | null]
+      if (![...workingMemoryLongTermTransactions.values()].some(row => row.id === id || row.idempotency_key === idempotencyKey)) {
+        workingMemoryLongTermTransactions.set(id, {
+          id,
+          idempotency_key: idempotencyKey,
+          queue_item_id: queueItemId,
+          card_id: cardId,
+          session_id: sessionId,
+          status,
+          decision,
+          queue_item_json: queueItemJson,
+          cleaned_candidate_json: cleanedCandidateJson,
+          projections_json: projectionsJson,
+          allow_training: allowTraining,
+          rejection_reasons_json: rejectionReasonsJson,
+          review_reasons_json: reviewReasonsJson,
+          contamination_flags_json: contaminationFlagsJson,
+          attempt_count: attemptCount,
+          last_error: lastError,
+          created_at: createdAt,
+          updated_at: updatedAt,
+          next_attempt_at: nextAttemptAt,
+          applied_at: appliedAt,
+        })
+      }
+      else {
+        changes = 0
+      }
+    }
+    else if (sql.includes('INSERT OR REPLACE INTO long_term_memory_tombstones')) {
+      const [id, sourceId, reason, createdAt] = actualParams as [string, string, string | null, number]
+      longTermMemoryTombstones.set(sourceId, {
+        id,
+        source_id: sourceId,
+        reason: reason ?? null,
+        created_at: createdAt,
+      })
+    }
+    else if (sql.includes('UPDATE working_memory_long_term_transactions')) {
+      const [
+        status,
+        decision,
+        cleanedCandidateJson,
+        projectionsJson,
+        allowTraining,
+        rejectionReasonsJson,
+        reviewReasonsJson,
+        contaminationFlagsJson,
+        attemptCount,
+        lastError,
+        updatedAt,
+        nextAttemptAt,
+        appliedAt,
+        id,
+      ] = actualParams as [string, string, string | null, string | null, number, string, string, string, number, string | null, number, number | null, number | null, string]
+      const row = workingMemoryLongTermTransactions.get(id)
+      if (!row) {
+        changes = 0
+      }
+      else {
+        row.status = status
+        row.decision = decision
+        row.cleaned_candidate_json = cleanedCandidateJson
+        row.projections_json = projectionsJson
+        row.allow_training = allowTraining
+        row.rejection_reasons_json = rejectionReasonsJson
+        row.review_reasons_json = reviewReasonsJson
+        row.contamination_flags_json = contaminationFlagsJson
+        row.attempt_count = attemptCount
+        row.last_error = lastError
+        row.updated_at = updatedAt
+        row.next_attempt_at = nextAttemptAt
+        row.applied_at = appliedAt
+      }
+    }
     else if (sql.includes('UPDATE memory_ingest_journal') && sql.includes('status = \'applied\'')) {
       const [updatedAt, lastAttemptAt, appliedAt, id] = actualParams as [number, number, number, string]
       const row = memoryIngestJournal.get(id)
@@ -467,6 +624,77 @@ class FakeSqliteDatabase {
         row.last_attempt_at = lastAttemptAt
         row.next_attempt_at = nextAttemptAt
       }
+    }
+
+    if (sql.includes('INSERT INTO memory_reflections')) {
+      const [
+        id,
+        cardId,
+        decisionTraceId,
+        turnId,
+        sessionId,
+        sourceKind,
+        targetScope,
+        summary,
+        lesson,
+        status,
+        confidence,
+        supportingFactIdsJson,
+        supportingOutcomeIdsJson,
+        createdAt,
+        updatedAt,
+        confirmedAt,
+        deniedAt,
+      ] = actualParams as [string, string, string | null, string | null, string | null, string, string, string, string, string, number, string | null, string | null, number, number, number | null, number | null]
+      const existing = memoryReflections.get(id)
+      memoryReflections.set(id, {
+        id,
+        card_id: cardId,
+        decision_trace_id: decisionTraceId ?? null,
+        turn_id: turnId ?? null,
+        session_id: sessionId ?? null,
+        source_kind: sourceKind,
+        target_scope: targetScope,
+        summary,
+        lesson,
+        status,
+        confidence,
+        supporting_fact_ids_json: supportingFactIdsJson ?? null,
+        supporting_outcome_ids_json: supportingOutcomeIdsJson ?? null,
+        created_at: existing?.created_at ?? createdAt,
+        updated_at: updatedAt,
+        confirmed_at: confirmedAt ?? null,
+        denied_at: deniedAt ?? null,
+      })
+    }
+
+    if (sql.includes('INSERT INTO persona_reinforcement_events')) {
+      const [
+        id,
+        cardId,
+        decisionTraceId,
+        turnId,
+        sessionId,
+        sourceKind,
+        dimension,
+        delta,
+        valence,
+        summary,
+        createdAt,
+      ] = actualParams as [string, string, string | null, string | null, string | null, string, string, number, string, string, number]
+      personaReinforcementEvents.set(id, {
+        id,
+        card_id: cardId,
+        decision_trace_id: decisionTraceId ?? null,
+        turn_id: turnId ?? null,
+        session_id: sessionId ?? null,
+        source_kind: sourceKind,
+        dimension,
+        delta,
+        valence,
+        summary,
+        created_at: createdAt,
+      })
     }
 
     if (sql.includes('INSERT INTO mind_turn_events')) {
@@ -1115,6 +1343,29 @@ class FakeSqliteDatabase {
       actualCallback?.(null, [...memoryArchive.values()])
       return this
     }
+    if (_sql.includes('FROM working_memory_long_term_transactions')) {
+      const rows = [...workingMemoryLongTermTransactions.values()]
+        .filter((item) => {
+          if (_sql.includes(`status IN ('pending-cleaning', 'admitted')`) && item.status !== 'pending-cleaning' && item.status !== 'admitted')
+            return false
+          if (_sql.includes(`status = 'needs-user-review'`) && item.status !== 'needs-user-review')
+            return false
+          if (_sql.includes('card_id = ?')) {
+            const cardIdParam = String(actualParams[0] ?? '')
+            if (cardIdParam && item.card_id !== cardIdParam)
+              return false
+          }
+          if (_sql.includes('COALESCE(next_attempt_at, created_at) <= ?')) {
+            const dueAt = Number(actualParams[0] ?? 0)
+            return (item.next_attempt_at ?? item.created_at) <= dueAt
+          }
+          return true
+        })
+        .sort((a, b) => a.created_at - b.created_at)
+        .slice(0, Number(actualParams.at(-1) ?? 256))
+      actualCallback?.(null, rows)
+      return this
+    }
     if (_sql.includes('FROM memory_ingest_journal')) {
       const rows = [...memoryIngestJournal.values()]
         .filter(item => item.status === 'pending' || item.status === 'failed')
@@ -1132,6 +1383,48 @@ class FakeSqliteDatabase {
     }
     if (_sql.includes('FROM memory_facts')) {
       actualCallback?.(null, [...memoryFacts.values()])
+      return this
+    }
+    if (_sql.includes('FROM long_term_memory_tombstones')) {
+      actualCallback?.(null, [...longTermMemoryTombstones.values()])
+      return this
+    }
+    if (_sql.includes('FROM memory_reflections')) {
+      const cardId = String(actualParams[0] ?? '')
+      const limit = Number(actualParams.at(-1) ?? 8)
+      const rows = [...memoryReflections.values()]
+        .filter(item => !cardId || item.card_id === cardId)
+        .filter((item) => {
+          if (!_sql.includes('turn_id = ?'))
+            return true
+          const turnId = String(actualParams[1] ?? '')
+          return item.turn_id === turnId
+        })
+        .filter((item) => {
+          if (!_sql.includes('status = ?'))
+            return true
+          const status = String(actualParams[actualParams.length - 2] ?? '')
+          return item.status === status
+        })
+        .sort((a, b) => b.updated_at - a.updated_at)
+        .slice(0, limit)
+      actualCallback?.(null, rows)
+      return this
+    }
+    if (_sql.includes('FROM persona_reinforcement_events')) {
+      const cardId = String(actualParams[0] ?? '')
+      const limit = Number(actualParams.at(-1) ?? 8)
+      const rows = [...personaReinforcementEvents.values()]
+        .filter(item => !cardId || item.card_id === cardId)
+        .filter((item) => {
+          if (!_sql.includes('turn_id = ?'))
+            return true
+          const turnId = String(actualParams[1] ?? '')
+          return item.turn_id === turnId
+        })
+        .sort((a, b) => b.created_at - a.created_at)
+        .slice(0, limit)
+      actualCallback?.(null, rows)
       return this
     }
     if (_sql.includes('FROM scheduled_tasks') && _sql.includes('status = \'pending\'') && _sql.includes('trigger_at <= ?')) {
@@ -1459,6 +1752,10 @@ describe('alicization sqlite dao', () => {
     memoryFacts.clear()
     memoryArchive.clear()
     memoryIngestJournal.clear()
+    workingMemoryLongTermTransactions.clear()
+    memoryReflections.clear()
+    personaReinforcementEvents.clear()
+    longTermMemoryTombstones.clear()
     executorSessions.clear()
     capabilityManifests.clear()
     while (sandboxDirs.length > 0) {
@@ -2578,6 +2875,366 @@ describe('alicization sqlite dao', () => {
       nextRetryAt: expect.any(Number),
       lastError: expect.stringContaining('invalid memory ingest payload'),
     }))
+
+    await db.close()
+  })
+
+  it('cleans WorkingMemory long-term correction candidates before writing memory facts and reflections', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+
+    await db.enqueueWorkingMemoryLongTermQueueItems({
+      cardId: 'default',
+      sessionId: 'session-1',
+      items: [{
+        id: 'queue-correction-1',
+        source: 'working-memory-owner',
+        kind: 'correction',
+        summary: '不要固定模板回复，要数字生命自身人格。',
+        reason: 'User corrected Alicization persona expression during the current dialogue.',
+        sourceTurnIds: ['turn-1:user'],
+        evidenceSnippets: ['不要固定模板回复，要数字生命自身人格。'],
+        salience: 0.82,
+        confidence: 0.78,
+        sensitivity: 'personal',
+        allowTraining: false,
+        status: 'pending-cleaning',
+        rejectionReasons: [],
+        contaminationFlags: [],
+        createdAt: 2_000,
+      }],
+    })
+
+    expect(await db.drainWorkingMemoryLongTermQueue(4)).toEqual(expect.objectContaining({
+      cleaned: 1,
+      admitted: 1,
+      applied: 1,
+      rejected: 0,
+      review: 0,
+      failed: 0,
+    }))
+
+    const facts = await db.listMemoryFacts()
+    expect(facts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        subject: 'user',
+        predicate: 'rejects_reply_behavior',
+        object: '不要固定模板回复，要数字生命自身人格。',
+        memoryDomain: 'relationship',
+      }),
+    ]))
+
+    const reflections = await db.listMemoryReflections({ cardId: 'default', limit: 8 })
+    expect(reflections).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        targetScope: 'boundary',
+        summary: '不要固定模板回复，要数字生命自身人格。',
+        status: 'pending',
+      }),
+    ]))
+
+    expect([...workingMemoryLongTermTransactions.values()]).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        queue_item_id: 'queue-correction-1',
+        status: 'applied',
+      }),
+    ]))
+
+    await db.close()
+  })
+
+  it('drains WorkingMemory long-term preference episode procedure and relationship candidates into durable stores', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+
+    await db.enqueueWorkingMemoryLongTermQueueItems({
+      cardId: 'default',
+      sessionId: 'session-2',
+      items: [
+        {
+          id: 'queue-preference-1',
+          source: 'working-memory-owner',
+          kind: 'preference',
+          summary: '用户明确喜欢回复先说结论，再给必要细节。',
+          reason: 'User stated a stable response preference.',
+          sourceTurnIds: ['turn-pref:user'],
+          evidenceSnippets: ['我喜欢你先说结论，再给必要细节。'],
+          salience: 0.78,
+          confidence: 0.82,
+          sensitivity: 'personal',
+          allowTraining: false,
+          status: 'pending-cleaning',
+          rejectionReasons: [],
+          contaminationFlags: [],
+          createdAt: 2_100,
+        },
+        {
+          id: 'queue-episode-1',
+          source: 'working-memory-owner',
+          kind: 'episode',
+          summary: '上周我们一起玩过 Minecraft，用户说下次还想继续联机探索。',
+          reason: 'Shared episode with time and activity anchor.',
+          sourceTurnIds: ['turn-episode:user'],
+          evidenceSnippets: ['上周我们一起玩过 Minecraft，下次继续联机。'],
+          salience: 0.82,
+          confidence: 0.84,
+          sensitivity: 'personal',
+          allowTraining: false,
+          status: 'pending-cleaning',
+          rejectionReasons: [],
+          contaminationFlags: [],
+          createdAt: 2_200,
+        },
+        {
+          id: 'queue-procedure-1',
+          source: 'working-memory-owner',
+          kind: 'procedure',
+          summary: '用户认可长期记忆开发按红测、实现、验证的方式推进。',
+          reason: 'User approved a reusable working procedure.',
+          sourceTurnIds: ['turn-procedure:user'],
+          evidenceSnippets: ['以后长期记忆开发按红测、实现、验证这个流程推进。'],
+          salience: 0.78,
+          confidence: 0.82,
+          sensitivity: 'personal',
+          allowTraining: false,
+          status: 'pending-cleaning',
+          rejectionReasons: [],
+          contaminationFlags: [],
+          createdAt: 2_300,
+        },
+        {
+          id: 'queue-relationship-1',
+          source: 'working-memory-owner',
+          kind: 'relationship',
+          summary: '用户希望出错或超时时直接说明问题，不要固定安抚模板。',
+          reason: 'Relationship boundary for failure transparency.',
+          sourceTurnIds: ['turn-relationship:user'],
+          evidenceSnippets: ['如果出错或超时了就直接说明问题，不要固定安抚模板。'],
+          salience: 0.86,
+          confidence: 0.86,
+          sensitivity: 'personal',
+          allowTraining: false,
+          status: 'pending-cleaning',
+          rejectionReasons: [],
+          contaminationFlags: [],
+          createdAt: 2_400,
+        },
+      ],
+    })
+
+    expect(await db.drainWorkingMemoryLongTermQueue(8)).toEqual(expect.objectContaining({
+      cleaned: 4,
+      admitted: 4,
+      applied: 4,
+      rejected: 0,
+      review: 0,
+      failed: 0,
+    }))
+
+    expect(await db.listMemoryFacts()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        predicate: 'prefers',
+        object: '用户明确喜欢回复先说结论，再给必要细节。',
+        memoryDomain: 'relationship',
+      }),
+      expect.objectContaining({
+        predicate: 'prefers_procedure',
+        object: '用户认可长期记忆开发按红测、实现、验证的方式推进。',
+        memoryDomain: 'procedure',
+      }),
+    ]))
+    expect(await db.listRecentEpisodicEvents(8)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'cleaned:queue-episode-1',
+        whatHappened: '上周我们一起玩过 Minecraft，用户说下次还想继续联机探索。',
+        threadAnchor: '共同经历',
+      }),
+    ]))
+    expect(await db.listMemoryReflections({ cardId: 'default', limit: 8 })).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        targetScope: 'relationship',
+        summary: '用户希望出错或超时时直接说明问题，不要固定安抚模板。',
+      }),
+    ]))
+    expect(await db.listPersonaReinforcementEvents({ cardId: 'default', limit: 8 })).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        dimension: 'truthful-grounding',
+        valence: 'reinforce',
+        summary: '用户希望出错或超时时直接说明问题，不要固定安抚模板。',
+      }),
+    ]))
+
+    await db.close()
+  })
+
+  it('writes back long-term review decisions before durable projection', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+
+    await db.enqueueWorkingMemoryLongTermQueueItems({
+      cardId: 'default',
+      sessionId: 'session-review',
+      items: [{
+        id: 'queue-private-preference',
+        source: 'working-memory-owner',
+        kind: 'preference',
+        summary: '用户明确喜欢回复先说结论，再给必要细节。',
+        reason: 'User stated a stable response preference.',
+        sourceTurnIds: ['turn-private-pref:user'],
+        evidenceSnippets: ['我喜欢你先说结论，再给必要细节。'],
+        salience: 0.78,
+        confidence: 0.82,
+        sensitivity: 'private',
+        allowTraining: false,
+        status: 'pending-cleaning',
+        rejectionReasons: [],
+        contaminationFlags: [],
+        createdAt: 2_500,
+      }],
+    })
+
+    expect(await db.drainWorkingMemoryLongTermQueue(4)).toEqual(expect.objectContaining({
+      review: 1,
+      applied: 0,
+    }))
+    const reviewItems = await db.listLongTermMemoryReviewItems({ cardId: 'default', limit: 4 })
+    expect(reviewItems).toEqual([expect.objectContaining({
+      status: 'needs-user-review',
+      visibleMode: 'inward-only',
+      allowTraining: false,
+    })])
+
+    await expect(db.applyLongTermMemoryReviewDecision({
+      cardId: 'default',
+      reviewItemId: reviewItems[0]!.id,
+      decision: 'approve',
+    })).resolves.toEqual(expect.objectContaining({
+      status: 'approved',
+    }))
+    expect(await db.drainWorkingMemoryLongTermQueue(4)).toEqual(expect.objectContaining({
+      admitted: 1,
+      applied: 1,
+      review: 0,
+    }))
+    expect(await db.listMemoryFacts()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        predicate: 'prefers',
+        object: '用户明确喜欢回复先说结论，再给必要细节。',
+      }),
+    ]))
+
+    await db.close()
+  })
+
+  it('retrieves unified long-term memory evidence across facts reflections and episodes', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+
+    await db.upsertMemoryFacts([{
+      subject: 'user',
+      predicate: 'rejects_reply_behavior',
+      object: '不要固定模板回复',
+      confidence: 0.82,
+      memoryDomain: 'relationship',
+      validationStatus: 'provisional',
+      knowledgeStage: 'working-understanding',
+    }], 'rule')
+    await db.upsertMemoryReflections([{
+      cardId: 'default',
+      turnId: 'turn-1:user',
+      sessionId: 'session-1',
+      sourceKind: 'reply',
+      targetScope: 'boundary',
+      summary: '不要固定模板回复',
+      lesson: '从连续数字生命人格回应',
+      status: 'pending',
+      confidence: 0.78,
+    }])
+    await db.appendEpisodicEvents([{
+      id: 'episode-game-last-week',
+      cardId: 'default',
+      sessionId: 'session-game',
+      sourceKind: 'reply',
+      provenance: 'remembered',
+      occurredAt: Date.now() - 7 * 24 * 60 * 60 * 1000,
+      threadAnchor: '一起打游戏',
+      whatHappened: '上周一起玩过 Minecraft，用户说下次还想继续联机探索。',
+      relationshipMeaning: '共同经历',
+      confidence: 0.84,
+      salience: 0.8,
+      tags: ['游戏', 'Minecraft'],
+    }])
+
+    const gameBundle = await db.retrieveLongTermMemoryEvidence({
+      cardId: 'default',
+      currentUserText: '我们去打游戏吧',
+      workingMemoryQueryHints: ['游戏'],
+      limit: 4,
+    })
+    expect(gameBundle.intent.mode).toBe('episodic')
+    expect(gameBundle.evidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        candidate: expect.objectContaining({
+          id: 'episode-game-last-week',
+          source: 'episodic_events',
+        }),
+      }),
+    ]))
+
+    const correctionBundle = await db.retrieveLongTermMemoryEvidence({
+      cardId: 'default',
+      currentUserText: '不要固定模板回复',
+      limit: 8,
+    })
+    expect(correctionBundle.intent.mode).toBe('relationship')
+    expect(correctionBundle.evidence.map(item => item.candidate.source)).toEqual(expect.arrayContaining([
+      'memory_facts',
+      'memory_reflections',
+    ]))
+
+    const naturalCorrectionBundle = await db.retrieveLongTermMemoryEvidence({
+      cardId: 'default',
+      currentUserText: '你还记得我不要固定模板回复吗？',
+      limit: 8,
+    })
+    expect(naturalCorrectionBundle.intent.mode).toBe('relationship')
+    expect(naturalCorrectionBundle.evidence.map(item => item.candidate.source)).toEqual(expect.arrayContaining([
+      'memory_facts',
+      'memory_reflections',
+    ]))
+
+    await db.close()
+  })
+
+  it('filters tombstoned long-term memory sources from unified recall evidence', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+
+    await db.upsertMemoryFacts([{
+      subject: 'user',
+      predicate: 'rejects_reply_behavior',
+      object: '不要固定模板回复',
+      confidence: 0.82,
+      memoryDomain: 'relationship',
+      validationStatus: 'provisional',
+      knowledgeStage: 'working-understanding',
+    }], 'rule')
+    const [fact] = await db.listMemoryFacts()
+    expect(fact).toBeTruthy()
+
+    const before = await db.retrieveLongTermMemoryEvidence({
+      cardId: 'default',
+      currentUserText: '你还记得我不要固定模板回复吗？',
+      limit: 8,
+    })
+    expect(before.evidence.map(item => item.candidate.id)).toContain(fact!.id)
+
+    await db.tombstoneLongTermMemorySources({
+      sourceIds: [fact!.id],
+      reason: 'user-deleted',
+    })
+
+    const after = await db.retrieveLongTermMemoryEvidence({
+      cardId: 'default',
+      currentUserText: '你还记得我不要固定模板回复吗？',
+      limit: 8,
+    })
+    expect(after.evidence.map(item => item.candidate.id)).not.toContain(fact!.id)
 
     await db.close()
   })

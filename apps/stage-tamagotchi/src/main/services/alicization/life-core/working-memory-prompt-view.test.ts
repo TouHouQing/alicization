@@ -64,7 +64,6 @@ describe('working memory prompt view', () => {
       'execution=none',
       'compression=none',
       'audit=none',
-      'long_term_candidates=none',
     ])
     expect(buildWorkingMemoryPromptBlock(emptySnapshot())).toBe(view.rendering.blockLines.join('\n'))
   })
@@ -160,7 +159,8 @@ describe('working memory prompt view', () => {
     expect(view.rendering.blockLines).toContain('corrections=persona:Do not invent a generic assistant opener')
     expect(view.rendering.blockLines).toContain('compression=light | sources=turn-1:user,turn-2:alice | last=1300')
     expect(view.rendering.blockLines).toContain('audit=failures=turn-2:alice | excluded_long_term=turn-2:alice | notes=timeout was excluded from long-term candidates')
-    expect(view.rendering.blockLines).toContain('long_term_candidates=correction:Do not invent a generic assistant opener | reason=User corrected persona expression. | sensitivity=personal | confidence=0.78 | training=no')
+    expect(view.modules.longTermCandidates).toHaveLength(1)
+    expect(view.rendering.blockLines.join('\n')).not.toContain('long_term_candidates=')
   })
 
   it('does not misrepresent fallback templates or failures as long-term candidates', () => {
@@ -197,7 +197,7 @@ describe('working memory prompt view', () => {
     })
 
     expect(block).toContain('audit=failures=timeout-1 | excluded_long_term=fallback-1,timeout-1 | notes=fallback template excluded ; timeout excluded')
-    expect(block).toContain('long_term_candidates=none')
+    expect(block).not.toContain('long_term_candidates=')
     expect(block).not.toContain('candidate=fallback-1')
     expect(block).not.toContain('candidate=timeout-1')
   })
@@ -248,6 +248,6 @@ describe('working memory prompt view', () => {
     expect(first.match(/Can we keep this local\?/g)).toHaveLength(1)
     expect(first.match(/Run targeted tests/g)).toHaveLength(1)
     expect(first.match(/reply:Keep the block compact/g)).toHaveLength(1)
-    expect(first.match(/correction:Keep the block compact/g)).toHaveLength(1)
+    expect(first).not.toContain('long_term_candidates=')
   })
 })

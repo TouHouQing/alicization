@@ -84,7 +84,7 @@ describe('working memory owner context', () => {
     expect(block).toContain('thread=B 线短期记忆 owner')
     expect(block).toContain('task=active:让 WorkingMemory 成为短期记忆链路 owner')
     expect(block).toContain('failure_audit_only=turn-failed:alice')
-    expect(block).toContain('long_term_queue=pending-cleaning:correction:不要固定模板回复，要数字生命自身人格')
+    expect(block).not.toContain('long_term_queue=')
 
     const replyGovernance = buildWorkingMemoryOwnerReplyGovernance(context)
     expect(replyGovernance.mustDo).toEqual(expect.arrayContaining([
