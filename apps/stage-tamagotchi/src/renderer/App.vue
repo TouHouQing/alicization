@@ -94,6 +94,10 @@ import {
   electronAlicizationMemoryImportLegacy,
   electronAlicizationMemoryRetrieveFacts,
   electronAlicizationMemoryUpsertFacts,
+  electronAlicizationMemoryWorkbenchApplyReviewAction,
+  electronAlicizationMemoryWorkbenchGetSnapshot,
+  electronAlicizationMemoryWorkbenchListLongTerm,
+  electronAlicizationMemoryWorkbenchRecallProbe,
   electronAlicizationPlanTaskThread,
   electronAlicizationRealtimeExecute,
   electronAlicizationReminderSchedule,
@@ -211,6 +215,10 @@ const alicizationUpdateMemoryStats = useElectronEventaInvoke(electronAlicization
 const alicizationRetrieveMemoryFacts = useElectronEventaInvoke(electronAlicizationMemoryRetrieveFacts)
 const alicizationUpsertMemoryFacts = useElectronEventaInvoke(electronAlicizationMemoryUpsertFacts)
 const alicizationImportLegacyMemory = useElectronEventaInvoke(electronAlicizationMemoryImportLegacy)
+const memoryWorkbenchGetSnapshot = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchGetSnapshot)
+const memoryWorkbenchListLongTerm = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListLongTerm)
+const memoryWorkbenchApplyReviewAction = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchApplyReviewAction)
+const memoryWorkbenchRecallProbe = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRecallProbe)
 const alicizationSearchOrganicSubconsciousFragments = useElectronEventaInvoke(electronAlicizationSearchOrganicSubconsciousFragments)
 const alicizationSetPerformanceManifest = useElectronEventaInvoke(electronAlicizationSetPerformanceManifest)
 const alicizationAppendConversationTurn = useElectronEventaInvoke(electronAlicizationAppendConversationTurn)
@@ -972,6 +980,10 @@ setAlicizationBridge({
   retrieveMemoryFacts: async payload => await alicizationRetrieveMemoryFacts({ ...resolveAlicizationScope(), ...payload }),
   upsertMemoryFacts: async payload => await alicizationUpsertMemoryFacts({ ...resolveAlicizationScope(), ...payload }),
   importLegacyMemory: async payload => await alicizationImportLegacyMemory({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchGetSnapshot: async payload => await memoryWorkbenchGetSnapshot({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchListLongTerm: async payload => await memoryWorkbenchListLongTerm({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchApplyReviewAction: async payload => await memoryWorkbenchApplyReviewAction({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchRecallProbe: async payload => await memoryWorkbenchRecallProbe({ ...resolveAlicizationScope(), ...payload }),
   getOrganicMemorySnapshot: async () => await alicizationGetOrganicMemorySnapshot(resolveAlicizationScope()),
   getLatestProjectStateObservation: async () => await readLatestRendererProjectStateObservation(),
   getProjectStateContinuitySnapshot: async () => projectStateObservationToContinuitySnapshot(

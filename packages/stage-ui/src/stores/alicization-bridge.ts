@@ -253,6 +253,196 @@ export interface AlicizationMemoryMigrationResult {
   marker: string
 }
 
+export type AlicizationMemoryWorkbenchStatus = 'ok' | 'degraded' | 'error'
+export type AlicizationMemoryWorkbenchKind =
+  | 'fact'
+  | 'episode'
+  | 'reflection'
+  | 'consolidation'
+  | 'procedure'
+  | 'relationship'
+  | 'preference'
+  | 'correction'
+  | 'candidate'
+
+export type AlicizationMemoryWorkbenchSensitivity = 'public' | 'personal' | 'private' | 'secret'
+export type AlicizationMemoryWorkbenchVisibility = 'explicit' | 'inward-only'
+export type AlicizationMemoryWorkbenchTrainingState = 'allowed' | 'blocked'
+export type AlicizationMemoryWorkbenchReviewDecision = 'approve' | 'reject' | 'tombstone' | 'inward-only' | 'no-training'
+export type AlicizationMemoryRecallProbeMode = 'none' | 'episodic' | 'relationship' | 'preference' | 'procedure' | 'task' | 'mixed'
+export type AlicizationMemoryRecallProbeTemporalFocus = 'current' | 'recent' | 'recent-or-mid' | 'cross-session' | 'distant' | 'unspecified'
+export type AlicizationMemoryRecallProbeConfidencePolicy = 'direct' | 'tentative' | 'inward-only'
+export type AlicizationMemoryRecallProbeEvidenceKind = 'fact' | 'reflection' | 'episode' | 'consolidation'
+export type AlicizationMemoryRecallProbeEvidenceVisibility = 'explicit' | 'inward-only' | 'tentative'
+
+export interface AlicizationWorkingMemoryWorkbenchSnapshot {
+  cardId: string
+  sessionId: string
+  updatedAt: number
+  threadTitle: string | null
+  threadMode: string | null
+  currentUserMove: string | null
+  activeTask: string | null
+  taskStatus: string | null
+  unresolvedQuestions: string[]
+  commitments: string[]
+  userCorrections: string[]
+  relationshipPosture: string | null
+  emotionalPosture: string | null
+  queryHints: string[]
+  longTermQueue: Array<{
+    id: string
+    kind: AlicizationMemoryWorkbenchKind
+    summary: string
+    reason: string
+    salience: number
+    sensitivity: AlicizationMemoryWorkbenchSensitivity
+    confidence: number
+    allowTraining: boolean
+  }>
+  failureTurnIds: string[]
+}
+
+export interface AlicizationMemoryWorkbenchItem {
+  id: string
+  kind: AlicizationMemoryWorkbenchKind
+  summary: string
+  evidenceSnippets: string[]
+  sourceIds: string[]
+  confidence: number
+  salience: number
+  sensitivity: AlicizationMemoryWorkbenchSensitivity
+  visibility: AlicizationMemoryWorkbenchVisibility
+  training: AlicizationMemoryWorkbenchTrainingState
+  source: string
+  createdAt: number
+  updatedAt: number
+  lastAccessedAt: number | null
+  tombstoned: boolean
+}
+
+export interface AlicizationLongTermMemoryWorkbenchSummary {
+  total: number
+  byKind: Partial<Record<AlicizationMemoryWorkbenchKind, number>>
+  items: AlicizationMemoryWorkbenchItem[]
+}
+
+export interface AlicizationLongTermMemoryReviewItem {
+  id: string
+  transactionId: string
+  status: string
+  kind: AlicizationMemoryWorkbenchKind
+  summary: string
+  evidenceSnippets: string[]
+  reviewReasons: string[]
+  sensitivity: AlicizationMemoryWorkbenchSensitivity
+  visibleMode: AlicizationMemoryWorkbenchVisibility
+  allowTraining: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export interface AlicizationLongTermMemoryReviewSummary {
+  pending: number
+  items: AlicizationLongTermMemoryReviewItem[]
+}
+
+export interface AlicizationMemoryWorkbenchHealth {
+  status: AlicizationMemoryWorkbenchStatus
+  queue: {
+    pending: number
+    review: number
+    applied: number
+    failed: number
+    deadLettered: number
+  }
+  recall: {
+    lastLatencyMs: number | null
+    p95LatencyMs: number | null
+    lastError: string | null
+  }
+  embedding: {
+    providerConfigured: boolean
+    modelId: string | null
+    dimensions: number | null
+    reindexRequired: boolean
+  }
+  errors: string[]
+}
+
+export interface AlicizationMemoryWorkbenchSnapshot {
+  cardId: string
+  sessionId: string | null
+  updatedAt: number
+  workingMemory: AlicizationWorkingMemoryWorkbenchSnapshot | null
+  longTerm: AlicizationLongTermMemoryWorkbenchSummary
+  review: AlicizationLongTermMemoryReviewSummary
+  health: AlicizationMemoryWorkbenchHealth
+}
+
+export interface AlicizationMemoryWorkbenchListPayload extends AlicizationCardScope {
+  kind?: AlicizationMemoryWorkbenchKind | 'all'
+  query?: string
+  sensitivity?: AlicizationMemoryWorkbenchSensitivity | 'all'
+  visibility?: AlicizationMemoryWorkbenchVisibility | 'all'
+  training?: AlicizationMemoryWorkbenchTrainingState | 'all'
+  source?: string
+  limit?: number
+  cursor?: string | null
+}
+
+export interface AlicizationMemoryWorkbenchListResult {
+  items: AlicizationMemoryWorkbenchItem[]
+  nextCursor: string | null
+}
+
+export interface AlicizationMemoryReviewActionPayload extends AlicizationCardScope {
+  reviewItemId: string
+  decision: AlicizationMemoryWorkbenchReviewDecision
+  reason?: string | null
+}
+
+export interface AlicizationMemoryRecallProbePayload extends AlicizationCardScope {
+  query: string
+  sessionId?: string | null
+  includeWorkingMemory?: boolean
+  limit?: number
+}
+
+export interface AlicizationMemoryRecallProbeResult {
+  query: string
+  intent: {
+    mode: AlicizationMemoryRecallProbeMode
+    shouldRecall: boolean
+    confidence: number
+    rationale: string
+    temporalFocus: AlicizationMemoryRecallProbeTemporalFocus
+    riskFlags: string[]
+  }
+  plan: {
+    keywordQueries: string[]
+    phraseQueries: string[]
+    charGramQueries: string[]
+    semanticQueries: string[]
+    episodicQueries: string[]
+    threadHints: string[]
+    negativeCues: string[]
+    confidencePolicy: AlicizationMemoryRecallProbeConfidencePolicy
+  }
+  evidence: Array<{
+    id: string
+    kind: AlicizationMemoryRecallProbeEvidenceKind
+    summary: string
+    source: string
+    score: number
+    visibleMode: AlicizationMemoryRecallProbeEvidenceVisibility
+    queryMatches: string[]
+    rankReasons: string[]
+  }>
+  latencyMs: number
+  errors: string[]
+}
+
 export type AlicizationSubconsciousFragmentSourceKind = SharedAlicizationSubconsciousFragmentSourceKind
 
 export interface AlicizationActiveThought {
@@ -2112,6 +2302,10 @@ interface AlicizationBridge {
   retrieveMemoryFacts: (payload: { query: string, limit?: number }) => Promise<AlicizationMemoryFact[]>
   upsertMemoryFacts: (payload: { facts: AlicizationMemoryFactInput[], source: AlicizationMemorySource, trace?: AlicizationMemoryUpsertTrace | null }) => Promise<void>
   importLegacyMemory: (payload: AlicizationMemoryLegacySnapshot) => Promise<AlicizationMemoryMigrationResult>
+  memoryWorkbenchGetSnapshot?: (payload?: { sessionId?: string | null }) => Promise<AlicizationMemoryWorkbenchSnapshot>
+  memoryWorkbenchListLongTerm?: (payload: Omit<AlicizationMemoryWorkbenchListPayload, 'cardId'>) => Promise<AlicizationMemoryWorkbenchListResult>
+  memoryWorkbenchApplyReviewAction?: (payload: Omit<AlicizationMemoryReviewActionPayload, 'cardId'>) => Promise<AlicizationLongTermMemoryReviewItem | null>
+  memoryWorkbenchRecallProbe?: (payload: Omit<AlicizationMemoryRecallProbePayload, 'cardId'>) => Promise<AlicizationMemoryRecallProbeResult>
   getOrganicMemorySnapshot?: () => Promise<AlicizationOrganicMemorySnapshot>
   getLatestProjectStateObservation?: () => Promise<AlicizationProjectStateObservation | null>
   getProjectStateContinuitySnapshot?: () => Promise<AlicizationProjectStateContinuitySnapshot | null>

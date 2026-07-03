@@ -42,6 +42,17 @@ describe('alicization performance manifest clamp', () => {
     expect(source).toContain('correctHumanlikeMemoryAudit: async payload => await alicizationCorrectHumanlikeMemoryAudit({ ...resolveAlicizationScope(), ...payload })')
   })
 
+  it('exposes memory workbench eventa invokes through the desktop bridge', () => {
+    const source = readFileSync(new URL('../../../../apps/stage-tamagotchi/src/renderer/App.vue', import.meta.url), 'utf8')
+
+    expect(source).toContain('electronAlicizationMemoryWorkbenchGetSnapshot')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchListLongTerm')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchApplyReviewAction')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchRecallProbe')
+    expect(source).toContain('memoryWorkbenchGetSnapshot')
+    expect(source).toContain('memoryWorkbenchRecallProbe')
+  })
+
   it('drops unsupported cues and downgrades unsupported base emotions', () => {
     const result = clampAlicizationPerformancePayloadToManifest({
       baseEmotion: 'angry',
