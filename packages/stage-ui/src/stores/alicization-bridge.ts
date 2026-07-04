@@ -402,6 +402,56 @@ export interface AlicizationMemoryReviewActionPayload extends AlicizationCardSco
   reason?: string | null
 }
 
+export type AlicizationPersonaCandidateWorkbenchStatus = 'candidate' | 'approved' | 'rejected' | 'no-training'
+export type AlicizationPersonaCandidateWorkbenchDecision = 'approve' | 'reject' | 'no-training'
+
+export interface AlicizationPersonaCandidateWorkbenchItem {
+  id: string
+  sourceMemoryIds: string[]
+  behaviorLesson: string
+  positiveExample: string
+  negativeExample: string | null
+  privacyClass: 'public' | 'personal-redacted'
+  status: AlicizationPersonaCandidateWorkbenchStatus
+  allowTraining: boolean
+  rejectionReason: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+export interface AlicizationPersonaCandidateListPayload extends AlicizationCardScope {
+  status?: AlicizationPersonaCandidateWorkbenchStatus | 'all'
+  limit?: number
+  cursor?: string | null
+}
+
+export interface AlicizationPersonaCandidateListResult {
+  items: AlicizationPersonaCandidateWorkbenchItem[]
+  nextCursor: string | null
+}
+
+export interface AlicizationPersonaCandidateActionPayload extends AlicizationCardScope {
+  candidateId: string
+  decision: AlicizationPersonaCandidateWorkbenchDecision
+  reason?: string | null
+}
+
+export interface AlicizationMemoryEmbeddingReindexPayload extends AlicizationCardScope {
+  source?: string
+  sourceIds?: string[]
+  modelId?: string
+  limit?: number
+}
+
+export interface AlicizationMemoryEmbeddingReindexResult {
+  scheduled: number
+  indexed: number
+  failed: number
+  modelId: string | null
+  dimensions: number | null
+  errors: string[]
+}
+
 export interface AlicizationMemoryRecallProbePayload extends AlicizationCardScope {
   query: string
   sessionId?: string | null
@@ -2306,6 +2356,9 @@ interface AlicizationBridge {
   memoryWorkbenchListLongTerm?: (payload: Omit<AlicizationMemoryWorkbenchListPayload, 'cardId'>) => Promise<AlicizationMemoryWorkbenchListResult>
   memoryWorkbenchApplyReviewAction?: (payload: Omit<AlicizationMemoryReviewActionPayload, 'cardId'>) => Promise<AlicizationLongTermMemoryReviewItem | null>
   memoryWorkbenchRecallProbe?: (payload: Omit<AlicizationMemoryRecallProbePayload, 'cardId'>) => Promise<AlicizationMemoryRecallProbeResult>
+  memoryWorkbenchListPersonaCandidates?: (payload: Omit<AlicizationPersonaCandidateListPayload, 'cardId'>) => Promise<AlicizationPersonaCandidateListResult>
+  memoryWorkbenchApplyPersonaCandidateAction?: (payload: Omit<AlicizationPersonaCandidateActionPayload, 'cardId'>) => Promise<AlicizationPersonaCandidateWorkbenchItem | null>
+  memoryWorkbenchReindexEmbeddings?: (payload: Omit<AlicizationMemoryEmbeddingReindexPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingReindexResult>
   getOrganicMemorySnapshot?: () => Promise<AlicizationOrganicMemorySnapshot>
   getLatestProjectStateObservation?: () => Promise<AlicizationProjectStateObservation | null>
   getProjectStateContinuitySnapshot?: () => Promise<AlicizationProjectStateContinuitySnapshot | null>

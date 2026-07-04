@@ -799,6 +799,56 @@ export interface AlicizationMemoryReviewActionPayload extends AlicizationCardSco
   reason?: string | null
 }
 
+export type AlicizationPersonaCandidateWorkbenchStatus = 'candidate' | 'approved' | 'rejected' | 'no-training'
+export type AlicizationPersonaCandidateWorkbenchDecision = 'approve' | 'reject' | 'no-training'
+
+export interface AlicizationPersonaCandidateWorkbenchItem {
+  id: string
+  sourceMemoryIds: string[]
+  behaviorLesson: string
+  positiveExample: string
+  negativeExample: string | null
+  privacyClass: 'public' | 'personal-redacted'
+  status: AlicizationPersonaCandidateWorkbenchStatus
+  allowTraining: boolean
+  rejectionReason: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+export interface AlicizationPersonaCandidateListPayload extends AlicizationCardScope {
+  status?: AlicizationPersonaCandidateWorkbenchStatus | 'all'
+  limit?: number
+  cursor?: string | null
+}
+
+export interface AlicizationPersonaCandidateListResult {
+  items: AlicizationPersonaCandidateWorkbenchItem[]
+  nextCursor: string | null
+}
+
+export interface AlicizationPersonaCandidateActionPayload extends AlicizationCardScope {
+  candidateId: string
+  decision: AlicizationPersonaCandidateWorkbenchDecision
+  reason?: string | null
+}
+
+export interface AlicizationMemoryEmbeddingReindexPayload extends AlicizationCardScope {
+  source?: string
+  sourceIds?: string[]
+  modelId?: string
+  limit?: number
+}
+
+export interface AlicizationMemoryEmbeddingReindexResult {
+  scheduled: number
+  indexed: number
+  failed: number
+  modelId: string | null
+  dimensions: number | null
+  errors: string[]
+}
+
 export interface AlicizationMemoryRecallProbePayload extends AlicizationCardScope {
   query: string
   sessionId?: string | null
@@ -3679,6 +3729,9 @@ export const electronAlicizationMemoryWorkbenchGetSnapshot = defineInvokeEventa<
 export const electronAlicizationMemoryWorkbenchListLongTerm = defineInvokeEventa<AlicizationMemoryWorkbenchListResult, AlicizationMemoryWorkbenchListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-long-term')
 export const electronAlicizationMemoryWorkbenchApplyReviewAction = defineInvokeEventa<AlicizationLongTermMemoryReviewItem | null, AlicizationMemoryReviewActionPayload>('eventa:invoke:electron:alicization:memory-workbench:apply-review-action')
 export const electronAlicizationMemoryWorkbenchRecallProbe = defineInvokeEventa<AlicizationMemoryRecallProbeResult, AlicizationMemoryRecallProbePayload>('eventa:invoke:electron:alicization:memory-workbench:recall-probe')
+export const electronAlicizationMemoryWorkbenchListPersonaCandidates = defineInvokeEventa<AlicizationPersonaCandidateListResult, AlicizationPersonaCandidateListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-persona-candidates')
+export const electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction = defineInvokeEventa<AlicizationPersonaCandidateWorkbenchItem | null, AlicizationPersonaCandidateActionPayload>('eventa:invoke:electron:alicization:memory-workbench:apply-persona-candidate-action')
+export const electronAlicizationMemoryWorkbenchReindexEmbeddings = defineInvokeEventa<AlicizationMemoryEmbeddingReindexResult, AlicizationMemoryEmbeddingReindexPayload>('eventa:invoke:electron:alicization:memory-workbench:reindex-embeddings')
 export const electronAlicizationSearchOrganicSubconsciousFragments = defineInvokeEventa<AlicizationSubconsciousFragment[], AlicizationCardScope & { query: string, limit?: number }>('eventa:invoke:electron:alicization:memory:search-subconscious-fragments')
 export const electronAlicizationGetPerformanceManifest = defineInvokeEventa<CharacterPerformanceCapabilitiesManifest | null, AlicizationCardScope>('eventa:invoke:electron:alicization:performance:get-manifest')
 export const electronAlicizationSetPerformanceManifest = defineInvokeEventa<void, AlicizationCardScope & { manifest: CharacterPerformanceCapabilitiesManifest | null }>('eventa:invoke:electron:alicization:performance:set-manifest')

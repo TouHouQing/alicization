@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
+import type {
+  AlicizationMemoryEmbeddingReindexResult,
+  AlicizationPersonaCandidateWorkbenchItem,
+} from '../../../shared/eventa'
+import {
+  electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction,
+  electronAlicizationMemoryWorkbenchListPersonaCandidates,
+  electronAlicizationMemoryWorkbenchReindexEmbeddings,
+} from '../../../shared/eventa'
+
 import { createEmptyWorkingMemorySnapshot } from './life-core/working-memory'
 import { buildMemoryWorkbenchSnapshot, projectWorkingMemoryForWorkbench } from './memory-workbench'
 
@@ -99,5 +109,35 @@ describe('memory workbench projection', () => {
     })
 
     expect(result.workingMemory?.sessionId).toBe('session-ui')
+  })
+
+  it('exposes productized memory workbench DTO contracts', () => {
+    const candidate: AlicizationPersonaCandidateWorkbenchItem = {
+      id: 'persona-candidate:reflection-1',
+      sourceMemoryIds: ['reflection-1'],
+      behaviorLesson: '不要用固定模板遮盖失败。',
+      positiveExample: '我先直接说超时了，再继续接住当前问题。',
+      negativeExample: '不要把失败包装成正常陪伴。',
+      privacyClass: 'personal-redacted',
+      status: 'candidate',
+      allowTraining: false,
+      rejectionReason: null,
+      createdAt: 1,
+      updatedAt: 1,
+    }
+    const reindex: AlicizationMemoryEmbeddingReindexResult = {
+      scheduled: 1,
+      indexed: 0,
+      failed: 0,
+      modelId: 'local-embedding',
+      dimensions: 3,
+      errors: [],
+    }
+
+    expect(candidate.allowTraining).toBe(false)
+    expect(reindex.scheduled).toBe(1)
+    expect(electronAlicizationMemoryWorkbenchListPersonaCandidates).toBeTruthy()
+    expect(electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction).toBeTruthy()
+    expect(electronAlicizationMemoryWorkbenchReindexEmbeddings).toBeTruthy()
   })
 })
