@@ -1707,6 +1707,24 @@ export async function setupAlicizationDb(
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_long_term_memory_tombstones_source_id ON long_term_memory_tombstones(source_id)')
 
     await run(database, `
+      CREATE TABLE IF NOT EXISTS long_term_memory_policy_overrides (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        visible_mode TEXT NOT NULL,
+        allow_training INTEGER NOT NULL,
+        review_state TEXT NOT NULL,
+        reason TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE(card_id, source_id, source)
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_ltm_policy_card_source ON long_term_memory_policy_overrides(card_id, source_id, source)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_ltm_policy_card_training ON long_term_memory_policy_overrides(card_id, allow_training, updated_at DESC)')
+
+    await run(database, `
       CREATE TABLE IF NOT EXISTS memory_reflections (
         id TEXT PRIMARY KEY,
         card_id TEXT NOT NULL,
