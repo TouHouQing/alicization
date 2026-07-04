@@ -541,11 +541,18 @@ pages:
         inward_only: Inward Only
         no_training: No Training
         run_probe: Run Probe
+        load_more: Load More
+        reindex_embeddings: Reindex Embeddings
+        search: Search
+        reset: Reset
+        approve_candidate: Approve Candidate
+        reject_candidate: Reject Candidate
       states:
         empty_working: No working memory snapshot yet. Send one dialogue turn and refresh.
         empty_long_term: No matching long-term memory yet.
         empty_review: No memories currently need your review.
         empty_probe: Enter a sentence to see what she would recall.
+        empty_persona: No persona candidates ready for review yet.
         loading: Loading memory state...
       fields:
         health: Memory Health
@@ -565,6 +572,26 @@ pages:
         visibility: Visibility
         training: Training
         errors: Errors
+        semantic_channel: Semantic Recall
+        available: Available
+        unavailable: Unavailable
+        model: Model
+        dimensions: Dimensions
+        queue_health: Queue Health
+        recall_health: Recall Health
+        embedding_health: Embedding Health
+        policy: Policy
+        source: Source
+        updated_at: Updated At
+        confidence: Confidence
+        salience: Salience
+        behavior_lesson: Behavior Lesson
+        positive_example: Positive Example
+        negative_example: Negative Example
+        privacy_class: Privacy Class
+        source_ids: Source IDs
+        candidate_status: Candidate Status
+        kind: Kind
   data:
     title: Data
     description: Manage stored Alicization data, exports, and resets

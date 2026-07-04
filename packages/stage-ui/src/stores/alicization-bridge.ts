@@ -489,6 +489,12 @@ export interface AlicizationMemoryRecallProbeResult {
     queryMatches: string[]
     rankReasons: string[]
   }>
+  semantic: {
+    available: boolean
+    modelId: string | null
+    dimensions: number | null
+    error: string | null
+  }
   latencyMs: number
   errors: string[]
 }

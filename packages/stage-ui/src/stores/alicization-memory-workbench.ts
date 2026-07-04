@@ -1,8 +1,14 @@
 import type {
+  AlicizationMemoryEmbeddingReindexPayload,
+  AlicizationMemoryEmbeddingReindexResult,
   AlicizationMemoryRecallProbeResult,
   AlicizationMemoryReviewActionPayload,
+  AlicizationMemoryWorkbenchListPayload,
   AlicizationMemoryWorkbenchItem,
   AlicizationMemoryWorkbenchSnapshot,
+  AlicizationPersonaCandidateListPayload,
+  AlicizationPersonaCandidateWorkbenchDecision,
+  AlicizationPersonaCandidateWorkbenchItem,
 } from './alicization-bridge'
 
 import { errorMessageFrom } from '@moeru/std'
@@ -13,10 +19,29 @@ import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge
 
 export type AlicizationMemoryWorkbenchTab = 'working' | 'long-term' | 'review' | 'probe' | 'persona' | 'health'
 
+type LongTermFilters = Omit<Required<Pick<
+  AlicizationMemoryWorkbenchListPayload,
+  'kind' | 'query' | 'sensitivity' | 'visibility' | 'training' | 'source'
+>>, 'cardId'>
+
 export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memory-workbench', () => {
   const activeTab = ref<AlicizationMemoryWorkbenchTab>('working')
   const snapshot = ref<AlicizationMemoryWorkbenchSnapshot | null>(null)
   const longTermItems = ref<AlicizationMemoryWorkbenchItem[]>([])
+  const longTermFilters = ref<LongTermFilters>({
+    query: '',
+    kind: 'all',
+    sensitivity: 'all',
+    visibility: 'all',
+    training: 'all',
+    source: '',
+  })
+  const longTermNextCursor = ref<string | null>(null)
+  const personaCandidates = ref<AlicizationPersonaCandidateWorkbenchItem[]>([])
+  const personaNextCursor = ref<string | null>(null)
+  const personaLoading = ref(false)
+  const reindexLoading = ref(false)
+  const reindexResult = ref<AlicizationMemoryEmbeddingReindexResult | null>(null)
   const recallProbe = ref<AlicizationMemoryRecallProbeResult | null>(null)
   const recallQuery = ref('我们去打游戏吧')
   const loading = ref(false)
@@ -47,6 +72,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       const next = await bridge.memoryWorkbenchGetSnapshot({ sessionId })
       snapshot.value = next
       longTermItems.value = next.longTerm.items
+      longTermNextCursor.value = null
       lastError.value = null
       return next
     }
@@ -59,13 +85,56 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     }
   }
 
-  async function refreshLongTerm() {
+  function buildLongTermPayload(cursor: string | null = null) {
+    const filters = longTermFilters.value
+    return {
+      limit: 50,
+      cursor,
+      query: filters.query.trim() || undefined,
+      kind: filters.kind,
+      sensitivity: filters.sensitivity,
+      visibility: filters.visibility,
+      training: filters.training,
+      source: filters.source.trim() || undefined,
+    } satisfies Omit<AlicizationMemoryWorkbenchListPayload, 'cardId'>
+  }
+
+  async function refreshLongTerm(filters?: Partial<LongTermFilters>) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListLongTerm)
+      return []
+    longTermFilters.value = {
+      ...longTermFilters.value,
+      ...(filters ?? {}),
+    }
+    longTermNextCursor.value = null
+    listLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchListLongTerm!(buildLongTermPayload(null))
+      longTermItems.value = result.items
+      longTermNextCursor.value = result.nextCursor
+      lastError.value = null
+      return result.items
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return []
+    }
+    finally {
+      listLoading.value = false
+    }
+  }
+
+  async function loadMoreLongTerm() {
+    if (!longTermNextCursor.value || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListLongTerm)
       return []
     listLoading.value = true
     try {
-      const result = await getAlicizationBridge().memoryWorkbenchListLongTerm!({ limit: 50 })
-      longTermItems.value = result.items
+      const result = await getAlicizationBridge().memoryWorkbenchListLongTerm!(buildLongTermPayload(longTermNextCursor.value))
+      longTermItems.value = [
+        ...longTermItems.value,
+        ...result.items,
+      ]
+      longTermNextCursor.value = result.nextCursor
       lastError.value = null
       return result.items
     }
@@ -126,10 +195,95 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     }
   }
 
+  async function refreshPersonaCandidates(status: AlicizationPersonaCandidateListPayload['status'] = 'all') {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListPersonaCandidates)
+      return []
+    personaLoading.value = true
+    personaNextCursor.value = null
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchListPersonaCandidates!({
+        status,
+        limit: 50,
+        cursor: null,
+      })
+      personaCandidates.value = result.items
+      personaNextCursor.value = result.nextCursor
+      lastError.value = null
+      return result.items
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return []
+    }
+    finally {
+      personaLoading.value = false
+    }
+  }
+
+  async function applyPersonaCandidateAction(
+    candidateId: string,
+    decision: AlicizationPersonaCandidateWorkbenchDecision,
+    reason?: string | null,
+  ) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchApplyPersonaCandidateAction)
+      return null
+    personaLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchApplyPersonaCandidateAction!({
+        candidateId,
+        decision,
+        reason,
+      })
+      if (result) {
+        const index = personaCandidates.value.findIndex(item => item.id === result.id)
+        if (index >= 0)
+          personaCandidates.value.splice(index, 1, result)
+        else
+          personaCandidates.value = [result, ...personaCandidates.value]
+      }
+      lastError.value = null
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      personaLoading.value = false
+    }
+  }
+
+  async function reindexEmbeddings(payload: Omit<AlicizationMemoryEmbeddingReindexPayload, 'cardId'> = {}) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchReindexEmbeddings)
+      return null
+    reindexLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchReindexEmbeddings!(payload)
+      reindexResult.value = result
+      lastError.value = result.errors[0] ?? null
+      await refreshSnapshot(snapshot.value?.sessionId ?? null)
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      reindexLoading.value = false
+    }
+  }
+
   return {
     activeTab,
     snapshot,
     longTermItems,
+    longTermFilters,
+    longTermNextCursor,
+    personaCandidates,
+    personaNextCursor,
+    personaLoading,
+    reindexLoading,
+    reindexResult,
     recallProbe,
     recallQuery,
     loading,
@@ -143,7 +297,11 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     pendingReviewCount,
     refreshSnapshot,
     refreshLongTerm,
+    loadMoreLongTerm,
     applyReviewAction,
     runRecallProbe,
+    refreshPersonaCandidates,
+    applyPersonaCandidateAction,
+    reindexEmbeddings,
   }
 })

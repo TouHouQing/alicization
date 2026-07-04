@@ -94,4 +94,92 @@ describe('alicization memory workbench store', () => {
     expect(store.snapshot?.health.status).toBe('ok')
     expect(store.recallProbe?.intent.mode).toBe('episodic')
   })
+
+  it('resets long-term cursor when filters change and appends when loading more', async () => {
+    const firstItem = {
+      id: 'memory-a',
+      kind: 'reflection',
+      summary: '用户想打游戏放松。',
+      evidenceSnippets: [],
+      sourceIds: ['memory-a'],
+      confidence: 0.8,
+      salience: 0.7,
+      sensitivity: 'personal',
+      visibility: 'explicit',
+      training: 'blocked',
+      source: 'memory_reflections',
+      createdAt: 1,
+      updatedAt: 2,
+      lastAccessedAt: null,
+      tombstoned: false,
+    } as const
+    const secondItem = {
+      ...firstItem,
+      id: 'memory-b',
+      sourceIds: ['memory-b'],
+      summary: '用户喜欢自然回复。',
+    } as const
+    const memoryWorkbenchListLongTerm = vi.fn()
+      .mockResolvedValueOnce({ items: [firstItem], nextCursor: 'cursor-a' })
+      .mockResolvedValueOnce({ items: [secondItem], nextCursor: null })
+
+    setAlicizationBridge({
+      memoryWorkbenchListLongTerm,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.refreshLongTerm({ query: '游戏' })
+    expect(store.longTermItems.map(item => item.id)).toEqual(['memory-a'])
+    expect(store.longTermNextCursor).toBe('cursor-a')
+
+    await store.loadMoreLongTerm()
+    expect(store.longTermItems.map(item => item.id)).toEqual(['memory-a', 'memory-b'])
+    expect(memoryWorkbenchListLongTerm).toHaveBeenLastCalledWith(expect.objectContaining({
+      cursor: 'cursor-a',
+      query: '游戏',
+    }))
+  })
+
+  it('loads persona candidates and records embedding reindex result', async () => {
+    const candidate = {
+      id: 'persona-candidate:reflection-1',
+      sourceMemoryIds: ['reflection-1'],
+      behaviorLesson: '不要用固定模板遮盖失败。',
+      positiveExample: '我会直接说明 provider 失败。',
+      negativeExample: '不要套固定安抚模板。',
+      privacyClass: 'personal-redacted',
+      status: 'candidate',
+      allowTraining: false,
+      rejectionReason: null,
+      createdAt: 1,
+      updatedAt: 1,
+    } as const
+    setAlicizationBridge({
+      memoryWorkbenchListPersonaCandidates: vi.fn(async () => ({ items: [candidate], nextCursor: null })),
+      memoryWorkbenchApplyPersonaCandidateAction: vi.fn(async () => ({
+        ...candidate,
+        status: 'no-training',
+        rejectionReason: 'user blocked',
+        updatedAt: 2,
+      })),
+      memoryWorkbenchReindexEmbeddings: vi.fn(async () => ({
+        scheduled: 1,
+        indexed: 1,
+        failed: 0,
+        modelId: 'local',
+        dimensions: 3,
+        errors: [],
+      })),
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.refreshPersonaCandidates()
+    expect(store.personaCandidates.map(item => item.id)).toEqual(['persona-candidate:reflection-1'])
+
+    await store.applyPersonaCandidateAction('persona-candidate:reflection-1', 'no-training')
+    expect(store.personaCandidates[0]?.status).toBe('no-training')
+
+    await store.reindexEmbeddings()
+    expect(store.reindexResult?.indexed).toBe(1)
+  })
 })

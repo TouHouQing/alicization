@@ -532,11 +532,18 @@ pages:
         inward_only: 只内在使用
         no_training: 禁止训练
         run_probe: 运行召回测试
+        load_more: 加载更多
+        reindex_embeddings: 重建向量索引
+        search: 搜索
+        reset: 重置
+        approve_candidate: 批准候选
+        reject_candidate: 拒绝候选
       states:
         empty_working: 还没有可显示的短期记忆快照。发送一轮对话后再刷新。
         empty_long_term: 还没有匹配的长期记忆。
         empty_review: 当前没有需要你审核的记忆。
         empty_probe: 输入一句话，查看她会回想起什么。
+        empty_persona: 还没有可审查的人格候选。
         loading: 正在读取记忆状态...
       fields:
         health: 记忆健康
@@ -556,6 +563,26 @@ pages:
         visibility: 可见策略
         training: 训练
         errors: 错误
+        semantic_channel: 语义召回
+        available: 可用
+        unavailable: 不可用
+        model: 模型
+        dimensions: 维度
+        queue_health: 队列健康
+        recall_health: 召回健康
+        embedding_health: 向量健康
+        policy: 策略
+        source: 来源
+        updated_at: 更新时间
+        confidence: 置信度
+        salience: 重要度
+        behavior_lesson: 行为规则
+        positive_example: 正例
+        negative_example: 反例
+        privacy_class: 隐私类别
+        source_ids: 来源 ID
+        candidate_status: 候选状态
+        kind: 类型
   data:
     title: Data
     description: 管理存储 Alicization 数据、导出和重置

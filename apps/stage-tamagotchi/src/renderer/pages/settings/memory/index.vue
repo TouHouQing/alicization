@@ -10,6 +10,12 @@ const { t } = useI18n()
 const {
   activeTab,
   longTermItems,
+  longTermFilters,
+  longTermNextCursor,
+  personaCandidates,
+  personaLoading,
+  reindexLoading,
+  reindexResult,
   recallProbe,
   recallQuery,
   loading,
@@ -32,6 +38,11 @@ const tabs = computed(() => [
   { id: 'health' as const, icon: 'i-solar:pulse-2-bold-duotone', label: t('settings.pages.memory.workbench.tabs.health') },
 ])
 
+const kindOptions = ['all', 'fact', 'episode', 'reflection', 'consolidation'] as const
+const sensitivityOptions = ['all', 'public', 'personal', 'private', 'secret'] as const
+const visibilityOptions = ['all', 'explicit', 'inward-only'] as const
+const trainingOptions = ['all', 'allowed', 'blocked'] as const
+
 const healthStatusClass = computed(() => {
   if (health.value?.status === 'ok')
     return 'text-emerald-600 dark:text-emerald-300'
@@ -44,8 +55,27 @@ function listText(values: string[]) {
   return values.length > 0 ? values.join(' / ') : '-'
 }
 
+function formatTimestamp(value: number | null | undefined) {
+  if (!value)
+    return '-'
+  return new Date(value).toLocaleString()
+}
+
+function resetLongTermFilters() {
+  longTermFilters.value = {
+    query: '',
+    kind: 'all',
+    sensitivity: 'all',
+    visibility: 'all',
+    training: 'all',
+    source: '',
+  }
+  void store.refreshLongTerm()
+}
+
 onMounted(() => {
   void store.refreshSnapshot()
+  void store.refreshPersonaCandidates()
 })
 </script>
 
@@ -166,13 +196,55 @@ onMounted(() => {
     </section>
 
     <section v-else-if="activeTab === 'long-term'" :class="['flex', 'flex-col', 'gap-3']">
-      <Button
-        :label="t('settings.pages.memory.workbench.actions.refresh')"
-        icon="i-solar:refresh-bold-duotone"
-        size="sm"
-        :loading="listLoading"
-        @click="store.refreshLongTerm()"
-      />
+      <div :class="['grid', 'grid-cols-1', 'gap-2', 'md:grid-cols-3', 'xl:grid-cols-6']">
+        <input
+          v-model="longTermFilters.query"
+          :aria-label="t('settings.pages.memory.workbench.actions.search')"
+          :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+          @keydown.enter.prevent="store.refreshLongTerm()"
+        >
+        <select v-model="longTermFilters.kind" :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']">
+          <option v-for="option in kindOptions" :key="option" :value="option">
+            {{ option }}
+          </option>
+        </select>
+        <select v-model="longTermFilters.sensitivity" :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']">
+          <option v-for="option in sensitivityOptions" :key="option" :value="option">
+            {{ option }}
+          </option>
+        </select>
+        <select v-model="longTermFilters.visibility" :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']">
+          <option v-for="option in visibilityOptions" :key="option" :value="option">
+            {{ option }}
+          </option>
+        </select>
+        <select v-model="longTermFilters.training" :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']">
+          <option v-for="option in trainingOptions" :key="option" :value="option">
+            {{ option }}
+          </option>
+        </select>
+        <input
+          v-model="longTermFilters.source"
+          :aria-label="t('settings.pages.memory.workbench.fields.source')"
+          :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+        >
+      </div>
+      <div :class="['flex', 'flex-wrap', 'gap-2']">
+        <Button
+          :label="t('settings.pages.memory.workbench.actions.search')"
+          icon="i-solar:magnifer-bold-duotone"
+          size="sm"
+          :loading="listLoading"
+          @click="store.refreshLongTerm()"
+        />
+        <Button
+          :label="t('settings.pages.memory.workbench.actions.reset')"
+          icon="i-solar:restart-bold-duotone"
+          size="sm"
+          variant="secondary"
+          @click="resetLongTermFilters()"
+        />
+      </div>
       <div v-if="longTermItems.length === 0" :class="['border', 'border-dashed', 'border-neutral-300', 'p-5', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
         {{ t('settings.pages.memory.workbench.states.empty_long_term') }}
       </div>
@@ -189,7 +261,23 @@ onMounted(() => {
         <div :class="['mt-2', 'text-xs', 'text-neutral-500']">
           {{ listText(item.evidenceSnippets) }}
         </div>
+        <div :class="['mt-3', 'grid', 'grid-cols-1', 'gap-2', 'text-xs', 'text-neutral-500', 'md:grid-cols-3']">
+          <div>{{ t('settings.pages.memory.workbench.fields.source') }}: {{ item.source }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.confidence') }}: {{ item.confidence.toFixed(2) }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.salience') }}: {{ item.salience.toFixed(2) }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.source_ids') }}: {{ listText(item.sourceIds) }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.updated_at') }}: {{ formatTimestamp(item.updatedAt) }}</div>
+        </div>
       </article>
+      <Button
+        v-if="longTermNextCursor"
+        :label="t('settings.pages.memory.workbench.actions.load_more')"
+        icon="i-solar:alt-arrow-down-bold-duotone"
+        size="sm"
+        variant="secondary"
+        :loading="listLoading"
+        @click="store.loadMoreLongTerm()"
+      />
     </section>
 
     <section v-else-if="activeTab === 'review'" :class="['flex', 'flex-col', 'gap-3']">
@@ -231,6 +319,17 @@ onMounted(() => {
             intent
           </div>
           <pre :class="['mt-2', 'whitespace-pre-wrap', 'text-xs']">{{ JSON.stringify(recallProbe.intent, null, 2) }}</pre>
+          <div :class="['mt-3', 'border-t', 'border-neutral-200', 'pt-3', 'text-xs', 'text-neutral-500', 'dark:border-neutral-800']">
+            <div>
+              {{ t('settings.pages.memory.workbench.fields.semantic_channel') }}:
+              {{ recallProbe.semantic.available ? t('settings.pages.memory.workbench.fields.available') : t('settings.pages.memory.workbench.fields.unavailable') }}
+            </div>
+            <div>{{ t('settings.pages.memory.workbench.fields.model') }}: {{ recallProbe.semantic.modelId ?? '-' }}</div>
+            <div>{{ t('settings.pages.memory.workbench.fields.dimensions') }}: {{ recallProbe.semantic.dimensions ?? '-' }}</div>
+            <div v-if="recallProbe.semantic.error">
+              {{ t('settings.pages.memory.workbench.fields.errors') }}: {{ recallProbe.semantic.error }}
+            </div>
+          </div>
         </div>
         <div :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
           <div :class="['text-xs', 'text-neutral-500']">
@@ -248,12 +347,121 @@ onMounted(() => {
       </div>
     </section>
 
-    <section v-else-if="activeTab === 'persona'" :class="['border', 'border-dashed', 'border-neutral-300', 'p-5', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
-      {{ t('settings.pages.memory.workbench.tabs.persona') }}
+    <section v-else-if="activeTab === 'persona'" :class="['flex', 'flex-col', 'gap-3']">
+      <div :class="['flex', 'flex-wrap', 'gap-2']">
+        <Button
+          :label="t('settings.pages.memory.workbench.actions.refresh')"
+          icon="i-solar:refresh-bold-duotone"
+          size="sm"
+          :loading="personaLoading"
+          @click="store.refreshPersonaCandidates()"
+        />
+      </div>
+      <div v-if="personaCandidates.length === 0" :class="['border', 'border-dashed', 'border-neutral-300', 'p-5', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
+        {{ t('settings.pages.memory.workbench.states.empty_persona') }}
+      </div>
+      <article v-for="item in personaCandidates" :key="item.id" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+        <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2', 'text-xs', 'text-neutral-500']">
+          <span>{{ t('settings.pages.memory.workbench.fields.candidate_status') }}: {{ item.status }}</span>
+          <span>{{ t('settings.pages.memory.workbench.fields.privacy_class') }}: {{ item.privacyClass }}</span>
+          <span>{{ t('settings.pages.memory.workbench.fields.training') }}: {{ item.allowTraining ? 'allowed' : 'blocked' }}</span>
+        </div>
+        <div :class="['mt-3', 'text-xs', 'font-semibold', 'text-neutral-500']">
+          {{ t('settings.pages.memory.workbench.fields.behavior_lesson') }}
+        </div>
+        <div :class="['mt-1', 'text-sm', 'font-medium']">
+          {{ item.behaviorLesson }}
+        </div>
+        <div :class="['mt-3', 'grid', 'grid-cols-1', 'gap-3', 'lg:grid-cols-2']">
+          <div>
+            <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.fields.positive_example') }}
+            </div>
+            <div :class="['mt-1', 'text-sm']">
+              {{ item.positiveExample }}
+            </div>
+          </div>
+          <div>
+            <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.fields.negative_example') }}
+            </div>
+            <div :class="['mt-1', 'text-sm']">
+              {{ item.negativeExample ?? '-' }}
+            </div>
+          </div>
+        </div>
+        <div :class="['mt-3', 'text-xs', 'text-neutral-500']">
+          {{ t('settings.pages.memory.workbench.fields.source_ids') }}: {{ listText(item.sourceMemoryIds) }}
+        </div>
+        <div :class="['mt-3', 'flex', 'flex-wrap', 'gap-2']">
+          <Button size="sm" :label="t('settings.pages.memory.workbench.actions.approve_candidate')" :loading="personaLoading" @click="store.applyPersonaCandidateAction(item.id, 'approve')" />
+          <Button size="sm" variant="secondary" :label="t('settings.pages.memory.workbench.actions.reject_candidate')" :loading="personaLoading" @click="store.applyPersonaCandidateAction(item.id, 'reject')" />
+          <Button size="sm" variant="secondary" :label="t('settings.pages.memory.workbench.actions.no_training')" :loading="personaLoading" @click="store.applyPersonaCandidateAction(item.id, 'no-training')" />
+        </div>
+      </article>
     </section>
 
-    <section v-else-if="activeTab === 'health'" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
-      <pre :class="['whitespace-pre-wrap', 'text-xs']">{{ JSON.stringify(health, null, 2) }}</pre>
+    <section v-else-if="activeTab === 'health'" :class="['grid', 'grid-cols-1', 'gap-3', 'xl:grid-cols-2']">
+      <div :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+        <div :class="['text-sm', 'font-semibold']">
+          {{ t('settings.pages.memory.workbench.fields.queue_health') }}
+        </div>
+        <div :class="['mt-3', 'grid', 'grid-cols-2', 'gap-2', 'text-sm']">
+          <div>pending: {{ health?.queue.pending ?? 0 }}</div>
+          <div>review: {{ health?.queue.review ?? 0 }}</div>
+          <div>applied: {{ health?.queue.applied ?? 0 }}</div>
+          <div>failed: {{ health?.queue.failed ?? 0 }}</div>
+          <div>deadLettered: {{ health?.queue.deadLettered ?? 0 }}</div>
+        </div>
+      </div>
+      <div :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+        <div :class="['text-sm', 'font-semibold']">
+          {{ t('settings.pages.memory.workbench.fields.recall_health') }}
+        </div>
+        <div :class="['mt-3', 'grid', 'grid-cols-1', 'gap-2', 'text-sm']">
+          <div>{{ t('settings.pages.memory.workbench.fields.recall_latency') }}: {{ health?.recall.lastLatencyMs ?? '-' }} ms</div>
+          <div>p95: {{ health?.recall.p95LatencyMs ?? '-' }} ms</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.errors') }}: {{ health?.recall.lastError ?? '-' }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.semantic_channel') }}: {{ health?.embedding.providerConfigured ? 'available' : 'unavailable' }}</div>
+        </div>
+      </div>
+      <div :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+        <div :class="['flex', 'flex-wrap', 'items-center', 'justify-between', 'gap-2']">
+          <div :class="['text-sm', 'font-semibold']">
+            {{ t('settings.pages.memory.workbench.fields.embedding_health') }}
+          </div>
+          <Button
+            :label="t('settings.pages.memory.workbench.actions.reindex_embeddings')"
+            icon="i-solar:refresh-bold-duotone"
+            size="sm"
+            :loading="reindexLoading"
+            @click="store.reindexEmbeddings()"
+          />
+        </div>
+        <div :class="['mt-3', 'grid', 'grid-cols-1', 'gap-2', 'text-sm']">
+          <div>{{ t('settings.pages.memory.workbench.fields.embedding') }}: {{ health?.embedding.providerConfigured ? 'configured' : 'not configured' }}</div>
+          <div>model: {{ health?.embedding.modelId ?? '-' }}</div>
+          <div>dimensions: {{ health?.embedding.dimensions ?? '-' }}</div>
+          <div>reindexRequired: {{ health?.embedding.reindexRequired ?? false }}</div>
+          <div v-if="reindexResult">
+            indexed: {{ reindexResult.indexed }} / failed: {{ reindexResult.failed }}
+          </div>
+        </div>
+      </div>
+      <div :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+        <div :class="['text-sm', 'font-semibold']">
+          {{ t('settings.pages.memory.workbench.fields.errors') }}
+        </div>
+        <div :class="['mt-3', 'text-sm', 'text-neutral-500']">
+          {{ listText(health?.errors ?? []) }}
+        </div>
+      </div>
+      <details :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800', 'xl:col-span-2']">
+        <summary :class="['cursor-pointer', 'text-sm', 'font-semibold']">
+          raw
+        </summary>
+        <pre :class="['mt-3', 'whitespace-pre-wrap', 'text-xs']">{{ JSON.stringify(health, null, 2) }}</pre>
+      </details>
     </section>
   </div>
 </template>
