@@ -122,6 +122,7 @@ import {
   deriveFactMemoryTier,
   deriveTierCounts,
 } from './memory-tiering'
+import { createMemoryWorkbenchPolicyStoreRuntime } from './memory-workbench-policy-store'
 import { createAlicizationPersonStateEvolutionRuntime } from './person-state-evolution-runtime'
 import { normalizeOrganicRecallText } from './runtime-organic-recall'
 import {
@@ -4738,6 +4739,14 @@ export async function setupAlicizationDb(
     parseJsonStringArray,
     normalizeOrganicMemoryText,
   })
+  const memoryWorkbenchPolicyStore = createMemoryWorkbenchPolicyStoreRuntime({
+    database,
+    now,
+    run,
+    all,
+    enqueueWrite,
+    runInTransaction,
+  })
 
   async function persistWorkingMemoryLongTermTransaction(
     transaction: Parameters<typeof workingMemoryLongTermCleaningStore.updateTransaction>[0],
@@ -5289,7 +5298,24 @@ export async function setupAlicizationDb(
   }
 
   async function listMemoryWorkbenchReviewItems(input: { cardId: string, limit?: number }) {
-    return (await listLongTermMemoryReviewItems(input)).map(projectLongTermReviewItemForWorkbench)
+    const items = await listLongTermMemoryReviewItems(input)
+    const sourceIds = items.flatMap(item => item.sourceMemoryIds)
+    const policies = await memoryWorkbenchPolicyStore.listPolicyOverrides({
+      cardId: input.cardId,
+      sourceIds,
+    })
+    const policyBySourceId = new Map(policies.map(policy => [policy.sourceId, policy]))
+
+    return items.map((item) => {
+      const policy = item.sourceMemoryIds
+        .map(sourceId => policyBySourceId.get(sourceId))
+        .find(Boolean)
+      return {
+        ...projectLongTermReviewItemForWorkbench(item),
+        visibleMode: policy?.visibleMode ?? item.visibleMode,
+        allowTraining: policy?.allowTraining ?? item.allowTraining,
+      }
+    })
   }
 
   async function applyMemoryWorkbenchReviewAction(input: {
@@ -5299,9 +5325,36 @@ export async function setupAlicizationDb(
     reason?: string | null
   }) {
     if (input.decision === 'inward-only' || input.decision === 'no-training') {
-      const item = (await listMemoryWorkbenchReviewItems({ cardId: input.cardId, limit: 64 }))
+      const item = (await listLongTermMemoryReviewItems({ cardId: input.cardId, limit: 128 }))
         .find(row => row.id === input.reviewItemId)
-      return item ?? null
+      if (!item)
+        return null
+
+      const sourceIds = item.sourceMemoryIds.length > 0 ? item.sourceMemoryIds : [item.transactionId]
+      const existingPolicies = await memoryWorkbenchPolicyStore.listPolicyOverrides({
+        cardId: input.cardId,
+        sourceIds,
+      })
+      const existingPolicyBySourceId = new Map(existingPolicies.map(policy => [policy.sourceId, policy]))
+      for (const sourceId of sourceIds) {
+        const existingPolicy = existingPolicyBySourceId.get(sourceId)
+        await memoryWorkbenchPolicyStore.upsertPolicyOverride({
+          cardId: input.cardId,
+          sourceId,
+          source: 'working_memory_long_term_candidate',
+          visibleMode: input.decision === 'inward-only' ? 'inward-only' : existingPolicy?.visibleMode ?? item.visibleMode,
+          allowTraining: false,
+          reviewState: input.decision,
+          reason: input.reason,
+        })
+      }
+
+      const firstExistingPolicy = existingPolicies[0]
+      return {
+        ...projectLongTermReviewItemForWorkbench(item),
+        visibleMode: input.decision === 'inward-only' ? 'inward-only' : firstExistingPolicy?.visibleMode ?? item.visibleMode,
+        allowTraining: false,
+      }
     }
     const decision: LongTermMemoryReviewDecision = input.decision === 'approve'
       ? 'approve'

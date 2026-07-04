@@ -1,6 +1,28 @@
-import { describe, expect, it } from 'vitest'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
+import { afterEach, describe, expect, it } from 'vitest'
+
+import { setupAlicizationDb } from './db'
 import { buildLongTermMemoryRecallBlock } from './long-term-memory-recall'
+
+const sandboxDirs: string[] = []
+
+async function createSandboxUserDataPath() {
+  const dir = await mkdtemp(join(tmpdir(), 'alicization-memory-workbench-review-'))
+  sandboxDirs.push(dir)
+  return dir
+}
+
+afterEach(async () => {
+  while (sandboxDirs.length > 0) {
+    const dir = sandboxDirs.pop()
+    if (!dir)
+      continue
+    await rm(dir, { recursive: true, force: true })
+  }
+})
 
 describe('memory workbench dialogue loop acceptance', () => {
   it('renders game recall evidence for the dialogue prompt without replacing WorkingMemory owner', () => {
@@ -102,5 +124,59 @@ describe('memory workbench dialogue loop acceptance', () => {
 
     expect(block).toContain('recall-failed')
     expect(block).not.toContain('我在。同一条本地数字生命的线还在')
+  })
+
+  it('persists inward-only and no-training review actions instead of returning transient review items', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.enqueueWorkingMemoryLongTermQueueItems({
+        cardId: 'default',
+        sessionId: 'session-1',
+        items: [{
+          id: 'queue-weak-correction',
+          source: 'working-memory-owner',
+          kind: 'correction',
+          summary: '用户希望以后对话节奏安静一点。',
+          reason: 'User gave a gentle conversation style note.',
+          sourceTurnIds: ['turn-1:user'],
+          evidenceSnippets: ['以后节奏安静一点。'],
+          salience: 0.82,
+          confidence: 0.78,
+          sensitivity: 'personal',
+          allowTraining: false,
+          status: 'pending-cleaning',
+          rejectionReasons: [],
+          contaminationFlags: [],
+          createdAt: 2_000,
+        }],
+      })
+      await db.drainWorkingMemoryLongTermQueue(4)
+
+      const [reviewItem] = await db.listMemoryWorkbenchReviewItems({ cardId: 'default', limit: 8 })
+      expect(reviewItem).toEqual(expect.objectContaining({
+        visibleMode: 'explicit',
+        allowTraining: false,
+      }))
+
+      await db.applyMemoryWorkbenchReviewAction({
+        cardId: 'default',
+        reviewItemId: reviewItem!.id,
+        decision: 'inward-only',
+      })
+      await db.applyMemoryWorkbenchReviewAction({
+        cardId: 'default',
+        reviewItemId: reviewItem!.id,
+        decision: 'no-training',
+      })
+
+      const [after] = await db.listMemoryWorkbenchReviewItems({ cardId: 'default', limit: 8 })
+      expect(after).toEqual(expect.objectContaining({
+        visibleMode: 'inward-only',
+        allowTraining: false,
+      }))
+    }
+    finally {
+      await db.close()
+    }
   })
 })
