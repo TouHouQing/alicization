@@ -31,6 +31,7 @@ import type {
   AlicizationListExecutorSessionsInput,
   AlicizationListTaskThreadsInput,
   AlicizationMemoryDomain,
+  AlicizationMemoryEmbeddingReindexResult,
   AlicizationMemoryFact,
   AlicizationMemoryFactInput,
   AlicizationMemoryLegacySnapshot,
@@ -54,6 +55,10 @@ import type {
   AlicizationMindTurnEventInput,
   AlicizationMindTurnEventKind,
   AlicizationMindTurnEventRecord,
+  AlicizationPersonaCandidateWorkbenchDecision,
+  AlicizationPersonaCandidateListResult,
+  AlicizationPersonaCandidateWorkbenchItem,
+  AlicizationPersonaCandidateWorkbenchStatus,
   AlicizationPersonaReinforcementEventInput,
   AlicizationPersonaReinforcementEventRecord,
   AlicizationPersonStateEvolutionEntryInput,
@@ -78,6 +83,7 @@ import { join } from 'node:path'
 
 import sqlite3 from 'sqlite3'
 
+import { errorMessageFrom } from '@moeru/std'
 import { normalizeAlicizationMemoryProvenance } from '@proj-alicization/stage-shared'
 
 import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
@@ -110,19 +116,24 @@ import {
   buildLongTermMemoryQueryPlan,
   deriveLongTermMemoryRecallIntent,
 } from './long-term-memory-recall'
+import { safeEmbedLongTermMemoryTexts } from './long-term-memory-embedding-provider'
+import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-persistent-vector-store'
+import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
 import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
 import type { LongTermMemoryReviewDecision, LongTermMemoryReviewItem } from './long-term-memory-review-queue'
 import {
   applyLongTermMemoryReviewDecision as applyLongTermMemoryReviewDecisionToTransaction,
   createLongTermMemoryReviewItemFromTransaction,
 } from './long-term-memory-review-queue'
+import { createMemoryWorkbenchHealthRuntime } from './memory-workbench-health'
+import { createMemoryWorkbenchPersonaCandidateRuntime } from './memory-workbench-persona-candidates'
 import {
   deriveConsolidationMemoryTier,
   deriveEpisodicMemoryTier,
   deriveFactMemoryTier,
   deriveTierCounts,
 } from './memory-tiering'
-import { createMemoryWorkbenchPolicyStoreRuntime } from './memory-workbench-policy-store'
+import { createMemoryWorkbenchPolicyStoreRuntime, mergeMemoryWorkbenchPolicy } from './memory-workbench-policy-store'
 import { createAlicizationPersonStateEvolutionRuntime } from './person-state-evolution-runtime'
 import { normalizeOrganicRecallText } from './runtime-organic-recall'
 import {
@@ -1387,6 +1398,25 @@ export interface AlicizationDbService {
   getMemoryWorkbenchQueueHealth: (input: { cardId: string }) => Promise<AlicizationMemoryWorkbenchHealth['queue']>
   getMemoryWorkbenchRecallHealth: (input: { cardId: string }) => Promise<AlicizationMemoryWorkbenchHealth['recall']>
   getMemoryWorkbenchEmbeddingHealth: (input: { cardId: string }) => Promise<AlicizationMemoryWorkbenchHealth['embedding']>
+  reindexMemoryWorkbenchEmbeddings: (input: {
+    cardId: string
+    source?: string
+    sourceIds?: string[]
+    modelId?: string
+    limit?: number
+  }) => Promise<AlicizationMemoryEmbeddingReindexResult>
+  listMemoryWorkbenchPersonaCandidates: (input: {
+    cardId: string
+    status?: AlicizationPersonaCandidateWorkbenchStatus | 'all'
+    limit?: number
+    cursor?: string | null
+  }) => Promise<AlicizationPersonaCandidateListResult>
+  applyMemoryWorkbenchPersonaCandidateAction: (input: {
+    cardId: string
+    candidateId: string
+    decision: AlicizationPersonaCandidateWorkbenchDecision
+    reason?: string | null
+  }) => Promise<AlicizationPersonaCandidateWorkbenchItem | null>
   enqueueWorkingMemoryLongTermQueueItems: (input: {
     cardId: string
     sessionId: string
@@ -1549,6 +1579,7 @@ export async function setupAlicizationDb(
   options?: {
     rootDir?: string
     cardId?: string
+    embeddingProvider?: LongTermMemoryEmbeddingProvider | null
   },
 ): Promise<AlicizationDbService> {
   const rootDir = options?.rootDir
@@ -1724,6 +1755,58 @@ export async function setupAlicizationDb(
     `)
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_ltm_policy_card_source ON long_term_memory_policy_overrides(card_id, source_id, source)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_ltm_policy_card_training ON long_term_memory_policy_overrides(card_id, allow_training, updated_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS memory_workbench_recall_metrics (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        query TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        latency_ms INTEGER NOT NULL,
+        evidence_count INTEGER NOT NULL,
+        semantic_available INTEGER NOT NULL,
+        error TEXT,
+        created_at INTEGER NOT NULL
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_workbench_recall_metrics_card_created ON memory_workbench_recall_metrics(card_id, created_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS long_term_memory_vectors (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        text_hash TEXT NOT NULL,
+        text TEXT NOT NULL,
+        vector_blob BLOB NOT NULL,
+        model_id TEXT NOT NULL,
+        dimensions INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        last_error TEXT,
+        metadata_json TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE(card_id, source_id, source, model_id)
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_model ON long_term_memory_vectors(card_id, model_id, dimensions, status)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_source ON long_term_memory_vectors(card_id, source_id, source)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS persona_training_candidate_reviews (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        candidate_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        allow_training INTEGER NOT NULL,
+        reason TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE(card_id, candidate_id)
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_candidate_reviews_card_updated ON persona_training_candidate_reviews(card_id, updated_at DESC)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS memory_reflections (
@@ -4747,6 +4830,35 @@ export async function setupAlicizationDb(
     enqueueWrite,
     runInTransaction,
   })
+  const memoryWorkbenchHealthRuntime = createMemoryWorkbenchHealthRuntime({
+    database,
+    now,
+    randomUUID,
+    run,
+    all,
+    enqueueWrite,
+  })
+  const longTermMemoryVectorStore = createPersistentLongTermMemoryVectorStore({
+    database,
+    now,
+    run,
+    all,
+    enqueueWrite,
+  })
+  const longTermMemoryEmbeddingProvider = options?.embeddingProvider ?? null
+  const memoryWorkbenchPersonaCandidateRuntime = createMemoryWorkbenchPersonaCandidateRuntime({
+    database,
+    now,
+    randomUUID,
+    run,
+    all,
+    enqueueWrite,
+    runInTransaction,
+    policyStore: memoryWorkbenchPolicyStore,
+    listMemoryReflections: memoryRelationshipRuntime.listMemoryReflections,
+    listPersonaReinforcementEvents: memoryRelationshipRuntime.listPersonaReinforcementEvents,
+    listTombstonedLongTermMemorySourceIds,
+  })
 
   async function persistWorkingMemoryLongTermTransaction(
     transaction: Parameters<typeof workingMemoryLongTermCleaningStore.updateTransaction>[0],
@@ -4833,6 +4945,29 @@ export async function setupAlicizationDb(
           continue
         }
 
+        const candidateSourceIds = [
+          cleanedTransaction.cleanedCandidate.id,
+          cleanedTransaction.queueItemId,
+        ]
+        const tombstonedCandidateSourceIds = await listTombstonedLongTermMemorySourceIds(candidateSourceIds)
+        if (tombstonedCandidateSourceIds.size > 0) {
+          rejected += 1
+          await persistWorkingMemoryLongTermTransaction({
+            ...cleanedTransaction,
+            status: 'rejected',
+            decision: 'reject',
+            allowTraining: false,
+            rejectionReasons: Array.from(new Set([
+              ...cleanedTransaction.rejectionReasons,
+              'tombstoned-before-admission',
+            ])),
+            reviewReasons: [],
+            updatedAt: now(),
+            nextAttemptAt: null,
+          }, 'rejected')
+          continue
+        }
+
         admitted += 1
         const projectionTs = now()
         const projections = projectWorkingMemoryLongTermCandidate({
@@ -4848,14 +4983,30 @@ export async function setupAlicizationDb(
           nextAttemptAt: projectionTs,
         }, 'admitted')
 
+        let persistedReflections: AlicizationMemoryReflectionRecord[] = []
+        let persistedEpisodes: AlicizationEpisodicEventRecord[] = []
         if (projections.memoryFacts.length > 0)
           await upsertMemoryFacts(projections.memoryFacts, 'rule')
         if (projections.memoryReflections.length > 0)
-          await memoryRelationshipRuntime.upsertMemoryReflections(projections.memoryReflections)
+          persistedReflections = await memoryRelationshipRuntime.upsertMemoryReflections(projections.memoryReflections)
         if (projections.episodicEvents.length > 0)
-          await appendEpisodicEvents(projections.episodicEvents)
+          persistedEpisodes = await appendEpisodicEvents(projections.episodicEvents)
         if (projections.personaReinforcements.length > 0)
           await memoryRelationshipRuntime.appendPersonaReinforcementEvents(projections.personaReinforcements)
+
+        const projectedFactSources = await findProjectedMemoryFactSourcesByCandidateId(cleanedTransaction.cleanedCandidate.id)
+        const projectedSources = [
+          ...projectedFactSources,
+          ...persistedReflections.map(item => ({ sourceId: item.id, source: 'memory_reflections' })),
+          ...persistedEpisodes.map(item => ({ sourceId: item.id, source: 'episodic_events' })),
+        ]
+        if (projectedSources.length > 0) {
+          await memoryWorkbenchPolicyStore.inheritCandidatePolicies({
+            cardId: cleanedTransaction.cardId,
+            candidateSourceIds,
+            projectedSources,
+          })
+        }
 
         await persistWorkingMemoryLongTermTransaction({
           ...cleanedTransaction,
@@ -5200,6 +5351,27 @@ export async function setupAlicizationDb(
     return Math.max(1, Math.min(100, Math.floor(Number(limit ?? fallback))))
   }
 
+  function encodeMemoryWorkbenchCursor(input: { updatedAt: number, id: string }) {
+    return Buffer.from(JSON.stringify(input), 'utf8').toString('base64url')
+  }
+
+  function decodeMemoryWorkbenchCursor(raw: string | null | undefined) {
+    if (!raw)
+      return null
+    try {
+      const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as { updatedAt?: unknown, id?: unknown }
+      if (!Number.isFinite(parsed.updatedAt) || typeof parsed.id !== 'string' || !parsed.id.trim())
+        return null
+      return {
+        updatedAt: Number(parsed.updatedAt),
+        id: parsed.id.trim(),
+      }
+    }
+    catch {
+      return null
+    }
+  }
+
   function memoryWorkbenchMatchesQuery(item: AlicizationMemoryWorkbenchItem, query: string) {
     if (!query)
       return true
@@ -5228,13 +5400,21 @@ export async function setupAlicizationDb(
       salience: candidate.salience ?? 0,
       sensitivity,
       visibility: sensitivity === 'private' || sensitivity === 'secret' ? 'inward-only' : 'explicit',
-      training: 'allowed',
+      training: 'blocked',
       source: candidate.source,
       createdAt: candidate.occurredAt ?? updatedAt,
       updatedAt,
       lastAccessedAt: null,
       tombstoned: false,
     }
+  }
+
+  async function findProjectedMemoryFactSourcesByCandidateId(candidateId: string) {
+    const sourceLabel = `working-memory-owner:${candidateId}`
+    const facts = await listMemoryFacts()
+    return facts
+      .filter(fact => fact.sourceLabel === sourceLabel)
+      .map(fact => ({ sourceId: fact.id, source: 'memory_facts' }))
   }
 
   function projectLongTermReviewItemForWorkbench(item: LongTermMemoryReviewItem): AlicizationLongTermMemoryReviewItem {
@@ -5280,20 +5460,52 @@ export async function setupAlicizationDb(
       ...consolidations.map(memoryConsolidationToLongTermEvidenceCandidate),
     ]
     const tombstonedSourceIds = await listTombstonedLongTermMemorySourceIds(candidates.map(candidate => candidate.id))
-    const items = candidates
+    const candidateSourceIds = candidates.map(candidate => candidate.id)
+    const policies = await memoryWorkbenchPolicyStore.listPolicyOverrides({
+      cardId: input.cardId,
+      sourceIds: candidateSourceIds,
+    })
+    const policyBySource = new Map(policies.map(policy => [`${policy.source}:${policy.sourceId}`, policy]))
+    const cursor = decodeMemoryWorkbenchCursor(input.cursor)
+    const sortedItems = candidates
       .filter(candidate => !tombstonedSourceIds.has(candidate.id))
-      .map(projectLongTermEvidenceCandidateForWorkbench)
+      .map((candidate) => {
+        const item = projectLongTermEvidenceCandidateForWorkbench(candidate)
+        const policy = item.sourceIds
+          .map(sourceId => policyBySource.get(`${item.source}:${sourceId}`))
+          .find(Boolean) ?? null
+        const mergedPolicy = mergeMemoryWorkbenchPolicy({
+          sourceId: item.sourceIds[0] ?? item.id,
+          source: item.source,
+          sensitivity: item.sensitivity,
+          override: policy,
+          tombstoned: false,
+        })
+        return {
+          ...item,
+          visibility: mergedPolicy.visibleMode,
+          training: mergedPolicy.training,
+          tombstoned: mergedPolicy.tombstoned,
+        }
+      })
       .filter(item => !input.kind || input.kind === 'all' || item.kind === input.kind)
       .filter(item => !input.sensitivity || input.sensitivity === 'all' || item.sensitivity === input.sensitivity)
       .filter(item => !input.visibility || input.visibility === 'all' || item.visibility === input.visibility)
       .filter(item => !input.training || input.training === 'all' || item.training === input.training)
       .filter(item => !input.source || item.source === input.source)
       .filter(item => memoryWorkbenchMatchesQuery(item, query))
-      .sort((left, right) => right.updatedAt - left.updatedAt)
-      .slice(0, safeLimit)
+      .sort((left, right) => {
+        const updatedDiff = right.updatedAt - left.updatedAt
+        return updatedDiff !== 0 ? updatedDiff : left.id.localeCompare(right.id)
+      })
+    const afterCursor = cursor
+      ? sortedItems.filter(item => item.updatedAt < cursor.updatedAt || (item.updatedAt === cursor.updatedAt && item.id > cursor.id))
+      : sortedItems
+    const items = afterCursor.slice(0, safeLimit)
+    const next = afterCursor.length > safeLimit ? items[items.length - 1] : null
     return {
       items,
-      nextCursor: null,
+      nextCursor: next ? encodeMemoryWorkbenchCursor({ updatedAt: next.updatedAt, id: next.id }) : null,
     }
   }
 
@@ -5366,6 +5578,12 @@ export async function setupAlicizationDb(
       reviewItemId: input.reviewItemId,
       decision,
     })
+    if (result && input.decision === 'tombstone') {
+      await tombstoneLongTermMemorySources({
+        sourceIds: result.sourceMemoryIds.length > 0 ? result.sourceMemoryIds : [result.transactionId],
+        reason: input.reason ?? 'user-tombstoned-review-item',
+      })
+    }
     return result ? projectLongTermReviewItemForWorkbench(result) : null
   }
 
@@ -5378,6 +5596,7 @@ export async function setupAlicizationDb(
   }): Promise<AlicizationMemoryRecallProbeResult> {
     const startedAt = now()
     const query = normalizeOrganicMemoryText(input.query, 600)
+    const semantic = await getMemoryWorkbenchRecallProbeSemantic({ cardId: input.cardId })
     if (!query) {
       return {
         query: '',
@@ -5400,6 +5619,7 @@ export async function setupAlicizationDb(
           confidencePolicy: 'direct',
         },
         evidence: [],
+        semantic,
         latencyMs: now() - startedAt,
         errors: [],
       }
@@ -5409,6 +5629,16 @@ export async function setupAlicizationDb(
         cardId: input.cardId,
         currentUserText: query,
         limit: input.limit,
+      })
+      const latencyMs = now() - startedAt
+      await memoryWorkbenchHealthRuntime.appendRecallMetric({
+        cardId: input.cardId,
+        query,
+        mode: bundle.intent.mode,
+        latencyMs,
+        evidenceCount: bundle.evidence.length,
+        semanticAvailable: semantic.available,
+        error: null,
       })
       return {
         query,
@@ -5438,13 +5668,25 @@ export async function setupAlicizationDb(
           score: item.score,
           visibleMode: item.visibleMode,
           queryMatches: item.queryMatches,
-          rankReasons: item.rankReasons,
-        })),
-        latencyMs: now() - startedAt,
+            rankReasons: item.rankReasons,
+          })),
+        semantic,
+        latencyMs,
         errors: [],
       }
     }
     catch (error) {
+      const latencyMs = now() - startedAt
+      const message = errorMessageFrom(error) ?? String(error)
+      await memoryWorkbenchHealthRuntime.appendRecallMetric({
+        cardId: input.cardId,
+        query,
+        mode: 'none',
+        latencyMs,
+        evidenceCount: 0,
+        semanticAvailable: semantic.available,
+        error: message,
+      })
       return {
         query,
         intent: {
@@ -5466,40 +5708,181 @@ export async function setupAlicizationDb(
           confidencePolicy: 'direct',
         },
         evidence: [],
-        latencyMs: now() - startedAt,
-        errors: [error instanceof Error ? error.message : String(error)],
+        semantic,
+        latencyMs,
+        errors: [message],
+      }
+    }
+  }
+
+  async function getMemoryWorkbenchRecallProbeSemantic(input: { cardId: string }) {
+    try {
+      const embedding = await getMemoryWorkbenchEmbeddingHealth(input)
+      const available = embedding.providerConfigured === true
+        && Boolean(embedding.modelId)
+        && Number.isFinite(embedding.dimensions)
+        && embedding.reindexRequired !== true
+      return {
+        available,
+        modelId: embedding.modelId,
+        dimensions: embedding.dimensions,
+        error: available
+          ? null
+          : embedding.providerConfigured
+            ? embedding.reindexRequired ? 'embedding index requires reindex' : null
+            : 'embedding provider is not configured',
+      }
+    }
+    catch (error) {
+      return {
+        available: false,
+        modelId: null,
+        dimensions: null,
+        error: errorMessageFrom(error) ?? 'embedding health unavailable',
       }
     }
   }
 
   async function getMemoryWorkbenchQueueHealth(input: { cardId: string }): Promise<AlicizationMemoryWorkbenchHealth['queue']> {
-    void input
-    return {
-      pending: 0,
-      review: 0,
-      applied: 0,
-      failed: 0,
-      deadLettered: 0,
-    }
+    return await memoryWorkbenchHealthRuntime.getQueueHealth(input)
   }
 
   async function getMemoryWorkbenchRecallHealth(input: { cardId: string }): Promise<AlicizationMemoryWorkbenchHealth['recall']> {
-    void input
-    return {
-      lastLatencyMs: null,
-      p95LatencyMs: null,
-      lastError: null,
-    }
+    return await memoryWorkbenchHealthRuntime.getRecallHealth(input)
   }
 
   async function getMemoryWorkbenchEmbeddingHealth(input: { cardId: string }): Promise<AlicizationMemoryWorkbenchHealth['embedding']> {
-    void input
-    return {
-      providerConfigured: false,
-      modelId: null,
-      dimensions: null,
-      reindexRequired: false,
+    return await longTermMemoryVectorStore.getHealth({
+      cardId: input.cardId,
+      activeModelId: longTermMemoryEmbeddingProvider?.modelId ?? null,
+      dimensions: longTermMemoryEmbeddingProvider?.dimensions ?? null,
+    })
+  }
+
+  function memoryWorkbenchEmbeddingText(item: AlicizationMemoryWorkbenchItem) {
+    return normalizeOrganicMemoryText([
+      item.summary,
+      ...item.evidenceSnippets,
+    ].filter(Boolean).join(' '), 1000)
+  }
+
+  async function reindexMemoryWorkbenchEmbeddings(input: {
+    cardId: string
+    source?: string
+    sourceIds?: string[]
+    modelId?: string
+    limit?: number
+  }): Promise<AlicizationMemoryEmbeddingReindexResult> {
+    const provider = longTermMemoryEmbeddingProvider
+    if (!provider) {
+      return {
+        scheduled: 0,
+        indexed: 0,
+        failed: 0,
+        modelId: null,
+        dimensions: null,
+        errors: ['embedding provider is not configured'],
+      }
     }
+
+    const requestedModelId = normalizeOrganicMemoryText(input.modelId, 160)
+    if (requestedModelId && requestedModelId !== provider.modelId) {
+      const stale = await longTermMemoryVectorStore.reindexByModel({
+        cardId: input.cardId,
+        modelId: requestedModelId,
+      })
+      return {
+        scheduled: stale.recordCount,
+        indexed: 0,
+        failed: 0,
+        modelId: provider.modelId,
+        dimensions: provider.dimensions,
+        errors: [`embedding provider model is ${provider.modelId}; requested ${requestedModelId} was marked stale`],
+      }
+    }
+
+    const sourceIds = new Set((input.sourceIds ?? []).map(id => normalizeOrganicMemoryText(id, 240)).filter(Boolean))
+    const listed = await listMemoryWorkbenchLongTermItems({
+      cardId: input.cardId,
+      source: input.source,
+      limit: input.limit,
+    })
+    const scheduledItems = listed.items
+      .filter(item => sourceIds.size === 0 || item.sourceIds.some(sourceId => sourceIds.has(sourceId)) || sourceIds.has(item.id))
+      .map(item => ({
+        item,
+        sourceId: item.sourceIds[0] ?? item.id,
+        text: memoryWorkbenchEmbeddingText(item),
+      }))
+      .filter(entry => entry.sourceId && entry.text)
+
+    const embedded = await safeEmbedLongTermMemoryTexts({
+      provider,
+      texts: scheduledItems.map(entry => entry.text),
+    })
+    const errors = embedded.error ? [embedded.error] : []
+    const itemQueuesByText = new Map<string, typeof scheduledItems>()
+    for (const entry of scheduledItems) {
+      const existing = itemQueuesByText.get(entry.text) ?? []
+      existing.push(entry)
+      itemQueuesByText.set(entry.text, existing)
+    }
+    const records = embedded.embeddings
+      .map((embedding) => {
+        const queue = itemQueuesByText.get(embedding.text)
+        const entry = queue?.shift()
+        if (!entry)
+          return null
+        return {
+          id: `ltm-vector:${input.cardId}:${embedding.modelId}:${entry.item.source}:${entry.sourceId}`,
+          cardId: input.cardId,
+          sourceId: entry.sourceId,
+          source: entry.item.source,
+          text: entry.text,
+          vector: embedding.vector,
+          modelId: embedding.modelId,
+          dimensions: embedding.dimensions,
+          updatedAt: now(),
+          metadata: {
+            workbenchItemId: entry.item.id,
+            kind: entry.item.kind,
+          },
+        }
+      })
+      .filter((record): record is NonNullable<typeof record> => Boolean(record))
+
+    if (records.length > 0)
+      await longTermMemoryVectorStore.upsertVectors(records)
+    const failed = Math.max(0, scheduledItems.length - records.length)
+    if (failed > 0 && errors.length === 0)
+      errors.push('embedding provider returned fewer valid vectors than scheduled')
+
+    return {
+      scheduled: scheduledItems.length,
+      indexed: records.length,
+      failed,
+      modelId: provider.modelId,
+      dimensions: provider.dimensions,
+      errors,
+    }
+  }
+
+  async function listMemoryWorkbenchPersonaCandidates(input: {
+    cardId: string
+    status?: AlicizationPersonaCandidateWorkbenchStatus | 'all'
+    limit?: number
+    cursor?: string | null
+  }) {
+    return await memoryWorkbenchPersonaCandidateRuntime.listPersonaCandidates(input)
+  }
+
+  async function applyMemoryWorkbenchPersonaCandidateAction(input: {
+    cardId: string
+    candidateId: string
+    decision: AlicizationPersonaCandidateWorkbenchDecision
+    reason?: string | null
+  }) {
+    return await memoryWorkbenchPersonaCandidateRuntime.applyPersonaCandidateAction(input)
   }
 
   async function runMemoryPrune() {
@@ -5858,6 +6241,9 @@ export async function setupAlicizationDb(
     getMemoryWorkbenchQueueHealth,
     getMemoryWorkbenchRecallHealth,
     getMemoryWorkbenchEmbeddingHealth,
+    reindexMemoryWorkbenchEmbeddings,
+    listMemoryWorkbenchPersonaCandidates,
+    applyMemoryWorkbenchPersonaCandidateAction,
     enqueueWorkingMemoryLongTermQueueItems,
     drainWorkingMemoryLongTermQueue,
     listLongTermMemoryReviewItems,

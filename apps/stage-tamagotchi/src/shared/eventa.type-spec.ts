@@ -151,6 +151,12 @@ const recallProbe: AlicizationMemoryRecallProbeResult = {
       rankReasons: ['episodic cue match'],
     },
   ],
+  semantic: {
+    available: false,
+    modelId: null,
+    dimensions: null,
+    error: 'embedding provider is not configured',
+  },
   latencyMs: 1,
   errors: [],
 }

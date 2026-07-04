@@ -7,6 +7,8 @@ import type {
 } from '../../../shared/eventa'
 import type { WorkingMemorySnapshot } from './life-core/working-memory'
 
+import { deriveMemoryWorkbenchStatus } from './memory-workbench-health'
+
 function normalizeText(raw: unknown, maxChars = 320) {
   if (typeof raw !== 'string')
     return ''
@@ -110,7 +112,11 @@ export async function buildMemoryWorkbenchSnapshot(input: BuildMemoryWorkbenchSn
       items: reviewItems,
     },
     health: {
-      status: errors.length > 0 ? 'degraded' : 'ok',
+      status: deriveMemoryWorkbenchStatus({
+        errors,
+        queueFailed: queue.failed,
+        embeddingConfigured: embedding.providerConfigured,
+      }),
       queue,
       recall,
       embedding,

@@ -1,3 +1,8 @@
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import { afterEach } from 'vitest'
 import { describe, expect, it } from 'vitest'
 
 import type {
@@ -12,6 +17,24 @@ import {
 
 import { createEmptyWorkingMemorySnapshot } from './life-core/working-memory'
 import { buildMemoryWorkbenchSnapshot, projectWorkingMemoryForWorkbench } from './memory-workbench'
+import { setupAlicizationDb } from './db'
+
+const sandboxDirs: string[] = []
+
+async function createSandboxUserDataPath() {
+  const dir = await mkdtemp(join(tmpdir(), 'alicization-memory-workbench-'))
+  sandboxDirs.push(dir)
+  return dir
+}
+
+afterEach(async () => {
+  while (sandboxDirs.length > 0) {
+    const dir = sandboxDirs.pop()
+    if (!dir)
+      continue
+    await rm(dir, { recursive: true, force: true })
+  }
+})
 
 describe('memory workbench projection', () => {
   it('projects WorkingMemory owner state without exposing prompt internals', () => {
@@ -109,6 +132,96 @@ describe('memory workbench projection', () => {
     })
 
     expect(result.workingMemory?.sessionId).toBe('session-ui')
+  })
+
+  it('marks snapshot health degraded when queue health reports failures', async () => {
+    const result = await buildMemoryWorkbenchSnapshot({
+      cardId: 'default',
+      sessionId: null,
+      now: () => 350,
+      getWorkingMemory: () => null,
+      listLongTermItems: async () => [],
+      listReviewItems: async () => [],
+      getQueueHealth: async () => ({
+        pending: 0,
+        review: 0,
+        applied: 0,
+        failed: 1,
+        deadLettered: 0,
+      }),
+      getRecallHealth: async () => ({
+        lastLatencyMs: null,
+        p95LatencyMs: null,
+        lastError: null,
+      }),
+      getEmbeddingHealth: async () => ({
+        providerConfigured: true,
+        modelId: 'local',
+        dimensions: 3,
+        reindexRequired: false,
+      }),
+    })
+
+    expect(result.health.status).toBe('degraded')
+  })
+
+  it('returns a stable next cursor for long-term memory workbench list results', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.upsertMemoryReflections([
+        {
+          id: 'reflection-1',
+          cardId: 'default',
+          sourceKind: 'reply',
+          targetScope: 'boundary',
+          summary: '用户不要固定模板回复。',
+          lesson: '透明说明失败，不要套模板。',
+          status: 'confirmed',
+          confidence: 0.9,
+          createdAt: 10,
+          updatedAt: 30,
+        },
+        {
+          id: 'reflection-2',
+          cardId: 'default',
+          sourceKind: 'reply',
+          targetScope: 'relationship',
+          summary: '用户喜欢自然回复。',
+          lesson: '保持自然节奏。',
+          status: 'confirmed',
+          confidence: 0.88,
+          createdAt: 10,
+          updatedAt: 20,
+        },
+        {
+          id: 'reflection-3',
+          cardId: 'default',
+          sourceKind: 'reply',
+          targetScope: 'task',
+          summary: '用户想打游戏放松。',
+          lesson: '可以想起共同娱乐线程。',
+          status: 'confirmed',
+          confidence: 0.86,
+          createdAt: 10,
+          updatedAt: 10,
+        },
+      ])
+
+      const first = await db.listMemoryWorkbenchLongTermItems({ cardId: 'default', limit: 2 })
+      expect(first.items.map(item => item.id)).toEqual(['reflection-1', 'reflection-2'])
+      expect(first.nextCursor).toBeTruthy()
+
+      const second = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        limit: 2,
+        cursor: first.nextCursor,
+      })
+      expect(second.items.map(item => item.id)).toEqual(['reflection-3'])
+      expect(second.nextCursor).toBeNull()
+    }
+    finally {
+      await db.close()
+    }
   })
 
   it('exposes productized memory workbench DTO contracts', () => {

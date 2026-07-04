@@ -141,7 +141,7 @@ describe('memory workbench dialogue loop acceptance', () => {
           sourceTurnIds: ['turn-1:user'],
           evidenceSnippets: ['以后节奏安静一点。'],
           salience: 0.82,
-          confidence: 0.78,
+          confidence: 0.68,
           sensitivity: 'personal',
           allowTraining: false,
           status: 'pending-cleaning',
@@ -174,6 +174,229 @@ describe('memory workbench dialogue loop acceptance', () => {
         visibleMode: 'inward-only',
         allowTraining: false,
       }))
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('inherits pre-admission review policy when approved candidates become long-term memory', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.enqueueWorkingMemoryLongTermQueueItems({
+        cardId: 'default',
+        sessionId: 'session-1',
+        items: [{
+          id: 'queue-fixed-template-correction',
+          source: 'working-memory-owner',
+          kind: 'correction',
+          summary: '用户不要固定模板回复。',
+          reason: 'User corrected Alicization reply behavior.',
+          sourceTurnIds: ['turn-1:user'],
+          evidenceSnippets: ['不要固定模板回复。'],
+          salience: 0.86,
+          confidence: 0.68,
+          sensitivity: 'personal',
+          allowTraining: false,
+          status: 'pending-cleaning',
+          rejectionReasons: [],
+          contaminationFlags: [],
+          createdAt: 2_100,
+        }],
+      })
+      await db.drainWorkingMemoryLongTermQueue(4)
+
+      const [reviewItem] = await db.listMemoryWorkbenchReviewItems({ cardId: 'default', limit: 8 })
+      expect(reviewItem).toBeTruthy()
+
+      await db.applyMemoryWorkbenchReviewAction({
+        cardId: 'default',
+        reviewItemId: reviewItem!.id,
+        decision: 'inward-only',
+      })
+      await db.applyMemoryWorkbenchReviewAction({
+        cardId: 'default',
+        reviewItemId: reviewItem!.id,
+        decision: 'approve',
+      })
+      await db.drainWorkingMemoryLongTermQueue(4)
+
+      const longTerm = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        query: '固定模板',
+        limit: 8,
+      })
+      const projected = longTerm.items.filter(item => item.summary.includes('固定模板'))
+      expect(projected.length).toBeGreaterThan(0)
+      expect(projected.every(item => item.visibility === 'inward-only')).toBe(true)
+      expect(projected.every(item => item.training === 'blocked')).toBe(true)
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('tombstones review candidate source ids so later long-term projections stay hidden', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.enqueueWorkingMemoryLongTermQueueItems({
+        cardId: 'default',
+        sessionId: 'session-1',
+        items: [{
+          id: 'queue-tombstone-correction',
+          source: 'working-memory-owner',
+          kind: 'correction',
+          summary: '这条候选不应该进入长期记忆。',
+          reason: 'User rejected this candidate before admission.',
+          sourceTurnIds: ['turn-1:user'],
+          evidenceSnippets: ['不要记这条。'],
+          salience: 0.86,
+          confidence: 0.78,
+          sensitivity: 'personal',
+          allowTraining: false,
+          status: 'pending-cleaning',
+          rejectionReasons: [],
+          contaminationFlags: [],
+          createdAt: 2_200,
+        }],
+      })
+      await db.drainWorkingMemoryLongTermQueue(4)
+
+      const [reviewItem] = await db.listMemoryWorkbenchReviewItems({ cardId: 'default', limit: 8 })
+      expect(reviewItem).toBeTruthy()
+
+      await db.applyMemoryWorkbenchReviewAction({
+        cardId: 'default',
+        reviewItemId: reviewItem!.id,
+        decision: 'tombstone',
+      })
+      await db.appendEpisodicEvents([{
+        id: 'cleaned:queue-tombstone-correction',
+        cardId: 'default',
+        sessionId: 'session-1',
+        sourceKind: 'reply',
+        provenance: 'remembered',
+        occurredAt: 2_300,
+        whatHappened: '这条候选不应该进入长期记忆。',
+        confidence: 0.8,
+        salience: 0.8,
+        consolidationPriority: 0.8,
+        tags: ['tombstone-regression'],
+      }])
+
+      const longTerm = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        query: '不应该进入长期记忆',
+        limit: 8,
+      })
+      expect(longTerm.items.flatMap(item => item.sourceIds)).not.toContain('cleaned:queue-tombstone-correction')
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('reports embedding reindex as unavailable when no provider is configured', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      const result = await db.reindexMemoryWorkbenchEmbeddings({
+        cardId: 'default',
+        limit: 4,
+      })
+
+      expect(result).toMatchObject({
+        scheduled: 0,
+        indexed: 0,
+        failed: 0,
+        modelId: null,
+        dimensions: null,
+      })
+      expect(result.errors.join(' ')).toContain('embedding provider')
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('reports recall probe semantic availability explicitly', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      const result = await db.runMemoryWorkbenchRecallProbe({
+        cardId: 'default',
+        query: '还记得失败面要透明吗？',
+        limit: 4,
+      })
+
+      expect(result.semantic).toMatchObject({
+        available: false,
+        modelId: null,
+        dimensions: null,
+      })
+      expect(result.semantic.error).toContain('embedding provider')
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('indexes cleaned long-term memories when an embedding provider is configured', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      embeddingProvider: {
+        modelId: 'local-test-embedding',
+        dimensions: 3,
+        embedTexts: async texts => texts.map((text, index) => ({
+          text,
+          vector: [1, index + 1, 0],
+        })),
+      },
+    })
+    try {
+      await db.upsertMemoryReflections([{
+        id: 'reflection-semantic-1',
+        cardId: 'default',
+        sourceKind: 'reply',
+        targetScope: 'truth',
+        summary: '失败面要透明。',
+        lesson: '超时和 provider 失败要直接告诉用户。',
+        status: 'confirmed',
+        confidence: 0.93,
+        createdAt: 10,
+        updatedAt: 20,
+      }])
+
+      const result = await db.reindexMemoryWorkbenchEmbeddings({
+        cardId: 'default',
+        limit: 4,
+      })
+
+      expect(result).toMatchObject({
+        scheduled: 1,
+        indexed: 1,
+        failed: 0,
+        modelId: 'local-test-embedding',
+        dimensions: 3,
+        errors: [],
+      })
+
+      const health = await db.getMemoryWorkbenchEmbeddingHealth({ cardId: 'default' })
+      expect(health).toMatchObject({
+        providerConfigured: true,
+        modelId: 'local-test-embedding',
+        dimensions: 3,
+        reindexRequired: false,
+      })
+
+      const probe = await db.runMemoryWorkbenchRecallProbe({
+        cardId: 'default',
+        query: '失败时怎么回应？',
+        limit: 4,
+      })
+      expect(probe.semantic).toMatchObject({
+        available: true,
+        modelId: 'local-test-embedding',
+        dimensions: 3,
+        error: null,
+      })
     }
     finally {
       await db.close()

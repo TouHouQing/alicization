@@ -16,9 +16,12 @@ import {
   electronAlicizationMemoryRetrieveFacts,
   electronAlicizationMemoryUpsertFacts,
   electronAlicizationMemoryWorkbenchApplyReviewAction,
+  electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction,
   electronAlicizationMemoryWorkbenchGetSnapshot,
+  electronAlicizationMemoryWorkbenchListPersonaCandidates,
   electronAlicizationMemoryWorkbenchListLongTerm,
   electronAlicizationMemoryWorkbenchRecallProbe,
+  electronAlicizationMemoryWorkbenchReindexEmbeddings,
   electronAlicizationReminderSchedule,
   electronAlicizationRunMemoryPrune,
   electronAlicizationSearchOrganicSubconsciousFragments,
@@ -127,6 +130,28 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     sessionId: normalizeSessionId(payload.sessionId) || null,
     includeWorkingMemory: payload.includeWorkingMemory === true,
     limit: payload.limit,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchReindexEmbeddings, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().reindexMemoryWorkbenchEmbeddings({
+    cardId: cardIdFrom(payload),
+    source: sanitizeText(payload.source, '') || undefined,
+    sourceIds: Array.isArray(payload.sourceIds) ? payload.sourceIds.map((id: unknown) => sanitizeText(id)).filter(Boolean) : undefined,
+    modelId: sanitizeText(payload.modelId, '') || undefined,
+    limit: payload.limit,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchListPersonaCandidates, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().listMemoryWorkbenchPersonaCandidates({
+    cardId: cardIdFrom(payload),
+    status: payload.status,
+    limit: payload.limit,
+    cursor: payload.cursor,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().applyMemoryWorkbenchPersonaCandidateAction({
+    cardId: cardIdFrom(payload),
+    candidateId: sanitizeText(payload.candidateId),
+    decision: payload.decision,
+    reason: sanitizeText(payload.reason, '') || null,
   })))
 
   registerInvokeHandler(electronAlicizationGetMemoryStats, async scope => await withCardScope(cardIdFrom(scope), async () => await getAlicizationDb().getMemoryStats()))
