@@ -94,10 +94,15 @@ import {
   electronAlicizationMemoryImportLegacy,
   electronAlicizationMemoryRetrieveFacts,
   electronAlicizationMemoryUpsertFacts,
+  electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction,
   electronAlicizationMemoryWorkbenchApplyReviewAction,
   electronAlicizationMemoryWorkbenchGetSnapshot,
+  electronAlicizationMemoryWorkbenchListEmbeddingModels,
+  electronAlicizationMemoryWorkbenchListPersonaCandidates,
   electronAlicizationMemoryWorkbenchListLongTerm,
   electronAlicizationMemoryWorkbenchRecallProbe,
+  electronAlicizationMemoryWorkbenchReindexEmbeddings,
+  electronAlicizationMemoryWorkbenchTestEmbeddingConnection,
   electronAlicizationPlanTaskThread,
   electronAlicizationRealtimeExecute,
   electronAlicizationReminderSchedule,
@@ -219,6 +224,11 @@ const memoryWorkbenchGetSnapshot = useElectronEventaInvoke(electronAlicizationMe
 const memoryWorkbenchListLongTerm = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListLongTerm)
 const memoryWorkbenchApplyReviewAction = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchApplyReviewAction)
 const memoryWorkbenchRecallProbe = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRecallProbe)
+const memoryWorkbenchListPersonaCandidates = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListPersonaCandidates)
+const memoryWorkbenchApplyPersonaCandidateAction = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction)
+const memoryWorkbenchReindexEmbeddings = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchReindexEmbeddings)
+const memoryWorkbenchListEmbeddingModels = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListEmbeddingModels)
+const memoryWorkbenchTestEmbeddingConnection = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchTestEmbeddingConnection)
 const alicizationSearchOrganicSubconsciousFragments = useElectronEventaInvoke(electronAlicizationSearchOrganicSubconsciousFragments)
 const alicizationSetPerformanceManifest = useElectronEventaInvoke(electronAlicizationSetPerformanceManifest)
 const alicizationAppendConversationTurn = useElectronEventaInvoke(electronAlicizationAppendConversationTurn)
@@ -984,6 +994,11 @@ setAlicizationBridge({
   memoryWorkbenchListLongTerm: async payload => await memoryWorkbenchListLongTerm({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchApplyReviewAction: async payload => await memoryWorkbenchApplyReviewAction({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchRecallProbe: async payload => await memoryWorkbenchRecallProbe({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchListPersonaCandidates: async payload => await memoryWorkbenchListPersonaCandidates({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchApplyPersonaCandidateAction: async payload => await memoryWorkbenchApplyPersonaCandidateAction({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchReindexEmbeddings: async payload => await memoryWorkbenchReindexEmbeddings({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchListEmbeddingModels: async payload => await memoryWorkbenchListEmbeddingModels({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchTestEmbeddingConnection: async payload => await memoryWorkbenchTestEmbeddingConnection({ ...resolveAlicizationScope(), ...payload }),
   getOrganicMemorySnapshot: async () => await alicizationGetOrganicMemorySnapshot(resolveAlicizationScope()),
   getLatestProjectStateObservation: async () => await readLatestRendererProjectStateObservation(),
   getProjectStateContinuitySnapshot: async () => projectStateObservationToContinuitySnapshot(

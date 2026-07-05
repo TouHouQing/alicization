@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   createOpenAICompatibleLongTermMemoryEmbeddingProvider,
+  listOpenAICompatibleLongTermMemoryEmbeddingModels,
   resolveOpenAICompatibleLongTermMemoryEmbeddingProvider,
+  testOpenAICompatibleLongTermMemoryEmbeddingConnection,
 } from './long-term-memory-openai-embedding-provider'
 
 describe('openai-compatible long-term memory embedding provider', () => {
@@ -67,6 +69,125 @@ describe('openai-compatible long-term memory embedding provider', () => {
     expect(provider).toMatchObject({
       dimensions: 768,
       modelId: 'nomic-embed-text',
+    })
+  })
+
+  it('prefers the dedicated memory embedding config over the legacy workbench key', () => {
+    const provider = resolveOpenAICompatibleLongTermMemoryEmbeddingProvider({
+      activeProviderId: 'openai-compatible',
+      fetch: vi.fn(),
+      providerCredentials: {
+        __alicizationMemoryEmbedding: {
+          apiKey: 'new-key',
+          baseUrl: 'https://new.example.test/v1/',
+          dimensions: 1024,
+          model: 'new-embedding-model',
+          providerId: 'new-provider',
+        },
+        alicizationMemoryEmbedding: {
+          apiKey: 'old-key',
+          baseUrl: 'https://old.example.test/v1/',
+          dimensions: 768,
+          model: 'old-embedding-model',
+          providerId: 'old-provider',
+        },
+      },
+    })
+
+    expect(provider).toMatchObject({
+      dimensions: 1024,
+      modelId: 'new-embedding-model',
+    })
+  })
+
+  it('lists searchable embedding models from the OpenAI-compatible models endpoint', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: [
+          { id: 'gpt-4.1-mini', owned_by: 'openai' },
+          { id: 'text-embedding-3-small', owned_by: 'openai' },
+          { id: 'nomic-embed-text', owned_by: 'local', dimensions: 768 },
+        ],
+      }),
+      text: async () => '',
+    } as Response))
+
+    const result = await listOpenAICompatibleLongTermMemoryEmbeddingModels({
+      apiKey: 'test-key',
+      baseUrl: 'https://example.test/v1',
+      fetch: fetchImpl,
+      query: 'embed',
+    })
+
+    expect(fetchImpl).toHaveBeenCalledWith('https://example.test/v1/models', expect.objectContaining({
+      method: 'GET',
+      headers: expect.objectContaining({ Authorization: 'Bearer test-key' }),
+    }))
+    expect(result).toEqual({
+      error: null,
+      items: [
+        {
+          description: null,
+          dimensions: 1536,
+          id: 'text-embedding-3-small',
+          name: 'text-embedding-3-small',
+          provider: 'openai',
+        },
+        {
+          description: null,
+          dimensions: 768,
+          id: 'nomic-embed-text',
+          name: 'nomic-embed-text',
+          provider: 'local',
+        },
+      ],
+      query: 'embed',
+    })
+  })
+
+  it('tests embedding connectivity and returns transparent provider failures', async () => {
+    const okFetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: [{ index: 0, embedding: [1, 0, 0] }],
+      }),
+      text: async () => '',
+    } as Response))
+
+    await expect(testOpenAICompatibleLongTermMemoryEmbeddingConnection({
+      apiKey: 'test-key',
+      baseUrl: 'https://example.test/v1',
+      dimensions: 3,
+      fetch: okFetch,
+      model: 'local-embedding',
+    })).resolves.toMatchObject({
+      dimensions: 3,
+      error: null,
+      modelId: 'local-embedding',
+      ok: true,
+    })
+
+    const failedFetch = vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({}),
+      text: async () => 'unauthorized',
+    } as Response))
+
+    await expect(testOpenAICompatibleLongTermMemoryEmbeddingConnection({
+      apiKey: 'bad-key',
+      baseUrl: 'https://example.test/v1',
+      dimensions: 3,
+      fetch: failedFetch,
+      model: 'local-embedding',
+    })).resolves.toMatchObject({
+      dimensions: 3,
+      error: 'embedding provider failed with HTTP 401: unauthorized',
+      modelId: 'local-embedding',
+      ok: false,
     })
   })
 })

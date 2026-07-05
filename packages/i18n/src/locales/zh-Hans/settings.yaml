@@ -515,7 +515,7 @@ pages:
     description: 存放记忆的地方，以及策略
     title: 记忆体
     workbench:
-      title: 记忆中心
+      title: 记忆
       description: 查看、审核、测试和清理 Alicization 的短期记忆与长期记忆。
       tabs:
         working: 当前短期记忆
@@ -538,6 +538,8 @@ pages:
         reset: 重置
         approve_candidate: 批准候选
         reject_candidate: 拒绝候选
+        discover_embedding_models: 检索模型
+        test_embedding_connection: 测试连通
         save_embedding_config: 保存向量配置
       states:
         empty_working: 还没有可显示的短期记忆快照。发送一轮对话后再刷新。
@@ -545,6 +547,8 @@ pages:
         empty_review: 当前没有需要你审核的记忆。
         empty_probe: 输入一句话，查看她会回想起什么。
         empty_persona: 还没有可审查的人格候选。
+        empty_embedding_models: 填写 URL 和 API Key 后检索可用向量模型；如果服务不返回列表，也可以直接输入模型名。
+        embedding_config_saved: 向量配置已保存，正在刷新记忆健康状态。
         loading: 正在读取记忆状态...
       fields:
         health: 记忆健康
@@ -573,10 +577,18 @@ pages:
         recall_health: 召回健康
         embedding_health: 向量健康
         embedding_provider: 向量 Provider
+        embedding_base_url: 向量 API URL
+        embedding_api_key: 向量 API Key
         embedding_model: 向量模型
+        embedding_model_search: 搜索或输入模型名
         embedding_dimensions: 向量维度
+        embedding_configuration: 向量模型配置
+        embedding_configuration_description: 这里配置长期记忆语义召回使用的 embedding 模型。embedding 只是检索表示，不是人格本体；更换模型后需要重建向量索引。
+        embedding_models: 可选模型
+        embedding_connection: 连通测试
         policy: 策略
         source: 来源
+        status: 状态
         updated_at: 更新时间
         confidence: 置信度
         salience: 重要度
@@ -587,6 +599,13 @@ pages:
         source_ids: 来源 ID
         candidate_status: 候选状态
         kind: 类型
+      placeholders:
+        embedding_provider: openai-compatible
+        embedding_base_url: https://api.openai.com/v1/
+        embedding_api_key: sk-...
+        embedding_model_search: 输入 embedding / bge / text-embedding 搜索
+        embedding_model: text-embedding-3-small
+        embedding_dimensions: 1536
   data:
     title: Data
     description: 管理存储 Alicization 数据、导出和重置
@@ -652,6 +671,9 @@ pages:
           description: 配置 3D VRM 模型
         scene: 场景
   modules:
+    memory:
+      description: 治理短期记忆、长期记忆、召回测试、向量索引和人格候选。
+      title: 记忆
     beat_sync:
       description: 随音源节拍律动
       title: 同步音律

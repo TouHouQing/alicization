@@ -18,10 +18,12 @@ import {
   electronAlicizationMemoryWorkbenchApplyReviewAction,
   electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction,
   electronAlicizationMemoryWorkbenchGetSnapshot,
+  electronAlicizationMemoryWorkbenchListEmbeddingModels,
   electronAlicizationMemoryWorkbenchListPersonaCandidates,
   electronAlicizationMemoryWorkbenchListLongTerm,
   electronAlicizationMemoryWorkbenchRecallProbe,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
+  electronAlicizationMemoryWorkbenchTestEmbeddingConnection,
   electronAlicizationReminderSchedule,
   electronAlicizationRunMemoryPrune,
   electronAlicizationSearchOrganicSubconsciousFragments,
@@ -29,6 +31,10 @@ import {
   electronAlicizationUpdateMemoryStats,
 } from '../../../shared/eventa'
 import { buildMemoryWorkbenchSnapshot } from './memory-workbench'
+import {
+  listOpenAICompatibleLongTermMemoryEmbeddingModels,
+  testOpenAICompatibleLongTermMemoryEmbeddingConnection,
+} from './long-term-memory-openai-embedding-provider'
 import {
   resolveAlicizationAutonomousDialogueFamilyClassification,
   resolveAlicizationAutonomousDialogueOrigin,
@@ -138,6 +144,21 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     sourceIds: Array.isArray(payload.sourceIds) ? payload.sourceIds.map((id: unknown) => sanitizeText(id)).filter(Boolean) : undefined,
     modelId: sanitizeText(payload.modelId, '') || undefined,
     limit: payload.limit,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchListEmbeddingModels, async payload => await withCardScope(payload.cardId, async () => await listOpenAICompatibleLongTermMemoryEmbeddingModels({
+    apiKey: sanitizeText(payload.apiKey, '') || null,
+    baseUrl: sanitizeText(payload.baseUrl),
+    query: sanitizeText(payload.query, '') || null,
+    timeoutMs: payload.timeoutMs,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchTestEmbeddingConnection, async payload => await withCardScope(payload.cardId, async () => await testOpenAICompatibleLongTermMemoryEmbeddingConnection({
+    apiKey: sanitizeText(payload.apiKey, '') || null,
+    baseUrl: sanitizeText(payload.baseUrl),
+    dimensions: typeof payload.dimensions === 'number' ? payload.dimensions : null,
+    model: sanitizeText(payload.model),
+    timeoutMs: payload.timeoutMs,
   })))
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchListPersonaCandidates, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().listMemoryWorkbenchPersonaCandidates({

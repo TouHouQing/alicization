@@ -1,4 +1,11 @@
+import type {
+  AlicizationMemoryEmbeddingConnectionTestResult,
+  AlicizationMemoryEmbeddingModelInfo,
+  AlicizationMemoryEmbeddingModelListResult,
+} from '../../../shared/eventa'
 import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
+
+import { errorMessageFrom } from '@moeru/std'
 
 export interface OpenAICompatibleLongTermMemoryEmbeddingProviderConfig {
   apiKey?: string | null
@@ -73,6 +80,168 @@ function embeddingsEndpoint(baseUrl: string) {
   return new URL('embeddings', normalizeBaseUrl(baseUrl)).toString()
 }
 
+function modelsEndpoint(baseUrl: string) {
+  return new URL('models', normalizeBaseUrl(baseUrl)).toString()
+}
+
+function timeoutMsFrom(raw: unknown, fallback = 15_000) {
+  const value = Number(raw)
+  return Number.isFinite(value) ? Math.max(1_000, Math.floor(value)) : fallback
+}
+
+function modelDimensionsFromId(id: string) {
+  if (id.includes('text-embedding-3-large'))
+    return 3072
+  if (id.includes('text-embedding-3-small'))
+    return 1536
+  if (id.includes('text-embedding-ada-002'))
+    return 1536
+  return null
+}
+
+function mapModelInfo(row: Record<string, unknown>): AlicizationMemoryEmbeddingModelInfo | null {
+  const id = normalizeText(row.id, 240)
+  if (!id)
+    return null
+  return {
+    id,
+    name: readFirstText(row.name, row.display_name, id),
+    provider: readFirstText(row.owned_by, row.provider, 'openai-compatible'),
+    description: normalizeText(row.description, 360) || null,
+    dimensions: readFirstDimensions(row.dimensions, row.embedding_dimensions) ?? modelDimensionsFromId(id),
+  }
+}
+
+function filterEmbeddingModels(
+  models: AlicizationMemoryEmbeddingModelInfo[],
+  query: string,
+) {
+  const normalizedQuery = normalizeText(query, 120).toLowerCase()
+  return models.filter((model) => {
+    const haystack = [
+      model.id,
+      model.name,
+      model.provider,
+      model.description ?? '',
+    ].join(' ').toLowerCase()
+    if (normalizedQuery && !haystack.includes(normalizedQuery))
+      return false
+    if (normalizedQuery)
+      return true
+    return /\b(embed|embedding|bge|e5|gte|jina|nomic|text-embedding)\b/i.test(haystack)
+  })
+}
+
+export async function listOpenAICompatibleLongTermMemoryEmbeddingModels(input: {
+  apiKey?: string | null
+  baseUrl: string
+  fetch?: typeof fetch
+  query?: string | null
+  timeoutMs?: number
+}): Promise<AlicizationMemoryEmbeddingModelListResult> {
+  const baseUrl = normalizeBaseUrl(input.baseUrl)
+  const query = normalizeText(input.query, 120) || null
+  if (!baseUrl)
+    return { error: 'embedding baseUrl is required', items: [], query }
+
+  const fetchImpl = input.fetch ?? globalThis.fetch
+  if (typeof fetchImpl !== 'function')
+    return { error: 'fetch is not available for embedding provider', items: [], query }
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(new Error('embedding model discovery timeout')), timeoutMsFrom(input.timeoutMs, 10_000))
+  try {
+    const response = await fetchImpl(modelsEndpoint(baseUrl), {
+      headers: {
+        ...(input.apiKey ? { Authorization: `Bearer ${normalizeText(input.apiKey, 1000)}` } : {}),
+      },
+      method: 'GET',
+      signal: controller.signal,
+    })
+    if (!response.ok) {
+      const text = await response.text().catch(() => '')
+      return {
+        error: `embedding model discovery failed with HTTP ${response.status}${text ? `: ${normalizeText(text, 300)}` : ''}`,
+        items: [],
+        query,
+      }
+    }
+
+    const payload = await response.json() as { data?: unknown }
+    const rows = Array.isArray(payload.data) ? payload.data : []
+    const items = rows
+      .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === 'object' && !Array.isArray(row))
+      .map(row => mapModelInfo(row))
+      .filter((row): row is AlicizationMemoryEmbeddingModelInfo => Boolean(row))
+
+    return {
+      error: null,
+      items: filterEmbeddingModels(items, query ?? ''),
+      query,
+    }
+  }
+  catch (error) {
+    return {
+      error: errorMessageFrom(error) ?? 'embedding model discovery failed',
+      items: [],
+      query,
+    }
+  }
+  finally {
+    clearTimeout(timeout)
+  }
+}
+
+export async function testOpenAICompatibleLongTermMemoryEmbeddingConnection(input: {
+  apiKey?: string | null
+  baseUrl: string
+  dimensions?: number | null
+  fetch?: typeof fetch
+  model: string
+  timeoutMs?: number
+}): Promise<AlicizationMemoryEmbeddingConnectionTestResult> {
+  const startedAt = Date.now()
+  const dimensions = normalizeDimensions(input.dimensions) ?? modelDimensionsFromId(normalizeText(input.model, 240)) ?? 1536
+  try {
+    const provider = createOpenAICompatibleLongTermMemoryEmbeddingProvider({
+      apiKey: input.apiKey,
+      baseUrl: input.baseUrl,
+      dimensions,
+      fetch: input.fetch,
+      model: input.model,
+      timeoutMs: input.timeoutMs,
+    })
+    const embeddings = await provider.embedTexts(['Alicization memory embedding connectivity probe'])
+    const vector: unknown = embeddings[0]?.vector
+    if (!isVector(vector, dimensions)) {
+      const actualDimensions = Array.isArray(vector) ? vector.length : 'none'
+      return {
+        dimensions,
+        error: `embedding provider returned invalid vector dimensions (${actualDimensions})`,
+        latencyMs: Date.now() - startedAt,
+        modelId: provider.modelId,
+        ok: false,
+      }
+    }
+    return {
+      dimensions,
+      error: null,
+      latencyMs: Date.now() - startedAt,
+      modelId: provider.modelId,
+      ok: true,
+    }
+  }
+  catch (error) {
+    return {
+      dimensions,
+      error: errorMessageFrom(error) ?? 'embedding connection test failed',
+      latencyMs: Date.now() - startedAt,
+      modelId: normalizeText(input.model, 240) || null,
+      ok: false,
+    }
+  }
+}
+
 export function createOpenAICompatibleLongTermMemoryEmbeddingProvider(
   config: OpenAICompatibleLongTermMemoryEmbeddingProviderConfig,
 ): LongTermMemoryEmbeddingProvider {
@@ -145,8 +314,8 @@ export function resolveOpenAICompatibleLongTermMemoryEmbeddingProvider(
   const activeProviderId = normalizeText(input.activeProviderId, 160)
   const activeProviderConfig = activeProviderId ? input.providerCredentials[activeProviderId] ?? {} : {}
   const memoryConfig = {
-    ...(input.providerCredentials.__alicizationMemoryEmbedding ?? {}),
     ...(input.providerCredentials.alicizationMemoryEmbedding ?? {}),
+    ...(input.providerCredentials.__alicizationMemoryEmbedding ?? {}),
   }
   const providerId = readFirstText(
     memoryConfig.providerId,

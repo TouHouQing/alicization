@@ -49,8 +49,18 @@ describe('alicization performance manifest clamp', () => {
     expect(source).toContain('electronAlicizationMemoryWorkbenchListLongTerm')
     expect(source).toContain('electronAlicizationMemoryWorkbenchApplyReviewAction')
     expect(source).toContain('electronAlicizationMemoryWorkbenchRecallProbe')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchListPersonaCandidates')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchReindexEmbeddings')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchListEmbeddingModels')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchTestEmbeddingConnection')
     expect(source).toContain('memoryWorkbenchGetSnapshot')
     expect(source).toContain('memoryWorkbenchRecallProbe')
+    expect(source).toContain('memoryWorkbenchListPersonaCandidates')
+    expect(source).toContain('memoryWorkbenchApplyPersonaCandidateAction')
+    expect(source).toContain('memoryWorkbenchReindexEmbeddings')
+    expect(source).toContain('memoryWorkbenchListEmbeddingModels')
+    expect(source).toContain('memoryWorkbenchTestEmbeddingConnection')
   })
 
   it('drops unsupported cues and downgrades unsupported base emotions', () => {

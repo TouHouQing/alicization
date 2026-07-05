@@ -68,6 +68,15 @@ export function useModulesList() {
       category: 'essential',
     },
     {
+      id: 'memory',
+      name: t('settings.pages.modules.memory.title'),
+      description: t('settings.pages.modules.memory.description'),
+      icon: 'i-solar:database-bold-duotone',
+      to: '/settings/modules/memory',
+      configured: true,
+      category: 'essential',
+    },
+    {
       id: 'vision',
       name: t('settings.pages.modules.vision.title'),
       description: t('settings.pages.modules.vision.description'),

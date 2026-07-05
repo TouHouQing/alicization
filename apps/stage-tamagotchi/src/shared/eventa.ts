@@ -849,6 +849,43 @@ export interface AlicizationMemoryEmbeddingReindexResult {
   errors: string[]
 }
 
+export interface AlicizationMemoryEmbeddingModelInfo {
+  id: string
+  name: string
+  provider: string
+  description: string | null
+  dimensions: number | null
+}
+
+export interface AlicizationMemoryEmbeddingModelListPayload extends AlicizationCardScope {
+  apiKey?: string | null
+  baseUrl: string
+  query?: string | null
+  timeoutMs?: number
+}
+
+export interface AlicizationMemoryEmbeddingModelListResult {
+  items: AlicizationMemoryEmbeddingModelInfo[]
+  query: string | null
+  error: string | null
+}
+
+export interface AlicizationMemoryEmbeddingConnectionTestPayload extends AlicizationCardScope {
+  apiKey?: string | null
+  baseUrl: string
+  dimensions?: number | null
+  model: string
+  timeoutMs?: number
+}
+
+export interface AlicizationMemoryEmbeddingConnectionTestResult {
+  ok: boolean
+  modelId: string | null
+  dimensions: number | null
+  latencyMs: number
+  error: string | null
+}
+
 export interface AlicizationMemoryRecallProbePayload extends AlicizationCardScope {
   query: string
   sessionId?: string | null
@@ -3738,6 +3775,8 @@ export const electronAlicizationMemoryWorkbenchRecallProbe = defineInvokeEventa<
 export const electronAlicizationMemoryWorkbenchListPersonaCandidates = defineInvokeEventa<AlicizationPersonaCandidateListResult, AlicizationPersonaCandidateListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-persona-candidates')
 export const electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction = defineInvokeEventa<AlicizationPersonaCandidateWorkbenchItem | null, AlicizationPersonaCandidateActionPayload>('eventa:invoke:electron:alicization:memory-workbench:apply-persona-candidate-action')
 export const electronAlicizationMemoryWorkbenchReindexEmbeddings = defineInvokeEventa<AlicizationMemoryEmbeddingReindexResult, AlicizationMemoryEmbeddingReindexPayload>('eventa:invoke:electron:alicization:memory-workbench:reindex-embeddings')
+export const electronAlicizationMemoryWorkbenchListEmbeddingModels = defineInvokeEventa<AlicizationMemoryEmbeddingModelListResult, AlicizationMemoryEmbeddingModelListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-embedding-models')
+export const electronAlicizationMemoryWorkbenchTestEmbeddingConnection = defineInvokeEventa<AlicizationMemoryEmbeddingConnectionTestResult, AlicizationMemoryEmbeddingConnectionTestPayload>('eventa:invoke:electron:alicization:memory-workbench:test-embedding-connection')
 export const electronAlicizationSearchOrganicSubconsciousFragments = defineInvokeEventa<AlicizationSubconsciousFragment[], AlicizationCardScope & { query: string, limit?: number }>('eventa:invoke:electron:alicization:memory:search-subconscious-fragments')
 export const electronAlicizationGetPerformanceManifest = defineInvokeEventa<CharacterPerformanceCapabilitiesManifest | null, AlicizationCardScope>('eventa:invoke:electron:alicization:performance:get-manifest')
 export const electronAlicizationSetPerformanceManifest = defineInvokeEventa<void, AlicizationCardScope & { manifest: CharacterPerformanceCapabilitiesManifest | null }>('eventa:invoke:electron:alicization:performance:set-manifest')

@@ -524,7 +524,7 @@ pages:
     description: Where memories got stored, and organized
     title: Memory
     workbench:
-      title: Memory Center
+      title: Memory
       description: Inspect, review, test, and clean Alicization short-term and long-term memory.
       tabs:
         working: Current Working Memory
@@ -547,6 +547,8 @@ pages:
         reset: Reset
         approve_candidate: Approve Candidate
         reject_candidate: Reject Candidate
+        discover_embedding_models: Discover Models
+        test_embedding_connection: Test Connection
         save_embedding_config: Save Embedding Config
       states:
         empty_working: No working memory snapshot yet. Send one dialogue turn and refresh.
@@ -554,6 +556,8 @@ pages:
         empty_review: No memories currently need your review.
         empty_probe: Enter a sentence to see what she would recall.
         empty_persona: No persona candidates ready for review yet.
+        empty_embedding_models: Fill URL and API key, then discover embedding models. If the service does not list models, enter the model name manually.
+        embedding_config_saved: Embedding config saved. Refreshing memory health.
         loading: Loading memory state...
       fields:
         health: Memory Health
@@ -582,10 +586,18 @@ pages:
         recall_health: Recall Health
         embedding_health: Embedding Health
         embedding_provider: Embedding Provider
+        embedding_base_url: Embedding API URL
+        embedding_api_key: Embedding API Key
         embedding_model: Embedding Model
+        embedding_model_search: Search or Enter Model
         embedding_dimensions: Embedding Dimensions
+        embedding_configuration: Embedding Model Config
+        embedding_configuration_description: Configure the embedding model used for long-term semantic recall. Embeddings are retrieval representations, not persona identity; reindex after changing models.
+        embedding_models: Available Models
+        embedding_connection: Connection Test
         policy: Policy
         source: Source
+        status: Status
         updated_at: Updated At
         confidence: Confidence
         salience: Salience
@@ -596,6 +608,13 @@ pages:
         source_ids: Source IDs
         candidate_status: Candidate Status
         kind: Kind
+      placeholders:
+        embedding_provider: openai-compatible
+        embedding_base_url: https://api.openai.com/v1/
+        embedding_api_key: sk-...
+        embedding_model_search: Type embedding / bge / text-embedding to search
+        embedding_model: text-embedding-3-small
+        embedding_dimensions: 1536
   data:
     title: Data
     description: Manage stored Alicization data, exports, and resets
@@ -661,6 +680,9 @@ pages:
           description: Configure 3D VRM models and settings
         scene: Scene
   modules:
+    memory:
+      description: Govern working memory, long-term memory, recall probes, vector indexing, and persona candidates.
+      title: Memory
     beat_sync:
       description: Vibe with beats from the audio source
       title: Beat Sync

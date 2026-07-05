@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 describe('memory workbench settings page', () => {
-  it('is a dedicated settings memory page with all visible loop tabs', () => {
-    const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+  it('lives under the modules settings area as Memory with all visible loop tabs', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
 
     expect(source).toContain('useAlicizationMemoryWorkbenchStore')
     expect(source).toContain("'working'")
@@ -15,7 +15,22 @@ describe('memory workbench settings page', () => {
     expect(source).toContain("'health'")
     expect(source).toContain('settings.pages.memory.workbench.title')
     expect(source).toContain('titleKey: settings.pages.memory.workbench.title')
-    expect(source).toContain('settingsEntry: true')
+    expect(source).not.toContain('settingsEntry: true')
+  })
+
+  it('keeps the old memory route as a compatibility redirect instead of a settings entry', () => {
+    const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+
+    expect(source).toContain("router.replace('/settings/modules/memory')")
+    expect(source).not.toContain('settingsEntry: true')
+  })
+
+  it('exposes Memory from the modules list', () => {
+    const source = readFileSync(new URL('../../../../../../../packages/stage-ui/src/composables/use-modules-list.ts', import.meta.url), 'utf8')
+
+    expect(source).toContain("id: 'memory'")
+    expect(source).toContain("to: '/settings/modules/memory'")
+    expect(source).toContain('settings.pages.modules.memory.title')
   })
 
   it('keeps user-facing memory UI outside performance visualizer', () => {
@@ -25,7 +40,7 @@ describe('memory workbench settings page', () => {
   })
 
   it('renders productized long-term filters and health sections', () => {
-    const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
 
     expect(source).toContain('longTermFilters')
     expect(source).toContain('loadMoreLongTerm')
@@ -36,7 +51,7 @@ describe('memory workbench settings page', () => {
   })
 
   it('renders persona candidate panel and embedding reindex action', () => {
-    const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
 
     expect(source).toContain('personaCandidates')
     expect(source).toContain('applyPersonaCandidateAction')
@@ -45,13 +60,31 @@ describe('memory workbench settings page', () => {
     expect(source).toContain('settings.pages.memory.workbench.actions.reindex_embeddings')
   })
 
-  it('renders production embedding configuration controls', () => {
-    const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+  it('renders production embedding configuration controls first with model discovery and connectivity testing', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+    const embeddingConfigSource = readFileSync(new URL('../modules/components/memory-embedding-config.vue', import.meta.url), 'utf8')
+    const embeddingConfigIndex = source.indexOf('<MemoryEmbeddingConfig />')
+    const tabIndex = source.indexOf('v-for="tab in tabs"')
 
-    expect(source).toContain('memoryEmbeddingProviderId')
-    expect(source).toContain('memoryEmbeddingModel')
-    expect(source).toContain('memoryEmbeddingDimensions')
-    expect(source).toContain('saveEmbeddingConfig')
-    expect(source).toContain('settings.pages.memory.workbench.actions.save_embedding_config')
+    expect(embeddingConfigIndex).toBeGreaterThan(0)
+    expect(tabIndex).toBeGreaterThan(embeddingConfigIndex)
+    expect(source).toContain('<MemoryEmbeddingConfig />')
+    expect(source).not.toContain('const memoryEmbeddingBaseUrl')
+    expect(embeddingConfigSource).toContain('memoryEmbeddingBaseUrl')
+    expect(embeddingConfigSource).toContain('memoryEmbeddingApiKey')
+    expect(embeddingConfigSource).toContain('memoryEmbeddingProviderId')
+    expect(embeddingConfigSource).toContain('memoryEmbeddingModel')
+    expect(embeddingConfigSource).toContain('memoryEmbeddingModelSearch')
+    expect(embeddingConfigSource).toContain('memoryEmbeddingDimensions')
+    expect(embeddingConfigSource).toContain('discoverEmbeddingModels')
+    expect(embeddingConfigSource).toContain('selectEmbeddingModel')
+    expect(embeddingConfigSource).toContain('testEmbeddingConnection')
+    expect(embeddingConfigSource).toContain('saveEmbeddingConfig')
+    expect(embeddingConfigSource).toContain('onUnmounted')
+    expect(embeddingConfigSource).toContain('LEGACY_MEMORY_EMBEDDING_CONFIG_KEY')
+    expect(embeddingConfigSource).toContain('store.embeddingConnectionTest = null')
+    expect(embeddingConfigSource).toContain('settings.pages.memory.workbench.actions.discover_embedding_models')
+    expect(embeddingConfigSource).toContain('settings.pages.memory.workbench.actions.test_embedding_connection')
+    expect(embeddingConfigSource).toContain('settings.pages.memory.workbench.actions.save_embedding_config')
   })
 })

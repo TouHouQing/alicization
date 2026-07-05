@@ -452,6 +452,43 @@ export interface AlicizationMemoryEmbeddingReindexResult {
   errors: string[]
 }
 
+export interface AlicizationMemoryEmbeddingModelInfo {
+  id: string
+  name: string
+  provider: string
+  description: string | null
+  dimensions: number | null
+}
+
+export interface AlicizationMemoryEmbeddingModelListPayload extends AlicizationCardScope {
+  apiKey?: string | null
+  baseUrl: string
+  query?: string | null
+  timeoutMs?: number
+}
+
+export interface AlicizationMemoryEmbeddingModelListResult {
+  items: AlicizationMemoryEmbeddingModelInfo[]
+  query: string | null
+  error: string | null
+}
+
+export interface AlicizationMemoryEmbeddingConnectionTestPayload extends AlicizationCardScope {
+  apiKey?: string | null
+  baseUrl: string
+  dimensions?: number | null
+  model: string
+  timeoutMs?: number
+}
+
+export interface AlicizationMemoryEmbeddingConnectionTestResult {
+  ok: boolean
+  modelId: string | null
+  dimensions: number | null
+  latencyMs: number
+  error: string | null
+}
+
 export interface AlicizationMemoryRecallProbePayload extends AlicizationCardScope {
   query: string
   sessionId?: string | null
@@ -2365,6 +2402,8 @@ interface AlicizationBridge {
   memoryWorkbenchListPersonaCandidates?: (payload: Omit<AlicizationPersonaCandidateListPayload, 'cardId'>) => Promise<AlicizationPersonaCandidateListResult>
   memoryWorkbenchApplyPersonaCandidateAction?: (payload: Omit<AlicizationPersonaCandidateActionPayload, 'cardId'>) => Promise<AlicizationPersonaCandidateWorkbenchItem | null>
   memoryWorkbenchReindexEmbeddings?: (payload: Omit<AlicizationMemoryEmbeddingReindexPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingReindexResult>
+  memoryWorkbenchListEmbeddingModels?: (payload: Omit<AlicizationMemoryEmbeddingModelListPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingModelListResult>
+  memoryWorkbenchTestEmbeddingConnection?: (payload: Omit<AlicizationMemoryEmbeddingConnectionTestPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingConnectionTestResult>
   getOrganicMemorySnapshot?: () => Promise<AlicizationOrganicMemorySnapshot>
   getLatestProjectStateObservation?: () => Promise<AlicizationProjectStateObservation | null>
   getProjectStateContinuitySnapshot?: () => Promise<AlicizationProjectStateContinuitySnapshot | null>

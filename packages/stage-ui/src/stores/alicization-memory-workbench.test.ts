@@ -182,4 +182,52 @@ describe('alicization memory workbench store', () => {
     await store.reindexEmbeddings()
     expect(store.reindexResult?.indexed).toBe(1)
   })
+
+  it('discovers embedding models and tests embedding connectivity through the bridge', async () => {
+    const memoryWorkbenchListEmbeddingModels = vi.fn(async payload => ({
+      items: [
+        {
+          id: 'text-embedding-3-small',
+          name: 'text-embedding-3-small',
+          provider: 'openai-compatible',
+          description: 'small embedding model',
+        },
+      ],
+      query: payload.query ?? null,
+    }))
+    const memoryWorkbenchTestEmbeddingConnection = vi.fn(async () => ({
+      ok: true,
+      modelId: 'text-embedding-3-small',
+      dimensions: 1536,
+      latencyMs: 12,
+      error: null,
+    }))
+
+    setAlicizationBridge({
+      memoryWorkbenchListEmbeddingModels,
+      memoryWorkbenchTestEmbeddingConnection,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.discoverEmbeddingModels({
+      apiKey: 'test-key',
+      baseUrl: 'https://api.example.test/v1/',
+      query: 'embedding',
+    })
+    expect(store.embeddingModels.map(model => model.id)).toEqual(['text-embedding-3-small'])
+    expect(memoryWorkbenchListEmbeddingModels).toHaveBeenCalledWith(expect.objectContaining({
+      baseUrl: 'https://api.example.test/v1/',
+      query: 'embedding',
+    }))
+
+    await store.testEmbeddingConnection({
+      apiKey: 'test-key',
+      baseUrl: 'https://api.example.test/v1/',
+      model: 'text-embedding-3-small',
+    })
+    expect(store.embeddingConnectionTest?.dimensions).toBe(1536)
+    expect(memoryWorkbenchTestEmbeddingConnection).toHaveBeenCalledWith(expect.objectContaining({
+      model: 'text-embedding-3-small',
+    }))
+  })
 })

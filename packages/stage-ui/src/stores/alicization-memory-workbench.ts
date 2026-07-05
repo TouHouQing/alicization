@@ -1,4 +1,9 @@
 import type {
+  AlicizationMemoryEmbeddingConnectionTestPayload,
+  AlicizationMemoryEmbeddingConnectionTestResult,
+  AlicizationMemoryEmbeddingModelInfo,
+  AlicizationMemoryEmbeddingModelListPayload,
+  AlicizationMemoryEmbeddingModelListResult,
   AlicizationMemoryEmbeddingReindexPayload,
   AlicizationMemoryEmbeddingReindexResult,
   AlicizationMemoryRecallProbeResult,
@@ -42,6 +47,11 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   const personaLoading = ref(false)
   const reindexLoading = ref(false)
   const reindexResult = ref<AlicizationMemoryEmbeddingReindexResult | null>(null)
+  const embeddingModels = ref<AlicizationMemoryEmbeddingModelInfo[]>([])
+  const embeddingModelDiscoveryLoading = ref(false)
+  const embeddingModelDiscoveryResult = ref<AlicizationMemoryEmbeddingModelListResult | null>(null)
+  const embeddingConnectionTesting = ref(false)
+  const embeddingConnectionTest = ref<AlicizationMemoryEmbeddingConnectionTestResult | null>(null)
   const recallProbe = ref<AlicizationMemoryRecallProbeResult | null>(null)
   const recallQuery = ref('我们去打游戏吧')
   const loading = ref(false)
@@ -273,6 +283,45 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     }
   }
 
+  async function discoverEmbeddingModels(payload: Omit<AlicizationMemoryEmbeddingModelListPayload, 'cardId'>) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListEmbeddingModels)
+      return null
+    embeddingModelDiscoveryLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchListEmbeddingModels!(payload)
+      embeddingModelDiscoveryResult.value = result
+      embeddingModels.value = result.items
+      lastError.value = result.error
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      embeddingModelDiscoveryLoading.value = false
+    }
+  }
+
+  async function testEmbeddingConnection(payload: Omit<AlicizationMemoryEmbeddingConnectionTestPayload, 'cardId'>) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchTestEmbeddingConnection)
+      return null
+    embeddingConnectionTesting.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchTestEmbeddingConnection!(payload)
+      embeddingConnectionTest.value = result
+      lastError.value = result.error
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      embeddingConnectionTesting.value = false
+    }
+  }
+
   return {
     activeTab,
     snapshot,
@@ -284,6 +333,11 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     personaLoading,
     reindexLoading,
     reindexResult,
+    embeddingModels,
+    embeddingModelDiscoveryLoading,
+    embeddingModelDiscoveryResult,
+    embeddingConnectionTesting,
+    embeddingConnectionTest,
     recallProbe,
     recallQuery,
     loading,
@@ -303,5 +357,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     refreshPersonaCandidates,
     applyPersonaCandidateAction,
     reindexEmbeddings,
+    discoverEmbeddingModels,
+    testEmbeddingConnection,
   }
 })
