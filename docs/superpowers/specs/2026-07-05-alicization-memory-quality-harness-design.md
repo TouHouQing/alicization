@@ -1,59 +1,59 @@
-# Alicization Memory Quality Harness Design
+# Alicization 记忆质量 Harness 设计
 
-## Context
+## 背景
 
-Alicization is in Phase 1: Local Digital Life. The memory system now has the main product loop in place:
+Alicization 当前仍处在 Phase 1：本地数字生命。记忆系统已经形成了主要产品闭环：
 
-- `WorkingMemory` owns short-term turn, task, correction, commitment, and long-term candidate state.
-- `LongTermMemoryRecall` owns durable recall intent, query planning, evidence selection, and rank reasons.
-- Memory Workbench is the user-visible governance surface for memory health, review policy, long-term search, embeddings, and persona candidates.
-- Persistent vector search and an OpenAI-compatible embedding provider can participate in recall without replacing lexical and structured recall.
+- `WorkingMemory` 是短期记忆 owner，负责当前轮次、任务、纠正、承诺和长期候选状态。
+- `LongTermMemoryRecall` 是长期回想 owner，负责召回意图、查询计划、证据选择和排序理由。
+- Memory Workbench 是用户可见的记忆治理入口，展示记忆健康、review policy、长期搜索、embedding 和 persona 候选。
+- 持久向量检索和 OpenAI-compatible embedding provider 已经可以进入召回链路，但不能替代 lexical 和 structured 召回。
 
-This is enough to be usable for early local testing, but it is not enough for quality and scale. The next phase must make memory behavior measurable, repeatable, and diagnosable before widening search volume, provider support, or persona learning.
+这些能力已经足够做早期本地试用，但还没有达到“质量与规模化可靠”的程度。下一阶段必须先让记忆行为可评测、可复现、可诊断，再扩大搜索体量、Provider 支持或 persona 学习。
 
-## External Engineering Lessons
+## 外部工程经验
 
-Recent agent memory systems converge on four useful patterns:
+近期 agent memory 系统有四个稳定共识：
 
-- Short-term memory should be thread-scoped state with clear ownership, not a global history pile.
-- Long-term memory should be stored in inspectable namespaces or stores, with retrieval separated from the current working state.
-- Agent quality work depends on traces and evals. Memory changes need replayable fixtures, observable rank reasons, and failure artifacts.
-- Complex memory stacks should earn complexity through measured quality gains, not by adding another retrieval channel first.
+- 短期记忆应当是 thread-scoped state，有明确 owner，不能变成全局历史堆。
+- 长期记忆应当放在可检查、可治理的 store/namespace 中，并和当前 WorkingMemory 分离。
+- Agent 质量改进依赖 trace 和 eval；记忆改动需要可回放 fixture、可观察 rank reason 和失败 artifact。
+- 复杂记忆栈必须通过可测质量收益来证明，不应该先追加新的检索通道。
 
-These lessons match Alicization's charter. The quality phase should strengthen continuous personhood, explainability, and local sovereignty rather than turning memory into a hidden RAG subsystem.
+这些经验和 Alicization charter 一致。质量阶段要增强连续人格、解释性和本地主权，而不是把记忆变成隐藏 RAG 子系统。
 
-## Goals
+## 目标
 
-1. Create a Memory Quality Harness that can evaluate long-term recall with deterministic fixtures and real DB-backed recall paths.
-2. Create a WorkingMemory Compression Harness that detects whether short-term memory compression drops current obligations, user corrections, commitments, or failure transparency.
-3. Produce trace artifacts that explain why a memory was selected, rejected, withheld, or unavailable.
-4. Feed quality summaries into Memory Workbench health without making Workbench the owner of memory semantics.
-5. Establish metrics that future embedding, vector, pagination, search, and persona-candidate work must pass before entering the main path.
+1. 建立 Memory Quality Harness，用确定性 fixture 和真实 DB-backed 召回路径评估长期记忆。
+2. 建立 WorkingMemory Compression Harness，检查短期记忆压缩是否丢失当前义务、用户纠正、承诺或失败透明状态。
+3. 产出 trace artifact，解释某条记忆为什么被选中、拒绝、保留为候选或不可用。
+4. 将质量摘要接入 Memory Workbench health，但不让 Workbench 成为记忆语义 owner。
+5. 建立未来 embedding、vector、分页搜索和 persona candidate 改动必须经过的质量指标。
 
-## Non-Goals
+## 非目标
 
-- Do not rewrite the memory architecture.
-- Do not make Workbench the owner of short-term or long-term memory behavior.
-- Do not train persona weights, publish persona samples, or treat approved persona candidates as automatic training data.
-- Do not vectorize raw transcripts as a shortcut.
-- Do not let review queue candidates count as confirmed long-term memory.
-- Do not hide provider failures, timeout failures, harness failures, or tool failures behind fixed personality text.
+- 不重写记忆架构。
+- 不让 Workbench 成为短期记忆或长期记忆行为 owner。
+- 不训练 persona 权重，不发布 persona 样本，不把 approved persona candidate 自动当作训练数据。
+- 不把 raw transcript 直接向量化作为捷径。
+- 不让 review queue candidate 计入已确认长期记忆。
+- 不用固定人格文本遮盖 Provider 失败、超时、harness 失败或工具失败。
 
-## Architecture
+## 架构
 
-The quality system has three layers.
+质量系统分三层。
 
-### Layer 1: Deterministic Harnesses
+### 第一层：确定性 Harness
 
-`long-term-memory-harness.ts` remains the base for synthetic candidate fixtures. It should be expanded rather than replaced.
+`long-term-memory-harness.ts` 继续作为 synthetic candidate fixture 的基础。后续应扩展它，而不是另起一套孤岛评测。
 
-The first new runtime is `memory-quality-harness.ts`. It composes long-term harness results, DB-backed recall runs, semantic availability, tombstone and review policy checks, and latency metrics into one report.
+新增 `memory-quality-harness.ts`，组合长期 harness 结果、DB-backed recall run、semantic 可用性、tombstone/review policy 检查和 latency 指标，产出统一质量报告。
 
-The second new runtime is `working-memory-quality-harness.ts`. It evaluates WorkingMemory snapshots and compressed prompt views to ensure important short-term obligations survive compression.
+新增 `working-memory-quality-harness.ts`，评估 WorkingMemory snapshot 和压缩后的 prompt view，确认重要短期义务不会在压缩中丢失。
 
-### Layer 2: Trace Artifacts
+### 第二层：Trace Artifact
 
-Every harness run produces a trace artifact with enough evidence to debug memory behavior:
+每次 harness run 都产出 trace artifact，足够用于诊断记忆行为：
 
 ```ts
 interface AlicizationMemoryQualityTrace {
@@ -93,55 +93,55 @@ interface AlicizationMemoryQualityTrace {
 }
 ```
 
-The trace is not a transcript and must not contain raw conversation text beyond bounded fixture query text and sanitized evidence snippets.
+Trace 不是 transcript。除了受限的 fixture query 和脱敏 evidence snippet，它不能携带原始对话文本。
 
-### Layer 3: Workbench Summary
+### 第三层：Workbench 摘要
 
-Memory Workbench consumes aggregated quality summaries:
+Memory Workbench 只消费聚合后的质量摘要：
 
-- latest harness run status
-- failing fixture ids
-- recall metrics
-- WorkingMemory compression-loss metrics
-- semantic provider health
-- latency p95
-- last explicit error
+- 最近 harness run 状态
+- 失败 fixture id
+- recall 指标
+- WorkingMemory compression-loss 指标
+- semantic provider 健康状态
+- p95 latency
+- 最近明确错误
 
-Workbench only displays and triggers quality actions. It does not decide recall ownership, compression policy, or persona training policy.
+Workbench 只展示和触发质量动作。它不决定 recall owner、compression policy 或 persona training policy。
 
-## Long-Term Recall Quality
+## 长期召回质量
 
-The harness should cover these fixture classes first:
+第一批 fixture 覆盖这些场景：
 
-1. **Explicit relationship correction**
-   - Query: "你还记得我不要固定模板回复吗？"
-   - Expected: cleaned correction or reflection about fixed-template avoidance.
-   - Forbidden: generic project progress memories.
+1. **明确关系纠正**
+   - Query: `你还记得我不要固定模板回复吗？`
+   - Expected: cleaned correction 或 reflection，内容指向避免固定模板。
+   - Forbidden: generic project progress memory。
 
-2. **Shared episode recall**
-   - Query: "我们去打游戏吧"
-   - Expected: prior shared game episode if present.
-   - Forbidden: unrelated entertainment or task memories.
+2. **共同经历回想**
+   - Query: `我们去打游戏吧`
+   - Expected: 如果存在共同游戏 episode，应召回它。
+   - Forbidden: 无关娱乐或任务记忆。
 
-3. **Task continuity**
-   - Query: "继续上次那个开发任务"
-   - Expected: current or recent task memory with thread fit.
-   - Forbidden: high-lexical wrong-thread memory.
+3. **任务连续性**
+   - Query: `继续上次那个开发任务`
+   - Expected: 与当前或近期 task/thread 匹配的记忆。
+   - Forbidden: lexical 很像但 wrong-thread 的记忆。
 
-4. **Low-confidence protection**
-   - Query asks about an ambiguous memory.
-   - Expected: either no explicit memory or a tentative rank reason.
-   - Forbidden: confident recall without evidence.
+4. **低置信保护**
+   - Query 指向模糊记忆。
+   - Expected: 不显性召回，或以 tentative rank reason 标记。
+   - Forbidden: 无证据却自信宣称记得。
 
-5. **Tombstone and review policy**
-   - Tombstoned memories must not appear in selected ids.
-   - Review-only candidates must not count as confirmed long-term memory.
+5. **Tombstone 和 review policy**
+   - Tombstoned memory 不得进入 selected ids。
+   - Review-only candidate 不得计作 confirmed long-term memory。
 
 6. **Semantic-only assistance**
-   - Semantic score may improve ranking when provider/index are healthy.
-   - Lexical and structured channels must still work when embeddings are unavailable.
+   - Provider/index 健康时，semantic score 可以改善排序。
+   - embedding 不可用时，lexical 和 structured 通道仍可工作。
 
-Metrics:
+核心指标：
 
 - `recallAtK`
 - `precisionAtK`
@@ -154,21 +154,21 @@ Metrics:
 - `sourceTraceRate`
 - `p95LatencyMs`
 
-## WorkingMemory Quality
+## WorkingMemory 质量
 
-WorkingMemory quality must evaluate the short-term owner as a live state machine, not as a summary paragraph.
+WorkingMemory 质量要把短期 owner 当作实时状态机评估，而不是把它当作一段摘要文本评估。
 
-The first fixtures should check:
+第一批 fixture 检查：
 
-- active task survives compression
-- unresolved user question survives compression
-- user correction survives compression
-- assistant commitment survives compression
-- provider/tool failure remains explicit
-- relationship posture remains bounded and does not become a fixed template
-- long-term candidates remain candidates and are not promoted as confirmed memories
+- active task 压缩后仍存在
+- unresolved user question 压缩后仍存在
+- user correction 压缩后仍存在
+- assistant commitment 压缩后仍存在
+- Provider/tool failure 仍然明确可见
+- relationship posture 保持有边界，不退化成固定模板
+- long-term candidate 仍然只是 candidate，不被提升成 confirmed memory
 
-Metrics:
+核心指标：
 
 - `obligationRetentionRate`
 - `correctionRetentionRate`
@@ -177,89 +177,89 @@ Metrics:
 - `candidateBoundaryViolationCount`
 - `compressionLossCount`
 
-## DB-Backed Recall Path
+## DB-backed 召回路径
 
-Synthetic candidate tests are useful but not enough. The quality runtime must also support a real DB-backed mode that:
+Synthetic candidate test 有价值，但还不够。质量 runtime 还必须支持真实 DB-backed 模式：
 
-1. Seeds only cleaned long-term memory rows.
-2. Optionally seeds vector rows using a deterministic test embedding provider.
-3. Calls the same DB facade recall method used by the dialogue path.
-4. Records query plan, evidence ids, rank reasons, semantic availability, and latency.
-5. Verifies tombstone, review policy, and vector-space isolation.
+1. 只 seed cleaned long-term memory rows。
+2. 可选地用确定性测试 embedding provider seed vector rows。
+3. 调用和对话路径一致的 DB facade recall 方法。
+4. 记录 query plan、evidence ids、rank reasons、semantic 可用性和 latency。
+5. 验证 tombstone、review policy 和 vector-space isolation。
 
-This mode is the bridge between unit fixtures and real local user data behavior.
+这条路径连接 unit fixture 和真实本地用户数据行为。
 
-## Error Handling
+## 错误处理
 
-Failures must remain visible:
+失败必须透明：
 
-- embedding provider unavailable -> report semantic unavailable and continue lexical/structured recall
-- vector index stale -> report `reindexRequired=true`
-- recall exception -> report error and mark fixture failed
-- harness exception -> report harness failure
-- timeout -> report timeout explicitly
+- embedding provider 不可用 -> 报告 semantic unavailable，并继续 lexical/structured recall
+- vector index stale -> 报告 `reindexRequired=true`
+- recall exception -> 记录 error，fixture failed
+- harness exception -> 记录 harness failure
+- timeout -> 明确记录 timeout
 
-No error path may produce a successful-looking memory quality result.
+任何错误路径都不能产出看起来成功的记忆质量结果。
 
-## Privacy And Training Boundaries
+## 隐私和训练边界
 
-Quality traces must not become persona training data.
+质量 trace 不能成为 persona training data。
 
-Allowed trace content:
+允许写入 trace 的内容：
 
-- fixture ids
-- memory ids
-- rank reasons
-- bounded sanitized query text
-- sanitized evidence snippets
-- metrics and error strings
+- fixture id
+- memory id
+- rank reason
+- 受限且脱敏的 query text
+- 脱敏 evidence snippet
+- metrics 和 error string
 
-Disallowed trace content:
+禁止写入 trace 的内容：
 
-- raw transcripts
-- private unredacted snippets
-- review queue candidates as confirmed memory
-- persona training samples
-- provider secrets
+- raw transcript
+- 未脱敏私密片段
+- 被当作 confirmed memory 的 review queue candidate
+- persona training sample
+- Provider secret
 
-## Implementation Phases
+## 实施阶段
 
-### Phase 1: Harness Core
+### Phase 1：Harness Core
 
-- Extend `long-term-memory-harness.ts` with `recallAtK`, `ndcg`, `wrongThreadRate`, `blockedLeakCount`, semantic hit data, and trace output.
-- Add `working-memory-quality-harness.ts` with compression-loss fixtures.
-- Add tests that fail on false recall, candidate boundary leaks, and dropped short-term obligations.
+- 扩展 `long-term-memory-harness.ts`，增加 `recallAtK`、`ndcg`、`wrongThreadRate`、`blockedLeakCount`、semantic hit 数据和 trace output。
+- 新增 `working-memory-quality-harness.ts`，覆盖 compression-loss fixture。
+- 增加测试，覆盖 false recall、candidate boundary leak 和 dropped short-term obligation。
 
-### Phase 2: DB-Backed Harness
+### Phase 2：DB-backed Harness
 
-- Add DB-backed fixture support with deterministic seeded memories.
-- Add deterministic embedding provider fixtures.
-- Verify semantic ranking, provider fallback, stale index behavior, and tombstone propagation.
+- 新增 DB-backed fixture 支持和确定性 seeded memory。
+- 增加确定性 embedding provider fixture。
+- 验证 semantic ranking、provider fallback、stale index 和 tombstone propagation。
 
-### Phase 3: Workbench Aggregation
+### Phase 3：Workbench Aggregation
 
-- Persist latest quality summary in the existing local metadata or a small quality table.
-- Extend Memory Workbench health DTO with quality summary fields.
-- Show latest status, failing fixture ids, and last error in `/settings/memory`.
+- 将最近质量摘要持久化到现有 meta 或小型 quality table。
+- 扩展 Memory Workbench health DTO，加入 quality summary fields。
+- 在 `/settings/memory` 显示最近状态、失败 fixture id 和 last error。
 
-### Phase 4: Scale Gates
+### Phase 4：Scale Gates
 
-- Make future recall/vector changes run the quality harness.
-- Add a replay gate that blocks scale-sensitive memory changes when recall quality regresses.
-- Keep thresholds conservative until enough local fixtures exist.
+- 未来 recall/vector 改动必须运行质量 harness。
+- 增加 replay gate，在规模敏感记忆改动出现质量回退时拦住。
+- 阈值先保持保守，等本地 fixture 足够多再提高。
 
-## Acceptance Criteria
+## 验收标准
 
-- A developer can run targeted tests for long-term and WorkingMemory quality without Electron.
-- Long-term fixture output explains selected ids, rejected ids, rank reasons, semantic state, latency, and errors.
-- WorkingMemory fixture output detects compression loss for obligations, corrections, commitments, and failure transparency.
-- Tombstoned memories and review-only candidates do not leak into selected confirmed recall.
-- Embedding provider failure degrades explicitly and does not break lexical/structured recall.
-- Workbench can later display quality status without taking ownership of memory behavior.
-- The implementation is covered by focused Vitest tests and TypeScript typecheck.
+- 开发者可以在不启动 Electron 的情况下运行长期记忆和 WorkingMemory 质量测试。
+- 长期 fixture 输出能解释 selected ids、rejected ids、rank reasons、semantic state、latency 和 errors。
+- WorkingMemory fixture 输出能检测 obligations、corrections、commitments 和 failure transparency 的压缩丢失。
+- Tombstoned memory 和 review-only candidate 不会泄漏进 confirmed recall。
+- embedding provider 失败时明确降级，且不破坏 lexical/structured recall。
+- Workbench 后续可以展示 quality status，但不接管记忆行为 owner。
+- 实现有 focused Vitest 和 TypeScript typecheck 覆盖。
 
-## Open Follow-Ups
+## 后续开放项
 
-- Add a larger anonymized replay dataset after the harness shape stabilizes.
-- Decide whether nightly local quality runs should be user-triggered, automatic idle work, or both.
-- Add import/export for quality fixtures so users can share redacted regression packs.
+- Harness shape 稳定后，加入更大的匿名 replay dataset。
+- 决定 nightly local quality run 是用户触发、idle 自动触发，还是两者都支持。
+- 增加 quality fixture import/export，让用户可以共享脱敏 regression pack。
