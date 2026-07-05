@@ -81,7 +81,7 @@ function binaryNdcgAtK(topIds: string[], expectedIds: string[]) {
     return sum + relevance / Math.log2(index + 2)
   }, 0)
   const idealHits = Math.min(expectedIds.length, topIds.length)
-  const idcg = Array.from({ length: idealHits }).reduce((sum, _item, index) => {
+  const idcg = Array.from({ length: idealHits }).reduce<number>((sum, _item, index) => {
     return sum + 1 / Math.log2(index + 2)
   }, 0)
   return idcg > 0 ? clamp01(dcg / idcg) : 0
