@@ -7,6 +7,8 @@ import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embeddi
 
 import { errorMessageFrom } from '@moeru/std'
 
+const OPENAI_COMPATIBLE_EMBEDDING_BATCH_SIZE = 32
+
 export interface OpenAICompatibleLongTermMemoryEmbeddingProviderConfig {
   apiKey?: string | null
   baseUrl: string
@@ -37,7 +39,27 @@ function normalizeBaseUrl(raw: unknown) {
   return text.endsWith('/') ? text : `${text}/`
 }
 
+function normalizeOpenAICompatibleApiBaseUrl(raw: unknown) {
+  const baseUrl = normalizeBaseUrl(raw)
+  if (!baseUrl)
+    return ''
+
+  const url = new URL(baseUrl)
+  const segments = url.pathname
+    .split('/')
+    .filter(Boolean)
+    .filter((segment, index, list) => index !== list.length - 1 || !['embeddings', 'models'].includes(segment))
+  if (!segments.includes('v1'))
+    segments.push('v1')
+  url.pathname = `/${segments.join('/')}/`
+  return url.toString()
+}
+
 function normalizeDimensions(raw: unknown) {
+  if (raw === null || raw === undefined)
+    return null
+  if (typeof raw === 'string' && !raw.trim())
+    return null
   const value = Number(raw)
   return Number.isFinite(value) ? Math.max(1, Math.floor(value)) : null
 }
@@ -77,16 +99,55 @@ function isVector(raw: unknown, dimensions: number): raw is number[] {
 }
 
 function embeddingsEndpoint(baseUrl: string) {
-  return new URL('embeddings', normalizeBaseUrl(baseUrl)).toString()
+  return new URL('embeddings', normalizeOpenAICompatibleApiBaseUrl(baseUrl)).toString()
 }
 
 function modelsEndpoint(baseUrl: string) {
-  return new URL('models', normalizeBaseUrl(baseUrl)).toString()
+  return new URL('models', normalizeOpenAICompatibleApiBaseUrl(baseUrl)).toString()
 }
 
 function timeoutMsFrom(raw: unknown, fallback = 15_000) {
   const value = Number(raw)
   return Number.isFinite(value) ? Math.max(1_000, Math.floor(value)) : fallback
+}
+
+async function requestOpenAICompatibleEmbeddings(input: {
+  apiKey?: string | null
+  baseUrl: string
+  fetch: typeof fetch
+  headers?: Record<string, string>
+  modelId: string
+  texts: string[]
+  timeoutMs?: number
+}) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(new Error('embedding provider timeout')), Math.max(1_000, input.timeoutMs ?? 15_000))
+  try {
+    const response = await input.fetch(embeddingsEndpoint(input.baseUrl), {
+      body: JSON.stringify({ input: input.texts, model: input.modelId }),
+      headers: {
+        ...(input.apiKey ? { Authorization: `Bearer ${normalizeText(input.apiKey, 1000)}` } : {}),
+        'Content-Type': 'application/json',
+        ...normalizeHeaders(input.headers),
+      },
+      method: 'POST',
+      signal: controller.signal,
+    })
+    if (!response.ok) {
+      const text = await response.text().catch(() => '')
+      throw new Error(`embedding provider failed with HTTP ${response.status}${text ? `: ${normalizeText(text, 300)}` : ''}`)
+    }
+
+    const payload = await response.json() as { data?: Array<{ embedding?: unknown, index?: unknown }> }
+    const rows = Array.isArray(payload.data) ? payload.data : []
+    return rows.map((row, fallbackIndex) => ({
+      index: Number.isFinite(Number(row.index)) ? Math.floor(Number(row.index)) : fallbackIndex,
+      vector: row.embedding,
+    }))
+  }
+  finally {
+    clearTimeout(timeout)
+  }
 }
 
 function modelDimensionsFromId(id: string) {
@@ -201,25 +262,36 @@ export async function testOpenAICompatibleLongTermMemoryEmbeddingConnection(inpu
   timeoutMs?: number
 }): Promise<AlicizationMemoryEmbeddingConnectionTestResult> {
   const startedAt = Date.now()
-  const dimensions = normalizeDimensions(input.dimensions) ?? modelDimensionsFromId(normalizeText(input.model, 240)) ?? 1536
+  const configuredDimensions = normalizeDimensions(input.dimensions) ?? modelDimensionsFromId(normalizeText(input.model, 240))
   try {
-    const provider = createOpenAICompatibleLongTermMemoryEmbeddingProvider({
+    const baseUrl = normalizeBaseUrl(input.baseUrl)
+    const modelId = normalizeText(input.model, 200)
+    if (!baseUrl)
+      throw new Error('embedding baseUrl is required')
+    if (!modelId)
+      throw new Error('embedding model is required')
+
+    const fetchImpl = input.fetch ?? globalThis.fetch
+    if (typeof fetchImpl !== 'function')
+      throw new Error('fetch is not available for embedding provider')
+
+    const rows = await requestOpenAICompatibleEmbeddings({
       apiKey: input.apiKey,
-      baseUrl: input.baseUrl,
-      dimensions,
-      fetch: input.fetch,
-      model: input.model,
+      baseUrl,
+      fetch: fetchImpl,
+      modelId,
+      texts: ['Alicization memory embedding connectivity probe'],
       timeoutMs: input.timeoutMs,
     })
-    const embeddings = await provider.embedTexts(['Alicization memory embedding connectivity probe'])
-    const vector: unknown = embeddings[0]?.vector
+    const vector: unknown = rows[0]?.vector
+    const dimensions = configuredDimensions ?? (Array.isArray(vector) ? vector.length : 0)
     if (!isVector(vector, dimensions)) {
       const actualDimensions = Array.isArray(vector) ? vector.length : 'none'
       return {
         dimensions,
         error: `embedding provider returned invalid vector dimensions (${actualDimensions})`,
         latencyMs: Date.now() - startedAt,
-        modelId: provider.modelId,
+        modelId,
         ok: false,
       }
     }
@@ -227,13 +299,13 @@ export async function testOpenAICompatibleLongTermMemoryEmbeddingConnection(inpu
       dimensions,
       error: null,
       latencyMs: Date.now() - startedAt,
-      modelId: provider.modelId,
+      modelId,
       ok: true,
     }
   }
   catch (error) {
     return {
-      dimensions,
+      dimensions: configuredDimensions ?? null,
       error: errorMessageFrom(error) ?? 'embedding connection test failed',
       latencyMs: Date.now() - startedAt,
       modelId: normalizeText(input.model, 240) || null,
@@ -267,42 +339,28 @@ export function createOpenAICompatibleLongTermMemoryEmbeddingProvider(
       if (input.length === 0)
         return []
 
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(new Error('embedding provider timeout')), Math.max(1_000, config.timeoutMs ?? 15_000))
-      try {
-        const response = await fetchImpl(embeddingsEndpoint(baseUrl), {
-          body: JSON.stringify({ dimensions, input, model: modelId }),
-          headers: {
-            ...(config.apiKey ? { Authorization: `Bearer ${normalizeText(config.apiKey, 1000)}` } : {}),
-            'Content-Type': 'application/json',
-            ...normalizeHeaders(config.headers),
-          },
-          method: 'POST',
-          signal: controller.signal,
+      const embeddings: Array<{ text: string, vector: number[] }> = []
+      for (let offset = 0; offset < input.length; offset += OPENAI_COMPATIBLE_EMBEDDING_BATCH_SIZE) {
+        const batch = input.slice(offset, offset + OPENAI_COMPATIBLE_EMBEDDING_BATCH_SIZE)
+        const rows = await requestOpenAICompatibleEmbeddings({
+          apiKey: config.apiKey,
+          baseUrl,
+          fetch: fetchImpl,
+          headers: config.headers,
+          modelId,
+          texts: batch,
+          timeoutMs: config.timeoutMs,
         })
-        if (!response.ok) {
-          const text = await response.text().catch(() => '')
-          throw new Error(`embedding provider failed with HTTP ${response.status}${text ? `: ${normalizeText(text, 300)}` : ''}`)
-        }
-
-        const payload = await response.json() as { data?: Array<{ embedding?: unknown, index?: unknown }> }
-        const rows = Array.isArray(payload.data) ? payload.data : []
-        return rows
-          .map((row, fallbackIndex) => ({
-            index: Number.isFinite(Number(row.index)) ? Math.floor(Number(row.index)) : fallbackIndex,
-            vector: row.embedding,
-          }))
+        embeddings.push(...rows
           .filter((row): row is { index: number, vector: number[] } =>
-            row.index >= 0 && row.index < input.length && isVector(row.vector, dimensions))
+            row.index >= 0 && row.index < batch.length && isVector(row.vector, dimensions))
           .sort((left, right) => left.index - right.index)
           .map(row => ({
-            text: input[row.index] ?? '',
+            text: batch[row.index] ?? '',
             vector: [...row.vector],
-          }))
+          })))
       }
-      finally {
-        clearTimeout(timeout)
-      }
+      return embeddings
     },
   }
 }

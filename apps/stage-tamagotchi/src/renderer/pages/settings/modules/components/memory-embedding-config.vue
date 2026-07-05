@@ -105,12 +105,14 @@ function selectEmbeddingModel(model: { id: string, dimensions: number | null }) 
 async function testEmbeddingConnection() {
   savedAt.value = null
   const dimensions = Number(memoryEmbeddingDimensions.value)
-  await store.testEmbeddingConnection({
+  const result = await store.testEmbeddingConnection({
     apiKey: memoryEmbeddingApiKey.value.trim() || null,
     baseUrl: memoryEmbeddingBaseUrl.value.trim(),
     dimensions: Number.isFinite(dimensions) && dimensions > 0 ? Math.floor(dimensions) : null,
     model: memoryEmbeddingModel.value.trim(),
   })
+  if (result?.ok && result.dimensions)
+    memoryEmbeddingDimensions.value = String(result.dimensions)
 }
 
 function scheduleEmbeddingModelDiscovery() {

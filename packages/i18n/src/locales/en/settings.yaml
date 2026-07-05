@@ -556,7 +556,7 @@ pages:
         empty_review: No memories currently need your review.
         empty_probe: Enter a sentence to see what she would recall.
         empty_persona: No persona candidates ready for review yet.
-        empty_embedding_models: Fill URL and API key, then discover embedding models. If the service does not list models, enter the model name manually.
+        empty_embedding_models: Fill the service base URL and API key, then discover embedding models. If the service does not list models, enter the model name manually.
         embedding_config_saved: Embedding config saved. Refreshing memory health.
         loading: Loading memory state...
       fields:
@@ -586,13 +586,13 @@ pages:
         recall_health: Recall Health
         embedding_health: Embedding Health
         embedding_provider: Embedding Provider
-        embedding_base_url: Embedding API URL
+        embedding_base_url: Embedding Service URL
         embedding_api_key: Embedding API Key
         embedding_model: Embedding Model
         embedding_model_search: Search or Enter Model
         embedding_dimensions: Embedding Dimensions
         embedding_configuration: Embedding Model Config
-        embedding_configuration_description: Configure the embedding model used for long-term semantic recall. Embeddings are retrieval representations, not persona identity; reindex after changing models.
+        embedding_configuration_description: Configure the embedding model used for long-term semantic recall. Enter the service base URL, such as https://api.siliconflow.cn; Alicization will call /v1/embeddings automatically. Embeddings are retrieval representations, not persona identity; reindex after changing models.
         embedding_models: Available Models
         embedding_connection: Connection Test
         policy: Policy
@@ -610,11 +610,11 @@ pages:
         kind: Kind
       placeholders:
         embedding_provider: openai-compatible
-        embedding_base_url: https://api.openai.com/v1/
+        embedding_base_url: https://api.siliconflow.cn
         embedding_api_key: sk-...
         embedding_model_search: Type embedding / bge / text-embedding to search
         embedding_model: text-embedding-3-small
-        embedding_dimensions: 1536
+        embedding_dimensions: Leave blank first; connection test can detect it
   data:
     title: Data
     description: Manage stored Alicization data, exports, and resets
