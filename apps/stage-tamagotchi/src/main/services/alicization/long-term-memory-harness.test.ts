@@ -122,4 +122,72 @@ describe('long-term memory harness', () => {
     expect(result.topIds).toEqual(['wm-owner-queue-plan'])
     expect(result.bundle.evidence[0]?.rankReasons).toEqual(expect.arrayContaining(['rrf:structured:thread-fit']))
   })
+
+  it('emits trace metrics for semantic hits, NDCG, and blocked leaks', () => {
+    const result = runLongTermMemoryHarnessFixture({
+      now,
+      fixture: {
+        id: 'semantic-fixed-template-correction',
+        currentUserText: '你还记得我不要固定模板回复吗？',
+        expectedMode: 'relationship',
+        expectedTopIds: ['reflection-fixed-template'],
+        forbiddenTopIds: ['generic-progress'],
+        blockedIds: ['tombstoned-fixed-template'],
+        semanticExpectedIds: ['reflection-fixed-template'],
+        semanticScores: {
+          'reflection-fixed-template': 0.92,
+          'generic-progress': 0.2,
+        },
+        semantic: {
+          available: true,
+          providerId: 'test-provider',
+          modelId: 'test-embedding',
+          dimensions: 3,
+          reindexRequired: false,
+        },
+        candidates: [
+          {
+            id: 'reflection-fixed-template',
+            kind: 'reflection',
+            summary: '用户纠正过：不要固定模板回复，要透明说失败。',
+            source: 'memory_reflections',
+            confidence: 0.9,
+            salience: 0.9,
+            cues: ['固定模板', '失败透明'],
+          },
+          {
+            id: 'generic-progress',
+            kind: 'consolidation',
+            summary: '用户问过项目进度。',
+            source: 'memory_consolidations',
+            confidence: 0.4,
+            salience: 0.3,
+            cues: ['进度'],
+          },
+          {
+            id: 'tombstoned-fixed-template',
+            kind: 'reflection',
+            summary: '这条旧纠正已经被 tombstone，不应召回。',
+            source: 'memory_reflections',
+            confidence: 0.95,
+            salience: 0.95,
+            cues: ['固定模板'],
+          },
+        ],
+      },
+    })
+
+    expect(result.metrics.recallAtK).toBe(1)
+    expect(result.metrics.ndcg).toBeGreaterThan(0.9)
+    expect(result.metrics.semanticHitRate).toBe(1)
+    expect(result.metrics.blockedLeakCount).toBe(0)
+    expect(result.trace.owner).toBe('LongTermMemoryRecall')
+    expect(result.trace.rankReasonsById['reflection-fixed-template']).toEqual(
+      expect.arrayContaining(['rrf:semantic:semantic-score']),
+    )
+    expect(result.trace.semantic).toEqual(expect.objectContaining({
+      available: true,
+      modelId: 'test-embedding',
+    }))
+  })
 })
