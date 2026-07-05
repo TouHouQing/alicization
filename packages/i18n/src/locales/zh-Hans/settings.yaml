@@ -538,6 +538,7 @@ pages:
         reset: 重置
         approve_candidate: 批准候选
         reject_candidate: 拒绝候选
+        save_embedding_config: 保存向量配置
       states:
         empty_working: 还没有可显示的短期记忆快照。发送一轮对话后再刷新。
         empty_long_term: 还没有匹配的长期记忆。
@@ -571,6 +572,9 @@ pages:
         queue_health: 队列健康
         recall_health: 召回健康
         embedding_health: 向量健康
+        embedding_provider: 向量 Provider
+        embedding_model: 向量模型
+        embedding_dimensions: 向量维度
         policy: 策略
         source: 来源
         updated_at: 更新时间

@@ -142,4 +142,52 @@ describe('long-term memory recall owner', () => {
     expect(bundle.evidence[0]?.visibleMode).toBe('inward-only')
     expect(block).toContain('inward:')
   })
+
+  it('fuses semantic scores into the evidence bundle instead of dropping vector recall', () => {
+    const intent = deriveLongTermMemoryRecallIntent({
+      currentUserText: '今晚继续开黑吗？',
+      workingMemoryQueryHints: ['一起玩游戏'],
+    })
+    const plan = buildLongTermMemoryQueryPlan({
+      intent,
+      currentUserText: '今晚继续开黑吗？',
+      workingMemoryQueryHints: ['一起玩游戏'],
+    })
+    const bundle = buildLongTermMemoryEvidenceBundle({
+      intent,
+      plan,
+      now,
+      limit: 2,
+      candidates: [
+        {
+          id: 'lexical-gaming-note',
+          kind: 'episode',
+          summary: '用户问过“今晚继续开黑吗”这句网络用语怎么翻译。',
+          source: 'episodic_events',
+          confidence: 0.54,
+          salience: 0.32,
+          cues: ['今晚继续开黑吗'],
+          occurredAt: now - 24 * 60 * 60 * 1000,
+        },
+        {
+          id: 'shared-minecraft-evening',
+          kind: 'episode',
+          summary: '上周用户和 Alicization 一起玩 Minecraft 放松，用户说下次还想继续联机探索。',
+          source: 'episodic_events',
+          confidence: 0.78,
+          salience: 0.76,
+          cues: ['Minecraft', '联机探索'],
+          occurredAt: now - 7 * 24 * 60 * 60 * 1000,
+        },
+      ],
+      semanticScores: {
+        'shared-minecraft-evening': 0.96,
+      },
+    })
+
+    expect(bundle.evidence[0]?.candidate.id).toBe('shared-minecraft-evening')
+    expect(bundle.evidence[0]?.rankReasons).toEqual(expect.arrayContaining([
+      'rrf:semantic:semantic-score',
+    ]))
+  })
 })

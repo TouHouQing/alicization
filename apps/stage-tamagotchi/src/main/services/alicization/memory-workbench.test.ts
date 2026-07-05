@@ -224,6 +224,49 @@ describe('memory workbench projection', () => {
     }
   })
 
+  it('searches older long-term reflections without being capped by the first recent page', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.upsertMemoryReflections([
+        ...Array.from({ length: 24 }, (_, index) => ({
+          id: `recent-noise-${index}`,
+          cardId: 'default',
+          sourceKind: 'reply' as const,
+          targetScope: 'task' as const,
+          summary: `最近的普通记忆 ${index}`,
+          lesson: '不应该遮住旧的相关记忆。',
+          status: 'confirmed' as const,
+          confidence: 0.7,
+          createdAt: 100 + index,
+          updatedAt: 100 + index,
+        })),
+        {
+          id: 'old-scalable-search-target',
+          cardId: 'default',
+          sourceKind: 'reply',
+          targetScope: 'task',
+          summary: '可扩展长期搜索目标：用户要能找到旧的语义召回闭环规划。',
+          lesson: '搜索不能只看最近一页。',
+          status: 'confirmed',
+          confidence: 0.9,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ])
+
+      const result = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        limit: 5,
+        query: '可扩展长期搜索目标',
+      })
+
+      expect(result.items.map(item => item.id)).toContain('old-scalable-search-target')
+    }
+    finally {
+      await db.close()
+    }
+  })
+
   it('exposes productized memory workbench DTO contracts', () => {
     const candidate: AlicizationPersonaCandidateWorkbenchItem = {
       id: 'persona-candidate:reflection-1',

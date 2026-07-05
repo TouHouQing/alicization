@@ -44,4 +44,14 @@ describe('memory workbench settings page', () => {
     expect(source).toContain('settings.pages.memory.workbench.fields.behavior_lesson')
     expect(source).toContain('settings.pages.memory.workbench.actions.reindex_embeddings')
   })
+
+  it('renders production embedding configuration controls', () => {
+    const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+
+    expect(source).toContain('memoryEmbeddingProviderId')
+    expect(source).toContain('memoryEmbeddingModel')
+    expect(source).toContain('memoryEmbeddingDimensions')
+    expect(source).toContain('saveEmbeddingConfig')
+    expect(source).toContain('settings.pages.memory.workbench.actions.save_embedding_config')
+  })
 })

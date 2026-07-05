@@ -119,7 +119,11 @@ import {
 import { safeEmbedLongTermMemoryTexts } from './long-term-memory-embedding-provider'
 import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-persistent-vector-store'
 import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
-import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
+import type {
+  LongTermMemoryEvidenceBundle,
+  LongTermMemoryEvidenceCandidate,
+  LongTermMemoryQueryPlan,
+} from './long-term-memory-recall'
 import type { LongTermMemoryReviewDecision, LongTermMemoryReviewItem } from './long-term-memory-review-queue'
 import {
   applyLongTermMemoryReviewDecision as applyLongTermMemoryReviewDecisionToTransaction,
@@ -1580,6 +1584,7 @@ export async function setupAlicizationDb(
     rootDir?: string
     cardId?: string
     embeddingProvider?: LongTermMemoryEmbeddingProvider | null
+    resolveEmbeddingProvider?: () => LongTermMemoryEmbeddingProvider | null
   },
 ): Promise<AlicizationDbService> {
   const rootDir = options?.rootDir
@@ -4845,7 +4850,9 @@ export async function setupAlicizationDb(
     all,
     enqueueWrite,
   })
-  const longTermMemoryEmbeddingProvider = options?.embeddingProvider ?? null
+  function resolveLongTermMemoryEmbeddingProvider() {
+    return options?.resolveEmbeddingProvider?.() ?? options?.embeddingProvider ?? null
+  }
   const memoryWorkbenchPersonaCandidateRuntime = createMemoryWorkbenchPersonaCandidateRuntime({
     database,
     now,
@@ -5337,14 +5344,76 @@ export async function setupAlicizationDb(
       ...consolidations.map(memoryConsolidationToLongTermEvidenceCandidate),
     ]
     const tombstonedSourceIds = await listTombstonedLongTermMemorySourceIds(candidates.map(candidate => candidate.id))
+    const visibleCandidates = candidates.filter(candidate => !tombstonedSourceIds.has(candidate.id))
+    const semanticScores = await retrieveLongTermMemorySemanticScores({
+      cardId: input.cardId,
+      plan,
+      candidates: visibleCandidates,
+      limit: safeLimit,
+    }).catch(() => ({}))
 
     return buildLongTermMemoryEvidenceBundle({
       intent,
       plan,
       now: now(),
       limit: safeLimit,
-      candidates: candidates.filter(candidate => !tombstonedSourceIds.has(candidate.id)),
+      candidates: visibleCandidates,
+      semanticScores,
     })
+  }
+
+  async function retrieveLongTermMemorySemanticScores(input: {
+    cardId: string
+    plan: LongTermMemoryQueryPlan
+    candidates: LongTermMemoryEvidenceCandidate[]
+    limit: number
+  }) {
+    const provider = resolveLongTermMemoryEmbeddingProvider()
+    if (!provider || input.candidates.length === 0)
+      return {}
+
+    const queryText = normalizeOrganicMemoryText([
+      input.plan.normalizedQuery,
+      ...input.plan.semanticQueries,
+      ...input.plan.keywordQueries,
+      ...input.plan.phraseQueries,
+      ...input.plan.episodicQueries,
+      ...input.plan.entityHints,
+      ...input.plan.procedureHints,
+      ...input.plan.threadHints,
+    ].filter(Boolean).join(' '), 1000)
+    if (!queryText)
+      return {}
+
+    const embedded = await safeEmbedLongTermMemoryTexts({
+      provider,
+      texts: [queryText],
+    })
+    const queryEmbedding = embedded.embeddings[0]
+    if (!queryEmbedding)
+      return {}
+
+    const candidateIds = new Set(input.candidates.map(candidate => candidate.id))
+    const results = await longTermMemoryVectorStore.searchVectors(queryEmbedding.vector, {
+      cardId: input.cardId,
+      modelId: queryEmbedding.modelId,
+      dimensions: queryEmbedding.dimensions,
+      limit: Math.max(8, input.limit * 4),
+    })
+    const semanticScores: Record<string, number> = {}
+    for (const result of results) {
+      const metadataWorkbenchItemId = typeof result.record.metadata?.workbenchItemId === 'string'
+        ? normalizeOrganicMemoryText(result.record.metadata.workbenchItemId, 240)
+        : ''
+      const matchingCandidateId = [
+        result.record.sourceId,
+        metadataWorkbenchItemId,
+      ].map(id => normalizeOrganicMemoryText(id, 240)).find(id => candidateIds.has(id))
+      if (!matchingCandidateId)
+        continue
+      semanticScores[matchingCandidateId] = Math.max(semanticScores[matchingCandidateId] ?? 0, result.score)
+    }
+    return semanticScores
   }
 
   function safeMemoryWorkbenchLimit(limit: unknown, fallback = 50) {
@@ -5447,11 +5516,20 @@ export async function setupAlicizationDb(
   }) {
     const safeLimit = safeMemoryWorkbenchLimit(input.limit)
     const query = normalizeOrganicMemoryText(input.query, 240)
+    const sourceLimit = query ? Math.max(50, safeLimit * 8) : safeLimit * 4
     const [facts, reflections, episodes, consolidations] = await Promise.all([
-      listMemoryFacts().catch(() => []),
-      memoryRelationshipRuntime.listMemoryReflections({ cardId: input.cardId, limit: safeLimit * 4 }).catch(() => []),
-      listRecentEpisodicEvents(safeLimit * 4).catch(() => []),
-      listMemoryConsolidations(safeLimit * 4).catch(() => []),
+      query ? retrieveMemoryFacts(query, sourceLimit).catch(() => []) : listMemoryFacts().catch(() => []),
+      memoryRelationshipRuntime.listMemoryReflections({
+        cardId: input.cardId,
+        limit: sourceLimit,
+        query: query || undefined,
+      }).catch(() => []),
+      query
+        ? searchEpisodicEvents({ recallSeed: query, limit: sourceLimit }).catch(() => [])
+        : listRecentEpisodicEvents(sourceLimit).catch(() => []),
+      query
+        ? searchMemoryConsolidations({ query, limit: sourceLimit }).catch(() => [])
+        : listMemoryConsolidations(sourceLimit).catch(() => []),
     ])
     const candidates = [
       ...facts.map(memoryFactToLongTermEvidenceCandidate),
@@ -5752,10 +5830,11 @@ export async function setupAlicizationDb(
   }
 
   async function getMemoryWorkbenchEmbeddingHealth(input: { cardId: string }): Promise<AlicizationMemoryWorkbenchHealth['embedding']> {
+    const provider = resolveLongTermMemoryEmbeddingProvider()
     return await longTermMemoryVectorStore.getHealth({
       cardId: input.cardId,
-      activeModelId: longTermMemoryEmbeddingProvider?.modelId ?? null,
-      dimensions: longTermMemoryEmbeddingProvider?.dimensions ?? null,
+      activeModelId: provider?.modelId ?? null,
+      dimensions: provider?.dimensions ?? null,
     })
   }
 
@@ -5773,7 +5852,7 @@ export async function setupAlicizationDb(
     modelId?: string
     limit?: number
   }): Promise<AlicizationMemoryEmbeddingReindexResult> {
-    const provider = longTermMemoryEmbeddingProvider
+    const provider = resolveLongTermMemoryEmbeddingProvider()
     if (!provider) {
       return {
         scheduled: 0,

@@ -142,6 +142,7 @@ import {
   commitAlicizationDigitalLifeSpine,
   deriveAlicizationDigitalLifeSpine,
 } from './digital-life-spine'
+import { resolveOpenAICompatibleLongTermMemoryEmbeddingProvider } from './long-term-memory-openai-embedding-provider'
 import { resolveAlicizationEmotionalTransitionDecay } from './emotional-ledger'
 import {
   emptyAlicizationExecutionCallbackContext,
@@ -1914,7 +1915,17 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   }
   let activeCardId = defaultAlicizationCardId
   let { soulRoot, soulPath, legacyPromptProfilePath, legacySparkProfilePath } = resolveCardPaths(activeCardId)
-  let alicizationDb = await setupAlicizationDb(userDataPath, { cardId: activeCardId })
+  let activeProviderId = ''
+  let activeModelId = ''
+  let providerCredentials: Record<string, Record<string, unknown>> = {}
+  const resolveLongTermMemoryEmbeddingProvider = () => resolveOpenAICompatibleLongTermMemoryEmbeddingProvider({
+    activeProviderId,
+    providerCredentials,
+  })
+  let alicizationDb = await setupAlicizationDb(userDataPath, {
+    cardId: activeCardId,
+    resolveEmbeddingProvider: resolveLongTermMemoryEmbeddingProvider,
+  })
   const taskThreadOrchestrator = createTaskThreadOrchestrator()
 
   const { context } = createContext(ipcMain)
@@ -2745,9 +2756,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     resolveLocalCapabilityChannels: async () => await localBrowserAutomation.resolveCapabilityChannels(),
     sanitizeText,
   })
-  let activeProviderId = ''
-  let activeModelId = ''
-  let providerCredentials: Record<string, Record<string, unknown>> = {}
   const mainGatewayConfigRuntime = createAlicizationMainGatewayConfigRuntime({
     sanitizeText,
     getActiveProviderId: () => activeProviderId,
@@ -4482,7 +4490,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     activeCardId = nextCardId
     ;({ soulRoot, soulPath, legacyPromptProfilePath, legacySparkProfilePath } = resolveCardPaths(activeCardId))
-    alicizationDb = await setupAlicizationDb(userDataPath, { cardId: activeCardId })
+    alicizationDb = await setupAlicizationDb(userDataPath, {
+      cardId: activeCardId,
+      resolveEmbeddingProvider: resolveLongTermMemoryEmbeddingProvider,
+    })
     await restoreScopedKillSwitch(activeCardId)
     await restoreActiveSessionId(activeCardId)
     await restoreDialogueAckMap(activeCardId)
@@ -4598,7 +4609,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     reinitializeDefaultScope: async () => {
       activeCardId = defaultAlicizationCardId
       ;({ soulRoot, soulPath, legacyPromptProfilePath, legacySparkProfilePath } = resolveCardPaths(activeCardId))
-      alicizationDb = await setupAlicizationDb(userDataPath, { cardId: activeCardId })
+      alicizationDb = await setupAlicizationDb(userDataPath, {
+        cardId: activeCardId,
+        resolveEmbeddingProvider: resolveLongTermMemoryEmbeddingProvider,
+      })
       await restoreScopedKillSwitch(activeCardId)
       await restoreActiveSessionId(activeCardId)
       await restoreDialogueAckMap(activeCardId)

@@ -291,6 +291,7 @@ export function createAlicizationMemoryRelationshipRuntime(
   async function listMemoryReflections(input: {
     cardId: string
     limit?: number
+    query?: string
     turnId?: string
     status?: AlicizationMemoryReflectionStatus
   }) {
@@ -307,6 +308,14 @@ export function createAlicizationMemoryRelationshipRuntime(
     if (input.status) {
       where.push('status = ?')
       params.push(input.status)
+    }
+    const query = typeof input.query === 'string'
+      ? input.query.trim().replace(/\s+/g, ' ').slice(0, 240).toLowerCase()
+      : ''
+    if (query) {
+      const queryLike = `%${query}%`
+      where.push('(lower(summary) LIKE ? OR lower(lesson) LIKE ? OR lower(target_scope) LIKE ? OR lower(source_kind) LIKE ? OR id = ?)')
+      params.push(queryLike, queryLike, queryLike, queryLike, query)
     }
     const limit = Math.max(1, Math.floor(input.limit ?? 8))
     params.push(limit)

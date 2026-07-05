@@ -547,6 +547,7 @@ pages:
         reset: Reset
         approve_candidate: Approve Candidate
         reject_candidate: Reject Candidate
+        save_embedding_config: Save Embedding Config
       states:
         empty_working: No working memory snapshot yet. Send one dialogue turn and refresh.
         empty_long_term: No matching long-term memory yet.
@@ -580,6 +581,9 @@ pages:
         queue_health: Queue Health
         recall_health: Recall Health
         embedding_health: Embedding Health
+        embedding_provider: Embedding Provider
+        embedding_model: Embedding Model
+        embedding_dimensions: Embedding Dimensions
         policy: Policy
         source: Source
         updated_at: Updated At

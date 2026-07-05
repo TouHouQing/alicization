@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { setupAlicizationDb } from './db'
+import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
 import { buildLongTermMemoryRecallBlock } from './long-term-memory-recall'
 
 const sandboxDirs: string[] = []
@@ -356,8 +357,8 @@ describe('memory workbench dialogue loop acceptance', () => {
         cardId: 'default',
         sourceKind: 'reply',
         targetScope: 'truth',
-        summary: '失败面要透明。',
-        lesson: '超时和 provider 失败要直接告诉用户。',
+        summary: '用户不要固定模板回复，失败面要透明。',
+        lesson: '超时和 provider 失败要直接告诉用户，不要用固定模板遮盖。',
         status: 'confirmed',
         confidence: 0.93,
         createdAt: 10,
@@ -397,6 +398,66 @@ describe('memory workbench dialogue loop acceptance', () => {
         dimensions: 3,
         error: null,
       })
+
+      const recall = await db.retrieveLongTermMemoryEvidence({
+        cardId: 'default',
+        currentUserText: '你还记得我不要固定模板回复吗？',
+        limit: 4,
+      })
+      expect(recall.evidence[0]?.candidate.id).toBe('reflection-semantic-1')
+      expect(recall.evidence[0]?.rankReasons).toEqual(expect.arrayContaining([
+        'rrf:semantic:semantic-score',
+      ]))
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('resolves embedding provider lazily so runtime config changes can enable semantic recall', async () => {
+    let embeddingProvider: LongTermMemoryEmbeddingProvider | null = null
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      resolveEmbeddingProvider: () => embeddingProvider,
+    })
+    try {
+      await db.upsertMemoryReflections([{
+        id: 'reflection-lazy-semantic',
+        cardId: 'default',
+        sourceKind: 'reply',
+        targetScope: 'truth',
+        summary: '用户不要固定模板回复。',
+        lesson: '失败时透明说明，不要把 provider 错误包装成人格回复。',
+        status: 'confirmed',
+        confidence: 0.9,
+        createdAt: 10,
+        updatedAt: 20,
+      }])
+
+      expect(await db.reindexMemoryWorkbenchEmbeddings({ cardId: 'default', limit: 4 })).toMatchObject({
+        indexed: 0,
+        modelId: null,
+      })
+
+      embeddingProvider = {
+        dimensions: 3,
+        modelId: 'lazy-embedding',
+        embedTexts: async texts => texts.map(text => ({ text, vector: [1, 0, 0] })),
+      }
+
+      const reindex = await db.reindexMemoryWorkbenchEmbeddings({ cardId: 'default', limit: 4 })
+      expect(reindex).toMatchObject({
+        indexed: 1,
+        modelId: 'lazy-embedding',
+      })
+
+      const recall = await db.retrieveLongTermMemoryEvidence({
+        cardId: 'default',
+        currentUserText: '你还记得我不要固定模板回复吗？',
+        limit: 4,
+      })
+      expect(recall.evidence[0]?.rankReasons).toEqual(expect.arrayContaining([
+        'rrf:semantic:semantic-score',
+      ]))
     }
     finally {
       await db.close()

@@ -291,6 +291,7 @@ export function buildLongTermMemoryEvidenceBundle(input: {
   candidates: LongTermMemoryEvidenceCandidate[]
   now: number
   limit?: number
+  semanticScores?: Record<string, number>
 }): LongTermMemoryEvidenceBundle {
   if (!input.intent.shouldRecall) {
     return {
@@ -309,6 +310,7 @@ export function buildLongTermMemoryEvidenceBundle(input: {
     candidates: input.candidates,
     now: input.now,
     limit,
+    semanticScores: input.semanticScores,
   })
 
   const confidence = ranked.length === 0

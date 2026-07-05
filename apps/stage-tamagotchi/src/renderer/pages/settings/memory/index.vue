@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { Button } from '@proj-alicization/ui'
 import { useAlicizationMemoryWorkbenchStore } from '@proj-alicization/stage-ui/stores/alicization-memory-workbench'
+import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
+import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
 import { storeToRefs } from 'pinia'
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const store = useAlicizationMemoryWorkbenchStore()
+const providersStore = useProvidersStore()
+const consciousnessStore = useConsciousnessStore()
 const { t } = useI18n()
 const {
   activeTab,
@@ -28,6 +32,12 @@ const {
   health,
   pendingReviewCount,
 } = storeToRefs(store)
+const { providers } = storeToRefs(providersStore)
+const { activeProvider } = storeToRefs(consciousnessStore)
+
+const memoryEmbeddingProviderId = ref('')
+const memoryEmbeddingModel = ref('')
+const memoryEmbeddingDimensions = ref('')
 
 const tabs = computed(() => [
   { id: 'working' as const, icon: 'i-solar:clipboard-list-bold-duotone', label: t('settings.pages.memory.workbench.tabs.working') },
@@ -73,10 +83,36 @@ function resetLongTermFilters() {
   void store.refreshLongTerm()
 }
 
+function readEmbeddingConfig() {
+  const providerId = activeProvider.value?.trim() ?? ''
+  const config = providerId ? providers.value[providerId] ?? {} : {}
+  memoryEmbeddingProviderId.value = String(config.memoryEmbeddingProviderId ?? config.embeddingProviderId ?? providerId)
+  memoryEmbeddingModel.value = String(config.memoryEmbeddingModel ?? config.embeddingModel ?? '')
+  memoryEmbeddingDimensions.value = String(config.memoryEmbeddingDimensions ?? config.embeddingDimensions ?? '')
+}
+
+function saveEmbeddingConfig() {
+  const providerId = activeProvider.value?.trim() ?? ''
+  if (!providerId)
+    return
+  const current = providers.value[providerId] ?? {}
+  const dimensions = Number(memoryEmbeddingDimensions.value)
+  providers.value[providerId] = {
+    ...current,
+    memoryEmbeddingDimensions: Number.isFinite(dimensions) && dimensions > 0 ? Math.floor(dimensions) : undefined,
+    memoryEmbeddingModel: memoryEmbeddingModel.value.trim(),
+    memoryEmbeddingProviderId: memoryEmbeddingProviderId.value.trim() || providerId,
+  }
+  void store.refreshSnapshot()
+}
+
 onMounted(() => {
+  readEmbeddingConfig()
   void store.refreshSnapshot()
   void store.refreshPersonaCandidates()
 })
+
+watch(activeProvider, () => readEmbeddingConfig())
 </script>
 
 <template>
@@ -443,6 +479,37 @@ onMounted(() => {
           <div>model: {{ health?.embedding.modelId ?? '-' }}</div>
           <div>dimensions: {{ health?.embedding.dimensions ?? '-' }}</div>
           <div>reindexRequired: {{ health?.embedding.reindexRequired ?? false }}</div>
+          <div :class="['mt-2', 'grid', 'grid-cols-1', 'gap-2', 'md:grid-cols-3']">
+            <label :class="['grid', 'gap-1']">
+              <span :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.embedding_provider') }}</span>
+              <input
+                v-model="memoryEmbeddingProviderId"
+                :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+              >
+            </label>
+            <label :class="['grid', 'gap-1']">
+              <span :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.embedding_model') }}</span>
+              <input
+                v-model="memoryEmbeddingModel"
+                :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+              >
+            </label>
+            <label :class="['grid', 'gap-1']">
+              <span :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.embedding_dimensions') }}</span>
+              <input
+                v-model="memoryEmbeddingDimensions"
+                inputmode="numeric"
+                :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+              >
+            </label>
+          </div>
+          <Button
+            :label="t('settings.pages.memory.workbench.actions.save_embedding_config')"
+            icon="i-solar:diskette-bold-duotone"
+            size="sm"
+            variant="secondary"
+            @click="saveEmbeddingConfig()"
+          />
           <div v-if="reindexResult">
             indexed: {{ reindexResult.indexed }} / failed: {{ reindexResult.failed }}
           </div>
