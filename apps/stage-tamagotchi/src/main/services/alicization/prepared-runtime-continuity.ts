@@ -28,6 +28,11 @@ function sanitizePreparedRuntimeText(raw: unknown, maxChars = 320) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function sanitizePreparedRuntimeAwarenessText(raw: unknown, maxChars = 320) {
+  const text = sanitizePreparedRuntimeText(raw, maxChars)
+  return text && !containsAlicizationFixedTemplateResidue(text) ? text : ''
+}
+
 const PREPARED_SELF_CONTINUITY_AUTHORITY_LINE_MAX_CHARS = 320
 const PREPARED_SELF_CONTINUITY_AUTHORITY_SUMMARY_MAX_CHARS = 1600
 
@@ -897,9 +902,9 @@ export function resolvePreparedRuntimeProjectPreDialogueAwarenessSummary(
     = sanitizePreparedRuntimeText(rawRuntimeProjectState?.companionHeadlineLine, 320)
       || sanitizePreparedRuntimeText(runtimeProjectState?.companionHeadlineLine, 320)
       || null
-  const rawRuntimePreDialogueAwarenessLine = sanitizePreparedRuntimeText(rawRuntimeProjectState?.preDialogueAwarenessLine, 1600) || null
-  const rawRuntimeAwarenessLine = sanitizePreparedRuntimeText(rawRuntimeProjectState?.awarenessLine, 1600) || null
-  const rawRuntimePreDialogueAwarenessSummary = sanitizePreparedRuntimeText(rawRuntimeProjectState?.preDialogueAwarenessSummary, 1600) || null
+  const rawRuntimePreDialogueAwarenessLine = sanitizePreparedRuntimeAwarenessText(rawRuntimeProjectState?.preDialogueAwarenessLine, 1600) || null
+  const rawRuntimeAwarenessLine = sanitizePreparedRuntimeAwarenessText(rawRuntimeProjectState?.awarenessLine, 1600) || null
+  const rawRuntimePreDialogueAwarenessSummary = sanitizePreparedRuntimeAwarenessText(rawRuntimeProjectState?.preDialogueAwarenessSummary, 1600) || null
   const rawRuntimePreflightSummary = sanitizePreparedRuntimeText(rawRuntimeProjectState?.preflightSummary, 1600) || null
   const normalizedRuntimePreflightSummary = sanitizePreparedRuntimeText(runtimeProjectState?.preflightSummary, 1600) || null
   const runtimePreflightSummary = looksLikeThinProjectAwarenessShell(rawRuntimePreflightSummary)
