@@ -979,7 +979,7 @@ function sanitizeActiveDialogueCarryText(raw: unknown, maxChars = 160) {
     return [
       'project_state_continuity=phase1',
       'status=template_contamination_withheld',
-      'visibility=internal-structured',
+      'surface=structured',
     ].join(' | ')
   }
 
@@ -989,7 +989,7 @@ function sanitizeActiveDialogueCarryText(raw: unknown, maxChars = 160) {
     return [
       'project_state_continuity=phase1',
       'status=template_contamination_withheld',
-      'visibility=internal-structured',
+      'surface=structured',
     ].join(' | ')
   }
 

@@ -308,7 +308,7 @@ export function buildAlicizationHostAttitudeSeed(input: AlicizationPersonaKernel
       `temperament=${temperamentSummary}`,
       'response_policy=state_first',
       'boundary_policy=no_overstep_no_withdrawal',
-      'visibility=internal-structured',
+      'surface=structured',
     ].join('; '),
     120,
   )
@@ -333,7 +333,7 @@ export function buildAlicizationCoreIncarnationSeed(input: AlicizationPersonaKer
       ? `user_directive=${directiveCue}`
       : '',
   ].filter(Boolean)
-  return truncateText(`${fragments.join('; ')}; visibility=internal-structured`, 500)
+  return truncateText(`${fragments.join('; ')}; surface=structured`, 500)
 }
 
 function shouldKeepCurrentValue(value: string, options?: { placeholderValues?: string[] }) {

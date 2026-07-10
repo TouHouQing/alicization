@@ -8,6 +8,8 @@ import {
 } from '@proj-alicization/stage-shared'
 
 const fixedTemplateQuickReplyClosureLine
+  = ''
+const legacyFixedTemplateQuickReplyClosureLine
   = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
 
 const internalQuickReplyClosureFieldPattern
@@ -15,7 +17,9 @@ const internalQuickReplyClosureFieldPattern
 
 function isInternalFixedTemplateExclusionLine(line: string | null | undefined) {
   const normalized = line?.trim().replace(/\s+/g, ' ') ?? ''
-  return normalized === fixedTemplateQuickReplyClosureLine
+  if (!normalized)
+    return false
+  return normalized === legacyFixedTemplateQuickReplyClosureLine
     || (
       normalized.includes('content=excluded')
       && normalized.includes('reason=continuity-residue')

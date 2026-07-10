@@ -143,6 +143,22 @@ function sanitizeExecutionProviderProjectText(raw: unknown, maxChars = 320) {
   return normalized && normalized !== alicizationFixedTemplateReplacement ? normalized : 'none'
 }
 
+function sanitizeExecutionDeliveryProjectFreeText(raw: unknown, maxChars = 320) {
+  const ledgerText = sanitizeExecutionLedgerText(raw, maxChars)
+  if (!ledgerText)
+    return null
+  const providerSafe = sanitizeAlicizationProviderFacingText(ledgerText, maxChars, '')
+  return providerSafe && providerSafe !== alicizationFixedTemplateReplacement ? providerSafe : null
+}
+
+function sanitizeExecutionDeliveryProjectControlText(raw: unknown, maxChars = 120) {
+  const ledgerText = sanitizeExecutionLedgerText(raw, maxChars)
+  if (!ledgerText)
+    return null
+  const providerSafe = sanitizeAlicizationProviderFacingText(ledgerText, maxChars, '')
+  return providerSafe && providerSafe !== alicizationFixedTemplateReplacement ? providerSafe : null
+}
+
 function normalizeExecutionDeliveryProjectBriefing(
   projectBriefing: unknown,
 ): AlicizationPendingExecutionDeliveryProjectState | null {
@@ -151,36 +167,36 @@ function normalizeExecutionDeliveryProjectBriefing(
 
   const record = projectBriefing as Record<string, unknown>
   const normalized = {
-    identity: sanitizeExecutionLedgerText(record.identity, 220) || null,
-    currentPhase: sanitizeExecutionLedgerText(record.currentPhase, 220) || null,
-    companionHeadlineLine: sanitizeExecutionLedgerText(record.companionHeadlineLine, 320) || null,
-    companionBriefingLine: sanitizeExecutionLedgerText(record.companionBriefingLine, 320) || null,
-    emotionalClosureSummary: sanitizeExecutionLedgerText(record.emotionalClosureSummary, 220) || null,
-    continuityArcStage: sanitizeExecutionLedgerText(record.continuityArcStage, 120) || null,
-    continuityRestraint: sanitizeExecutionLedgerText(record.continuityRestraint, 64) || null,
-    continuityCue: sanitizeExecutionLedgerText(record.continuityCue, 220) || null,
-    continuityPreferredTiming: sanitizeExecutionLedgerText(record.continuityPreferredTiming, 120) || null,
-    continuityCadence: sanitizeExecutionLedgerText(record.continuityCadence, 120) || null,
-    preferredBlinkCadence: sanitizeExecutionLedgerText(record.preferredBlinkCadence, 32) || null,
-    preferredGazeMode: sanitizeExecutionLedgerText(record.preferredGazeMode, 32) || null,
-    preferredPauseMode: sanitizeExecutionLedgerText(record.preferredPauseMode, 32) || null,
-    preferredLipsyncMode: sanitizeExecutionLedgerText(record.preferredLipsyncMode, 32) || null,
-    preferredVoiceMode: sanitizeExecutionLedgerText(record.preferredVoiceMode, 32) || null,
-    preferredPacingMode: sanitizeExecutionLedgerText(record.preferredPacingMode, 32) || null,
-    latestLandedProgress: sanitizeExecutionLedgerText(record.latestLandedProgress, 320) || null,
-    latestProgress: sanitizeExecutionLedgerText(record.latestProgress, 320) || null,
-    landedProgressSummary: sanitizeExecutionLedgerText(record.landedProgressSummary, 320) || null,
-    primaryOpenLoop: sanitizeExecutionLedgerText(record.primaryOpenLoop, 320) || null,
-    openClosureSummary: sanitizeExecutionLedgerText(record.openClosureSummary, 320) || null,
-    nextClosureTarget: sanitizeExecutionLedgerText(record.nextClosureTarget, 320) || null,
-    nextClosureTargetSummary: sanitizeExecutionLedgerText(record.nextClosureTargetSummary, 320) || null,
-    sameHerSelfLine: sanitizeExecutionLedgerText(record.sameHerSelfLine, 220) || null,
-    sameHerHoldDetail: sanitizeExecutionLedgerText(record.sameHerHoldDetail, 320) || null,
-    sameHerDriftRisk: sanitizeExecutionLedgerText(record.sameHerDriftRisk, 320) || null,
-    sameHerDriftRiskSummary: sanitizeExecutionLedgerText(record.sameHerDriftRiskSummary, 320) || null,
-    preflightSummary: sanitizeExecutionLedgerText(record.preflightSummary, 320) || null,
-    preDialogueAwarenessLine: sanitizeExecutionLedgerText(record.preDialogueAwarenessLine, 320) || null,
-    preDialogueAwarenessSummary: sanitizeExecutionLedgerText(record.preDialogueAwarenessSummary, 320) || null,
+    identity: sanitizeExecutionDeliveryProjectFreeText(record.identity, 220),
+    currentPhase: sanitizeExecutionDeliveryProjectFreeText(record.currentPhase, 220),
+    companionHeadlineLine: sanitizeExecutionDeliveryProjectFreeText(record.companionHeadlineLine, 320),
+    companionBriefingLine: sanitizeExecutionDeliveryProjectFreeText(record.companionBriefingLine, 320),
+    emotionalClosureSummary: sanitizeExecutionDeliveryProjectFreeText(record.emotionalClosureSummary, 220),
+    continuityArcStage: sanitizeExecutionDeliveryProjectControlText(record.continuityArcStage, 120),
+    continuityRestraint: sanitizeExecutionDeliveryProjectControlText(record.continuityRestraint, 64),
+    continuityCue: sanitizeExecutionDeliveryProjectControlText(record.continuityCue, 220),
+    continuityPreferredTiming: sanitizeExecutionDeliveryProjectControlText(record.continuityPreferredTiming, 120),
+    continuityCadence: sanitizeExecutionDeliveryProjectControlText(record.continuityCadence, 120),
+    preferredBlinkCadence: sanitizeExecutionDeliveryProjectControlText(record.preferredBlinkCadence, 32),
+    preferredGazeMode: sanitizeExecutionDeliveryProjectControlText(record.preferredGazeMode, 32),
+    preferredPauseMode: sanitizeExecutionDeliveryProjectControlText(record.preferredPauseMode, 32),
+    preferredLipsyncMode: sanitizeExecutionDeliveryProjectControlText(record.preferredLipsyncMode, 32),
+    preferredVoiceMode: sanitizeExecutionDeliveryProjectControlText(record.preferredVoiceMode, 32),
+    preferredPacingMode: sanitizeExecutionDeliveryProjectControlText(record.preferredPacingMode, 32),
+    latestLandedProgress: sanitizeExecutionDeliveryProjectFreeText(record.latestLandedProgress, 320),
+    latestProgress: sanitizeExecutionDeliveryProjectFreeText(record.latestProgress, 320),
+    landedProgressSummary: sanitizeExecutionDeliveryProjectFreeText(record.landedProgressSummary, 320),
+    primaryOpenLoop: sanitizeExecutionDeliveryProjectFreeText(record.primaryOpenLoop, 320),
+    openClosureSummary: sanitizeExecutionDeliveryProjectFreeText(record.openClosureSummary, 320),
+    nextClosureTarget: sanitizeExecutionDeliveryProjectFreeText(record.nextClosureTarget, 320),
+    nextClosureTargetSummary: sanitizeExecutionDeliveryProjectFreeText(record.nextClosureTargetSummary, 320),
+    sameHerSelfLine: sanitizeExecutionDeliveryProjectFreeText(record.sameHerSelfLine, 220),
+    sameHerHoldDetail: sanitizeExecutionDeliveryProjectFreeText(record.sameHerHoldDetail, 320),
+    sameHerDriftRisk: sanitizeExecutionDeliveryProjectFreeText(record.sameHerDriftRisk, 320),
+    sameHerDriftRiskSummary: sanitizeExecutionDeliveryProjectFreeText(record.sameHerDriftRiskSummary, 320),
+    preflightSummary: sanitizeExecutionDeliveryProjectFreeText(record.preflightSummary, 320),
+    preDialogueAwarenessLine: sanitizeExecutionDeliveryProjectFreeText(record.preDialogueAwarenessLine, 320),
+    preDialogueAwarenessSummary: sanitizeExecutionDeliveryProjectFreeText(record.preDialogueAwarenessSummary, 320),
   } satisfies AlicizationPendingExecutionDeliveryProjectState
 
   return Object.values(normalized).some(Boolean) ? normalized : null
@@ -1233,7 +1249,7 @@ function buildMinimalProjectStateExecutionCallbackProjection(input: {
       executionSameHerOpeningCue ? `opening=${executionSameHerOpeningCue}` : '',
       openFocus ? `open_focus=${openFocus}` : '',
       nextFocus ? `next_focus=${nextFocus}` : '',
-    ].join(' | ').slice(0, 520),
+    ].filter(Boolean).join(' | ').slice(0, 520),
     personalityContinuityState: buildLowPressureExecutionCallbackContinuityState({
       continuitySummary: projectContinuitySummary,
     }),

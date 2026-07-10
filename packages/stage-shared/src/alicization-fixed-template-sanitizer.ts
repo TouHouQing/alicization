@@ -9,12 +9,18 @@ const fixedTemplateResiduePatterns: RegExp[] = [
   /\bsame Phase\s*1 living line\b/iu,
   /\bsame still-open closure work\b/iu,
   /\bsame local-first digital life project\b/iu,
+  /\bsame digital life\b/iu,
+  /\bsame[-_]digital[-_]life[-_]project[-_]thread\b/iu,
   /\bsame digital life line\b/iu,
   /\bAlicization is (?:still )?(?:the same )?(?:a )?local-first digital life project\b/iu,
   /\b(?:this|the) local-first digital life project\b/iu,
   /\bhost computer\b/iu,
   /\bbetter chat wrapper\b/iu,
   /\bPhase\s*1\s*:\s*Local Digital Life\b/iu,
+  /\bgeneric Phase\s*1 shell\b/iu,
+  /\bphase1-route=desktop-life-loop\b/iu,
+  /\bgeneric guidance\b[^.?!]*(?:detached project shell|project shell)/iu,
+  /\bdetached project shell\b/iu,
   /\bAlicization is still (?:closing|in) Phase\s*1 local digital life (?:continuity|closure)\b/iu,
   /\bPhase\s*1 local digital life (?:continuity|closure)\b/iu,
   /\bone living digital life project\b/iu,
@@ -111,7 +117,7 @@ const fixedTemplateResiduePatterns: RegExp[] = [
 ]
 
 const replacementTemplateTokenPattern
-  = /\b(?:local_desktop_life_loop|phase1_local_digital_life(?:_anchor)?|project_phase=life_core|continuity_identity|continuity_line|content=excluded|visibility=internal[-_]structured)\b/iu
+  = /\b(?:local_desktop_life_loop|phase1_local_digital_life(?:_anchor)?|content=excluded|visibility=internal[-_](?:structured|first))\b/iu
 
 function normalizeFixedTemplateText(raw: unknown, maxChars: number) {
   if (typeof raw !== 'string')
@@ -216,6 +222,12 @@ function containsProviderFacingStructuredTemplateResidue(text: string) {
   return replacementTemplateTokenPattern.test(text)
 }
 
+function looksLikeStructuredInternalFactText(text: string) {
+  if (/=\s*[\p{L}_][\p{L}\p{N}_-]*\s*=/iu.test(text))
+    return false
+  return /(?:^|[;|.\s])[\p{L}_][\p{L}\p{N}_-]*\s*=/iu.test(text)
+}
+
 export function sanitizeAlicizationProviderFacingText(
   raw: unknown,
   maxChars = 360,
@@ -246,8 +258,14 @@ export function sanitizeAlicizationStructuredInternalText(
     neutralizeFixedTemplateResidueText(normalized),
     maxChars,
   )
-  if (neutralized && !containsAlicizationFixedTemplateResidue(neutralized) && !replacementTemplateTokenPattern.test(neutralized))
+  if (
+    neutralized
+    && looksLikeStructuredInternalFactText(neutralized)
+    && !containsAlicizationFixedTemplateResidue(neutralized)
+    && !replacementTemplateTokenPattern.test(neutralized)
+  ) {
     return neutralized
+  }
 
   return replacement
 }

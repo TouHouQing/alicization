@@ -425,7 +425,7 @@ function compactMindProjectIdentityForAwareness(value: unknown) {
     return ''
 
   if (/Alicization is a local-first digital life project|本地优先数字生命项目/iu.test(normalized))
-    return 'local_desktop_life_loop'
+    return 'runtime_personhood'
   return compactPromptText(normalized, 96)
 }
 
@@ -434,7 +434,7 @@ function compactMindProjectPhaseForAwareness(value: unknown) {
   if (!normalized)
     return ''
   if (/phase\s*1\s*:\s*local digital life|phase1_local_digital_life/iu.test(normalized))
-    return 'local_desktop_life_loop'
+    return 'life_core'
   return compactPromptText(normalized.split('. ')[0] ?? normalized, 72)
 }
 

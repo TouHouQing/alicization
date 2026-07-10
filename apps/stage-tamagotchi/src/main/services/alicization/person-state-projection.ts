@@ -152,7 +152,7 @@ function deriveCallbackProjectClosureCarry(authority?: AlicizationSelfContinuity
     /same phase 1 digital life|same living line|same-her|same her|one continuous her/u.test(lower)
     && /verified_closure_progress|some closure already landed|still unfinished|unfinished|keep the host-facing line pointed|initiative|embodiment|resident presence|next closure/u.test(lower)
   ) {
-    return 'continuity_progress=verified; open_closure=preserve; perspective=current-self; visibility=internal-structured'
+    return 'continuity_progress=verified; open_closure=preserve; perspective=current-self; surface=structured'
   }
   return null
 }
@@ -194,12 +194,12 @@ function buildStructuredRelationshipCarry(input: {
     && /verified_closure_progress|some closure already landed|unfinished|still unfinished|keep the host-facing line pointed|initiative|embodiment|resident presence|next closure|open closure/u.test(combined)
     && /lower-pressure|leave room|measured-return|nearby-soft|quiet[- ]companionship|space-first|measured-room/u.test(combined)
   ) {
-    return 'relationship_cadence=lower_pressure; continuity_progress=verified; open_closure=preserve_before_widening; visibility=internal-structured'
+    return 'relationship_cadence=lower_pressure; continuity_progress=verified; open_closure=preserve_before_widening; surface=structured'
   }
   if (/repair-before-closeness|repair before closeness|repair-first/u.test(combined))
-    return 'relationship_cadence=repair_before_closeness; room=settle_before_widening; visibility=internal-structured'
+    return 'relationship_cadence=repair_before_closeness; room=settle_before_widening; surface=structured'
   if (/lower-pressure|leave room|measured-return|nearby-soft|quiet[- ]companionship|space-first|measured-room/u.test(combined))
-    return 'relationship_cadence=lower_pressure; room=preserve; visibility=internal-structured'
+    return 'relationship_cadence=lower_pressure; room=preserve; surface=structured'
   return null
 }
 
@@ -372,7 +372,7 @@ function deriveOpeningGuidance(input: {
       rememberedSeamSpecificCarry,
     )
   if (carriesRememberedSeamCue && carriesRememberedSeamReinterpretation)
-    return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal-structured'
+    return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; surface=structured'
   if (
     /same callback line|same line|still continuing|another detour|same thread|callback return on the same line|same callback seam|after noisy detours|after noise|unrelated windows intervene|callback seam reopens/u.test(evolutionSameThreadCarry)
     && /lower-pressure|measured|less eager|slower return|reopen eagerly|should not reopen more eagerly|not widen the line into a fresh approach|stays slower than impulse/u.test(evolutionSameThreadCarry)
@@ -380,65 +380,65 @@ function deriveOpeningGuidance(input: {
     const callbackProjectClosureCarry = deriveCallbackProjectClosureCarry(input.selfContinuityAuthority)
     if (callbackProjectClosureCarry)
       return `callback_cadence=lower_pressure; restart_policy=context_preserving; ${callbackProjectClosureCarry}`
-    return 'callback_cadence=lower_pressure; restart_policy=context_preserving; visibility=internal-structured'
+    return 'callback_cadence=lower_pressure; restart_policy=context_preserving; surface=structured'
   }
   if (input.autobiographicalChooseOpeningsCarefully)
-    return 'opening_policy=wait_for_clearer_opening; room=more; visibility=internal-structured'
+    return 'opening_policy=wait_for_clearer_opening; room=more; surface=structured'
   if (input.autobiographicalKeepGentleOpenings)
-    return 'opening_policy=memory_led; pressure=lower; visibility=internal-structured'
+    return 'opening_policy=memory_led; pressure=lower; surface=structured'
   if (
     (input.repairTriggerText && input.relationshipPosture === 'restrained')
     || (input.continuity.currentRegime === 'repair-window' && input.relationshipPosture === 'restrained')
   ) {
-    return 'opening_policy=repair_before_closeness; visibility=internal-structured'
+    return 'opening_policy=repair_before_closeness; surface=structured'
   }
   if (
     input.repairBeforeCloseness
     && input.relationshipPosture === 'restrained'
     && (input.contexts.includes('focused-work') || input.contexts.includes('repair-window'))
   ) {
-    return 'opening_policy=repair_before_closeness; visibility=internal-structured'
+    return 'opening_policy=repair_before_closeness; surface=structured'
   }
   if (
     input.continuity.repairPosture === 'repair-first'
   ) {
-    return 'opening_policy=repair_first; visibility=internal-structured'
+    return 'opening_policy=repair_first; surface=structured'
   }
   if (input.durableSelfCoreSameLineContinuation)
-    return 'relationship_cadence=lower_pressure; restart_policy=context_preserving; visibility=internal-structured'
+    return 'relationship_cadence=lower_pressure; restart_policy=context_preserving; surface=structured'
   if (
     input.personaAuthority.openingGuidance
     && (!input.restrained || (input.relationshipPosture === 'warm' && input.personaAuthority.directnessBias >= 0.34))
   ) {
     return sanitizeProjectionText(input.personaAuthority.openingGuidance, 220)
-      || 'opening_policy=persona_authority; visibility=internal-structured'
+      || 'opening_policy=persona_authority; surface=structured'
   }
   if (
     input.personaAuthority.preferredProactiveStyle === 'silent-observe'
     && input.relationshipPosture === 'restrained'
   ) {
-    return 'opening_policy=observe_first; pressure=lighter; visibility=internal-structured'
+    return 'opening_policy=observe_first; pressure=lighter; surface=structured'
   }
   if (input.truthBeforeWarmth)
-    return 'opening_policy=truth_first; visibility=internal-structured'
+    return 'opening_policy=truth_first; surface=structured'
   if (
     input.restIntervention
     || input.continuity.currentRegime === 'late-night-care'
     || (input.contexts.includes('late-night') && input.burdenText)
   ) {
-    return 'opening_policy=low_pressure; rest_window=protect; visibility=internal-structured'
+    return 'opening_policy=low_pressure; rest_window=protect; surface=structured'
   }
   if (
     input.restrained
     || input.continuity.closenessPosture === 'space-first'
     || input.continuity.autonomyPosture === 'protect-space'
   ) {
-    return 'opening_policy=answer_first; pressure=lighter; visibility=internal-structured'
+    return 'opening_policy=answer_first; pressure=lighter; surface=structured'
   }
   if (input.relationshipPosture === 'tender')
-    return 'opening_policy=truth_and_room_first; closeness=bounded; visibility=internal-structured'
+    return 'opening_policy=truth_and_room_first; closeness=bounded; surface=structured'
   if (input.relationshipPosture === 'warm')
-    return 'opening_policy=room_preserving; closeness=bounded; visibility=internal-structured'
+    return 'opening_policy=room_preserving; closeness=bounded; surface=structured'
   return null
 }
 
@@ -505,24 +505,24 @@ function deriveManifestationCadenceSummary(input: {
   autobiographicalKeepGentleOpenings?: boolean
 }) {
   if (input.durableSelfCoreSameLineContinuation)
-    return 'manifestation_cadence=lower_pressure; restart_policy=context_preserving; visibility=internal-structured'
+    return 'manifestation_cadence=lower_pressure; restart_policy=context_preserving; surface=structured'
   if (input.autobiographicalChooseOpeningsCarefully)
-    return 'manifestation_cadence=lower_pressure; eagerness=low; opening_required=true; visibility=internal-structured'
+    return 'manifestation_cadence=lower_pressure; eagerness=low; opening_required=true; surface=structured'
   if (input.autobiographicalKeepGentleOpenings)
-    return 'manifestation_cadence=memory_led; pressure=lower; visibility=internal-structured'
+    return 'manifestation_cadence=memory_led; pressure=lower; surface=structured'
   if (input.lowerPressureManifestation) {
     const anchor = input.evolutionTrustMeaning || input.evolutionDoctrine || input.evolutionBurden
     return sanitizeText([
-      'manifestation_cadence=lower_pressure; eagerness=low; visibility=internal-structured',
+      'manifestation_cadence=lower_pressure; eagerness=low; surface=structured',
       anchor ? `anchor=${compactProjectionValue(anchor, 120)}` : '',
     ].filter(Boolean).join(' '), 220)
   }
 
   if (input.preferredProactiveStyle === 'silent-observe' && input.activeClosenessRung === 'space-first')
-    return 'manifestation_cadence=observe_first; room=preserve; visibility=internal-structured'
+    return 'manifestation_cadence=observe_first; room=preserve; surface=structured'
 
   if (input.preferredProactiveStyle === 'light-nudge' && input.activeClosenessRung === 'measured-room')
-    return 'manifestation_cadence=light_nudge; opening_required=true; boundary=bounded; visibility=internal-structured'
+    return 'manifestation_cadence=light_nudge; opening_required=true; boundary=bounded; surface=structured'
 
   return null
 }
@@ -621,16 +621,16 @@ function buildClosenessLadder(input: {
       preference?.preference
       ?? (
         context === 'focused-work'
-          ? 'preference_code=lighter_touch; room=more; interruption_pressure=low; visibility=internal-structured'
+          ? 'preference_code=lighter_touch; room=more; interruption_pressure=low; surface=structured'
           : context === 'repair-window'
-            ? 'preference_code=repair_first; closeness=defer_until_repair; crowding=blocked; visibility=internal-structured'
+            ? 'preference_code=repair_first; closeness=defer_until_repair; crowding=blocked; surface=structured'
             : context === 'late-night-care'
-              ? 'preference_code=late_night_low_pressure; proximity=nearby; pressure=low; visibility=internal-structured'
+              ? 'preference_code=late_night_low_pressure; proximity=nearby; pressure=low; surface=structured'
               : context === 'execution-callback'
-                ? 'preference_code=execution_callback_clean_result; room_check_before_closeness=true; visibility=internal-structured'
+                ? 'preference_code=execution_callback_clean_result; room_check_before_closeness=true; surface=structured'
                 : context === 'open-companionship'
-                  ? 'preference_code=warmth_when_opening_clear; opening_required=true; visibility=internal-structured'
-                  : 'preference_code=bounded_responsive_nearness; host_move_required=true; visibility=internal-structured'
+                  ? 'preference_code=warmth_when_opening_clear; opening_required=true; surface=structured'
+                  : 'preference_code=bounded_responsive_nearness; host_move_required=true; surface=structured'
       ),
       180,
     )
@@ -770,9 +770,9 @@ export function buildAlicizationPersonStateProjection(input: {
   const activeClosenessRung = activeClosenessEntry?.rung ?? 'measured-room'
   const evolutionSummary = input.personStateEvolutionSummary ?? null
   const evolutionPreferenceText = evolutionSummary?.latestDominantRung === 'space-first'
-    ? 'preference_code=lighter_touch; room=more; interruption_pressure=low; source=evolution_summary; visibility=internal-structured'
+    ? 'preference_code=lighter_touch; room=more; interruption_pressure=low; source=evolution_summary; surface=structured'
     : evolutionSummary?.latestDominantRung === 'warm-near'
-      ? 'preference_code=warm_directness_when_opening_clear; opening_required=true; source=evolution_summary; visibility=internal-structured'
+      ? 'preference_code=warm_directness_when_opening_clear; opening_required=true; source=evolution_summary; surface=structured'
       : ''
   const evolutionDoctrine = sanitizeText(
     evolutionSummary?.latestDoctrine

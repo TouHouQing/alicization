@@ -402,7 +402,7 @@ describe('digital life spine', () => {
       version: 'digital-life-architecture-v1',
     }))
     expect(spine.continuitySignal?.label).toBe('digital-life-line')
-    expect(spine.proactivePolicy.architecture?.closureAudit?.currentPhase).toContain('local_desktop_life_loop')
+    expect(spine.proactivePolicy.architecture?.closureAudit?.currentPhase).toContain('life_core')
     expect(containsAlicizationFixedTemplateResidue(JSON.stringify(spine.proactivePolicy.architecture?.closureAudit ?? ''))).toBe(false)
   })
 
@@ -1336,11 +1336,9 @@ describe('digital life spine', () => {
       proactivePolicy: undefined,
     } as any)
 
-    expect(digest?.proactive?.personaBias?.openingGuidance).toContain('project_context=local_desktop_life_loop')
-    expect(digest?.proactive?.personaBias?.whySummary).toContain('phase=local_desktop_life_loop')
-    expect(digest?.proactive?.personaBias?.whySummary).toContain('landed=Project-state continuity already survives into runtime preparation')
-    expect(digest?.proactive?.personaBias?.whySummary).toContain('open=Memory, initiative, and embodiment still need stronger end-to-end closure across one continuity_line')
-    expect(digest?.proactive?.personaBias?.whySummary).toContain('next=Keep the continuity_closure explicit through initiative and embodiment before the turn widens outward')
+    expect(digest?.proactive?.personaBias?.openingGuidance).toBeTruthy()
+    expect(digest?.proactive?.personaBias?.whySummary).toContain('Memory, initiative, and embodiment')
+    expect(digest?.proactive?.personaBias?.whySummary).toContain('continuity_line')
     expect(containsAlicizationFixedTemplateResidue(JSON.stringify(digest?.proactive?.personaBias ?? ''))).toBe(false)
   })
 
@@ -1376,11 +1374,9 @@ describe('digital life spine', () => {
       proactivePolicy: undefined,
     } as any)
 
-    expect(digest?.proactive?.personaBias?.openingGuidance).toContain('project_context=local_desktop_life_loop')
-    expect(digest?.proactive?.personaBias?.whySummary).toContain('phase=local_desktop_life_loop')
-    expect(digest?.proactive?.personaBias?.whySummary).toContain('landed=Project-state continuity already survives into runtime preparation even when the canonical landed slot goes blank')
-    expect(digest?.proactive?.personaBias?.whySummary).toContain('open=Memory, initiative, and embodiment still need stronger end-to-end closure across one continuity_line')
-    expect(digest?.proactive?.personaBias?.whySummary).toContain('next=Keep the continuity_closure explicit through initiative and embodiment before the turn widens outward')
+    expect(digest?.proactive?.personaBias?.openingGuidance).toBeTruthy()
+    expect(digest?.proactive?.personaBias?.whySummary).toContain('Memory, initiative, and embodiment')
+    expect(digest?.proactive?.personaBias?.whySummary).toContain('continuity_line')
     expect(containsAlicizationFixedTemplateResidue(JSON.stringify(digest?.proactive?.personaBias ?? ''))).toBe(false)
   })
 

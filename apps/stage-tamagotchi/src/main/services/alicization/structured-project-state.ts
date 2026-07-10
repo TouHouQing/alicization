@@ -336,8 +336,8 @@ function resolvePreferredStructuredProjectAwarenessLine(input: {
     nextClosureTarget: input.nextClosureTarget ?? null,
   })
     ? buildStructuredAwarenessFromClosureFields({
-        identity: sanitizeText(input.identity ?? '', '') || 'local_desktop_life_loop',
-        currentPhase: sanitizeText(input.currentPhase ?? '', '') || 'local_desktop_life_loop',
+        identity: sanitizeText(input.identity ?? '', '') || 'runtime_personhood',
+        currentPhase: sanitizeText(input.currentPhase ?? '', '') || 'life_core',
         latestLandedProgress: sanitizeText(input.latestLandedProgress ?? '', '') || '',
         primaryOpenLoop: sanitizeText(input.primaryOpenLoop ?? '', '') || '',
         nextClosureTarget: sanitizeText(input.nextClosureTarget ?? '', '') || '',

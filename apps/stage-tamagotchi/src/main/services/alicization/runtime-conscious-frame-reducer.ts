@@ -316,7 +316,7 @@ function normalizeProviderProjectIdentity(raw: unknown) {
   if (containsAlicizationFixedTemplateResidue(normalized))
     return null
   if (/^(?:identity\s*=\s*)?local_desktop_life_loop$/iu.test(normalized))
-    return 'local_desktop_life_loop'
+    return 'runtime_personhood'
   return sanitizeOptionalProviderCarryText(normalized, 220)
 }
 
@@ -327,9 +327,7 @@ function normalizeProviderContinuityAnchor(raw: unknown) {
   if (containsAlicizationFixedTemplateResidue(normalized))
     return null
   if (/^(?:continuity_anchor\s*=\s*)?local_desktop_life_loop(?:\s*;\s*owner\s*=\s*[\w-]+)?$/iu.test(normalized)) {
-    return normalized.startsWith('continuity_anchor=')
-      ? normalized.replace(/^continuity_anchor\s*=\s*/iu, '')
-      : normalized
+    return 'runtime_personhood; owner=project_state_governance'
   }
   return sanitizeOptionalProviderCarryText(normalized, 240)
 }
@@ -338,7 +336,7 @@ function buildFallbackProjectStateGrounding() {
   const projectState = resolveAlicizationProjectStateBrief()
   const canonicalProjectState = resolveCanonicalStructuredProjectState({
     normalizedProjectState: {
-      identity: 'local_desktop_life_loop',
+      identity: 'runtime_personhood',
       currentPhase: projectState.currentPhase,
       latestLandedProgress:
         projectState.continuityProgressSummary
@@ -346,21 +344,21 @@ function buildFallbackProjectStateGrounding() {
         ?? '',
       primaryOpenLoop: projectState.openLoops[0] ?? '',
       nextClosureTarget: projectState.nextClosureTarget,
-      sameHerSelfLine: 'local_desktop_life_loop; owner=project_state_governance',
-      sameHerDriftRisk: 'generic_guidance_without_first_person_continuity',
+      sameHerSelfLine: '',
+      sameHerDriftRisk: '',
     },
     runtimePreflightSummary: projectState.preflightSummary ?? null,
     runtimePreDialogueAwarenessLine: projectState.preDialogueAwarenessLine ?? null,
   })
   return {
-    identity: normalizeProviderProjectIdentity(canonicalProjectState.identity) ?? 'local_desktop_life_loop',
-    currentPhase: sanitizeOptionalProviderCarryText(canonicalProjectState.currentPhase, 120) ?? 'local_desktop_life_loop',
+    identity: normalizeProviderProjectIdentity(canonicalProjectState.identity) ?? 'runtime_personhood',
+    currentPhase: sanitizeOptionalProviderCarryText(canonicalProjectState.currentPhase, 120) ?? 'life_core',
     preflightSummary: sanitizeOptionalProviderCarryText(canonicalProjectState.preflightSummary ?? '', 320) ?? null,
     preDialogueAwarenessLine: sanitizeOptionalProviderCarryText(canonicalProjectState.preDialogueAwarenessLine ?? '', projectAwarenessFieldMaxChars) ?? null,
     latestProgress: sanitizeOptionalProviderCarryText(canonicalProjectState.latestLandedProgress ?? '', 220) ?? null,
     primaryOpenLoop: sanitizeOptionalProviderCarryText(canonicalProjectState.primaryOpenLoop ?? '', 180) ?? null,
     nextClosureTarget: sanitizeOptionalProviderCarryText(canonicalProjectState.nextClosureTarget, 1600) ?? null,
-    sameHerSelfLine: 'local_desktop_life_loop; owner=project_state_governance',
+    sameHerSelfLine: null,
     sameHerDriftRisk: sanitizeOptionalProviderCarryText(canonicalProjectState.sameHerDriftRisk, 220) ?? null,
   }
 }

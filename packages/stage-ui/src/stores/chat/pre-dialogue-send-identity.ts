@@ -47,7 +47,7 @@ function isBlockedSendIdentityReplacement(value: string) {
   const normalized = value.trim()
   return normalized === fixedTemplateWithheldSendIdentityLine
     || normalized.includes('content=excluded')
-    || normalized.includes('visibility=internal-structured')
+    || normalized.includes('surface=structured')
     || normalized.includes('phase1_local_digital_life')
     || normalized.includes('local_desktop_life_loop')
 }

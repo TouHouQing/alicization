@@ -193,7 +193,7 @@ function normalizeProjectStateAwarenessValue(key: string, raw: unknown, maxChars
     }
     if (/generic assistant|generic project|generic guidance|generic shell|generic task shell|generic status narration|status narration|status recap|project-summary voice|project summary voice/u.test(lower)
       || /generic assistant|generic project|generic guidance|generic shell|generic task shell|generic status narration|status narration|status recap|project-summary voice|project summary voice/u.test(factSafe)) {
-      return 'generic_guidance_without_first_person_continuity'
+      return 'generic_shell'
     }
     return 'continuity_residue'
   }

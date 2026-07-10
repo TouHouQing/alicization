@@ -122,31 +122,31 @@ function fixedMirrorTemplateStructuredFact(raw: unknown, maxChars = 320) {
   const lowered = normalized.toLowerCase()
   const segments = uniqueMirrorSegments([
     /phase\s*1|local-first|digital life|数字生命|alicization/u.test(lowered)
-      ? `local_desktop_life_loop${/apps\/stage-tamagotchi|proving ground/u.test(lowered) ? '; proving_ground=apps/stage-tamagotchi' : ''}`
+      ? `runtime_personhood${/apps\/stage-tamagotchi|proving ground/u.test(lowered) ? '; proving_ground=apps/stage-tamagotchi' : ''}`
       : null,
     /landed|already|progress|survive|落地|已/u.test(lowered)
-      ? 'continuity_progress=partial; visibility=internal-structured'
+      ? 'continuity_progress=partial; surface=structured'
       : null,
     /memory|initiative|embodiment|dialogue|open loop|still need|unresolved|closure|记忆|主动|具身|闭环/u.test(lowered)
-      ? 'unresolved_closure=memory_dialogue_embodiment; visibility=internal-structured'
+      ? 'unresolved_closure=memory_dialogue_embodiment; surface=structured'
       : null,
     /cross[-_ ]modal|voice|face|motion|lipsync|resident|next|proof|表情|动作|口型|声音/u.test(lowered)
-      ? 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs; visibility=internal-structured'
+      ? 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs; surface=structured'
       : null,
     /right now|holding together|body|face|motion|lipsync|voice|embodiment|具身/u.test(lowered)
       ? 'continuity=embodiment; lane=unknown; status=pending-rejoin; pending_rejoin=body+face+motion+lipsync+voice; closure=full-cross-modal-open; visibility=renderer-internal'
       : null,
     /same phase 1|same digital life|same[- ]her|same living|one continuous|one living|同一个/u.test(lowered)
-      ? 'continuity_anchor=local_desktop_life_loop; landed_closure=partial; unresolved_closure=memory_dialogue_embodiment; owner=project_state_governance'
+      ? 'continuity_anchor=runtime_personhood; landed_closure=partial; unresolved_closure=memory_dialogue_embodiment; owner=project_state_governance'
       : null,
     /generic guidance|generic project|thin project|detached|drift|漂|模板/u.test(lowered)
-      ? 'generic_guidance_without_first_person_continuity; closure_status=unfinished; visibility=internal-structured'
+      ? 'continuity_drift_risk=generic_shell; closure_status=unfinished; surface=structured'
       : null,
     /repair-before-closeness|repair first|repair settles|修复/u.test(lowered)
-      ? 'continuity_hold=repair_before_closeness; timing=before_closeness_widens; visibility=internal-structured'
+      ? 'continuity_hold=repair_before_closeness; timing=before_closeness_widens; surface=structured'
       : null,
     /measured-return|lower-pressure|low-pressure|leave room|留白|放轻/u.test(lowered)
-      ? 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred; visibility=internal-structured'
+      ? 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred; surface=structured'
       : null,
   ])
 
@@ -1165,15 +1165,15 @@ function deriveExecutionLikeSameHerHoldDetail(input: {
   const genericRepairMenu = /measured-return\s*\/\s*repair-before-closeness|one measured-return,\s*repair-before-closeness,\s*or rest-protective|measured-return,\s*repair-before-closeness,\s*or rest-protective/u.test(combined)
 
   if (explicitRepairAuthority && !genericRepairMenu) {
-    return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens; visibility=internal-structured'
+    return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens; surface=structured'
   }
 
   if (/reopened too eagerly|too eagerly|more room this time|keep more room this time|leave more room|do not reopen it with the same eagerness|不要重开得太快|这次更要留白|这次要更慢一点|上次太急/u.test(combined)) {
-    return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; visibility=internal-structured'
+    return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; surface=structured'
   }
 
   if (/measured-return|lower-pressure|one step more reversible|still settling|leave room|留白|放轻|别立刻把温度放大/u.test(combined)) {
-    return 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred; visibility=internal-structured'
+    return 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred; surface=structured'
   }
 
   return ''

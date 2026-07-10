@@ -68,7 +68,7 @@ function normalizeProjectIdentityField(raw: unknown) {
     return ''
   const lower = text.toLowerCase()
   if (/local-first digital life|local digital life|phase\s*1|one continuous her|same living line|same-her|same her/u.test(lower))
-    return 'local_desktop_life_loop'
+    return /phase\s*1/u.test(lower) ? 'life_core' : 'runtime_personhood'
   return compactStructuredValue(text, 120)
 }
 
@@ -90,14 +90,14 @@ function structuredContinuityProjectionLine(raw: unknown, role: string) {
     `${role}=structured_carry`,
     carriesContinuityTemplate ? 'continuity_scope=detected' : '',
     /callback/u.test(lower) ? 'callback_carry=true' : '',
-    /phase\s*1|local-first digital life|local digital life/u.test(lower) ? 'phase_scope=phase1_local_life' : '',
+    /phase\s*1|local-first digital life|local digital life/u.test(lower) ? 'phase_scope=life_core' : '',
     /unfinished|open loop|still needs|not closed/u.test(lower) ? 'open_loop=present' : '',
     /already landed|some closure|verified_closure_progress|has landed/u.test(lower) ? 'landed_closure=partial' : '',
     /lower-pressure|low-pressure|measured-return|leave room/u.test(lower) ? 'pressure=lower' : '',
     /repair-before-closeness|repair before closeness/u.test(lower) ? 'repair_policy=before_closeness' : '',
     /rest-protective|protect rest/u.test(lower) ? 'rest_window=protect' : '',
     /wait for confirmation/u.test(lower) ? 'confirmation=required' : '',
-    'visibility=internal-structured',
+    'surface=structured',
   ].filter(Boolean).join('; ')
 }
 
@@ -300,10 +300,10 @@ function buildDurableSelfCoreLine(input: {
   return sanitizeText([
     'self_continuity=durable',
     carriesSameHer ? 'identity_scope=continuity_evidence' : '',
-    carriesDigitalLifeIdentity ? 'phase_scope=phase1_local_life' : '',
+    carriesDigitalLifeIdentity ? 'phase_scope=life_core' : '',
     carriesContinuityAcrossSurfaces ? 'surface_scope=memory_speech_reply' : '',
     carriesLivingSelfRestraint ? 'restart_policy=context_preserving' : '',
-    'visibility=internal-structured',
+    'surface=structured',
   ].filter(Boolean).join('; '), 220) || null
 }
 
@@ -565,16 +565,19 @@ export function buildRuntimeSurfaceProjectStateContinuityFallback(
     return null
 
   const selfLine = sanitizeText([
+    'surface=structured',
     sameHerSelfLine ? structuredContinuityProjectionLine(sameHerSelfLine, 'continuity_anchor') : '',
-    identity ? `continuity_identity=${normalizeProjectIdentityField(identity)}` : '',
-    currentPhase ? `phase_scope=${normalizeProjectIdentityField(currentPhase) || compactStructuredValue(currentPhase, 80)}` : '',
+    identity && normalizeProjectIdentityField(identity) ? `identity_scope=${normalizeProjectIdentityField(identity)}` : '',
+    currentPhase && (normalizeProjectIdentityField(currentPhase) || compactStructuredValue(currentPhase, 80))
+      ? `phase_scope=${normalizeProjectIdentityField(currentPhase) || compactStructuredValue(currentPhase, 80)}`
+      : '',
   ].filter(Boolean).join(' '), 220) || null
   const relationshipLine = sanitizeText(
     embodimentCarryLine
     || [
       primaryOpenLoop ? `open_loop=${compactStructuredValue(primaryOpenLoop, 120)}; pressure=lower` : '',
       nextClosureTarget ? `next_closure=${compactStructuredValue(nextClosureTarget, 140)}` : '',
-      'visibility=internal-structured',
+      'surface=structured',
     ].filter(Boolean).join(' '),
     220,
   ) || null
@@ -583,7 +586,7 @@ export function buildRuntimeSurfaceProjectStateContinuityFallback(
     sameHerSelfLine ? structuredContinuityProjectionLine(sameHerSelfLine, 'continuity_anchor') : '',
     latestProgress ? `verified_closure_progress=${compactStructuredValue(latestProgress, 140)}` : '',
     primaryOpenLoop ? `open_loop=${compactStructuredValue(primaryOpenLoop, 120)}` : '',
-    'visibility=internal-structured',
+    'surface=structured',
   ].filter(Boolean).join(' | '), 220) || null
   const authoritySummary = uniqueList([
     selfLine,
@@ -706,13 +709,13 @@ export function buildSelfContinuityAuthority(input: {
   ) || null
   const habitLine = sanitizeText(
     input.habitPolicy?.requiresGroundingBeforeSurface
-      ? 'habit_policy=ground_first; reply_source=model_authored; visibility=internal-structured'
+      ? 'habit_policy=ground_first; reply_source=model_authored; surface=structured'
       : input.habitPolicy?.prefersQuietCompanionship
-        ? 'presence_policy=quiet_companionship; pressure=low; visibility=internal-structured'
+        ? 'presence_policy=quiet_companionship; pressure=low; surface=structured'
         : input.habitPolicy?.protectsRestWindow
-          ? 'rest_window=protect; visibility=internal-structured'
+          ? 'rest_window=protect; surface=structured'
           : input.habitPolicy?.dominantMode
-            ? `dominant_mode=${compactStructuredValue(input.habitPolicy.dominantMode, 80)}; visibility=internal-structured`
+            ? `dominant_mode=${compactStructuredValue(input.habitPolicy.dominantMode, 80)}; surface=structured`
             : '',
     220,
   ) || null

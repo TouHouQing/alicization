@@ -2528,7 +2528,7 @@ export function buildAlicizationAnswerPlannerSystemBlock(plan: AlicizationAnswer
   )
   return [
     '[ALICIZATION_ANSWER_PLAN]',
-    'visibility=internal-structured',
+    'surface=structured',
     `answer_act=${plan.act}`,
     `evidence_mode=${plan.evidenceMode}`,
     `governing_focus=${sanitizeAlicizationProviderFacingText(plan.governingFocus, 160, '') || 'none'}`,

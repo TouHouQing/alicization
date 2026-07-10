@@ -225,6 +225,17 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     ) || alicizationFixedTemplateReplacement
   }
 
+  function sanitizeProjectStateContinuityFactText(
+    raw: unknown,
+    maxChars: number,
+    field: ProjectStateCarryField,
+  ) {
+    const normalized = sanitizeBriefText(typeof raw === 'string' ? raw : '', maxChars)
+    if (!normalized || containsAlicizationFixedTemplateResidue(normalized))
+      return ''
+    return sanitizeProjectStateCarryText(normalized, maxChars, field)
+  }
+
   function sanitizeRuntimeContinuityToken(raw: unknown, maxChars: number) {
     const normalized = sanitizeBriefText(typeof raw === 'string' ? raw : '', maxChars)
     if (!normalized)
@@ -981,7 +992,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       ?? '',
       220,
     ) || null
-    const preferredProjectStateSameHerSelfLine = sanitizeProjectStateCarryText(
+    const preferredProjectStateSameHerSelfLine = sanitizeProjectStateContinuityFactText(
       input.projectState?.sameHerSelfLine ?? '',
       220,
       'continuity_anchor',
@@ -990,17 +1001,10 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       isAlicizationThinProjectAwarenessLine(preferredProjectStateSameHerSelfLine)
         ? null
         : preferredProjectStateSameHerSelfLine
-    ) ?? (
-      sanitizeProjectStateCarryText(
-        projectStateBrief.sameHerSelfLine ?? '',
-        220,
-        'continuity_anchor',
-      ) || null
     )
-    const projectStateSameHerDriftRisk = sanitizeProjectStateCarryText(
+    const projectStateSameHerDriftRisk = sanitizeProjectStateContinuityFactText(
       input.projectState?.sameHerDriftRisk
       ?? input.projectState?.sameHerDriftRiskSummary
-      ?? projectStateBrief.sameHerDriftRisk
       ?? '',
       220,
       'continuity_drift_risk',

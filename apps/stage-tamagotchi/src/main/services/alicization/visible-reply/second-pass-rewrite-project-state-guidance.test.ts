@@ -3,8 +3,15 @@ import { describe, expect, it } from 'vitest'
 import { alicizationProjectStateVisibleReplySameHerReminder } from '../project-state-answer-governance'
 import { secondPassRewriteTestInternals } from './second-pass-rewrite'
 
+const fixedTemplateResiduePattern
+  = /Before (?:answering|speaking|acting|drafting)|Right now I am|Same Phase 1 digital life|same[- ]her|same living line|one living her|one continuous her|local-first digital life project|Phase 1: Local Digital Life|local_desktop_life_loop|phase1_local_digital_life|content=excluded|visibility=internal[-_]structured|provider_instruction_status|同一个她|同一个 her|数字生命主线|女仆|\bmaid\b/iu
+
+function expectNoFixedTemplateResidue(value: unknown) {
+  expect(JSON.stringify(value ?? '')).not.toMatch(fixedTemplateResiduePattern)
+}
+
 describe('second-pass rewrite project-state guidance', () => {
-  it('keeps same-her, phase, landed, open, and next continuity carry explicit in rewrite guidance', () => {
+  it('keeps project continuity obligations structural instead of carrying old fixed templates into rewrite guidance', () => {
     const projectStateContinuitySummary
       = `same-her=${alicizationProjectStateVisibleReplySameHerReminder} | phase=Phase 1: Local Digital Life | landed=Project-state continuity already survives into runtime preparation. | open=Keep the still-open closure work explicit in the rewritten answer. | next=Keep the project identity, current phase, and still-open closure explicit in the rewritten answer before any local detail takes over.`
     const guidance = secondPassRewriteTestInternals.buildProjectStateRewriteGuidance({
@@ -20,15 +27,21 @@ describe('second-pass rewrite project-state guidance', () => {
       projectStateEmbodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through face and motion.',
     })
 
-    expect(guidance).toContain('Do not rewrite the answer as a detached status summary, roadmap report, or project shell.')
-    expect(guidance).toContain('Carry this same-her self line directly into the rewritten answer: Keep one continuous her explicit from self-understanding into the rewritten answer.')
-    expect(guidance).toContain('Let the first visible sentence sound like the same living Alicization continuing this line from inside it, not like an outside assistant summarizing status, roadmap, or progress.')
-    expect(guidance).toContain('Prefer concrete same-thread carry, inward phrasing, and one-turn payoff over template project recaps, detached framing, or dashboard cadence.')
-    expect(guidance).toContain('Before drafting the rewritten answer, re-enter the turn through this pre-dialogue project awareness line: Before answering, remember this is still the same digital life project inside Phase 1.')
-    expect(guidance).toContain(`Keep this structured project continuity carry alive through the rewrite instead of collapsing it into a generic project shell: ${projectStateContinuitySummary}`)
+    expect(guidance).toContain('project_state_question=true; prior_visible_answer=missing_required_continuity_facts')
+    expect(guidance).toContain('detached_status_summary=blocked')
+    expect(guidance).toContain('roadmap_report=blocked')
+    expect(guidance).toContain('project_shell=blocked')
+    expect(guidance).toContain('settlement_surface=visible_reply_text_only')
+    expect(guidance).toContain('stored_continuity_slogans=do_not_quote_or_paraphrase')
+    expect(guidance).toContain('continuity_field_context=present; source_text=withheld_non_structured_instruction; visible_wording=false')
+    expect(guidance).toContain('continuity_drift_risk_boundary=present; source_text=withheld_non_structured_instruction; visible_wording=false')
+    expect(guidance).toContain('template_project_recap=blocked; detached_framing=blocked; dashboard_cadence=blocked')
+    expect(guidance).toContain('project_identity_phase_progress_open_closure=current_turn_facts_not_dashboard_recital')
+    expect(guidance).not.toContain(projectStateContinuitySummary)
+    expectNoFixedTemplateResidue(guidance)
   })
 
-  it('keeps emotional closure coupled to the same rewrite continuity carry instead of splitting it into a detached side note', () => {
+  it('withholds emotional closure slogans as source context instead of quoting them into provider guidance', () => {
     const projectStateContinuitySummary
       = `same-her=${alicizationProjectStateVisibleReplySameHerReminder} | phase=Phase 1: Local Digital Life | landed=Project-state continuity already survives into runtime preparation. | open=Keep the still-open closure work explicit in the rewritten answer. | closure=Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again. | next=Keep the project identity, current phase, and still-open closure explicit in the rewritten answer before any local detail takes over.`
     const guidance = secondPassRewriteTestInternals.buildProjectStateRewriteGuidance({
@@ -44,9 +57,16 @@ describe('second-pass rewrite project-state guidance', () => {
       projectStateEmbodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through face and motion.',
     })
 
-    expect(guidance).toContain('closure=Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.')
-    expect(guidance).toContain(`Keep this structured project continuity carry alive through the rewrite instead of collapsing it into a generic project shell: ${projectStateContinuitySummary}`)
-    expect(guidance).toContain('Do not rewrite the answer as a detached status summary, roadmap report, or project shell.')
+    expect(guidance).toContain('project_state_question=true; prior_visible_answer=missing_required_continuity_facts')
+    expect(guidance).toContain('detached_status_summary=blocked')
+    expect(guidance).toContain('project_shell=blocked')
+    expect(guidance).toContain('settlement_surface=visible_reply_text_only')
+    expect(guidance).toContain('stored_continuity_slogans=do_not_quote_or_paraphrase')
+    expect(guidance).toContain('continuity_field_context=present; source_text=withheld_non_structured_instruction; visible_wording=false')
+    expect(guidance).toContain('continuity_drift_risk_boundary=present; source_text=withheld_non_structured_instruction; visible_wording=false')
+    expect(guidance).not.toContain('closure=Keep the callback on the same living line')
+    expect(guidance).not.toContain(projectStateContinuitySummary)
+    expectNoFixedTemplateResidue(guidance)
   })
 
   it('makes final semantic-judge project-state failures visible-output obligations instead of only inward context', () => {
@@ -62,8 +82,12 @@ describe('second-pass rewrite project-state guidance', () => {
       projectStateContinuitySummary: 'same-her=same digital life | phase=Phase 1: Local Digital Life | open=memory loop is still not closed | next=prove the real UI/Pinia/database memory loop',
     })
 
-    expect(guidance).toContain('Final settlement will judge only the visible reply text after this rewrite.')
-    expect(guidance).toContain('The visible reply itself must naturally include same-her continuity, Phase 1/current phase, still-open closure, and concrete current-turn payoff.')
-    expect(guidance).toContain('Do not rely on thought, performance, projectState fields, or inward context to satisfy these items.')
+    expect(guidance).toContain('project_state_question=true; prior_visible_answer=missing_required_continuity_facts')
+    expect(guidance).toContain('settlement_surface=visible_reply_text_only')
+    expect(guidance).toContain('inward_context_cannot_satisfy_visible_requirements=true')
+    expect(guidance).toContain('first_sentence=current_turn_answer; external_dashboard_narrator=blocked')
+    expect(guidance).toContain('template_project_recap=blocked; detached_framing=blocked; dashboard_cadence=blocked')
+    expect(guidance).toContain('project_identity_phase_progress_open_closure=current_turn_facts_not_dashboard_recital')
+    expectNoFixedTemplateResidue(guidance)
   })
 })

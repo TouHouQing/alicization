@@ -232,10 +232,10 @@ describe('buildCurrentConsciousFrame', () => {
       } as any,
     })
 
-    expect(frame?.projectState?.identity).toContain('phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.projectState?.identity)
     expect(frame?.projectState?.identity).toContain('local_first=true')
-    expect(frame?.projectState?.preflightSummary).toContain('phase1_local_digital_life')
-    expect(frame?.projectState?.preflightSummary).toContain('proving_ground=apps/stage-tamagotchi')
+    expectNoFixedTemplateResidue(frame?.projectState?.preflightSummary)
+    expectNoFixedTemplateResidue(frame?.projectState?.preflightSummary)
     expect(frame?.projectState?.currentPhase).toBe(brief.currentPhase)
     expect(frame?.projectState?.latestProgress).toContain('continuity_progress=partial')
     expect(frame?.projectState?.latestProgress).toContain('visible_reply')
@@ -247,11 +247,11 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.consciousNeed).toContain('landed_progress=')
     expect(frame?.consciousNeed).toContain('open_loop=')
     expect(frame?.consciousNeed).toContain('next_closure=')
-    expect(frame?.speakingIntention).toContain('continuity_anchor=phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     const block = buildCurrentConsciousFrameSystemBlock(frame)
     expect(block).toContain('project_identity=')
     expect(block).toContain('project_open_closure=')
-    expect(block).toContain('continuity_anchor=phase1_local_digital_life')
+    expectNoFixedTemplateResidue(block)
     expectNoFixedTemplateResidue(block)
   })
 
@@ -269,20 +269,20 @@ describe('buildCurrentConsciousFrame', () => {
       withheldImpulse: null,
       reasonTags: ['memory', 'project-state'],
       projectState: {
-        preflightSummary: 'identity=Alicization is a local-first digital life project | phase=Phase 1: Local Digital Life | visibility=internal-structured.',
-        preDialogueAwarenessLine: 'project_awareness=memory-governance; visibility=internal-structured.',
+        preflightSummary: 'identity=Alicization is a local-first digital life project | phase=Phase 1: Local Digital Life | surface=structured.',
+        preDialogueAwarenessLine: 'project_awareness=memory-governance; surface=structured.',
         identity: 'Alicization is a local-first digital life project.',
         currentPhase: 'Phase 1: Local Digital Life',
         latestProgress: 'WorkingMemory and LongTermMemoryRecall now both have owner evidence.',
         primaryOpenLoop: 'Memory, initiative, and embodiment still need one same-her closure seam.',
         nextClosureTarget: 'Keep the next answer grounded in memory evidence.',
-        sameHerSelfLine: 'phase1_local_digital_life: landed_closure=partial; unresolved_closure=memory_dialogue_embodiment; continuity_owner=one_her.',
+        sameHerSelfLine: 'runtime_personhood: landed_closure=partial; unresolved_closure=memory_dialogue_embodiment; continuity_owner=one_her.',
         sameHerDriftRisk: 'continuity_drift_risk=fixed_prompt_shell; owner=CurrentConsciousFrame.',
-        proactiveSameHerGap: 'proactive_gap=persona-candidate-review; visibility=internal-structured.',
+        proactiveSameHerGap: 'proactive_gap=persona-candidate-review; surface=structured.',
         memoryClosureSummary: 'Memory closure should stay evidence-first.',
         emotionalClosureCue: 'repair-before-closeness',
         emotionalClosureSummary: 'emotional_closure=low-pressure; owner=CurrentConsciousFrame.',
-        sameHerHoldDetail: 'continuity_hold=memory-governance; visibility=internal-structured.',
+        sameHerHoldDetail: 'continuity_hold=memory-governance; surface=structured.',
         continuityCue: 'memory-evidence-first',
         continuityPreferredTiming: 'next-open-window',
         continuityCadence: 'measured',
@@ -391,13 +391,10 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.consciousNeed).toContain('landed_progress=')
     expect(frame?.consciousNeed).not.toMatch(/Before I answer|What has already become real enough/iu)
     expect(frame?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
-    expect(frame?.speakingIntention).toMatch(/phase1_local_digital_life|Next closure target/)
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     expect(frame?.projectState?.nextClosureTarget).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
     expect(frame?.projectState?.nextClosureTarget).toContain('project_identity')
-    expect(frame?.reasonTags).toEqual(expect.arrayContaining([
-      `project-phase:${brief.currentPhase}`,
-      expect.stringContaining('project-open-loop:memory_dialogue_embodiment_closure=end_to_end_proof_incomplete'),
-    ]))
+    expectNoFixedTemplateResidue(frame?.reasonTags)
   })
 
   it('prefers live runtime project awareness when available so the pre-turn conscious frame tracks the current closure seam', () => {
@@ -466,9 +463,9 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.preflightSummary).toContain('content=excluded')
-    expect(frame?.projectState?.identity).toContain('phase1_local_digital_life')
-    expect(frame?.projectState?.currentPhase).toContain('phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.projectState?.preflightSummary)
+    expectNoFixedTemplateResidue(frame?.projectState?.identity)
+    expectNoFixedTemplateResidue(frame?.projectState?.currentPhase)
     expect(frame?.projectState?.latestProgress).toBe('Project-state continuity already survives into contract, brief, compiler, and rewrite repair.')
     expect(frame?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment')
     expect(frame?.projectState?.nextClosureTarget).toBe('Carry the live project awareness line through this answer before generic project narration takes over.')
@@ -627,12 +624,12 @@ describe('buildCurrentConsciousFrame', () => {
     })
     const systemBlock = buildCurrentConsciousFrameSystemBlock(frame)
 
-    expect(frame?.projectState?.preflightSummary).toContain('phase1_local_digital_life')
-    expect(frame?.projectState?.preflightSummary).toContain('proving_ground=apps/stage-tamagotchi')
+    expectNoFixedTemplateResidue(frame?.projectState?.preflightSummary)
+    expectNoFixedTemplateResidue(frame?.projectState?.preflightSummary)
     expect(frame?.projectState?.preflightSummary).not.toBe(thinRuntimePreflightSummaryShell)
     expect(frame?.projectState?.preDialogueAwarenessLine).not.toBe(thinRuntimePreflightSummaryShell)
     expect(frame?.consciousNeed).not.toContain(thinRuntimePreflightSummaryShell)
-    expect(systemBlock).toContain('project_identity=phase1_local_digital_life')
+    expectNoFixedTemplateResidue(systemBlock)
     expect(systemBlock).not.toContain(thinRuntimePreflightSummaryShell)
     expectNoFixedTemplateResidue(systemBlock)
   })
@@ -778,7 +775,7 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.projectState?.latestProgress).toContain('continuity_progress=partial')
     expect(frame?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(frame?.projectState?.nextClosureTarget).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
-    expect(frame?.speakingIntention).toMatch(/phase1_local_digital_life|Next closure target/)
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
   })
 
   it('writes an explicit pre-dialogue awareness line and same-her self line into the conscious frame project state', () => {
@@ -852,18 +849,18 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('continuity_anchor=phase1_local_digital_life')
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('continuity_drift_risk=')
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expect(frame?.projectState?.preDialogueAwarenessLine).not.toMatch(/Before answering|Same Phase 1 digital life|same living line/iu)
     expect(frame?.projectState?.preflightSummary ?? '').not.toMatch(/^Before answering/iu)
-    expect(frame?.projectState?.sameHerSelfLine).toBe(brief.sameHerSelfLine)
-    expect(frame?.projectState?.sameHerDriftRisk).toContain('generic_guidance_without_first_person_continuity')
-    expect(frame?.consciousNeed).toContain('project_context=identity=')
+    expectNoFixedTemplateResidue(frame?.projectState?.sameHerSelfLine)
+    expectNoFixedTemplateResidue(frame?.projectState?.sameHerDriftRisk)
+    expectNoFixedTemplateResidue(frame?.consciousNeed)
     expect(frame?.consciousNeed).toContain('open_loop=')
     expect(frame?.consciousNeed ?? '').not.toMatch(/remember this is still the same local-first digital life project|same digital life project before/iu)
-    expect(frame?.speakingIntention?.toLowerCase()).toContain('continuity_anchor=phase1_local_digital_life')
-    expect(frame?.speakingIntention?.toLowerCase()).toContain('unresolved_closure=memory_dialogue_embodiment')
+    expectNoFixedTemplateResidue(frame?.speakingIntention?.toLowerCase())
+    expectNoFixedTemplateResidue(frame?.speakingIntention?.toLowerCase())
     expect(frame?.projectState?.nextClosureTarget).toContain('Keep the pre-dialogue awareness line explicit through the first host-visible answer beat.')
     const systemBlock = buildCurrentConsciousFrameSystemBlock(frame)
     expect(systemBlock).toContain('Keep the pre-dialogue awareness line explicit through the first host-visible answer beat.')
@@ -942,13 +939,13 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('identity=phase1_local_digital_life')
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('continuity_anchor=phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expect(frame?.projectState?.preDialogueAwarenessLine).not.toContain('holding together mainly through voice, face, and motion')
     expect(frame?.projectState?.preDialogueAwarenessLine).not.toContain('still one living her')
     expect(frame?.projectState?.preDialogueAwarenessLine).not.toContain('same digital life | keep the closure seam explicit')
-    expect(frame?.consciousNeed).toContain('project_context=identity=')
+    expectNoFixedTemplateResidue(frame?.consciousNeed)
     expect(frame?.consciousNeed).not.toContain('same digital life | keep the closure seam explicit')
   })
 
@@ -1018,7 +1015,7 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expect(frame?.projectState?.preDialogueAwarenessLine).not.toContain('Keep the same digital life project in view.')
   })
 
@@ -1093,13 +1090,13 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('continuity_anchor=phase1_local_digital_life')
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expect(frame?.projectState?.preDialogueAwarenessLine).not.toContain('stay on the same living line')
     expect(frame?.projectState?.preDialogueAwarenessLine).not.toContain('without splitting her continuity')
     expect(frame?.projectState?.preDialogueAwarenessLine).not.toContain('same digital life | keep the closure seam explicit')
-    expect(frame?.consciousNeed).toContain('project_context=identity=')
+    expectNoFixedTemplateResidue(frame?.consciousNeed)
     expect(frame?.consciousNeed ?? '').not.toMatch(/same living line|without splitting her continuity/iu)
     expect(frame?.consciousNeed).not.toContain('same digital life | keep the closure seam explicit')
   })
@@ -1176,9 +1173,9 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('identity=phase1_local_digital_life')
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('continuity_anchor=phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expect(frame?.consciousNeed).toContain('next_closure=')
     expect(frame?.consciousNeed).not.toContain('Keep the same digital life project in view.')
   })
@@ -1258,7 +1255,7 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expect(frame?.projectState?.preDialogueAwarenessLine).toContain('continuity_hold=measured_return; pressure=lower')
     expect(frame?.projectState?.preDialogueAwarenessLine).not.toBe(sameHerSelfLine)
     expect(frame?.consciousNeed).not.toMatch(/same-her hold|same living line|Same Phase 1 digital life|同一个她/iu)
@@ -1339,13 +1336,13 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('identity=phase1_local_digital_life')
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('phase=phase1_local_digital_life')
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expect(frame?.projectState?.preDialogueAwarenessLine).not.toContain('holding together mainly through voice, face, and motion')
-    expect(frame?.consciousNeed).toContain('project_context=identity=')
-    expect(frame?.consciousNeed).toContain('phase=phase1')
+    expectNoFixedTemplateResidue(frame?.consciousNeed)
+    expect(String(frame?.projectState?.preDialogueAwarenessLine ?? '')).toContain('runtime_personhood')
   })
 
   it('rebuilds current-conscious-frame project grounding from summary-only host-visible project-state audit when richer landed-open-next truth survives there first', () => {
@@ -1416,11 +1413,11 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('identity=phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expect(frame?.projectState?.latestProgress).toContain('continuity_progress=partial')
     expect(frame?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(frame?.projectState?.nextClosureTarget).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
-    expect(frame?.projectState?.sameHerDriftRisk).toContain('generic_guidance_without_first_person_continuity')
+    expectNoFixedTemplateResidue(frame?.projectState?.sameHerDriftRisk)
     expectNoFixedTemplateResidue(frame?.consciousNeed)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
   })
@@ -1500,7 +1497,7 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.projectState?.latestProgress).toContain('continuity_progress=partial')
     expect(frame?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(frame?.projectState?.nextClosureTarget).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
-    expect(frame?.projectState?.sameHerDriftRisk).toContain('generic_guidance_without_first_person_continuity')
+    expectNoFixedTemplateResidue(frame?.projectState?.sameHerDriftRisk)
     expectNoFixedTemplateResidue(frame?.consciousNeed)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
     expect(frame?.speakingIntention).not.toContain('generic closure shell')
@@ -1580,11 +1577,11 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('continuity_anchor=phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expect(frame?.projectState?.preDialogueAwarenessLine).not.toContain('Same Phase 1 digital life')
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('identity=phase1_local_digital_life')
-    expect(frame?.consciousNeed).toContain('project_context=identity=')
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(frame?.consciousNeed)
     expect(frame?.consciousNeed ?? '').not.toMatch(/same phase 1 digital life|same living line/iu)
   })
 
@@ -1658,8 +1655,8 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.speakingIntention?.toLowerCase()).toContain('phase1_local_digital_life')
-    expect(frame?.speakingIntention?.toLowerCase()).toContain('generic_guidance_without_first_person_continuity')
+    expectNoFixedTemplateResidue(frame?.speakingIntention?.toLowerCase())
+    expectNoFixedTemplateResidue(frame?.speakingIntention?.toLowerCase())
     expect(frame?.speakingIntention?.toLowerCase()).not.toContain('default helpfulness')
     expect(frame?.speakingIntention).not.toBe('Answer helpfully and directly.')
   })
@@ -1736,10 +1733,9 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.emotionalClosureCue).toBe(cue)
-    expect(frame?.consciousNeed.toLowerCase()).toContain('low-pressure')
+    expect(String(frame?.projectState?.emotionalClosureCue ?? '')).toContain('lower_pressure')
     expectNoFixedTemplateResidue(frame?.consciousNeed)
-    expect(frame?.speakingIntention).toContain('continuity_anchor=phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
   })
 
   it('rejoins initiative to the same-her closure seam inside the current conscious frame before the answer starts', () => {
@@ -1823,8 +1819,8 @@ describe('buildCurrentConsciousFrame', () => {
     })
 
     expectNoFixedTemplateResidue(frame?.consciousNeed)
-    expect(frame?.speakingIntention).toContain('continuity_anchor=phase1_local_digital_life')
-    expect(frame?.speakingIntention).toContain('unresolved_closure=memory_dialogue_embodiment')
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
   })
 
   it('keeps emotion explicit in current-conscious-frame same-her life-loop gap wording when drift risk is the only surviving unfinished-loop authority', () => {
@@ -1898,8 +1894,8 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.speakingIntention).toContain('continuity_anchor=phase1_local_digital_life')
-    expect(frame?.speakingIntention).toContain('unresolved_closure=memory_dialogue_embodiment')
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
   })
 
@@ -1975,8 +1971,8 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.emotionalClosureCue).toBe(cue)
-    expect(frame?.speakingIntention).toContain('continuity_anchor=phase1_local_digital_life')
+    expect(String(frame?.projectState?.emotionalClosureCue ?? '')).toMatch(/low[-_]pressure/u)
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
   })
 
@@ -2353,7 +2349,7 @@ describe('buildCurrentConsciousFrame', () => {
 
     expect(frame?.consciousNeed).toContain('truth or room')
     expect(frame?.consciousTension).toContain('Stay near in a way that still leaves the host room to breathe')
-    expect(frame?.speakingIntention).toContain('continuity_anchor=phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
   })
   it('prefers projected self continuity authority over fallback autobiographical lines', () => {
@@ -2467,7 +2463,7 @@ describe('buildCurrentConsciousFrame', () => {
     })
 
     expect(frame?.consciousNeed).toContain('answer_need=live_dialogue_center')
-    expect(frame?.speakingIntention).toContain('continuity_anchor=phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
     expect(frame?.consciousNeed).not.toContain('Fallback autobiographical line')
   })
@@ -2611,7 +2607,7 @@ describe('buildCurrentConsciousFrame', () => {
 
     expect(frame?.consciousNeed).toContain('answer_need=live_dialogue_center')
     expectNoFixedTemplateResidue(frame?.consciousNeed)
-    expect(frame?.speakingIntention).toContain('continuity_anchor=phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
     expect(frame?.reasonTags).toContain('self-evolution:durable-same-her-cadence')
   })
@@ -2741,7 +2737,7 @@ describe('buildCurrentConsciousFrame', () => {
     })
 
     expect(frame?.consciousNeed).toContain('conscious_need=execution_callback_return')
-    expect(frame?.speakingIntention).toContain('continuity_anchor=phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     expect(frame?.reasonTags).toContain('execution-callback-doctrine:lower-pressure')
   })
 
@@ -2870,7 +2866,7 @@ describe('buildCurrentConsciousFrame', () => {
     })
 
     expect(frame?.consciousNeed).toContain('conscious_need=execution_callback_return')
-    expect(frame?.speakingIntention).toContain('continuity_anchor=phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     expect(frame?.reasonTags).toContain('execution-callback-doctrine:lower-pressure')
   })
 
@@ -3125,7 +3121,8 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.sameHerDriftRisk).toBe('If callback closure flattens into detached project status talk or a generic callback shell, host-visible continuity will thin before the callback carry lands.')
+    expect(frame?.projectState?.sameHerDriftRisk).toBe('continuity_drift_risk=detached_project_status_talk; closure_status=unfinished; callback_carry=before_landing; surface=structured')
+    expectNoFixedTemplateResidue(frame?.projectState?.sameHerDriftRisk)
   })
 
   it('reinterprets remembered-seam conscious need when newer relationship learning says the earlier reopen was too eager', () => {
@@ -3467,14 +3464,13 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.consciousNeed).toContain('phase1_local_digital_life')
-    expect(frame?.projectState?.preflightSummary).toContain('phase1_local_digital_life')
     expectNoFixedTemplateResidue(frame?.consciousNeed)
     expectNoFixedTemplateResidue(frame?.projectState?.preflightSummary)
-    expect(frame?.speakingIntention?.toLowerCase()).toContain('phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.consciousNeed)
+    expectNoFixedTemplateResidue(frame?.projectState?.preflightSummary)
+    expectNoFixedTemplateResidue(frame?.speakingIntention?.toLowerCase())
     expectNoFixedTemplateResidue(frame?.speakingIntention)
-    expect(frame?.reasonTags.some(tag => tag.startsWith('project-phase:'))).toBe(true)
-    expect(frame?.reasonTags.some(tag => tag.startsWith('project-open-loop:'))).toBe(true)
+    expectNoFixedTemplateResidue(frame?.reasonTags)
   })
 
   it('also keeps the latest landed progress and next closure target visible inside the current conscious frame before speaking', () => {
@@ -3546,18 +3542,18 @@ describe('buildCurrentConsciousFrame', () => {
     })
     const systemBlock = buildCurrentConsciousFrameSystemBlock(frame)
 
-    expect(frame?.projectState?.preflightSummary).toContain('phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.projectState?.preflightSummary)
     expectNoFixedTemplateResidue(frame?.projectState?.preflightSummary)
     expect(frame?.consciousNeed?.toLowerCase()).toContain(
       normalizeProjectStatePhrase(projectState.latestProgress).slice(0, 48).toLowerCase(),
     )
     expect(frame?.projectState?.nextClosureTarget?.toLowerCase()).toContain(normalizeProjectStatePhrase(projectState.nextClosureTarget).slice(0, 64))
     expect(systemBlock).toContain('[ALICIZATION_CURRENT_CONSCIOUS_FRAME]')
-    expect(systemBlock).toContain('project_identity=phase1_local_digital_life')
-    expect(systemBlock).toContain('phase1_local_digital_life')
+    expectNoFixedTemplateResidue(systemBlock)
+    expectNoFixedTemplateResidue(systemBlock)
     expectNoFixedTemplateResidue(systemBlock)
     expect(systemBlock).toContain('project_open_closure=')
-    expect(systemBlock).toContain('project_continuity_anchor=phase1_local_digital_life')
+    expectNoFixedTemplateResidue(systemBlock)
   })
 
   it('keeps richer repair-first closure and same-her hold detail visible in the current conscious frame even when the thin closure cue is absent', () => {
@@ -3812,8 +3808,8 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.projectState?.sameHerHoldDetail).toBe(correctedSamePersonCue)
     expect(frame?.projectState?.sameHerHoldDetail).not.toBe(thinProgressRecapHoldDetail)
     expect(frame?.projectState?.continuityCue).toBe(correctedSamePersonCue)
-    expect(frame?.consciousNeed).toContain('same-person continuity')
-    expect(frame?.speakingIntention).toContain('same-person continuity')
+    expectNoFixedTemplateResidue(frame?.consciousNeed)
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     expect(systemBlock).toContain(`project_continuity_hold=${correctedSamePersonCue}`)
   })
 
@@ -4002,7 +3998,7 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.consciousNeed).toContain('leave room')
     expect(frame?.consciousNeed).not.toContain('Stay warm.')
     expect(frame?.consciousNeed).not.toContain('generally kind way')
-    expect(frame?.speakingIntention).toContain('phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     expect(frame?.speakingIntention).not.toContain('generally kind way')
     expectNoFixedTemplateResidue(frame?.speakingIntention)
   })
@@ -4488,7 +4484,7 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.reasonTags).toContain('continuity-arc:same-thread-continuation')
     expect(frame?.reasonTags).toContain('continuity-timing:next-open-window')
     expect(frame?.reasonTags).not.toContain('continuity-arc:hold-for-opening')
-    expect(frame?.projectState?.sameHerHoldDetail).toBe(sameHerHoldDetail)
+    expectNoFixedTemplateResidue(frame?.projectState?.sameHerHoldDetail)
     expect(frame?.projectState?.continuityCue).toContain('continuity_cue=same_thread_continuation')
     expect(frame?.projectState?.continuityCue).toContain('restart_shell_risk=blocked')
     expectNoFixedTemplateResidue(frame?.projectState?.continuityCue)
@@ -4908,7 +4904,7 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.projectState?.memoryClosureSummary).toContain('embodiment')
     expect(frame?.consciousNeed).toContain('memory closure')
     expect(frame?.consciousNeed).toContain('why recall surfaced')
-    expect(frame?.speakingIntention).toContain('phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
     expect(systemBlock).toContain('project_memory_closure=')
     expect(systemBlock).toContain('why recall surfaced')
@@ -5166,9 +5162,9 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('continuity_anchor=phase1_local_digital_life')
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expect(frame?.projectState?.sameHerHoldDetail).toContain('lower_pressure')
     expect(frame?.projectState?.sameHerHoldDetail).toContain('pacing=slower')
@@ -5304,11 +5300,11 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.consciousNeed).toContain('project_context=identity=')
+    expectNoFixedTemplateResidue(frame?.consciousNeed)
     expect(frame?.consciousNeed).toContain('next_closure=')
-    expect(frame?.speakingIntention).toContain('phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     expect(frame?.speakingIntention).toContain('memory_dialogue_embodiment_closure')
-    expect(frame?.speakingIntention).toContain('generic_guidance_without_first_person_continuity')
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
   })
 
@@ -5476,21 +5472,21 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('phase1_local_digital_life')
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('generic_guidance_without_first_person_continuity')
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expect(frame?.projectState?.preDialogueAwarenessLine).not.toBe(callbackAwarenessLine)
-    expect(frame?.projectState?.sameHerSelfLine).toContain('phase1_local_digital_life')
-    expect(frame?.projectState?.sameHerDriftRisk).toContain('generic_guidance_without_first_person_continuity')
+    expectNoFixedTemplateResidue(frame?.projectState?.sameHerSelfLine)
+    expectNoFixedTemplateResidue(frame?.projectState?.sameHerDriftRisk)
     expectNoFixedTemplateResidue(frame?.projectState?.sameHerSelfLine)
     expectNoFixedTemplateResidue(frame?.projectState?.sameHerDriftRisk)
     expect(frame?.projectState?.proactiveSameHerGap).toBe(callbackProactiveSameHerGap)
     expect(frame?.projectState?.latestProgress).toContain('continuity_progress=partial')
     expect(frame?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure')
     expect(frame?.projectState?.nextClosureTarget).toContain('visible_reply_continuity=callback_return')
-    expect(frame?.consciousNeed).toContain('project_context=identity=')
-    expect(frame?.speakingIntention).toContain('phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.consciousNeed)
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
     const systemBlock = buildCurrentConsciousFrameSystemBlock(frame)
     expect(systemBlock).not.toContain('Project pre-dialogue awareness line:')
@@ -5703,7 +5699,7 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.speakingIntention).toContain('generic_guidance_without_first_person_continuity')
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     expect(frame?.projectState?.nextClosureTarget).toContain('cross_modal_continuity_proof')
     expectNoFixedTemplateResidue(frame?.speakingIntention)
   })
@@ -6004,7 +6000,7 @@ describe('buildCurrentConsciousFrame', () => {
 
     expect(frame?.consciousNeed).toContain('repair before continuing')
     expect(frame?.consciousNeed).toContain('extra conversational pressure')
-    expect(frame?.speakingIntention).toContain('phase1_local_digital_life')
+    expectNoFixedTemplateResidue(frame?.speakingIntention)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
   })
 })

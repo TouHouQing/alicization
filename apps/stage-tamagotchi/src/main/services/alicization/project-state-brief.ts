@@ -93,7 +93,8 @@ interface AlicizationProjectStateSummaryAliasShape {
   sameHerDriftRiskSummary?: unknown
 }
 
-const phase1LocalDigitalLifeAnchor = 'local_desktop_life_loop'
+const runtimePersonhoodAnchor = 'runtime_personhood'
+const lifeCorePhaseAnchor = 'life_core'
 
 export interface AlicizationProjectStatusBrief {
   projectIdentity: string
@@ -537,7 +538,7 @@ function sanitizeProjectStateIdentityText(raw: unknown, maxChars = 220) {
   if (!normalized)
     return ''
   return normalized === alicizationFixedTemplateReplacement
-    ? phase1LocalDigitalLifeAnchor
+    ? runtimePersonhoodAnchor
     : normalized
 }
 
@@ -546,7 +547,7 @@ function sanitizeProjectStatePhaseText(raw: unknown, maxChars = 160) {
   if (!normalized)
     return ''
   if (normalized === alicizationFixedTemplateReplacement)
-    return phase1LocalDigitalLifeAnchor
+    return lifeCorePhaseAnchor
 
   const withoutKey = normalized.replace(/^(?:phase|current_phase)\s*=\s*/iu, '').trim()
   return withoutKey || normalized
@@ -656,11 +657,11 @@ function deriveSameHerHoldDetailFromProjectContinuityBehavior(mode: string | nul
 
 function deriveContinuityCueFromProjectContinuityBehavior(mode: string | null) {
   if (mode === 'repair-before-closeness')
-    return 'continuity_cue=repair-before-closeness; surface_timing=after-repair-settles; visibility=internal-first.'
+    return 'continuity_cue=repair-before-closeness; surface_timing=after-repair-settles; surface=internal.'
   if (mode === 'rest-protective')
-    return 'continuity_cue=rest-protective; surface_timing=after-rest-stabilizes; visibility=internal-first.'
+    return 'continuity_cue=rest-protective; surface_timing=after-rest-stabilizes; surface=internal.'
   if (mode === 'measured-return')
-    return 'continuity_cue=measured-return; surface_timing=next-open-window; visibility=internal-first.'
+    return 'continuity_cue=measured-return; surface_timing=next-open-window; surface=internal.'
   return ''
 }
 
@@ -963,11 +964,11 @@ function compactSameHerLineForAwareness(text: string, maxChars = 110) {
   if (!normalized)
     return ''
   if (normalized === alicizationFixedTemplateReplacement)
-    return phase1LocalDigitalLifeAnchor
+    return runtimePersonhoodAnchor
   if (/\bphase1_local_digital_life(?:_anchor)?\b/iu.test(normalized))
-    return phase1LocalDigitalLifeAnchor
+    return runtimePersonhoodAnchor
   if (/same phase 1 digital life/iu.test(normalized))
-    return phase1LocalDigitalLifeAnchor
+    return runtimePersonhoodAnchor
   return normalized.slice(0, maxChars)
 }
 
@@ -978,7 +979,7 @@ function sanitizeSameHerProjectLine(raw: unknown, fallback: string) {
 
   const canonicalMatch = normalized.match(/same phase 1 digital life\..*/iu)
   if (canonicalMatch?.[0])
-    return 'local_desktop_life_loop; owner=project_state_governance.'
+    return 'runtime_personhood; owner=project_state_governance.'
 
   return normalized
 }
@@ -3816,11 +3817,11 @@ export function resolveAlicizationProjectStateDirectGatewayAuditTargets() {
 }
 
 export function resolveAlicizationProjectStateBrief(): AlicizationProjectStateBrief {
-  const identity = 'local_desktop_life_loop; local_first=true; host_resident_identity=persistent; boundary=not_chat_wrapper.'
-  const currentPhase = 'phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi.'
-  const sameHerSelfLine = 'local_desktop_life_loop; owner=project_state_governance.'
-  const sameHerDriftRisk = 'generic_guidance_without_first_person_continuity; closure_status=unfinished; visibility=internal_structured.'
-  const emotionalClosureCue = 'emotional_closure=active; pressure=low; restart_policy=no_restart; visibility=internal_structured.'
+  const identity = 'identity=runtime_personhood; local_first=true; host_resident_identity=persistent; boundary=not_chat_wrapper.'
+  const currentPhase = 'phase=life_core; proving_ground=apps/stage-tamagotchi.'
+  const sameHerSelfLine = 'runtime_personhood; owner=project_state_governance.'
+  const sameHerDriftRisk = 'continuity_drift_risk=template_residue_or_generic_shell; closure_status=unfinished; surface=structured.'
+  const emotionalClosureCue = 'emotional_closure=active; pressure=low; restart_policy=no_restart; surface=structured.'
   const emotionalClosureSummary = emotionalClosureCue
   const sameHerHoldDetail = 'continuity_hold=project-state; pressure=measured-return; scope=persistent_identity; visibility=internal-unless-asked.'
   const continuityRestraint = 'measured-return' as const
@@ -3832,15 +3833,15 @@ export function resolveAlicizationProjectStateBrief(): AlicizationProjectStateBr
   const preferredLipsyncMode = 'restrained' as const
   const preferredVoiceMode = 'lower-pressure' as const
   const preferredPacingMode = 'slower' as const
-  const continuityCue = 'continuity_cue=project-state-carry; landed_closure=partial; surface_timing=next-open-window; visibility=internal-first.'
+  const continuityCue = 'continuity_cue=project-state-carry; landed_closure=partial; surface_timing=next-open-window; surface=internal.'
   const openLoops = [
     'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete; project_identity_route_carry=needs_disciplined_updates.',
-    'proactive_continuity_loop=partial; long_run_noisy_desktop_proof=needed; visibility=internal_until_user_asks_project_state.',
+    'proactive_continuity_loop=partial; long_run_noisy_desktop_proof=needed; surface=structured; exposure=user_requested_project_state.',
     'callback_carry_continuity=partial; cross_modal_long_run_proof=needed; timing=measured_return_or_repair_before_closeness.',
     'emotion_memory_initiative_embodiment_unity=needs_long_run_pressure_proof; affective_residue_and_body_settling_must_remain_auditable.',
     'embodiment_coherence_under_memory_pressure=partial; runtime_continuity=measured_return_supported; remaining=cross_modal_long_run_proof.',
     'project_identity_route_carry=present; phase_route_carry=present; unresolved_closure_carry=present; update_rule=disciplined_on_real_closure_change.',
-    'phase1_closure_requires=evidence_for_project_identity,natural_recall,restrained_initiative,emotional_closure,dialogue_voice_motion_unity.',
+    'life_core_closure_requires=evidence_for_project_identity,natural_recall,restrained_initiative,emotional_closure,dialogue_voice_motion_unity.',
   ]
   const proactiveSameHerGap = compactProjectProactiveSameHerGap(openLoops[1] ?? '')
   const nextClosureTarget = 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs; cover=visible_reply,voice,face,motion,resident_presence,project_identity,phase_route,open_loop,emotion; timing=measured_return_or_repair_before_closeness.'
@@ -4422,7 +4423,7 @@ export function buildAlicizationProjectStateSystemBlock(input?: {
     `next_closure_target=${sanitizeProjectStateSnapshotText(brief.nextClosureTarget, 220)}`,
     nextFocusSummary ? `next_focus=${sanitizeProjectStateSnapshotText(nextFocusSummary, 220)}` : '',
     'remaining_focus=semantic_recall,production_embedding,paginated_long_term_search,review_policy_persistence,persona_candidate_review',
-    'action_policy=memory_owner_boundaries_and_transparent_failure_surface | visibility=internal-structured',
+    'action_policy=memory_owner_boundaries_and_transparent_failure_surface | surface=structured',
   ]
 
   return lines.filter(Boolean).join('\n')
@@ -4529,7 +4530,7 @@ export function buildAlicizationProjectStateClosureDashboard(input?: {
     typeof runtimeDigest?.shouldProactivelyAct === 'boolean' ? `runtime_should_act=${runtimeDigest.shouldProactivelyAct}` : '',
     runtimeDigest?.projectState?.continuityArcStage ? `continuity_arc_stage=${sanitizeProjectStateSnapshotText(runtimeDigest.projectState.continuityArcStage, 120)}` : '',
     runtimeDigest?.projectState?.continuityCue ? `continuity_cue=${sanitizeProjectStateSnapshotText(runtimeDigest.projectState.continuityCue, 180)}` : '',
-    'dashboard_rule=verify_identity_phase_and_open_closure_before_turn | visibility=internal-structured',
+    'dashboard_rule=verify_identity_phase_and_open_closure_before_turn | surface=structured',
   ]
 
   return lines.filter(Boolean).join('\n')

@@ -33,7 +33,7 @@ import { buildMindEcology } from './mind-ecology'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 
 const digitalLifeSpineTemplateExclusionLine
-  = 'relationship_continuity=present; source_template=excluded; visibility=internal-structured'
+  = 'relationship_continuity=present; source_template=excluded; surface=structured'
 
 export interface AlicizationDigitalLifeSpineSnapshot {
   version: 'digital-life-spine-v1'
@@ -216,7 +216,7 @@ function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntim
   const currentConsciousProjectState = surface.dialogue?.currentConsciousFrame?.projectState ?? null
   const rawPhaseLine = sanitizeDigitalLifeSpineDigestText(currentConsciousProjectState?.currentPhase ?? '', 80) || null
   const phaseLine = rawPhaseLine && /phase\s*1\s*:\s*local digital life/iu.test(rawPhaseLine)
-    ? 'local_desktop_life_loop'
+    ? 'life_core'
     : rawPhaseLine
   const landedLine = sanitizeDigitalLifeSpineDigestText(
     currentConsciousProjectState?.latestLandedProgress
@@ -256,7 +256,7 @@ function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntim
     && /memory|initiative|embodiment|voice|face|motion|lipsync/u.test(combinedCarry)
   const projectClosureCarrySuffix = carriesPhase1SameHerClosure
     ? sanitizeDigitalLifeSpineDigestText([
-      phaseLine ? `phase=${phaseLine}` : 'phase=local_desktop_life_loop',
+      phaseLine ? `phase=${phaseLine}` : 'phase=life_core',
       landedLine ? `landed=${landedLine}` : '',
       openLoopLine ? `open=${openLoopLine}` : '',
       nextClosureLine ? `next=${nextClosureLine}` : '',
@@ -265,7 +265,7 @@ function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntim
   const openingGuidance = projectClosureCarrySuffix
     ? sanitizeDigitalLifeSpineDigestText([
       rawOpeningGuidance,
-      `project_context=local_desktop_life_loop; continuity_evidence=present; source=project_state; visibility=internal-structured.`,
+      `project_context=runtime_personhood; continuity_evidence=present; source=project_state; surface=structured.`,
     ].filter(Boolean).join(' '), 220) || rawOpeningGuidance
     : rawOpeningGuidance
   const combinedProjectClosureWhySummary = projectClosureCarrySuffix

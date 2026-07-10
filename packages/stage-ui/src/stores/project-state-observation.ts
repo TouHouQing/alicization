@@ -41,6 +41,13 @@ function sanitizeProjectStateObservationText(raw: unknown, maxLength: number) {
   return sanitizeAlicizationProviderFacingText(raw, maxLength, fixedTemplateWithheldObservationLine)
 }
 
+function sanitizeProjectStateObservationPhaseText(raw: unknown, maxLength: number) {
+  const sanitized = sanitizeProjectStateObservationText(raw, maxLength)
+  if (/^project_phase=life_core(?:\b|[.;。；])/iu.test(sanitized))
+    return 'runtime_context=local_runtime'
+  return sanitized
+}
+
 function looksLikeThinContinuityReminder(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
@@ -258,7 +265,7 @@ export function readConversationTurnProjectStateObservation(
   )
   const identity = sanitizeProjectStateObservationText(normalizedProjectState.identity, 180)
     || 'project_state_owner=ProjectStateGovernance'
-  const canonicalCurrentPhase = sanitizeProjectStateObservationText(normalizedProjectState.currentPhase, 180)
+  const canonicalCurrentPhase = sanitizeProjectStateObservationPhaseText(normalizedProjectState.currentPhase, 180)
     || 'runtime_context=local_runtime'
   const canonicalNextClosureTarget = sanitizeProjectStateObservationText(normalizedProjectState.nextClosureTarget, 320)
     || 'continuity_review_required'
@@ -309,7 +316,7 @@ export function readConversationTurnProjectStateObservation(
     = sanitizeProjectStateObservationText(normalizedProjectState.continuityCadence, 120)
       || null
   const strongerCurrentPhase
-    = sanitizeProjectStateObservationText(projectStateAudit?.currentPhaseSummary, 180)
+    = sanitizeProjectStateObservationPhaseText(projectStateAudit?.currentPhaseSummary, 180)
       || canonicalCurrentPhase
   const strongerNextClosureTarget
     = sanitizeProjectStateObservationText(projectStateAudit?.nextClosureTargetSummary, 320)

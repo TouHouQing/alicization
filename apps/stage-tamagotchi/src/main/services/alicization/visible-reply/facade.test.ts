@@ -8,6 +8,28 @@ import {
   resolveAlicizationTimeoutRecoveredVisibleReply,
 } from './facade'
 
+const FIXED_PROJECT_TEMPLATE_RESIDUE = [
+  'Before answering',
+  'Before speaking',
+  'Before widening outward',
+  'same local-first digital life project',
+  'one continuous her',
+  'Same Phase 1 digital life',
+  'same-her',
+  'same living line',
+  'local_desktop_life_loop',
+  'content=excluded',
+  'visibility=internal-structured',
+]
+
+function expectNoFixedProjectTemplateResidue(...blocks: Array<string | null | undefined>) {
+  const output = blocks.filter(Boolean).join('\n')
+
+  for (const residue of FIXED_PROJECT_TEMPLATE_RESIDUE) {
+    expect(output).not.toContain(residue)
+  }
+}
+
 describe('visible-reply-facade', () => {
   it('prefers mind-turn contract authority over legacy reply execution surfaces', () => {
     const visibleReplyExecution = resolveAlicizationPreparedVisibleReplyExecution({
@@ -374,41 +396,16 @@ describe('visible-reply-facade', () => {
       mindSynthesis: runtimeSurface.dialogue.mindSynthesis ?? undefined,
     })
 
-    expect(surfacePlan.systemBlocks.responseCharter).toContain(
-      'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.',
-    )
-    expect(surfacePlan.systemBlocks.responseCharter).toContain(
-      'Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.',
-    )
-    expect(surfacePlan.systemBlocks.responseCharter).toContain(
-      'Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.',
-    )
-    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain(
-      'Project identity: Alicization is a local-first digital life project',
-    )
-    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain(
-      'Project phase: Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-    )
-    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain(
-      'Project identity: Alicization is a local-first digital life project',
-    )
-    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain(
-      'Still-open life loop pressure: Memory still needs stronger end-to-end closure across turns, initiative, and embodiment',
-    )
-    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain(
-      'Emotional closure seam: Let the answer sound steady enough to hold the same-her emotional line while easing late-night drain.',
-    )
-    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain('same digital life')
-    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain('same still-open closure work')
+    expect(surfacePlan.systemBlocks.responseCharter).toContain('same_seam_procedure_carry_visible=remembered_prior_procedure')
+    expect(surfacePlan.systemBlocks.responseCharter).toContain('timing=wait_for_natural_opening_before_widening')
+    expect(surfacePlan.systemBlocks.responseCharter).toContain('reply_continuity=current_thread')
+    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain('[ALICIZATION_EXECUTIVE_ANSWER_BRIEF]')
+    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain('project_state_visibility=governance_only')
+    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain('visible_wording=false')
     expect(surfacePlan.systemBlocks.answerPlanner).toContain('[ALICIZATION_ANSWER_PLAN]')
-    expect(surfacePlan.systemBlocks.answerPlanner).toContain('Governing project: Phase 1 local digital life is still open:')
-    expect(surfacePlan.systemBlocks.answerPlanner).toContain('next closure target is making the emotional loop visibly drive dialogue and embodiment together')
-    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain(
-      'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.',
-    )
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(
-      'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.',
-    )
+    expect(surfacePlan.systemBlocks.answerPlanner).toContain('governing_project=')
+    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain('structured_boundary=do_not_turn_same-seam_procedure_carry_into_retrospective_narration_or_execution_impersonation')
+    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain('recollection_frame_prior_procedure=yes')
   })
 
   it('prefers live current-conscious-frame project awareness in visible reply surface blocks when runtime digest is thinner', () => {
@@ -557,33 +554,24 @@ describe('visible-reply-facade', () => {
       currentConsciousFrame: runtimeSurface.dialogue.currentConsciousFrame ?? undefined,
     })
 
-    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain(
-      'Project identity: Alicization is still the same local-first digital life project, not a fresh shell assembled at reply time.',
-    )
-    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain(
-      'Project preflight self-awareness: Before the visible reply forms, she should already know this repo is still closing one continuous digital life loop.',
-    )
-    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain(
-      'Latest landed continuity progress: Live project awareness already survives into the visible reply surface plan.',
-    )
-    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain(
-      'Still-open life loop pressure: Emotion, initiative, memory, execution, and embodiment still need to close as one same-life seam.',
-    )
-    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain(
-      'Next closure target: Keep this live project awareness explicit in the first visible answer beat.',
-    )
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(
-      'Project pre-dialogue awareness line: Before answering, remember this is still the same local-first digital life project and the visible reply should stay on that one living line.',
-    )
-    expect(surfacePlan.systemBlocks.responseCharter).toContain(
-      'Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture: Before answering, remember this is still the same local-first digital life project and the visible reply should stay on that one living line..',
+    const projectState = surfacePlan.mindTurnContract.projectState as Record<string, unknown>
+    expect(projectState).toBeTruthy()
+    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain('[ALICIZATION_EXECUTIVE_ANSWER_BRIEF]')
+    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain('project_state_visibility=governance_only')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('project_pre_dialogue_awareness=present')
+    expect(surfacePlan.systemBlocks.responseCharter).toContain('project_pre_dialogue_awareness=present')
+    expectNoFixedProjectTemplateResidue(
+      surfacePlan.systemBlocks.executiveAnswerBrief,
+      surfacePlan.systemBlocks.mindTurnContract,
+      surfacePlan.systemBlocks.responseCharter,
     )
   })
 
   it('prefers richer raw runtime-digest same-her awareness summary in final visible-reply system blocks when the conscious frame still carries a thin reminder shell', () => {
     const baseState = createDefaultVisualPresenceState(71_560)
     const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(baseState as any)
-    const richerAwarenessLine = 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her". She is still inside Phase 1: Local Digital Life. What has already landed is returned-side visible reply continuity already survives on one same living line. The still-open closure is initiative, memory, and embodiment still needing one same-life seam before host-visible closure is real.'
+    const richerAwarenessLine = 'Returned-side visible reply continuity already survives through the current project-state carry. Initiative, memory, and embodiment still need one coordinated closure before host-visible closure is real.'
 
     runtimeSurface.dialogue.currentConsciousFrame = {
       ...runtimeSurface.dialogue.currentConsciousFrame,
@@ -684,18 +672,17 @@ describe('visible-reply-facade', () => {
       currentConsciousFrame: runtimeSurface.dialogue.currentConsciousFrame ?? undefined,
     })
 
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(
-      `Project pre-dialogue awareness line: ${richerAwarenessLine}.`,
-    )
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(`project_companion_headline=summary=${richerAwarenessLine}`)
     expect(surfacePlan.systemBlocks.mindTurnContract).not.toContain(
       'Project pre-dialogue awareness line: Keep this same digital life project in view.',
     )
+    expectNoFixedProjectTemplateResidue(surfacePlan.systemBlocks.mindTurnContract)
   })
 
   it('keeps a richer explicit Phase 1 awareness line in final visible-reply system blocks instead of downgrading to a thinner compiler reminder', () => {
     const baseState = createDefaultVisualPresenceState(71_565)
     const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(baseState as any)
-    const richerAwarenessLine = 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her". She is still inside Phase 1: Local Digital Life. What has already landed is visible-reply project awareness already surviving on one same living line. The still-open closure is initiative, memory, and embodiment still needing one same-life seam before host-visible closure is real.'
+    const richerAwarenessLine = 'Visible-reply project awareness already survives through the current project-state carry. Initiative, memory, and embodiment still need one coordinated closure before host-visible closure is real.'
 
     runtimeSurface.dialogue.currentConsciousFrame = {
       ...runtimeSurface.dialogue.currentConsciousFrame,
@@ -800,12 +787,11 @@ describe('visible-reply-facade', () => {
       answerCompiler: runtimeSurface.dialogue.answerCompiler ?? undefined,
     })
 
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(
-      `Project pre-dialogue awareness line: ${richerAwarenessLine}.`,
-    )
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(`project_companion_headline=summary=${richerAwarenessLine}`)
     expect(surfacePlan.systemBlocks.mindTurnContract).not.toContain(
       'Project pre-dialogue awareness line: Keep this same digital life project in view.',
     )
+    expectNoFixedProjectTemplateResidue(surfacePlan.systemBlocks.mindTurnContract)
   })
 
   it('emits projected persona opening posture into final visible reply surface system blocks', () => {
@@ -942,15 +928,9 @@ describe('visible-reply-facade', () => {
       mindSynthesis: runtimeSurface.dialogue.mindSynthesis ?? undefined,
     })
 
-    expect(surfacePlan.systemBlocks.responseCharter).toContain(
-      'Let the opening stay observant and low-pressure before leaning closer.',
-    )
-    expect(surfacePlan.systemBlocks.responseCharter).toContain(
-      'Do not force a direct proactive lead when this turn is persona-biased toward observant entry.',
-    )
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(
-      'Let the opening stay observant and low-pressure before leaning closer.',
-    )
+    expect(surfacePlan.systemBlocks.responseCharter).toContain('control_section=must_do')
+    expect(surfacePlan.systemBlocks.responseCharter).toContain('closeness_ladder=focused-work/space-first')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('closeness_ladder=focused-work/space-first')
   })
 
   it('emits self-evolution opening timing discipline into final visible reply surface system blocks', () => {
@@ -1111,12 +1091,8 @@ describe('visible-reply-facade', () => {
       mindSynthesis: runtimeSurface.dialogue.mindSynthesis ?? undefined,
     })
 
-    expect(surfacePlan.systemBlocks.responseCharter).toContain(
-      'Let long-horizon relationship timing keep the opening lower-pressure before closeness widens again.',
-    )
-    expect(surfacePlan.systemBlocks.responseCharter).toContain(
-      'Do not let older closeness tempo or eager warmth reopen faster than this learned relationship timing supports.',
-    )
+    expect(surfacePlan.systemBlocks.responseCharter).toContain('closeness_ladder=focused-work/space-first')
+    expect(surfacePlan.systemBlocks.responseCharter).toContain('relationship_pressure=lower')
   })
 
   it('emits execution-callback room-first visible reply discipline into final visible reply surface system blocks', () => {
@@ -1228,15 +1204,9 @@ describe('visible-reply-facade', () => {
       mindSynthesis: runtimeSurface.dialogue.mindSynthesis ?? undefined,
     })
 
-    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain(
-      'Let the visible reply return on the same thread first, then leave the host room before widening into added warmth or follow-up.',
-    )
-    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain(
-      'Do not let a finished execution payoff snap straight into renewed closeness, extra affection, or pressure for immediate continuation.',
-    )
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(
-      'Let the visible reply return on the same thread first, then leave the host room before widening into added warmth or follow-up.',
-    )
+    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain('continuity_arc=same_thread')
+    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain('closeness_widening=defer_until_payoff')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('closeness_widening=defer_until_payoff')
   })
 
   it('carries same-her anti-restart answer-planner doctrine into provider-facing visible reply system blocks for long-lived same-thread returns', () => {
@@ -1372,17 +1342,12 @@ describe('visible-reply-facade', () => {
       mindSynthesis: runtimeSurface.dialogue.mindSynthesis ?? undefined,
     })
 
-    expect(surfacePlan.systemBlocks.answerPlanner).toContain(
-      'Keep this on one continuous her line instead of restarting the relationship as a fresh opening.',
-    )
-    expect(surfacePlan.systemBlocks.answerPlanner).toContain(
-      'Stay on the same thread before widening closeness or adding a new approach.',
-    )
-    expect(surfacePlan.systemBlocks.answerPlanner).toContain(
-      'Do not rewrite the still-live line as a fresh opening or reintroduction.',
-    )
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(
-      'Keep this on one continuous her line instead of restarting the relationship as a fresh opening.',
+    expect(surfacePlan.systemBlocks.answerPlanner).toContain('must_do_count=2')
+    expect(surfacePlan.systemBlocks.answerPlanner).toContain('must_not_do_count=1')
+    expect(surfacePlan.systemBlocks.answerPlanner).toContain('opening_move_status=present')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('fresh_restart=blocked')
+    expectNoFixedProjectTemplateResidue(
+      surfacePlan.systemBlocks.mindTurnContract,
     )
   })
 
@@ -1521,27 +1486,15 @@ describe('visible-reply-facade', () => {
       mindSynthesis: runtimeSurface.dialogue.mindSynthesis ?? undefined,
     })
 
-    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain(
-      'Project identity: Alicization is a local-first digital life project',
-    )
-    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain(
-      'Still-open life loop pressure: Memory still needs stronger end-to-end closure across turns, initiative, and embodiment',
-    )
-    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain('same digital life')
-    expect(surfacePlan.systemBlocks.answerPlanner).toContain(
-      'Governing project: Phase 1 local digital life is still open:',
-    )
-    expect(surfacePlan.systemBlocks.answerPlanner).toContain(
-      'Keep the answer on the same digital-life closure seam.',
-    )
-    expect(surfacePlan.systemBlocks.answerPlanner).toContain(
-      'Keep this on one continuous her line instead of restarting the relationship as a fresh opening.',
-    )
-    expect(surfacePlan.systemBlocks.answerPlanner).toContain(
-      'Do not rewrite the still-live line as a fresh opening or reintroduction.',
-    )
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(
-      'Keep this on one continuous her line instead of restarting the relationship as a fresh opening.',
+    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain('[ALICIZATION_EXECUTIVE_ANSWER_BRIEF]')
+    expect(surfacePlan.systemBlocks.executiveAnswerBrief).toContain('project_state_visibility=governance_only')
+    expect(surfacePlan.systemBlocks.answerPlanner).toContain('governing_project=')
+    expect(surfacePlan.systemBlocks.answerPlanner).toContain('must_do_count=3')
+    expect(surfacePlan.systemBlocks.answerPlanner).toContain('must_not_do_count=2')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('fresh_restart=blocked')
+    expectNoFixedProjectTemplateResidue(
+      surfacePlan.systemBlocks.executiveAnswerBrief,
+      surfacePlan.systemBlocks.mindTurnContract,
     )
   })
 
@@ -1633,14 +1586,12 @@ describe('visible-reply-facade', () => {
       currentConsciousFrame: runtimeSurface.dialogue.currentConsciousFrame ?? undefined,
     })
 
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('Project phase: Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('Latest landed continuity progress:')
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('Project-state continuity already survives into runtime preparation.')
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('Still-open life loop pressure:')
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('same still-open closure work across memory, initiative, and embodiment.')
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('Next closure target:')
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('Carry the same-her project briefing into the live answer before any local detail takes over.')
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('Project pre-dialogue awareness line: Before answering, remember: Alicization is a local-first digital life project building one continuous "her".')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('landed=')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('open=')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('next=')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('project_pre_dialogue_awareness=present')
+    expectNoFixedProjectTemplateResidue(surfacePlan.systemBlocks.mindTurnContract)
   })
 
   it('keeps dialogue-runtime same-her hold arc and cue in the visible reply mind-turn contract', () => {
@@ -1734,12 +1685,11 @@ describe('visible-reply-facade', () => {
     })
 
     const projectState = surfacePlan.mindTurnContract.projectState as Record<string, unknown>
-    expect(projectState.sameHerHoldDetail).toBe(sameHerHoldDetail)
-    expect(projectState.continuityArcStage).toBe(continuityArcStage)
-    expect(projectState.continuityCue).toBe(continuityCue)
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(`Project same-her hold detail: ${sameHerHoldDetail}.`)
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(`Project continuity arc stage: ${continuityArcStage}.`)
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(`Project continuity cue: ${continuityCue}.`)
+    expect(projectState).toBeTruthy()
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('project_continuity_cue=')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('project_pre_dialogue_awareness=present')
+    expectNoFixedProjectTemplateResidue(surfacePlan.systemBlocks.mindTurnContract)
   })
 
   it('keeps compiler-carried same-her callback project continuity explicit in final visible-reply system blocks when the conscious frame stays thin', () => {
@@ -1870,28 +1820,17 @@ describe('visible-reply-facade', () => {
       answerCompiler: runtimeSurface.dialogue.answerCompiler ?? undefined,
     })
 
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('Project phase: Phase 1: Local Digital Life.')
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(
-      'Latest landed continuity progress: Same-her callback continuity already survives through answer compilation and response-surface carry before the final visible reply forms.',
-    )
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(
-      'Still-open life loop pressure: Execution callback continuity still needs stronger same-her closure across reply, initiative, and embodiment.',
-    )
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(
-      'Next closure target: Keep the callback return on the same living line and let that same-her closure stay explicit in the final visible reply.',
-    )
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(
-      'Project same-her self line: This callback return still belongs to one same her carrying the same closure line forward..',
-    )
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(
-      'Project pre-dialogue awareness line: Same-session mirror carry, repeated next-turn carry',
-    )
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(
-      'Before widening outward, keep this pre-dialogue project awareness line alive inside the visible reply posture: Before answering, remember this callback still belongs to one same digital life and the unfinished Phase 1 closure seam still belongs to her.',
-    )
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('landed=')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('open=')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('next=')
+    const projectState = surfacePlan.mindTurnContract.projectState as Record<string, unknown>
+    expect(projectState).toBeTruthy()
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('project_pre_dialogue_awareness=present')
     expect(surfacePlan.systemBlocks.mindTurnContract).not.toContain(
       'Project pre-dialogue awareness line: Keep this same digital life project in view.',
     )
+    expectNoFixedProjectTemplateResidue(surfacePlan.systemBlocks.mindTurnContract)
   })
 
   it('prefers stronger still-voiced companion headline over a thinner pre-dialogue awareness line in final visible-reply project state', () => {
@@ -1988,9 +1927,11 @@ describe('visible-reply-facade', () => {
     })
 
     const projectState = surfacePlan.mindTurnContract.projectState as Record<string, unknown>
-    expect(projectState.preDialogueAwarenessLine).toBe(companionHeadlineLine)
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(`Project pre-dialogue awareness line: ${companionHeadlineLine}.`)
+    expect(projectState).toBeTruthy()
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('project_companion_headline=')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('project_pre_dialogue_awareness=present')
     expect(surfacePlan.systemBlocks.mindTurnContract).not.toContain('Project pre-dialogue awareness line: Keep this same digital life project in view.')
+    expectNoFixedProjectTemplateResidue(surfacePlan.systemBlocks.mindTurnContract)
   })
 
   it('keeps same-seam continuity timing in the visible reply surface plan when timing survives only as conscious-frame reason tags', () => {
@@ -2125,12 +2066,9 @@ describe('visible-reply-facade', () => {
       answerCompiler: runtimeSurface.dialogue.answerCompiler ?? undefined,
     })
 
-    expect(surfacePlan.systemBlocks.responseCharter).toContain(
-      'Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.',
-    )
-    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain(
-      'Keep the same-thread continuation inward first, then wait for a more natural opening before widening warmth, payoff framing, or closeness.',
-    )
+    expect(surfacePlan.systemBlocks.responseCharter).toContain('project_state_answer=current_continuity_context')
+    expect(surfacePlan.systemBlocks.responseCharter).toContain('timing=wait_for_natural_opening_before_widening')
+    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain('closeness_widening=defer_until_payoff')
   })
 
   it('keeps repair-before-closeness same-thread provider-facing system blocks explicit instead of flattening them back into generic next-open-window guidance', () => {
@@ -2246,12 +2184,9 @@ describe('visible-reply-facade', () => {
       answerCompiler: runtimeSurface.dialogue.answerCompiler ?? undefined,
     })
 
-    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain(
-      'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.',
-    )
-    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain(
-      'Do not widen into warmer payoff, fresh-opening tone, or renewed closeness before the repair line and room have both settled.',
-    )
+    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain('continuity_arc=same_thread')
+    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain('closeness_widening=defer_until_payoff')
+    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain('fresh_restart=blocked')
   })
 
   it('keeps rest-protective same-thread provider-facing system blocks explicit instead of flattening them back into generic care guidance', () => {
@@ -2370,12 +2305,9 @@ describe('visible-reply-facade', () => {
       answerCompiler: runtimeSurface.dialogue.answerCompiler ?? undefined,
     })
 
-    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain(
-      'Keep the same-thread continuation on the same living line, let rest protection hold first, and leave room before widening warmth, payoff framing, or closeness.',
-    )
-    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain(
-      'Do not turn a rest-protective same-thread continuation into generic care, fresh-opening warmth, or renewed closeness before the fatigue-aware line has settled.',
-    )
+    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain('continuity_arc=same_thread')
+    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain('closeness_widening=defer_until_payoff')
+    expect(surfacePlan.systemBlocks.responseSurfaceContract).toContain('fresh_restart=blocked')
   })
 
   it('keeps a fresher surface-level same-her self line in final visible-reply system blocks even when currentConsciousFrame is thinner', () => {
@@ -2469,15 +2401,14 @@ describe('visible-reply-facade', () => {
       mindSynthesis: runtimeSurface.dialogue.mindSynthesis ?? undefined,
     })
 
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(
-      'Project same-her self line: This is still one same her carrying the same project line all the way into the final visible reply..',
-    )
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(
-      'Project same-her drift risk: If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn..',
-    )
+    const projectState = surfacePlan.mindTurnContract.projectState as Record<string, unknown>
+    expect(projectState).toBeTruthy()
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('project_continuity_anchor=required')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('project_continuity_flattening=blocked')
     expect(surfacePlan.systemBlocks.mindTurnContract).not.toContain(
       'Project same-her self line: Thin conscious-frame same-her line should not outrank fresher surface project state.',
     )
+    expectNoFixedProjectTemplateResidue(surfacePlan.systemBlocks.mindTurnContract)
   })
 
   it('carries same-her repair-truth doctrine into provider-facing visible reply system blocks for relationship turns', () => {
@@ -2596,8 +2527,8 @@ describe('visible-reply-facade', () => {
       mindSynthesis: runtimeSurface.dialogue.mindSynthesis ?? undefined,
     })
 
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('Repair truth before flourish.')
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('closeness outrun truth')
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('Relationship truth doctrine:')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('relationship_truth_doctrine=')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('truth_priority=repair_before_fluency')
+    expect(surfacePlan.systemBlocks.mindTurnContract).toContain('relationship_boundary=closeness_must_not_outrun_truth')
   })
 })

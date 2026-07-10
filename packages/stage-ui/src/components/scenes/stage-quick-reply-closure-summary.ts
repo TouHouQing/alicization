@@ -7,10 +7,10 @@ import {
 } from '@proj-alicization/stage-shared'
 
 const fixedTemplateQuickReplyClosureSummaryLine
-  = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+  = ''
 
 const internalStructuredQuickReplyClosurePattern
-  = /visibility=internal-structured|content=excluded|continuity evidence/iu
+  = /surface=structured|content=excluded|continuity evidence/iu
 
 function applyProjectStateTone(line: string | null, status: string | undefined) {
   if (!line)

@@ -94,6 +94,14 @@ describe('alicization fixed template sanitizer', () => {
     expectProviderFacingExcluded(
       'Keep this execution return on the same project-aware living line before widening outward.',
     )
+    expectProviderFacingExcluded(
+      'If callback delivery falls back to a generic Phase 1 shell, treat that as unfinished continuity drift.',
+    )
+    expectProviderFacingExcluded('same digital life')
+    expectProviderFacingExcluded(
+      'generic guidance could flatten her continuity into a detached project shell.',
+    )
+    expectProviderFacingExcluded('same-digital-life-project-thread phase1-route=desktop-life-loop')
   })
 
   it('keeps legitimate memory content about rejecting fixed templates', () => {
@@ -105,17 +113,29 @@ describe('alicization fixed template sanitizer', () => {
 
   it('drops replacement tokens that would become a second fixed template', () => {
     const blocked = [
-      'landed=Project-state carry already survives into provider-facing reply authoring without dropping continuity_line.',
-      'identity=continuity_identity',
-      'project_phase=life_core',
       'continuity_anchor=phase1_local_digital_life',
       'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      'continuity_cue=project-state-carry; visibility=internal-first',
     ]
 
     for (const text of blocked) {
       expect(containsAlicizationFixedTemplateResidue(text), text).toBe(true)
       expect(sanitizeAlicizationProviderFacingText(text), text).toBe('')
       expect(sanitizeAlicizationStructuredInternalText(text), text).toBe('')
+    }
+  })
+
+  it('allows neutral structured facts without treating them as persona templates', () => {
+    const allowed = [
+      'identity=runtime_personhood',
+      'project_phase=life_core',
+      'landed=Project-state carry already survives into provider-facing reply authoring without dropping continuity_line.',
+    ]
+
+    for (const text of allowed) {
+      expect(containsAlicizationFixedTemplateResidue(text), text).toBe(false)
+      expect(sanitizeAlicizationProviderFacingText(text), text).toBe(text)
+      expect(sanitizeAlicizationStructuredInternalText(text), text).toBe(text)
     }
   })
 
@@ -131,11 +151,14 @@ describe('alicization fixed template sanitizer', () => {
     expectProviderFacingExcluded(text)
   })
 
-  it('fails closed for fixed-template residue that cannot become real structured facts', () => {
+  it('collapses fixed-template residue into neutral structured facts when possible', () => {
     const text = 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.'
     const sanitized = sanitizeAlicizationStructuredInternalText(text)
 
-    expect(sanitized).toBe('')
+    expect(sanitized).toContain('project_phase=life_core')
+    expect(sanitized).toContain('landed_progress=present')
+    expect(sanitized).toContain('unresolved_closure=continuity_line')
+    expect(containsAlicizationFixedTemplateResidue(sanitized)).toBe(false)
   })
 
   it('fails closed for same-her continuity wording instead of emitting replacement tokens', () => {

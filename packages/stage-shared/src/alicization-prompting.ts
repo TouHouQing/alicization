@@ -55,7 +55,7 @@ export const alicizationFixedProjectStateContinuityTemplate = [
   'status={{nonHumanAuthoredStatus}}',
   'continuity_anchor={{sameHerSelfLine}}',
   'emotional_closure={{emotionalClosureCue}}',
-  'visibility=internal-structured',
+  'surface=structured',
 ].join('\n')
 export const alicizationFixedStructuredContractAnchor = [
   alicizationFixedStructuredContractHeader,

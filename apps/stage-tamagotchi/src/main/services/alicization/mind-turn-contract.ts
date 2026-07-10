@@ -167,7 +167,7 @@ function looksLikeThinProjectIdentityShell(value: unknown) {
   if (!normalized)
     return true
 
-  if (normalized === 'local_desktop_life_loop')
+  if (normalized === 'runtime_personhood')
     return false
 
   return normalized === 'project'
@@ -549,7 +549,7 @@ function normalizeProviderFacingProjectStateFactValue(key: string, raw: unknown,
 
   if (normalizedKey === 'continuity_drift_risk') {
     if (/generic guidance|detached project|project-summary voice|same-her drift|generic shell/iu.test(normalized))
-      return 'generic_guidance_without_first_person_continuity'
+      return 'continuity_drift_risk=generic_shell'
   }
 
   return normalized

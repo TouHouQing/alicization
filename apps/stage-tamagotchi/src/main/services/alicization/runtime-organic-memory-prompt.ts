@@ -577,7 +577,7 @@ function sanitizeOrganicProjectStateText(value: unknown, limit: number) {
   if (
     /phase1_local_digital_life|Alicization is a local-first digital life project|local-first digital life project|Phase 1:\s*Local Digital Life|Same Phase 1 digital life|Before (?:answering|speaking|acting)|same living line|same-her|same her|one living her|one continuous "?her"?|one same still-open closure work/iu.test(normalized)
   ) {
-    return 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+    return null
   }
 
   const sanitized = sanitizeAlicizationProviderFacingText(normalized, limit)
@@ -608,7 +608,7 @@ function sanitizeOrganicProjectEmotionText(value: unknown, limit: number) {
     /low-pressure|lower-pressure|measured-return/iu.test(normalized) ? 'tone=low_pressure' : null,
     /repair-before-closeness|repair first|repair-first/iu.test(normalized) ? 'repair=before_closeness' : null,
     /rest-protective|rest protection|fatigue|休息/u.test(normalized) ? 'rest_protection=true' : null,
-    'visibility=internal-structured',
+    'surface=structured',
   ].filter(Boolean).join('; ')
 }
 
@@ -629,7 +629,7 @@ function sanitizeOrganicMemoryReplayText(value: unknown, limit = 800) {
     )
     return [
       prefix && prefix !== alicizationFixedTemplateReplacement ? prefix : '',
-      'project:identity=local_desktop_life_loop; visibility=internal-structured',
+      'project:identity=runtime_personhood; surface=structured',
       /open=|still needs|unfinished/iu.test(normalized) ? 'open=continuity_pending' : '',
     ].filter(Boolean).join(' | ')
   }
@@ -722,7 +722,7 @@ function buildSameHerCarryLineFromProjectAnchor(projectPreflight: string | null)
     return null
 
   return [
-    carriesProjectIdentity ? 'runtime_context=local_desktop_life_loop.' : '',
+    carriesProjectIdentity ? 'runtime_context=runtime_personhood.' : '',
     carriesLandedProgress ? 'memory_progress=partial.' : '',
     carriesOpenClosure ? 'memory_unresolved=continuity.' : '',
   ].filter(Boolean).join(' ')
@@ -770,21 +770,20 @@ function buildOrganicMemoryProjectStateContextFromRecallGovernor(
   if (!projectPreflight && !projectEmotionalClosure)
     return null
 
-  const excludedResidueLine = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
   const projectPreflightIsExcludedResidue = /content=excluded;\s*reason=continuity-residue/iu.test(projectPreflight ?? '')
   if (projectPreflightIsExcludedResidue) {
     return {
-      projectStatePreflightSummary: excludedResidueLine,
-      projectStatePreDialogueAwarenessLine: excludedResidueLine,
+      projectStatePreflightSummary: null,
+      projectStatePreDialogueAwarenessLine: null,
       projectStateContinuity: {
         identity: null,
         currentPhase: null,
-        sameHerSummary: excludedResidueLine,
+        sameHerSummary: null,
         landedProgressSummary: null,
         openClosureSummary: null,
         proactiveSameHerGap: null,
         nextClosureTarget: null,
-        preDialogueAwarenessLine: excludedResidueLine,
+        preDialogueAwarenessLine: null,
         emotionalClosureCue: projectEmotionalClosure,
         sameHerHoldDetail: null,
         sameHerDriftRisk: null,

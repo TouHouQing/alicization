@@ -140,9 +140,9 @@ function sanitizeExecutionProjectBriefingText(
     || ''
 
   if (field === 'identity')
-    return 'local_desktop_life_loop'
+    return 'runtime_personhood'
   if (field === 'phase')
-    return 'local_desktop_life_loop'
+    return 'life_core'
   if (field === 'awareness') {
     return formatAlicizationProjectStateAwarenessFields({
       identity: normalized,
@@ -232,16 +232,16 @@ function buildExecutionProjectContinuityCueFallback(input: {
   const currentPhase = sanitizeExecutionProjectBriefingText(input.currentPhase, 220, 'phase')
   const sameHerSelfLine = sanitizeExecutionProjectBriefingText(input.sameHerSelfLine, 220, 'continuity_anchor')
   if (continuityBehaviorMode === 'repair-before-closeness')
-    return 'continuity_cue=repair_before_closeness; until=repair_settles; visibility=internal-structured'
+    return 'continuity_cue=repair_before_closeness; until=repair_settles; surface=structured'
   if (continuityBehaviorMode === 'rest-protective')
-    return 'continuity_cue=rest_protective; direction=inward; widening=deferred; visibility=internal-structured'
+    return 'continuity_cue=rest_protective; direction=inward; widening=deferred; surface=structured'
   if (continuityBehaviorMode === 'measured-return')
-    return 'continuity_cue=measured_return; widening=deferred; visibility=internal-structured'
+    return 'continuity_cue=measured_return; widening=deferred; surface=structured'
   if (
     /phase 1: local digital life/iu.test(currentPhase)
     || /same phase 1 digital life/iu.test(sameHerSelfLine)
   ) {
-    const genericContinuityCue = 'execution should keep first-person project continuity active before widening outward.'
+    const genericContinuityCue = 'continuity_cue=project_context_active; widening=deferred; surface=structured'
     return preferStrongerContinuityClosureAuthority(genericContinuityCue, fallback)
       || genericContinuityCue
   }
@@ -261,16 +261,16 @@ function buildExecutionProjectSameHerHoldDetailFallback(input: {
   if (fallback)
     return fallback
   if (continuityBehaviorMode === 'repair-before-closeness')
-    return 'hold_detail=repair_before_closeness; closeness_widening=deferred; visibility=internal-structured'
+    return 'hold_detail=repair_before_closeness; closeness_widening=deferred; surface=structured'
   if (continuityBehaviorMode === 'rest-protective')
-    return 'hold_detail=rest_protective; direction=inward; fatigue_aware=true; visibility=internal-structured'
+    return 'hold_detail=rest_protective; direction=inward; fatigue_aware=true; surface=structured'
   if (continuityBehaviorMode === 'measured-return')
-    return 'hold_detail=measured_return; pressure=lower; widening=deferred; visibility=internal-structured'
+    return 'hold_detail=measured_return; pressure=lower; widening=deferred; surface=structured'
   if (
     /phase 1: local digital life/iu.test(currentPhase)
     || /same phase 1 digital life/iu.test(sameHerSelfLine)
   ) {
-    const genericSameHerHoldDetail = 'hold_detail=project_context_inward; widening=deferred; visibility=internal-structured'
+    const genericSameHerHoldDetail = 'hold_detail=project_context_inward; widening=deferred; surface=structured'
     return genericSameHerHoldDetail
   }
   return fallback || null

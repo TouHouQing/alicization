@@ -341,7 +341,7 @@ function buildRuntimeSameHerSelfLine(input: {
     nextClosureTarget ? `next=${nextClosureTarget}` : '',
   ].filter(Boolean)
   return parts.length > 0
-    ? sanitizeText(`continuity_context=local_desktop_life_loop | ${parts.join(' | ')}`, 220) || null
+    ? sanitizeText(`continuity_context=runtime_personhood | ${parts.join(' | ')}`, 220) || null
     : null
 }
 
@@ -428,7 +428,7 @@ function buildRuntimeProjectStateSameHerSummary(input: {
     return carryLineLooksSceneContaminated ? null : carryLine || null
   if (!carryLine) {
     if (strongerSameHerCanonical && !/continuous her|one continuous her/iu.test(canonical)) {
-      return sanitizeText(`continuity_context=local_desktop_life_loop | ${canonical}`, 220) || canonical
+      return sanitizeText(`continuity_context=runtime_personhood | ${canonical}`, 220) || canonical
     }
     return strongerSameHerCanonical ? canonical : explicitSameHerFallback || canonical
   }
@@ -450,7 +450,7 @@ function buildRuntimeProjectStateSameHerSummary(input: {
       return sanitizeText(`${canonical} | ${carryLine}`, 220) || canonical
     const explicitSelfLine = canonicalIdentity
       ? sanitizeText(
-          `continuity_context=local_desktop_life_loop | identity=${canonicalIdentity} | still-open=${primaryOpenLoop || carryLine}${nextClosureTarget ? ` | next=${nextClosureTarget}` : ''}`,
+          `continuity_context=runtime_personhood | identity=${canonicalIdentity} | still-open=${primaryOpenLoop || carryLine}${nextClosureTarget ? ` | next=${nextClosureTarget}` : ''}`,
           220,
         )
       : null
@@ -606,7 +606,7 @@ function buildProjectThreadContinuityCue(input: {
   if (!hasProjectCarry || !sameThreadCarry || !measuredReturn || (!callbackContinuationSummary && !callbackLikeProjectCarry))
     return null
 
-  return 'same_thread_callback_carry | project_context=local_desktop_life_loop | continuity_hold=continuity_line | route=desktop_life_loop | unresolved=callback_seam'
+  return 'same_thread_callback_carry | project_context=runtime_personhood | continuity_hold=continuity_line | route=desktop_runtime | unresolved=callback_seam'
 }
 
 function resolveRuntimeProjectContinuityCue(input: {
@@ -644,7 +644,7 @@ function resolveRuntimeProjectContinuityCue(input: {
     )
     || hasLocalDesktopLifeLoopToken(canonicalSameHerSelfLineLower)
     || hasContinuityIdentityToken(canonicalSameHerSelfLineLower)
-      ? 'project_context=local_desktop_life_loop | identity_continuity=present | route=desktop_life_loop'
+      ? 'project_context=runtime_personhood | identity_continuity=present | route=desktop_runtime'
       : null
   const callbackLikeContinuitySummary = /project_continuity=.*(?:callback|same-thread|same thread|same line|continuity_line|callback_carry_continuity|same_thread_continuation|同一条线|沿着刚才那条线)/u.test(projectContinuitySummary)
     || hasSameThreadContinuityToken(projectContinuitySummary)
@@ -657,7 +657,7 @@ function resolveRuntimeProjectContinuityCue(input: {
   if (callbackLikeContinuitySummary && !callbackLikeCarryLine)
     return projectContinuitySummary
   if (projectThreadCarryNeedsCanonicalCue)
-    return 'same_thread_callback_carry | project_context=local_desktop_life_loop | unresolved=callback_seam'
+    return 'same_thread_callback_carry | project_context=runtime_personhood | unresolved=callback_seam'
   if (projectStateCarryLine)
     return sanitizeRuntimeProjectContinuityCue(projectStateCarryLine) || null
   if (projectContinuitySummary)
@@ -669,9 +669,12 @@ function normalizeRuntimeMemoryClosureSummary(raw: unknown) {
   const text = sanitizeText(raw, 420)
   if (!text)
     return null
-  if (/memory_closure_context=(?:phase1_open_loop|local_desktop_life_loop_open_loop)/i.test(text))
-    return text.replace(/phase1_open_loop/giu, 'local_desktop_life_loop_open_loop')
-  return sanitizeText(`memory_closure_context=local_desktop_life_loop_open_loop; summary=${text}`, 420) || text
+  if (/memory_closure_context=(?:phase1_open_loop|local_desktop_life_loop_open_loop|life_core_open_loop)/i.test(text)) {
+    return text
+      .replace(/phase1_open_loop/giu, 'life_core_open_loop')
+      .replace(/local_desktop_life_loop_open_loop/giu, 'life_core_open_loop')
+  }
+  return sanitizeText(`memory_closure_context=life_core_open_loop; summary=${text}`, 420) || text
 }
 
 function looksLikeSceneContaminatedProjectSameHerLine(raw: unknown) {

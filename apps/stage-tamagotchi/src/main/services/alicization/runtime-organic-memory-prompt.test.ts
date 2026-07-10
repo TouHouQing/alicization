@@ -48,8 +48,8 @@ describe('runtime-organic-memory-prompt', () => {
       searchEpisodes: false,
       searchConversations: false,
       searchProceduralExperience: false,
-      queryHints: ['same digital life surface'],
-      rationale: 'Planner should stay attached to the active same-her runtime surface.',
+      queryHints: ['active runtime surface'],
+      rationale: 'Planner should stay attached to the active runtime surface.',
       confidence: 0.82,
     }))
     const planMemoryRecollection = vi.fn(async (_input: any) => null)
@@ -108,7 +108,7 @@ describe('runtime-organic-memory-prompt', () => {
         periodKey: '2026-06-runtime-surface',
         periodStartedAt: 1,
         periodEndedAt: 2,
-        summary: 'The same-her runtime surface carried emotion, memory, and body together.',
+        summary: 'The runtime surface carried emotion, memory, and body together.',
         lesson: 'Keep memory planning attached to the active digital-life surface.',
         cues: ['digital-life-runtime-surface'],
         confidence: 0.86,
@@ -124,7 +124,7 @@ describe('runtime-organic-memory-prompt', () => {
     })
 
     await runtime.resolveOrganicMemoryPromptContext({
-      recallSeed: 'keep the same digital life surface attached to memory planning',
+      recallSeed: 'keep the active runtime surface attached to memory planning',
       recallGovernor: null,
       digitalLifeRuntimeSurface: runtimeSurface,
     } as any)
@@ -5313,7 +5313,7 @@ describe('runtime-organic-memory-prompt', () => {
       context.projectStateContinuity?.preDialogueAwarenessLine ?? '',
     ].join('\n')
 
-    expect(replayText).toContain('local_desktop_life_loop')
+    expect(replayText).toContain('runtime_personhood')
     expect(replayText).not.toContain('project:Alicization is a local-first digital life project')
     expect(replayText).not.toContain('Phase 1: Local Digital Life')
     expect(replayText).not.toContain('one same still-open closure work')
@@ -5420,9 +5420,7 @@ describe('runtime-organic-memory-prompt', () => {
     } as any)
 
     expect(context.projectStateContinuity?.proactiveSameHerGap).toBe(proactiveSameHerGap)
-    expect(context.projectStateContinuity?.sameHerHoldDetail).toBe('content=excluded; reason=continuity-residue; visibility=internal-structured')
-    expect(context.projectStateContinuity?.sameHerHoldDetail).not.toContain('same-her')
-    expect(context.projectStateContinuity?.sameHerHoldDetail).not.toContain('same living line')
+    expect(context.projectStateContinuity?.sameHerHoldDetail).toBeNull()
     context.memoryDeliberation = {
       shouldRecall: true,
       surfacePolicy: 'relationship-continuity',
@@ -5460,7 +5458,7 @@ describe('runtime-organic-memory-prompt', () => {
     expect(systemText).not.toContain('same-her')
     expect(systemText).toContain('should_recall=yes')
     expect(systemText).toContain('surface_policy=internal-only')
-    expect(systemText).toContain('why_withheld=local_desktop_life_loop_closure=open; recollection_visibility=internal_until_evidence_boundary_is_clear')
+    expect(systemText).toContain('why_withheld=life_core_closure=open; recollection_visibility=internal_until_evidence_boundary_is_clear')
     expect(systemText).toContain('surface_policy=internal-only')
   })
 
@@ -5509,18 +5507,16 @@ describe('runtime-organic-memory-prompt', () => {
       } as any,
     } as any)
 
-    expect(context.projectStatePreflightSummary).toContain('content=excluded')
-    expect(context.projectStatePreflightSummary).toContain('reason=continuity-residue')
+    expect(context.projectStatePreflightSummary).toContain('runtime_personhood')
+    expect(context.projectStatePreflightSummary).not.toContain('content=excluded')
     expect(context.projectStatePreflightSummary).not.toContain(sameHerCarryLine)
-    expect(context.projectStatePreDialogueAwarenessLine).toContain('content=excluded')
-    expect(context.projectStatePreDialogueAwarenessLine).toContain('reason=continuity-residue')
+    expect(context.projectStatePreDialogueAwarenessLine).toContain('identity=runtime_personhood')
+    expect(context.projectStatePreDialogueAwarenessLine).not.toContain('content=excluded')
     expect(context.projectStatePreDialogueAwarenessLine).not.toContain(sameHerCarryLine)
     expect(context.projectStateContinuity).toEqual(expect.objectContaining({
-      identity: null,
-      currentPhase: null,
-      sameHerSummary: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
-      emotionalClosureCue: 'emotional_closure=content_sanitized; tone=low_pressure; visibility=internal-structured',
+      emotionalClosureCue: 'emotional_closure=content_sanitized; tone=low_pressure; surface=structured',
     }))
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(context.projectStateContinuity))).toBe(false)
     expect(context.projectStateContinuity?.emotionalClosureCue).not.toContain(emotionalClosureCue)
 
     const systemText = runtime.buildOrganicMemorySystemBlocks(context).join('\n\n')
@@ -5530,7 +5526,7 @@ describe('runtime-organic-memory-prompt', () => {
     expect(systemText).not.toContain('same_her_summary=')
     expect(systemText).not.toContain('emotional_closure_cue=')
     expect(systemText).not.toContain('Same Phase 1 digital life')
-    expect(systemText).not.toContain('runtime_context=local_desktop_life_loop')
+    expect(systemText).not.toContain('runtime_context=runtime_personhood')
     expect(systemText).not.toContain('memory_progress=partial')
   })
 
@@ -5580,16 +5576,16 @@ describe('runtime-organic-memory-prompt', () => {
       } as any,
     } as any)
 
-    expect(context.projectStatePreflightSummary).toContain('local_desktop_life_loop')
+    expect(context.projectStatePreflightSummary).toContain('runtime_personhood')
     expect(context.projectStatePreflightSummary).toContain('local_first=true')
     expect(context.projectStatePreflightSummary).not.toContain(thinProjectShell)
-    expect(context.projectStatePreDialogueAwarenessLine).toContain('identity=local_desktop_life_loop')
+    expect(context.projectStatePreDialogueAwarenessLine).toContain('identity=runtime_personhood')
     expect(context.projectStatePreDialogueAwarenessLine).toContain('local_first=true')
     expect(context.projectStatePreDialogueAwarenessLine).not.toContain(thinProjectShell)
     expect(context.projectStateContinuity).toEqual(expect.objectContaining({
       identity: canonical.identity,
-      currentPhase: 'local_desktop_life_loop; proving_ground=apps/stage-tamagotchi.',
-      emotionalClosureCue: 'emotional_closure=content_sanitized; tone=low_pressure; visibility=internal-structured',
+      currentPhase: 'life_core; proving_ground=apps/stage-tamagotchi.',
+      emotionalClosureCue: 'emotional_closure=content_sanitized; tone=low_pressure; surface=structured',
     }))
     expect(String(context.projectStateContinuity?.openClosureSummary ?? '')).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(String(context.projectStateContinuity?.nextClosureTarget ?? '')).toContain('cross_modal_continuity_proof=extend')

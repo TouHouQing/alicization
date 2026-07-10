@@ -700,9 +700,9 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
           : tuningForHostRepairDiscipline
             ? 'The host model is still asking for repair-first continuity, so recollection should let the present repair payoff land before widening.'
             : tuningForProjectClosureLoopGapDiscipline
-              ? 'local_desktop_life_loop_gap=memory_initiative_embodiment; recollection_visibility=internal_until_current_answer_has_evidence; avoid_project_shell=true'
+              ? 'runtime_personhood_gap=memory_initiative_embodiment; recollection_visibility=internal_until_current_answer_has_evidence; avoid_project_shell=true'
               : tuningForProjectClosureDiscipline
-                ? 'local_desktop_life_loop_closure=open; recollection_visibility=internal_until_evidence_boundary_is_clear'
+                ? 'life_core_closure=open; recollection_visibility=internal_until_evidence_boundary_is_clear'
                 : tuningForSameHerClosureLowPressure
                   ? 'continuity_closure_carry=low_pressure; recollection_visibility=internal_until_current_payoff_has_room'
                   : tuningForSameHerClosureAntiRestart
@@ -832,10 +832,10 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
         ? ['If the host model is asking for repair first, let the concrete repair payoff land before widening recollection into relationship continuity.']
         : []),
       ...(tuningForProjectClosureDiscipline
-        ? ['local_desktop_life_loop_closure=open; keep_recollection_internal_until_evidence_boundary_is_clear=true']
+        ? ['life_core_closure=open; keep_recollection_internal_until_evidence_boundary_is_clear=true']
         : []),
       ...(tuningForProjectClosureLoopGapDiscipline
-        ? ['local_desktop_life_loop_gap=memory_initiative_embodiment; keep_recollection_internal_until_current_answer_has_evidence=true']
+        ? ['runtime_personhood_gap=memory_initiative_embodiment; keep_recollection_internal_until_current_answer_has_evidence=true']
         : []),
       ...(tuningForSameHerClosureLowPressure
         ? ['continuity_closure_carry=low_pressure; keep_recollection_internal_until_room=true']

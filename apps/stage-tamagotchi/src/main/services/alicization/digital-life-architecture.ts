@@ -63,7 +63,7 @@ function sanitizeText(raw: unknown, maxChars = 160) {
   if (!sanitized)
     return ''
   return sanitized === alicizationFixedTemplateReplacement
-    ? 'relationship_continuity=present; source_template=excluded; visibility=internal-structured'
+    ? 'relationship_continuity=present; source_template=excluded; surface=structured'
     : sanitized
 }
 
