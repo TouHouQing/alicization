@@ -31,7 +31,7 @@ describe('stage embodiment diagnostics alerts', () => {
       },
     ])).toEqual({
       tone: 'warn',
-      title: 'Same-her continuity is re-forming before renderer sync',
+      title: 'Continuity is re-forming before renderer sync',
       primary: {
         severity: 'warn',
         code: 'renderer-live2d-partial-recovery',
@@ -69,7 +69,7 @@ describe('stage embodiment diagnostics alerts', () => {
       },
     ])).toEqual({
       tone: 'warn',
-      title: 'Same-her continuity is re-forming before renderer sync',
+      title: 'Continuity is re-forming before renderer sync',
       primary: {
         severity: 'warn',
         code: 'renderer-vrm-partial-recovery',
@@ -79,69 +79,69 @@ describe('stage embodiment diagnostics alerts', () => {
     })
   })
 
-  it('surfaces audible same-her continuity in the banner title when the renderer is only lagging behind an already recovered living audio line', () => {
+  it('surfaces audible continuity in the banner title when the renderer is only lagging behind an already recovered living audio line', () => {
     expect(resolveStageEmbodimentDiagnosticsAlertBanner([
       {
         severity: 'warn',
         code: 'renderer-vrm-partial-recovery',
-        message: 'VRM expression names still differ, but the audible same-her line has already re-formed on the same segment.',
+        message: 'VRM expression names still differ, but the audible continuity line has already re-formed on the same segment.',
       },
     ])).toEqual({
       tone: 'warn',
-      title: 'Audible same-her line recovered before renderer',
+      title: 'Audible continuity line recovered before renderer',
       primary: {
         severity: 'warn',
         code: 'renderer-vrm-partial-recovery',
-        message: 'VRM expression names still differ, but the audible same-her line has already re-formed on the same segment.',
+        message: 'VRM expression names still differ, but the audible continuity line has already re-formed on the same segment.',
       },
       additionalCount: 0,
     })
   })
 
-  it('surfaces the resident body line as the alert focus when same-her continuity has narrowed to a single surviving body lane', () => {
+  it('surfaces the resident body line as the alert focus when continuity has narrowed to a single surviving body lane', () => {
     expect(resolveStageEmbodimentDiagnosticsAlertBanner([
       {
         severity: 'warn',
         code: 'cross-modal-single-lane-dominance',
-        message: 'Only the resident body lane is still aligned with the active same-her segment.',
+        message: 'Only the resident body lane is still aligned with the active continuity segment.',
       },
     ])).toEqual({
       tone: 'warn',
-      title: 'Resident body line is carrying same-her continuity',
+      title: 'Resident body line is carrying continuity',
       primary: {
         severity: 'warn',
         code: 'cross-modal-single-lane-dominance',
-        message: 'Only the resident body lane is still aligned with the active same-her segment.',
+        message: 'Only the resident body lane is still aligned with the active continuity segment.',
       },
       additionalCount: 0,
     })
   })
 
-  it('surfaces the audible same-her line as the alert focus when face and motion have not yet rejoined the living body line', () => {
+  it('surfaces the audible continuity line as the alert focus when face and motion have not yet rejoined the living body line', () => {
     expect(resolveStageEmbodimentDiagnosticsAlertBanner([
       {
         severity: 'warn',
         code: 'cross-modal-partial-lane-dominance',
-        message: 'The resident body lane is still holding together with one audible same-her lane, but face and motion have not yet rejoined the same active segment.',
+        message: 'The resident body lane is still holding together with one audible continuity lane, but face and motion have not yet rejoined the same active segment.',
       },
     ])).toEqual({
       tone: 'warn',
-      title: 'Audible same-her line is carrying continuity',
+      title: 'Audible continuity line is carrying continuity',
       primary: {
         severity: 'warn',
         code: 'cross-modal-partial-lane-dominance',
-        message: 'The resident body lane is still holding together with one audible same-her lane, but face and motion have not yet rejoined the same active segment.',
+        message: 'The resident body lane is still holding together with one audible continuity lane, but face and motion have not yet rejoined the same active segment.',
       },
       additionalCount: 0,
     })
   })
 
-  it('surfaces the resident body-and-voice line as the alert focus when lipsync is still missing from the surviving same-her carry', () => {
+  it('surfaces the resident body-and-voice line as the alert focus when lipsync is still missing from the surviving continuity carry', () => {
     expect(resolveStageEmbodimentDiagnosticsAlertBanner([
       {
         severity: 'warn',
         code: 'cross-modal-partial-lane-dominance',
-        message: 'The resident body lane is still holding together with the same-her voice line, but lipsync, face, and motion have not yet rejoined the same active segment.',
+        message: 'The resident body lane is still holding together with the continuity voice line, but lipsync, face, and motion have not yet rejoined the same active segment.',
       },
     ])).toEqual({
       tone: 'warn',
@@ -149,7 +149,7 @@ describe('stage embodiment diagnostics alerts', () => {
       primary: {
         severity: 'warn',
         code: 'cross-modal-partial-lane-dominance',
-        message: 'The resident body lane is still holding together with the same-her voice line, but lipsync, face, and motion have not yet rejoined the same active segment.',
+        message: 'The resident body lane is still holding together with the continuity voice line, but lipsync, face, and motion have not yet rejoined the same active segment.',
       },
       additionalCount: 0,
     })
@@ -168,11 +168,11 @@ describe('stage embodiment diagnostics alerts', () => {
     ])
   })
 
-  it('builds a lane-level focus summary when audible same-her continuity has rejoined before face and motion return', () => {
+  it('builds a lane-level focus summary when audible continuity has rejoined before face and motion return', () => {
     expect(buildStageEmbodimentDiagnosticsAlertFocusSummary({
       code: 'renderer-vrm-partial-recovery',
       severity: 'warn',
-      message: 'VRM expression names still differ, but the audible same-her line has already re-formed on the same segment.',
+      message: 'VRM expression names still differ, but the audible continuity line has already re-formed on the same segment.',
     }, {
       live2d: null,
       vrm: {
@@ -194,11 +194,11 @@ describe('stage embodiment diagnostics alerts', () => {
     })).toBe('body+lipsync+voice active | pending face+motion')
   })
 
-  it('builds a lane-level focus summary when only the resident body line is still carrying the same-her segment', () => {
+  it('builds a lane-level focus summary when only the resident body line is still carrying the continuity segment', () => {
     expect(buildStageEmbodimentDiagnosticsAlertFocusSummary({
       code: 'cross-modal-single-lane-dominance',
       severity: 'warn',
-      message: 'Only the resident body lane is still aligned with the active same-her segment.',
+      message: 'Only the resident body lane is still aligned with the active continuity segment.',
     }, {
       live2d: null,
       vrm: null,
@@ -207,11 +207,11 @@ describe('stage embodiment diagnostics alerts', () => {
     )
   })
 
-  it('builds a lane-level focus summary when resident body and one audible same-her lane are still holding continuity together', () => {
+  it('builds a lane-level focus summary when resident body and one audible continuity lane are still holding continuity together', () => {
     expect(buildStageEmbodimentDiagnosticsAlertFocusSummary({
       code: 'cross-modal-partial-lane-dominance',
       severity: 'warn',
-      message: 'The resident body lane is still holding together with one audible same-her lane, but face and motion have not yet rejoined the same active segment.',
+      message: 'The resident body lane is still holding together with one audible continuity lane, but face and motion have not yet rejoined the same active segment.',
     }, {
       live2d: null,
       vrm: null,
@@ -220,11 +220,11 @@ describe('stage embodiment diagnostics alerts', () => {
     )
   })
 
-  it('builds a lane-level focus summary when only lipsync and voice still carry the audible same-her line', () => {
+  it('builds a lane-level focus summary when only lipsync and voice still carry the audible continuity line', () => {
     expect(buildStageEmbodimentDiagnosticsAlertFocusSummary({
       code: 'cross-modal-single-lane-dominance',
       severity: 'warn',
-      message: 'Only one embodiment lane is still aligned with the active same-her segment.',
+      message: 'Only one embodiment lane is still aligned with the active continuity segment.',
     }, {
       live2d: null,
       vrm: null,
@@ -233,7 +233,7 @@ describe('stage embodiment diagnostics alerts', () => {
     )
   })
 
-  it('builds a lane-level focus summary when face and voice are the surviving still-voiced same-her carry before body motion and lipsync return', () => {
+  it('builds a lane-level focus summary when face and voice are the surviving still-voiced continuity carry before body motion and lipsync return', () => {
     expect(buildStageEmbodimentDiagnosticsAlertFocusSummary({
       code: 'renderer-live2d-runtime-only',
       severity: 'warn',
@@ -260,7 +260,7 @@ describe('stage embodiment diagnostics alerts', () => {
     })).toBe('face+voice active | pending body+motion+lipsync')
   })
 
-  it('builds a lane-level focus summary when motion and voice are the surviving still-voiced same-her carry before body face and lipsync return', () => {
+  it('builds a lane-level focus summary when motion and voice are the surviving still-voiced continuity carry before body face and lipsync return', () => {
     expect(buildStageEmbodimentDiagnosticsAlertFocusSummary({
       code: 'renderer-live2d-runtime-only',
       severity: 'warn',
@@ -287,7 +287,7 @@ describe('stage embodiment diagnostics alerts', () => {
     })).toBe('motion+voice active | pending body+face+lipsync')
   })
 
-  it('builds a lane-level focus summary when face lipsync and voice are the surviving still-voiced same-her carry before body and motion return', () => {
+  it('builds a lane-level focus summary when face lipsync and voice are the surviving still-voiced continuity carry before body and motion return', () => {
     expect(buildStageEmbodimentDiagnosticsAlertFocusSummary({
       code: 'renderer-live2d-runtime-only',
       severity: 'warn',
@@ -317,7 +317,7 @@ describe('stage embodiment diagnostics alerts', () => {
     })).toBe('face+lipsync+voice active | pending body+motion')
   })
 
-  it('builds a lane-level focus summary when motion lipsync and voice are the surviving still-voiced same-her carry before body and face return', () => {
+  it('builds a lane-level focus summary when motion lipsync and voice are the surviving still-voiced continuity carry before body and face return', () => {
     expect(buildStageEmbodimentDiagnosticsAlertFocusSummary({
       code: 'renderer-live2d-runtime-only',
       severity: 'warn',
@@ -347,7 +347,7 @@ describe('stage embodiment diagnostics alerts', () => {
     })).toBe('motion+lipsync+voice active | pending body+face')
   })
 
-  it('builds a lane-level focus summary when face motion and voice are the surviving still-voiced same-her carry before body and lipsync return', () => {
+  it('builds a lane-level focus summary when face motion and voice are the surviving still-voiced continuity carry before body and lipsync return', () => {
     expect(buildStageEmbodimentDiagnosticsAlertFocusSummary({
       code: 'renderer-live2d-runtime-only',
       severity: 'warn',
@@ -492,7 +492,7 @@ describe('stage embodiment diagnostics alerts', () => {
     )
   })
 
-  it('keeps structured body+voice-only same-her continuity visible inside pending renderer summaries without rewriting it into a fuller audible-body rejoin', () => {
+  it('keeps structured body+voice-only continuity visible inside pending renderer summaries without rewriting it into a fuller audible-body rejoin', () => {
     expect(buildStageEmbodimentDiagnosticsAlertReasonSummary({
       code: 'renderer-vrm-pending',
       severity: 'info',
@@ -514,10 +514,10 @@ describe('stage embodiment diagnostics alerts', () => {
         bodyDriverSegmentId: 'segment-vrm-pending-body-voice-structured-1',
         voiceDriverSegmentId: 'segment-vrm-pending-body-voice-structured-1',
         reasonTags: ['embodiment:body+voice-only'],
-        signature: 'embodiment:audible-same-her-line',
+        signature: 'embodiment:audible-continuity-line',
       },
     } as any)).toBe(
-      'resident calm is waiting for renderer application | continuity=embodiment:audible-same-her-line+embodiment:body+voice-only | signature=embodiment:audible-same-her-line | body+voice recovery@segment-vrm-pending-body-voice-structured-1 | pending-rejoin=face+motion+lipsync',
+      'resident calm is waiting for renderer application | continuity=embodiment:audible-continuity-line+embodiment:body+voice-only | signature=embodiment:audible-continuity-line | body+voice recovery@segment-vrm-pending-body-voice-structured-1 | pending-rejoin=face+motion+lipsync',
     )
   })
 
@@ -601,12 +601,12 @@ describe('stage embodiment diagnostics alerts', () => {
         bodyDriverSegmentId: 'segment-live2d-audible-line-now',
         lipsyncDriverSegmentId: 'segment-live2d-audible-line-now',
         reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
-        signature: 'embodiment:audible-same-her-line',
+        signature: 'embodiment:audible-continuity-line',
         voiceDriverSegmentId: 'segment-live2d-audible-line-now',
       },
       vrm: null,
     } as any)).toBe(
-      'resident Soft Gaze is waiting for renderer application | face soft-gaze@digital-life-projection | motion observe_focus@timeline-projection | continuity=embodiment:audible-same-her-line+embodiment:body-lipsync-voice-rejoin | signature=embodiment:audible-same-her-line | audible-living-line leads while face lag@segment-live2d-audible-line-now',
+      'resident Soft Gaze is waiting for renderer application | face soft-gaze@digital-life-projection | motion observe_focus@timeline-projection | continuity=embodiment:audible-continuity-line+embodiment:body-lipsync-voice-rejoin | signature=embodiment:audible-continuity-line | audible-living-line leads while face lag@segment-live2d-audible-line-now',
     )
   })
 
@@ -1058,11 +1058,11 @@ describe('stage embodiment diagnostics alerts', () => {
     )
   })
 
-  it('marks lipsync+voice recovery inside renderer drift explanations when the audible same-her line survives before body face and motion return', () => {
+  it('marks lipsync+voice recovery inside renderer drift explanations when the audible continuity line survives before body face and motion return', () => {
     expect(buildStageEmbodimentDiagnosticsAlertReasonSummary({
       code: 'renderer-vrm-partial-recovery',
       severity: 'warn',
-      message: 'VRM expression names still differ, but the audible same-her line is the surviving aligned segment.',
+      message: 'VRM expression names still differ, but the audible continuity line is the surviving aligned segment.',
     }, {
       live2d: null,
       vrm: {
@@ -1103,12 +1103,12 @@ describe('stage embodiment diagnostics alerts', () => {
     expect(buildStageEmbodimentDiagnosticsAlertReasonSummary({
       code: 'cross-modal-single-lane-dominance',
       severity: 'warn',
-      message: 'Only one embodiment lane is still aligned with the active same-her segment.',
+      message: 'Only one embodiment lane is still aligned with the active continuity segment.',
     }, {
       live2d: null,
       vrm: null,
     }, '表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型。')).toBe(
-      '当前只有一条身体通道还和同一段数字生命表达对齐，跨模态连续性正在从同一条 companionship 身体线收缩 | 表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型。',
+      '当前只有一条身体通道还与表达状态对齐，跨模态连续性正在向该身体通道收缩 | 表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型。',
     )
   })
 
@@ -1116,20 +1116,20 @@ describe('stage embodiment diagnostics alerts', () => {
     expect(buildStageEmbodimentDiagnosticsAlertReasonSummary({
       code: 'cross-modal-single-lane-dominance',
       severity: 'warn',
-      message: 'Only the resident body lane is still aligned with the active same-her segment.',
+      message: 'Only the resident body lane is still aligned with the active continuity segment.',
     }, {
       live2d: null,
       vrm: null,
     }, '表情、动作 authority 漂移，当前 resident body 还在同一段数字生命表达上。')).toBe(
-      '当前只有 resident body 这条身体线还和同一段数字生命表达对齐，跨模态连续性正在从同一个 her 的身体主线收缩 | 表情、动作 authority 漂移，当前 resident body 还在同一段数字生命表达上。',
+      '当前只有 resident body 通道还与表达状态对齐，跨模态连续性正在向身体通道收缩 | 表情、动作 authority 漂移，当前 resident body 还在同一段数字生命表达上。',
     )
   })
 
-  it('builds a partial-lane continuity reason summary when two embodiment lanes still hold the same-her line', () => {
+  it('builds a partial-lane continuity reason summary when two embodiment lanes still hold the continuity line', () => {
     expect(buildStageEmbodimentDiagnosticsAlertReasonSummary({
       code: 'cross-modal-partial-lane-dominance',
       severity: 'warn',
-      message: 'Two embodiment lanes are still aligned with the active same-her segment, but full cross-modal continuity has already narrowed.',
+      message: 'Two embodiment lanes are still aligned with the active continuity segment, but full cross-modal continuity has already narrowed.',
     }, {
       live2d: null,
       vrm: null,
@@ -1151,107 +1151,107 @@ describe('stage embodiment diagnostics alerts', () => {
     )
   })
 
-  it('builds a voice-only partial-lane continuity reason summary when only the voiced same-her line is still aligned', () => {
+  it('builds a voice-only partial-lane continuity reason summary when only the voiced continuity line is still aligned', () => {
     expect(buildStageEmbodimentDiagnosticsAlertReasonSummary({
       code: 'cross-modal-single-lane-dominance',
       severity: 'warn',
-      message: 'Only one embodiment lane is still aligned with the active same-her segment.',
+      message: 'Only one embodiment lane is still aligned with the active continuity segment.',
     }, {
       live2d: null,
       vrm: null,
     }, '表情、动作、口型 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是语音。')).toBe(
-      '当前只有 voice 这条可听见的 same-her 生命线还和同一段数字生命表达对齐，跨模态连续性正在从这条活着的声音线收缩 | 表情、动作、口型 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是语音。',
+      '当前只有 voice 通道还与表达状态对齐，跨模态连续性正在向可听见的通道收缩 | 表情、动作、口型 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是语音。',
     )
   })
 
-  it('builds a lipsync+voice partial-lane continuity reason summary when the surviving same-her line is still audible through mouth and voice together', () => {
+  it('builds a lipsync+voice partial-lane continuity reason summary when the surviving continuity line is still audible through mouth and voice together', () => {
     expect(buildStageEmbodimentDiagnosticsAlertReasonSummary({
       code: 'cross-modal-single-lane-dominance',
       severity: 'warn',
-      message: 'Only one embodiment lane is still aligned with the active same-her segment.',
+      message: 'Only one embodiment lane is still aligned with the active continuity segment.',
     }, {
       live2d: null,
       vrm: null,
     }, '表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型和语音。')).toBe(
-      '当前只有 lipsync 和 voice 这条可听见的 same-her 生命线还和同一段数字生命表达对齐，跨模态连续性正在从这条活着的声音线收缩 | 表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型和语音。',
+      '当前只有 lipsync 和 voice 通道还与表达状态对齐，跨模态连续性正在向可听见的通道收缩 | 表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型和语音。',
     )
   })
 
-  it('builds a face+voice partial-lane continuity reason summary when expression and voice are the only surviving same-her carry', () => {
+  it('builds a face+voice partial-lane continuity reason summary when expression and voice are the only surviving continuity carry', () => {
     expect(buildStageEmbodimentDiagnosticsAlertReasonSummary({
       code: 'cross-modal-single-lane-dominance',
       severity: 'warn',
-      message: 'Only one embodiment lane is still aligned with the active same-her segment.',
+      message: 'Only one embodiment lane is still aligned with the active continuity segment.',
     }, {
       live2d: null,
       vrm: null,
     }, '动作、口型 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是表情和语音。')).toBe(
-      '当前只有 face 和 voice 这条 same-her 生命线还和同一段数字生命表达对齐，跨模态连续性正在从这条仍在发声的表情线收缩 | 动作、口型 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是表情和语音。',
+      '当前只有 face 和 voice 通道还与表达状态对齐，跨模态连续性正在向表情与语音通道收缩 | 动作、口型 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是表情和语音。',
     )
   })
 
-  it('builds a motion+voice partial-lane continuity reason summary when motion and voice are the only surviving same-her carry', () => {
+  it('builds a motion+voice partial-lane continuity reason summary when motion and voice are the only surviving continuity carry', () => {
     expect(buildStageEmbodimentDiagnosticsAlertReasonSummary({
       code: 'cross-modal-single-lane-dominance',
       severity: 'warn',
-      message: 'Only one embodiment lane is still aligned with the active same-her segment.',
+      message: 'Only one embodiment lane is still aligned with the active continuity segment.',
     }, {
       live2d: null,
       vrm: null,
     }, '表情、口型 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是动作和语音。')).toBe(
-      '当前只有 motion 和 voice 这条 same-her 生命线还和同一段数字生命表达对齐，跨模态连续性正在从这条仍在发声的动作线收缩 | 表情、口型 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是动作和语音。',
+      '当前只有 motion 和 voice 通道还与表达状态对齐，跨模态连续性正在向动作与语音通道收缩 | 表情、口型 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是动作和语音。',
     )
   })
 
-  it('builds a face+lipsync partial-lane continuity reason summary when expression and mouth are the quieter surviving same-her carry', () => {
+  it('builds a face+lipsync partial-lane continuity reason summary when expression and mouth are the quieter surviving continuity carry', () => {
     expect(buildStageEmbodimentDiagnosticsAlertReasonSummary({
       code: 'cross-modal-partial-lane-dominance',
       severity: 'warn',
-      message: 'Two embodiment lanes are still aligned with the active same-her segment, but full cross-modal continuity has already narrowed.',
+      message: 'Two embodiment lanes are still aligned with the active continuity segment, but full cross-modal continuity has already narrowed.',
     }, {
       live2d: null,
       vrm: null,
     }, '身体、动作、语音 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是表情和口型。')).toBe(
-      '当前只有 face 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线 | 身体、动作、语音 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是表情和口型。',
+      '当前只有 face 和 lipsync 这条 continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线 | 身体、动作、语音 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是表情和口型。',
     )
   })
 
-  it('builds a motion+lipsync partial-lane continuity reason summary when motion and mouth are the quieter surviving same-her carry', () => {
+  it('builds a motion+lipsync partial-lane continuity reason summary when motion and mouth are the quieter surviving continuity carry', () => {
     expect(buildStageEmbodimentDiagnosticsAlertReasonSummary({
       code: 'cross-modal-partial-lane-dominance',
       severity: 'warn',
-      message: 'Two embodiment lanes are still aligned with the active same-her segment, but full cross-modal continuity has already narrowed.',
+      message: 'Two embodiment lanes are still aligned with the active continuity segment, but full cross-modal continuity has already narrowed.',
     }, {
       live2d: null,
       vrm: null,
     }, '身体、表情、语音 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是动作和口型。')).toBe(
-      '当前只有 motion 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线 | 身体、表情、语音 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是动作和口型。',
+      '当前只有 motion 和 lipsync 这条 continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线 | 身体、表情、语音 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是动作和口型。',
     )
   })
 
-  it('builds an audible-body partial-lane continuity reason summary when the surviving line is specifically the resident body plus audible same-her carry', () => {
+  it('builds an audible-body partial-lane continuity reason summary when the surviving line is specifically the resident body plus audible continuity carry', () => {
     expect(buildStageEmbodimentDiagnosticsAlertReasonSummary({
       code: 'cross-modal-partial-lane-dominance',
       severity: 'warn',
-      message: 'The resident body lane is still holding together with the audible same-her line, but face and motion have not rejoined yet.',
+      message: 'The resident body lane is still holding together with the audible continuity line, but face and motion have not rejoined yet.',
     }, {
       live2d: null,
       vrm: null,
     }, '表情、动作 authority 漂移，但 resident body、lipsync 和 voice 仍在同一段数字生命表达上。')).toBe(
-      '当前 resident body 这条身体线仍和可听见的 same-her 生命线一起托住同一段数字生命表达，但 face 和 motion 还没有重新接回这条活着的身体线 | 表情、动作 authority 漂移，但 resident body、lipsync 和 voice 仍在同一段数字生命表达上。',
+      '当前 resident body 这条身体线仍和可听见的 continuity 生命线一起托住同一段数字生命表达，但 face 和 motion 还没有重新接回这条活着的身体线 | 表情、动作 authority 漂移，但 resident body、lipsync 和 voice 仍在同一段数字生命表达上。',
     )
   })
 
-  it('also treats audible same-her lane wording as the stronger audible-body continuity summary', () => {
+  it('also treats audible continuity lane wording as the stronger audible-body continuity summary', () => {
     expect(buildStageEmbodimentDiagnosticsAlertReasonSummary({
       code: 'cross-modal-partial-lane-dominance',
       severity: 'warn',
-      message: 'The resident body lane is still holding together with one audible same-her lane, but face and motion have not yet rejoined the same active segment.',
+      message: 'The resident body lane is still holding together with one audible continuity lane, but face and motion have not yet rejoined the same active segment.',
     }, {
       live2d: null,
       vrm: null,
     }, '表情、动作 authority 漂移，但 resident body、lipsync 和 voice 仍在同一段数字生命表达上。')).toBe(
-      '当前 resident body 这条身体线仍和可听见的 same-her 生命线一起托住同一段数字生命表达，但 face 和 motion 还没有重新接回这条活着的身体线 | 表情、动作 authority 漂移，但 resident body、lipsync 和 voice 仍在同一段数字生命表达上。',
+      '当前 resident body 这条身体线仍和可听见的 continuity 生命线一起托住同一段数字生命表达，但 face 和 motion 还没有重新接回这条活着的身体线 | 表情、动作 authority 漂移，但 resident body、lipsync 和 voice 仍在同一段数字生命表达上。',
     )
   })
 
@@ -1259,12 +1259,12 @@ describe('stage embodiment diagnostics alerts', () => {
     expect(buildStageEmbodimentDiagnosticsAlertReasonSummary({
       code: 'cross-modal-partial-lane-dominance',
       severity: 'warn',
-      message: 'The resident body lane is still holding together with the same-her voice line, but lipsync, face, and motion have not yet rejoined the same active segment.',
+      message: 'The resident body lane is still holding together with the continuity voice line, but lipsync, face, and motion have not yet rejoined the same active segment.',
     }, {
       live2d: null,
       vrm: null,
     }, '表情、动作、口型 authority 漂移，但 resident body 和 voice 仍在同一段数字生命表达上。')).toBe(
-      '当前 resident body 这条身体线仍和 same-her 的声音线一起托住同一段数字生命表达，但 lipsync、face 和 motion 还没有重新接回这条活着的身体线 | 表情、动作、口型 authority 漂移，但 resident body 和 voice 仍在同一段数字生命表达上。',
+      '当前 resident body 这条身体线仍和 continuity 的声音线一起托住同一段数字生命表达，但 lipsync、face 和 motion 还没有重新接回这条活着的身体线 | 表情、动作、口型 authority 漂移，但 resident body 和 voice 仍在同一段数字生命表达上。',
     )
   })
 
@@ -1272,7 +1272,7 @@ describe('stage embodiment diagnostics alerts', () => {
     expect(buildStageEmbodimentDiagnosticsAlertFocusSummary({
       code: 'cross-modal-partial-lane-dominance',
       severity: 'warn',
-      message: 'The resident body lane is still holding together with the same-her voice line, but lipsync, face, and motion have not yet rejoined the same active segment.',
+      message: 'The resident body lane is still holding together with the continuity voice line, but lipsync, face, and motion have not yet rejoined the same active segment.',
     }, {
       live2d: null,
       vrm: null,
@@ -1285,7 +1285,7 @@ describe('stage embodiment diagnostics alerts', () => {
     expect(buildStageEmbodimentDiagnosticsAlertFocusSummary({
       code: 'cross-modal-partial-lane-dominance',
       severity: 'warn',
-      message: 'Two embodiment lanes are still aligned with the active same-her segment, but full cross-modal continuity has already narrowed.',
+      message: 'Two embodiment lanes are still aligned with the active continuity segment, but full cross-modal continuity has already narrowed.',
     }, {
       live2d: null,
       vrm: null,
@@ -1298,7 +1298,7 @@ describe('stage embodiment diagnostics alerts', () => {
     expect(buildStageEmbodimentDiagnosticsAlertFocusSummary({
       code: 'cross-modal-partial-lane-dominance',
       severity: 'warn',
-      message: 'Two embodiment lanes are still aligned with the active same-her segment, but full cross-modal continuity has already narrowed.',
+      message: 'Two embodiment lanes are still aligned with the active continuity segment, but full cross-modal continuity has already narrowed.',
     }, {
       live2d: null,
       vrm: null,
@@ -1335,11 +1335,11 @@ describe('stage embodiment diagnostics alerts', () => {
     )
   })
 
-  it('keeps explicit audible same-her continuity proof visible alongside face-motion recovery prose when the living audio thread is still the surviving host-visible line', () => {
+  it('keeps explicit audible continuity proof visible alongside face-motion recovery prose when the living audio thread is still the surviving host-visible line', () => {
     expect(buildStageEmbodimentDiagnosticsAlertReasonSummary({
       code: 'renderer-vrm-partial-recovery',
       severity: 'info',
-      message: 'Same-segment face and motion recovery exists, but explicit audible same-her continuity proof still shows the living audio thread as the stronger surviving host-visible line.',
+      message: 'Same-segment face and motion recovery exists, while explicit audible continuity proof still marks the audio thread as the stronger surviving host-visible line.',
     }, {
       live2d: null,
       vrm: {
@@ -1358,7 +1358,7 @@ describe('stage embodiment diagnostics alerts', () => {
         lipsyncDriverSegmentId: 'segment-vrm-audible-body-recovery-3',
         voiceDriverSegmentId: 'segment-vrm-audible-body-recovery-3',
       },
-    }, 'continuity=embodiment:audible-same-her-line+embodiment:body-lipsync-voice-rejoin | signature=embodiment:audible-same-her-line | face and motion still need to rejoin the same living line.')).toBe(
+    }, 'continuity=embodiment:audible-continuity-line+embodiment:body-lipsync-voice-rejoin | signature=embodiment:audible-continuity-line | face and motion still need to rejoin the continuity line.')).toBe(
       'resident calm -> actual focus | face soft-gaze@cue-bridge | motion observe_focus@cue-bridge | body+lipsync+voice recovery@segment-vrm-audible-body-recovery-3 | audible-body rejoin@segment-vrm-audible-body-recovery-3 | audible-living-line leads while face+motion lag@segment-vrm-audible-body-recovery-3 | pending-rejoin=face+motion | same-segment face+motion recovery@segment-vrm-reformed-face-motion-1',
     )
   })

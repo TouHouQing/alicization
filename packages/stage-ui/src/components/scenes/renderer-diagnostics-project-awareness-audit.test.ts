@@ -7,21 +7,21 @@ const proofRows = [
     entry: 'alerts-audible-body-partial-lane-summary',
     file: './stage-embodiment-diagnostics-alerts.test.ts',
     snippets: [
-      'builds an audible-body partial-lane continuity reason summary when the surviving line is specifically the resident body plus audible same-her carry',
+      'builds an audible-body partial-lane continuity reason summary when the surviving line is specifically the resident body plus audible continuity carry',
       'resident body、lipsync 和 voice 仍在同一段数字生命表达上',
       'face 和 motion 还没有重新接回这条活着的身体线',
     ],
   },
   {
-    entry: 'alerts-host-facing-audible-same-her-wording',
+    entry: 'alerts-host-facing-audible-continuity-wording',
     file: './stage-embodiment-diagnostics-alerts.test.ts',
     snippets: [
-      '当前 resident body 这条身体线仍和可听见的 same-her 生命线一起托住同一段数字生命表达，但 face 和 motion 还没有重新接回这条活着的身体线',
-      'The resident body lane is still holding together with one audible same-her lane, but face and motion have not yet rejoined the same active segment.',
+      '当前 resident body 这条身体线仍和可听见的 continuity 生命线一起托住同一段数字生命表达，但 face 和 motion 还没有重新接回这条活着的身体线',
+      'The resident body lane is still holding together with one audible continuity lane, but face and motion have not yet rejoined the same active segment.',
     ],
   },
   {
-    entry: 'vrm-diagnostics-audible-same-her-recovery',
+    entry: 'vrm-diagnostics-audible-continuity-recovery',
     file: './stage-embodiment-diagnostics-overlay-summary.test.ts',
     snippets: [
       'keeps body+lipsync+voice recovery visible on the renderer alignment surface summary when the audible-body line re-forms before face and motion return',
@@ -30,10 +30,10 @@ const proofRows = [
     ],
   },
   {
-    entry: 'live2d-diagnostics-audible-same-her-recovery',
+    entry: 'live2d-diagnostics-audible-continuity-recovery',
     file: './stage-embodiment-diagnostics-overlay-summary.test.ts',
     snippets: [
-      'keeps lipsync+voice recovery visible on the renderer alignment surface summary when the audible same-her line re-forms before body face and motion return',
+      'keeps lipsync+voice recovery visible on the renderer alignment surface summary when the audible continuity line re-forms before body face and motion return',
       'lipsync+voice recovery@segment-live2d-audible-voice-first-return',
       'pending-rejoin=body+face+motion',
     ],
@@ -60,7 +60,7 @@ const proofRows = [
     entry: 'overlay-face-lipsync-quieter-lane-focus',
     file: './stage-embodiment-diagnostics-overlay-summary.test.ts',
     snippets: [
-      'builds a renderer lane focus summary when face and lipsync are the surviving quieter visible same-her carry before body motion and voice rejoin',
+      'builds a renderer lane focus summary when face and lipsync are the surviving quieter visible continuity carry before body motion and voice rejoin',
       'focus=face+lipsync | pending=body+motion+voice',
       'segment-live2d-visible-face-mouth-return',
     ],
@@ -69,7 +69,7 @@ const proofRows = [
     entry: 'overlay-motion-lipsync-quieter-lane-focus',
     file: './stage-embodiment-diagnostics-overlay-summary.test.ts',
     snippets: [
-      'builds a renderer lane focus summary when motion and lipsync are the surviving quieter visible same-her carry before body face and voice rejoin',
+      'builds a renderer lane focus summary when motion and lipsync are the surviving quieter visible continuity carry before body face and voice rejoin',
       'focus=motion+lipsync | pending=body+face+voice',
       'segment-live2d-visible-motion-mouth-return',
     ],
@@ -78,8 +78,8 @@ const proofRows = [
     entry: 'alerts-lipsync-voice-single-lane-summary',
     file: './stage-embodiment-diagnostics-alerts.test.ts',
     snippets: [
-      'builds a lipsync+voice partial-lane continuity reason summary when the surviving same-her line is still audible through mouth and voice together',
-      '当前只有 lipsync 和 voice 这条可听见的 same-her 生命线还和同一段数字生命表达对齐',
+      'builds a lipsync+voice partial-lane continuity reason summary when the surviving continuity line is still audible through mouth and voice together',
+      '当前只有 lipsync 和 voice 通道还与表达状态对齐',
       '实际执行落点是口型和语音',
     ],
   },
@@ -87,8 +87,8 @@ const proofRows = [
     entry: 'alerts-face-voice-single-lane-summary',
     file: './stage-embodiment-diagnostics-alerts.test.ts',
     snippets: [
-      'builds a face+voice partial-lane continuity reason summary when expression and voice are the only surviving same-her carry',
-      '当前只有 face 和 voice 这条 same-her 生命线还和同一段数字生命表达对齐',
+      'builds a face+voice partial-lane continuity reason summary when expression and voice are the only surviving continuity carry',
+      '当前只有 face 和 voice 通道还与表达状态对齐',
       '实际执行落点是表情和语音',
     ],
   },
@@ -96,8 +96,8 @@ const proofRows = [
     entry: 'alerts-motion-voice-single-lane-summary',
     file: './stage-embodiment-diagnostics-alerts.test.ts',
     snippets: [
-      'builds a motion+voice partial-lane continuity reason summary when motion and voice are the only surviving same-her carry',
-      '当前只有 motion 和 voice 这条 same-her 生命线还和同一段数字生命表达对齐',
+      'builds a motion+voice partial-lane continuity reason summary when motion and voice are the only surviving continuity carry',
+      '当前只有 motion 和 voice 通道还与表达状态对齐',
       '实际执行落点是动作和语音',
     ],
   },
@@ -105,8 +105,8 @@ const proofRows = [
     entry: 'alerts-face-lipsync-quieter-lane-summary',
     file: './stage-embodiment-diagnostics-alerts.test.ts',
     snippets: [
-      'builds a face+lipsync partial-lane continuity reason summary when expression and mouth are the quieter surviving same-her carry',
-      '当前只有 face 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐',
+      'builds a face+lipsync partial-lane continuity reason summary when expression and mouth are the quieter surviving continuity carry',
+      '当前只有 face 和 lipsync 这条 continuity 生命线还和同一段数字生命表达对齐',
       'face+lipsync active | pending body+motion+voice',
     ],
   },
@@ -114,8 +114,8 @@ const proofRows = [
     entry: 'alerts-motion-lipsync-quieter-lane-summary',
     file: './stage-embodiment-diagnostics-alerts.test.ts',
     snippets: [
-      'builds a motion+lipsync partial-lane continuity reason summary when motion and mouth are the quieter surviving same-her carry',
-      '当前只有 motion 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐',
+      'builds a motion+lipsync partial-lane continuity reason summary when motion and mouth are the quieter surviving continuity carry',
+      '当前只有 motion 和 lipsync 这条 continuity 生命线还和同一段数字生命表达对齐',
       'motion+lipsync active | pending body+face+voice',
     ],
   },
@@ -184,12 +184,12 @@ const proofRows = [
 ] as const
 
 describe('renderer diagnostics project awareness audit', () => {
-  it('keeps one explicit route-level proof that renderer diagnostics still carry the same-her project line when embodiment narrows under noisy desktop drift', () => {
+  it('keeps one explicit route-level proof that renderer diagnostics still carry the continuity project line when embodiment narrows under noisy desktop drift', () => {
     expect(proofRows).toEqual([
       expect.objectContaining({ entry: 'alerts-audible-body-partial-lane-summary' }),
-      expect.objectContaining({ entry: 'alerts-host-facing-audible-same-her-wording' }),
-      expect.objectContaining({ entry: 'vrm-diagnostics-audible-same-her-recovery' }),
-      expect.objectContaining({ entry: 'live2d-diagnostics-audible-same-her-recovery' }),
+      expect.objectContaining({ entry: 'alerts-host-facing-audible-continuity-wording' }),
+      expect.objectContaining({ entry: 'vrm-diagnostics-audible-continuity-recovery' }),
+      expect.objectContaining({ entry: 'live2d-diagnostics-audible-continuity-recovery' }),
       expect.objectContaining({ entry: 'overlay-body-only-hold-minimum-anchor' }),
       expect.objectContaining({ entry: 'overlay-body-carried-renderer-rejoin-anchor' }),
       expect.objectContaining({ entry: 'overlay-face-lipsync-quieter-lane-focus' }),
@@ -220,7 +220,7 @@ describe('renderer diagnostics project awareness audit', () => {
     }
   })
 
-  it('makes this boundary explicit: renderer diagnostics now have dedicated same-her project proof, while fully sustained noisy-desktop closure still remains open', () => {
+  it('makes this boundary explicit: renderer diagnostics now have dedicated continuity project proof, while fully sustained noisy-desktop closure still remains open', () => {
     const matrixSource = readFileSync(new URL('../../../../../docs/pre-dialogue-project-awareness-matrix.md', import.meta.url), 'utf8')
     const overlaySource = readFileSync(new URL('./stage-embodiment-diagnostics-overlay-summary.test.ts', import.meta.url), 'utf8')
 
@@ -244,13 +244,13 @@ describe('renderer diagnostics project awareness audit', () => {
       'keeps body+lipsync+voice recovery visible on the renderer alignment surface summary when the audible-body line re-forms before face and motion return',
     )
     expect(overlaySource).toContain(
-      'keeps lipsync+voice recovery visible on the renderer alignment surface summary when the audible same-her line re-forms before body face and motion return',
+      'keeps lipsync+voice recovery visible on the renderer alignment surface summary when the audible continuity line re-forms before body face and motion return',
     )
     expect(overlaySource).toContain(
-      'builds a renderer lane focus summary when face and lipsync are the surviving quieter visible same-her carry before body motion and voice rejoin',
+      'builds a renderer lane focus summary when face and lipsync are the surviving quieter visible continuity carry before body motion and voice rejoin',
     )
     expect(overlaySource).toContain(
-      'builds a renderer lane focus summary when motion and lipsync are the surviving quieter visible same-her carry before body face and voice rejoin',
+      'builds a renderer lane focus summary when motion and lipsync are the surviving quieter visible continuity carry before body face and voice rejoin',
     )
     expect(overlaySource).toContain(
       'keeps still-voiced face-and-motion continuity explicit on the renderer alignment surface summary when face motion and voice are the surviving carry before body and lipsync return',
@@ -262,16 +262,16 @@ describe('renderer diagnostics project awareness audit', () => {
       'memory: {{ diagnostics.visualPresence.runtimeMemoryClosureIdentityKey ?? \'none\' }}',
     )
     expect(readFileSync(new URL('./stage-embodiment-diagnostics-alerts.test.ts', import.meta.url), 'utf8')).toContain(
-      'builds a face+voice partial-lane continuity reason summary when expression and voice are the only surviving same-her carry',
+      'builds a face+voice partial-lane continuity reason summary when expression and voice are the only surviving continuity carry',
     )
     expect(readFileSync(new URL('./stage-embodiment-diagnostics-alerts.test.ts', import.meta.url), 'utf8')).toContain(
-      'builds a motion+voice partial-lane continuity reason summary when motion and voice are the only surviving same-her carry',
+      'builds a motion+voice partial-lane continuity reason summary when motion and voice are the only surviving continuity carry',
     )
     expect(readFileSync(new URL('./stage-embodiment-diagnostics-alerts.test.ts', import.meta.url), 'utf8')).toContain(
-      'builds a face+lipsync partial-lane continuity reason summary when expression and mouth are the quieter surviving same-her carry',
+      'builds a face+lipsync partial-lane continuity reason summary when expression and mouth are the quieter surviving continuity carry',
     )
     expect(readFileSync(new URL('./stage-embodiment-diagnostics-alerts.test.ts', import.meta.url), 'utf8')).toContain(
-      'builds a motion+lipsync partial-lane continuity reason summary when motion and mouth are the quieter surviving same-her carry',
+      'builds a motion+lipsync partial-lane continuity reason summary when motion and mouth are the quieter surviving continuity carry',
     )
     expect(readFileSync(new URL('./stage-embodiment-diagnostics-alerts.test.ts', import.meta.url), 'utf8')).toContain(
       'keeps still-voiced face-and-motion continuity explicit inside runtime-only renderer summaries instead of flattening it into separate face or motion drift notes',

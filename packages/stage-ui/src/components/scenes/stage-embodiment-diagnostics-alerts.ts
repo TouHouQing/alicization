@@ -140,12 +140,12 @@ function resolveAlertTitle(alert: StageEmbodimentDiagnosticsAlertEntry) {
     if (alert.message.includes('continuity voice line'))
       return 'Resident body and voice recovered before renderer'
 
-    return 'continuity continuity is re-forming before renderer sync'
+    return 'Continuity is re-forming before renderer sync'
   }
 
   if (alert.code === 'cross-modal-single-lane-dominance') {
     if (alert.message.includes('resident body lane'))
-      return 'Resident body line is carrying continuity continuity'
+      return 'Resident body line is carrying continuity'
   }
 
   if (alert.code === 'cross-modal-partial-lane-dominance') {
