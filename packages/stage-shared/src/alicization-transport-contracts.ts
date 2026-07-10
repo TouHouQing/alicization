@@ -10,6 +10,7 @@ import type { AlicizationDialoguePerformancePayload, AlicizationEmotion } from '
 import { normalizeAlicizationDialogueSpeechTimeline } from './alicization-dialogue-speech-timeline'
 import { normalizeAlicizationDigitalLifeEnvelope } from './alicization-digital-life'
 import { normalizeAlicizationEmbodimentScript } from './alicization-embodiment-script'
+import { containsAlicizationFixedTemplateResidue } from './alicization-fixed-template-sanitizer'
 import {
   normalizeAlicizationEmotion,
   normalizeAlicizationPerformancePayload,
@@ -5355,6 +5356,7 @@ function sanitizeAlicizationProjectAwarenessDigestText(raw: unknown, maxChars = 
     return ''
 
   return ALICIZATION_PROJECT_AWARENESS_PLACEHOLDER_VALUES.has(normalized.toLowerCase())
+    || containsAlicizationFixedTemplateResidue(normalized)
     ? ''
     : normalized
 }
