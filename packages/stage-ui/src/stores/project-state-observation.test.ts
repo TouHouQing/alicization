@@ -7,8 +7,6 @@ import {
   readConversationTurnProjectStateObservation,
 } from './project-state-observation'
 
-const excludedContinuityResidue = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
-
 const fixedTemplateResiduePattern = new RegExp([
   'Before (?:answering|speaking|acting)',
   'Right now I am',
@@ -40,6 +38,10 @@ function collectStringValues(value: unknown): string[] {
 function expectNoFixedTemplateResidue(value: unknown) {
   for (const text of collectStringValues(value))
     expect(text, text).not.toMatch(fixedTemplateResiduePattern)
+}
+
+function expectNullish(value: unknown) {
+  expect(value == null).toBe(true)
 }
 
 describe('project-state observation', () => {
@@ -94,12 +96,12 @@ describe('project-state observation', () => {
     expect(observation?.projectState.identity).toBe('project_state_owner=ProjectStateGovernance')
     expect(observation?.projectState.currentPhase).toBe('runtime_context=local_runtime')
     expect(observation?.projectState.nextClosureTarget).toBe('continuity_review_required')
-    expect(observation?.projectState.sameHerSelfLine).toBe(excludedContinuityResidue)
-    expect(observation?.projectState.sameHerDriftRisk).toBe(excludedContinuityResidue)
+    expectNullish(observation?.projectState.sameHerSelfLine)
+    expectNullish(observation?.projectState.sameHerDriftRisk)
     expect(snapshot?.latestLandedProgress).toBe('Project-state continuity already survives into runtime preparation.')
     expect(snapshot?.primaryOpenLoop).toBe('Keep the still-open closure work explicit in the rebuilt continuity snapshot.')
-    expect(snapshot?.sameHerSelfLine).toBe(excludedContinuityResidue)
-    expect(snapshot?.sameHerDriftRisk).toBe(excludedContinuityResidue)
+    expectNullish(snapshot?.sameHerSelfLine)
+    expectNullish(snapshot?.sameHerDriftRisk)
     expectNoFixedTemplateResidue(observation)
     expectNoFixedTemplateResidue(snapshot)
   })
@@ -139,10 +141,10 @@ describe('project-state observation', () => {
 
     expect(observation?.preDialogueClosure?.status).toBe('partial')
     expect(observation?.preDialogueClosure?.summaryLine).toBe('embodiment closure is still unfinished before this turn opens outward.')
-    expect(observation?.preDialogueClosure?.companionHeadlineLine).toBe(excludedContinuityResidue)
-    expect(observation?.preDialogueClosure?.sameHerDriftRiskLine).toBe(excludedContinuityResidue)
-    expect(observation?.preDialogueClosure?.companionBriefingLine).toBe(excludedContinuityResidue)
-    expect(observation?.preDialogueClosure?.emotionalClosureCue).toBe(excludedContinuityResidue)
+    expectNullish(observation?.preDialogueClosure?.companionHeadlineLine)
+    expectNullish(observation?.preDialogueClosure?.sameHerDriftRiskLine)
+    expectNullish(observation?.preDialogueClosure?.companionBriefingLine)
+    expectNullish(observation?.preDialogueClosure?.emotionalClosureCue)
     expect(snapshot?.preDialogueClosure?.reasons).toEqual(expect.arrayContaining([
       'segment=face-motion-body-rejoined-1',
       'remaining_open=lipsync+voice',

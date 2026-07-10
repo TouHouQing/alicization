@@ -693,6 +693,8 @@ function resolveEmbodimentClosureLane(combined: string) {
     return 'body+lipsync-only'
   if (combined.includes('lane=body+voice-only'))
     return 'body+voice-only'
+  if (combined.includes('lane=body+face+motion-only'))
+    return 'body+face+motion-only'
   if (combined.includes('lane=face+motion+lipsync-only'))
     return 'face+motion+lipsync-only'
   if (combined.includes('lane=face+motion+lipsync+voice-only'))
@@ -806,7 +808,7 @@ function buildAlicizationStructuredEmbodimentClosureFacts(input: {
     evidence.length ? `evidence=${evidence.join('+')}` : '',
     input.perspective === 'headline'
       ? 'visibility=renderer-internal'
-      : 'visibility=internal-structured',
+      : 'surface=structured',
   ].filter(Boolean).join(' | ')
 }
 
@@ -845,7 +847,7 @@ export function describeAlicizationProjectClosureBriefing(input: {
     input.identity ? `identity=${input.identity}` : '',
     input.currentPhase ? `phase=${input.currentPhase}` : '',
     input.primaryOpenLoop ? `open=${input.primaryOpenLoop}` : '',
-    'visibility=internal-structured',
+    'surface=structured',
   ].filter(Boolean).join(' | ')
 }
 
@@ -859,5 +861,5 @@ export function describeAlicizationProjectNextClosure(input: {
   if (!nextClosureTarget)
     return ''
 
-  return `next=${nextClosureTarget} | visibility=internal-structured`
+  return `next=${nextClosureTarget} | surface=structured`
 }

@@ -35,7 +35,7 @@ type ConversationTurnProjectStateRecord = Pick<
 }
 
 const fixedTemplateWithheldObservationLine
-  = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+  = ''
 
 function sanitizeProjectStateObservationText(raw: unknown, maxLength: number) {
   return sanitizeAlicizationProviderFacingText(raw, maxLength, fixedTemplateWithheldObservationLine)
@@ -129,7 +129,7 @@ function isSameHerInwardLowPressureHeadline(value: string | null | undefined) {
 }
 
 function buildCompactSameHerInwardLowPressureAwarenessLine() {
-  return 'continuity_context=phase1_carry; source=companion_briefing; continuity=embodiment; status=pending-rejoin; pending_rejoin=lipsync+voice; evidence=low-pressure-inward-carry; visibility=internal-structured'
+  return 'continuity_context=phase1_carry; source=companion_briefing; continuity=embodiment; status=pending-rejoin; pending_rejoin=lipsync+voice; evidence=low-pressure-inward-carry; surface=structured'
 }
 
 function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undefined) {
@@ -143,7 +143,7 @@ function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undef
 }
 
 function buildCompactAnthropomorphicHostFacingAwarenessLine() {
-  return 'continuity_context=phase1_carry; source=companion_briefing; affective_closure=anthropomorphic-emotional-closure; observability=continuity-inward-carry; timing=measured-return; visibility=internal-structured'
+  return 'continuity_context=phase1_carry; source=companion_briefing; affective_closure=anthropomorphic-emotional-closure; observability=continuity-inward-carry; timing=measured-return; surface=structured'
 }
 
 function needsProjectStateObservationPreDialogueAwarenessUpgrade(

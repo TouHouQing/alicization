@@ -69,7 +69,7 @@ describe('runtime session continuity builders', () => {
     expect(signal.summary).toContain('resident=quiet-companionship')
     expect(signal.summary).toContain('continuity=quiet-inward')
     expect(signal.metadata).toEqual(expect.objectContaining({
-      projectStateEmotionalClosureCue: expect.stringMatching(/lower_pressure|rest_protective|rest-protective|quiet-companionship/),
+      projectStateEmotionalClosureCue: null,
     }))
     expectNoFixedTemplateResidue(signal.metadata)
   })
@@ -164,15 +164,15 @@ describe('runtime session continuity builders', () => {
       scenario: 'coding',
       executionIntentKind: null,
       sourceThreadId: 'thread-runtime',
-      projectIdentity: 'local_desktop_life_loop',
-      projectPhase: 'local_desktop_life_loop',
+      projectIdentity: 'runtime_personhood',
+      projectPhase: 'life_core',
       projectLatestLandedProgress: 'Project identity carry, Phase 1 route carry, and unresolved closure carry already survive across runtime preparation before the turn widens outward.',
-      projectPrimaryOpenLoop: expect.stringContaining('Memory still needs stronger end-to-end closure across turns, initiative, and embodiment'),
-      projectNextClosureTarget: 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
-      projectStatePreDialogueAwarenessLine: expect.stringContaining('visibility=internal-structured'),
-      projectStatePreflightSummary: expect.stringContaining('visibility=internal-structured'),
-      projectStateSameHerSelfLine: expect.stringContaining('local_desktop_life_loop'),
-      projectStateSameHerDriftRisk: 'generic_guidance_without_first_person_continuity',
+      projectPrimaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
+      projectNextClosureTarget: null,
+      projectStatePreDialogueAwarenessLine: null,
+      projectStatePreflightSummary: null,
+      projectStateSameHerSelfLine: null,
+      projectStateSameHerDriftRisk: null,
     }))
     expectNoFixedTemplateResidue(signal.metadata)
   })
@@ -216,7 +216,7 @@ describe('runtime session continuity builders', () => {
     expect(signal.metadata).toEqual(expect.objectContaining({
       source: 'proactive-deferred',
       projectLatestLandedProgress: 'Resident carry now keeps landed callback progress explicit before the next quieter reopening.',
-      projectPrimaryOpenLoop: 'open_loop=callback_continuity; status=unfinished',
+      projectPrimaryOpenLoop: null,
       projectNextClosureTarget: 'repair_before_closeness; timing=before_closeness_widens; until=repair_settles',
       projectStateOpenFocusSummary: 'emotion/memory/initiative/embodiment/same-line/closure-seam',
       projectStateNextFocusSummary: 'project-carry/phase-1/measured-return/repair-before-closeness/same-line/initiative/embodiment',
@@ -343,7 +343,7 @@ describe('runtime session continuity builders', () => {
 
     expect(signal.metadata).toEqual(expect.objectContaining({
       source: 'proactive-deferred',
-      projectStatePreDialogueAwarenessLine: expect.stringContaining('visibility=internal-structured'),
+      projectStatePreDialogueAwarenessLine: null,
       projectStatePreflightSummary: 'Fallback summary should stay behind the live companion briefing line.',
     }))
     expectNoFixedTemplateResidue(signal.metadata)
@@ -385,7 +385,7 @@ describe('runtime session continuity builders', () => {
     expect(signal.metadata).toEqual(expect.objectContaining({
       source: 'proactive-deferred',
       projectStatePreDialogueAwarenessLine: expect.stringContaining('continuity=embodiment'),
-      projectStatePreflightSummary: expect.any(String),
+      projectStatePreflightSummary: null,
     }))
     expectNoFixedTemplateResidue(signal.metadata)
   })
@@ -431,7 +431,7 @@ describe('runtime session continuity builders', () => {
     expect(signal.metadata).toEqual(expect.objectContaining({
       source: 'proactive-deferred',
       projectStateCompanionHeadlineLine: expect.stringContaining('embodiment_lanes=face+lipsync+voice'),
-      projectStateSameHerDriftRisk: 'generic_guidance_without_first_person_continuity',
+      projectStateSameHerDriftRisk: null,
     }))
     expect(String(signal.metadata?.projectStateCompanionHeadlineLine ?? '')).toContain('pending_lanes=body+motion')
     expectNoFixedTemplateResidue(signal.metadata)
@@ -478,7 +478,7 @@ describe('runtime session continuity builders', () => {
     expect(signal.metadata).toEqual(expect.objectContaining({
       source: 'proactive-deferred',
       projectStateCompanionHeadlineLine: expect.stringContaining('embodiment_lanes=motion+lipsync+voice'),
-      projectStateSameHerDriftRisk: 'generic_guidance_without_first_person_continuity',
+      projectStateSameHerDriftRisk: null,
     }))
     expect(String(signal.metadata?.projectStateCompanionHeadlineLine ?? '')).toContain('pending_lanes=body+face')
     expectNoFixedTemplateResidue(signal.metadata)
@@ -519,7 +519,7 @@ describe('runtime session continuity builders', () => {
 
     expect(signal.metadata).toEqual(expect.objectContaining({
       source: 'proactive-deferred',
-      projectStatePreDialogueAwarenessLine: expect.stringContaining('visibility=internal-structured'),
+      projectStatePreDialogueAwarenessLine: null,
       projectStatePreflightSummary: 'Fallback summary should stay behind the fresher awareness line.',
     }))
     expectNoFixedTemplateResidue(signal.metadata)
@@ -564,8 +564,8 @@ describe('runtime session continuity builders', () => {
       projectStateEmotionalClosureCue: 'repair_before_closeness; timing=before_closeness_widens; until=repair_settles',
       projectStateOpenFocusSummary: 'emotion/memory/initiative/embodiment/same-line',
       projectStateNextFocusSummary: 'repair-before-closeness/same-line/initiative/embodiment',
-      projectStateSameHerSelfLine: expect.any(String),
-      projectStateSameHerDriftRisk: expect.any(String),
+      projectStateSameHerSelfLine: null,
+      projectStateSameHerDriftRisk: null,
     }))
     expectNoFixedTemplateResidue(signal.metadata)
   })
@@ -604,9 +604,9 @@ describe('runtime session continuity builders', () => {
 
     expect(signal.metadata).toEqual(expect.objectContaining({
       source: 'proactive-deferred',
-      projectStatePreDialogueAwarenessLine: expect.stringContaining('visibility=internal-structured'),
-      projectStateSameHerSelfLine: expect.stringContaining('local_desktop_life_loop'),
-      projectStateSameHerDriftRisk: expect.stringContaining('generic_guidance_without_first_person_continuity'),
+      projectStatePreDialogueAwarenessLine: expect.stringContaining('open=memory_dialogue_embodiment_closure'),
+      projectStateSameHerSelfLine: null,
+      projectStateSameHerDriftRisk: null,
     }))
     expectNoFixedTemplateResidue(signal.metadata)
   })
@@ -653,9 +653,9 @@ describe('runtime session continuity builders', () => {
       source: 'autobiographical-afterglow',
       continuityKind: 'execution-callback',
       executionCallbackCarryMode: 'lower-pressure',
-      projectStatePreDialogueAwarenessLine: expect.stringContaining('visibility=internal-structured'),
-      projectStatePreflightSummary: expect.stringContaining('visibility=internal-structured'),
-      projectStateSameHerSelfLine: 'phase1_local_digital_life; landed_closure=partial',
+      projectStatePreDialogueAwarenessLine: expect.stringContaining('runtime_personhood'),
+      projectStatePreflightSummary: null,
+      projectStateSameHerSelfLine: null,
     }))
     expectNoFixedTemplateResidue(signal.metadata)
   })
@@ -701,12 +701,12 @@ describe('runtime session continuity builders', () => {
 
     expect(signal.metadata).toEqual(expect.objectContaining({
       source: 'autobiographical-afterglow',
-      projectStatePreDialogueAwarenessLine: expect.stringContaining('visibility=internal-structured'),
-      projectStatePreflightSummary: expect.stringContaining('visibility=internal-structured'),
+      projectStatePreDialogueAwarenessLine: expect.stringContaining('runtime_personhood'),
+      projectStatePreflightSummary: null,
       projectLatestLandedProgress: 'Same-session mirror carry and measured-return continuity already survive longer noisy detours.',
-      projectStateSameHerSelfLine: 'phase1_local_digital_life; landed_closure=partial',
+      projectStateSameHerSelfLine: null,
     }))
-    expect(String(signal.metadata?.projectStatePreDialogueAwarenessLine ?? '')).toContain('local_desktop_life_loop')
+    expect(String(signal.metadata?.projectStatePreDialogueAwarenessLine ?? '')).toContain('runtime_personhood')
     expect(String(signal.metadata?.projectStatePreDialogueAwarenessLine ?? '')).not.toContain('keep the same digital life project in view')
     expectNoFixedTemplateResidue(signal.metadata)
   })
@@ -801,9 +801,9 @@ describe('runtime session continuity builders', () => {
 
     expect(signal.metadata).toEqual(expect.objectContaining({
       source: 'autobiographical-afterglow',
-      projectStatePreDialogueAwarenessLine: expect.stringContaining('local_desktop_life_loop'),
-      projectStatePreflightSummary: expect.stringContaining('visibility=internal-structured'),
-      projectPhase: expect.stringContaining('local_desktop_life_loop'),
+      projectStatePreDialogueAwarenessLine: expect.stringContaining('runtime_personhood'),
+      projectStatePreflightSummary: null,
+      projectPhase: expect.stringContaining('life_core'),
       projectPrimaryOpenLoop: expect.stringContaining('memory_dialogue_embodiment_closure'),
       projectNextClosureTarget: expect.stringContaining('cross_modal_continuity_proof'),
     }))
@@ -851,8 +851,8 @@ describe('runtime session continuity builders', () => {
 
     expect(signal.metadata).toEqual(expect.objectContaining({
       source: 'autobiographical-afterglow',
-      projectStatePreDialogueAwarenessLine: expect.stringContaining('local_desktop_life_loop'),
-      projectStatePreflightSummary: expect.stringContaining('visibility=internal-structured'),
+      projectStatePreDialogueAwarenessLine: expect.stringContaining('runtime_personhood'),
+      projectStatePreflightSummary: null,
     }))
     expect(String(signal.metadata?.projectStatePreDialogueAwarenessLine ?? '')).not.toContain('keep the same digital life project in view.')
     expectNoFixedTemplateResidue(signal.metadata)
@@ -981,11 +981,11 @@ describe('runtime session continuity builders', () => {
     })
 
     expect(signal.metadata).toEqual(expect.objectContaining({
-      projectStatePreDialogueAwarenessLine: expect.stringContaining('local_desktop_life_loop'),
-      projectStatePreflightSummary: expect.stringContaining('visibility=internal-structured'),
-      projectStateSameHerSelfLine: 'phase1_local_digital_life; landed_closure=partial',
-      projectPrimaryOpenLoop: 'open_loop=memory+initiative+embodiment; status=unfinished',
-      projectNextClosureTarget: 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
+      projectStatePreDialogueAwarenessLine: expect.stringContaining('runtime_personhood'),
+      projectStatePreflightSummary: null,
+      projectStateSameHerSelfLine: null,
+      projectPrimaryOpenLoop: null,
+      projectNextClosureTarget: null,
     }))
     expectNoFixedTemplateResidue(signal.metadata)
   })
@@ -1072,11 +1072,11 @@ describe('runtime session continuity builders', () => {
     expect(signal.label).toBe('proactive:coding:deferred')
     expect(signal.metadata).toEqual(expect.objectContaining({
       source: 'proactive-deferred',
-      projectStatePreDialogueAwarenessLine: expect.stringContaining('visibility=internal-structured'),
-      projectStateSameHerSelfLine: 'local_desktop_life_loop',
-      projectStateSameHerDriftRisk: expect.stringContaining('generic_guidance_without_first_person_continuity'),
+      projectStatePreDialogueAwarenessLine: null,
+      projectStateSameHerSelfLine: null,
+      projectStateSameHerDriftRisk: null,
     }))
-    expect(String(signal.metadata?.projectStatePreDialogueAwarenessLine ?? '')).toContain('visibility=internal-structured')
+    expect(signal.metadata?.projectStatePreDialogueAwarenessLine).toBeNull()
     expect(String(signal.metadata?.projectStatePreDialogueAwarenessLine ?? '')).not.toContain('same digital life | keep the closure seam explicit')
     expect(String(signal.metadata?.projectStateSameHerSelfLine ?? '')).not.toContain('same digital life | keep the closure seam explicit')
     expectNoFixedTemplateResidue(signal.metadata)

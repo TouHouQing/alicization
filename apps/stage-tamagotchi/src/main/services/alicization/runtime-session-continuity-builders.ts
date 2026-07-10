@@ -121,7 +121,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       `embodiment_lanes=${(activeLanes.length ? activeLanes : mentionedLanes).join('+')}`,
       pendingLanes.length ? `pending_lanes=${pendingLanes.join('+')}` : '',
       `status=${pendingLanes.length ? 'pending_rejoin' : 'partial'}`,
-      'visibility=internal-structured',
+      'surface=structured',
     ].filter(Boolean).join('; ')
   }
 
@@ -130,8 +130,10 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     maxChars: number,
     field: ProjectStateCarryField,
   ) {
-    if (field === 'identity' || field === 'phase')
-      return 'local_desktop_life_loop'
+    if (field === 'identity')
+      return 'runtime_personhood'
+    if (field === 'phase')
+      return 'life_core'
 
     const embodimentFact = structureEmbodimentProjectCarry(normalized)
     if (embodimentFact && (field === 'awareness' || field === 'summary'))
@@ -159,7 +161,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         /lower-pressure|low-pressure|measured-return|measured return|leave room|more room/u.test(lower) ? 'cadence=lower_pressure' : '',
         /repair[_-]before[_-]closeness|repair before closeness|repair-first|repair first|先修复|修复优先/u.test(lower) ? 'carry_mode=repair_before_closeness' : '',
         /memory|initiative|embodiment|dialogue|记忆|主动性|具身|对话/u.test(lower) ? 'life_loop=memory_initiative_embodiment' : '',
-        'visibility=internal-structured',
+        'surface=structured',
       ].filter(Boolean)
       if (summaryParts.length > 1)
         return summaryParts.join('; ')
@@ -371,12 +373,12 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       ? eventCompanionBriefingLine || rawEventProjectAwarenessLine
       : rawEventProjectAwarenessLine
     const compactProjectIdentity = /local-first digital life project/i.test(projectIdentity ?? '')
-      ? 'local_desktop_life_loop'
+      ? 'runtime_personhood'
       : projectIdentity
         ? sanitizeBriefText(projectIdentity.split(/[.。]/u)[0]?.trim() ?? projectIdentity, 120)
         : ''
     const compactProjectPhase = /phase 1:\s*local digital life/i.test(projectPhase ?? '')
-      ? 'local_desktop_life_loop'
+      ? 'life_core'
       : projectPhase
         ? sanitizeBriefText(projectPhase.split(/[.。]/u)[0]?.trim() ?? projectPhase, 80)
         : ''
@@ -1054,8 +1056,8 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     ?? null
     const repairBeforeClosenessSummaryLead = repairBeforeClosenessProjectAuthority
       ? /same living line|one living her|same line|same-her|同一条线|同一生命线/u.test(repairBeforeClosenessProjectAuthority)
-        ? 'carry_mode=repair_before_closeness; visibility=internal-structured'
-        : `carry_mode=repair_before_closeness; source=${sanitizeBriefText(repairBeforeClosenessProjectAuthority, 120)}; visibility=internal-structured`
+        ? 'carry_mode=repair_before_closeness; surface=structured'
+        : `carry_mode=repair_before_closeness; source=${sanitizeBriefText(repairBeforeClosenessProjectAuthority, 120)}; surface=structured`
       : null
 
     if (shouldUseDeferredProactiveLine) {
