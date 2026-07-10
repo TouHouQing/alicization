@@ -1,5 +1,6 @@
 import type { IntentHandle, IntentOptions } from '@proj-alicization/pipelines-audio'
 
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -21,6 +22,11 @@ function createIntentHandle(label: string) {
     cancel: vi.fn(),
     stream: new ReadableStream(),
   } satisfies IntentHandle
+}
+
+function expectNoFixedTemplateResidue(value: unknown) {
+  const serialized = JSON.stringify(value ?? '')
+  expect(containsAlicizationFixedTemplateResidue(serialized), serialized).toBe(false)
 }
 
 describe('stage chat intent bridge', () => {
@@ -64,24 +70,23 @@ describe('stage chat intent bridge', () => {
           activeThreadId: 'thread-42',
         },
       },
-      projectState: expect.objectContaining({
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        sameHerHoldDetail: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-      }),
+      projectState: {
+        latestLandedProgress: 'Project-state continuity already survives into the speech boundary before playback starts.',
+      },
       preDialogueAwareness: expect.objectContaining({
         status: 'partial',
-        summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-        companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        companionNextClosureLine: 'Let lipsync and voice rejoin the already-reformed body, face, and motion line.',
-        awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        emotionalClosureCue: 'Keep the return gentle so the same living line does not restart from scratch.',
+        summaryLine: null,
+        companionBriefingLine: null,
+        companionNextClosureLine: null,
+        awarenessLine: null,
+        emotionalClosureCue: null,
         reasonPreview: [
           'same-segment face+motion+body recovery@segment-chat',
           'remaining-open=lipsync+voice',
         ],
       }),
     }))
+    expectNoFixedTemplateResidue(metadata)
   })
 
   it('upgrades thinner existing project awareness metadata when richer pre-dialogue send identity arrives later on the same transport boundary', () => {
@@ -143,33 +148,29 @@ describe('stage chat intent bridge', () => {
         },
       },
       projectState: expect.objectContaining({
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-        currentPhase: 'Phase 1: Local Digital Life',
+        currentPhase: 'Phase 1',
         latestLandedProgress: 'Project-state continuity already survives into the speech boundary before playback starts.',
-        primaryOpenLoop: 'Speech-side openings still need to keep project identity, landed progress, and the unresolved same-her loop explicit before voice widens outward.',
-        nextClosureTarget: 'Keep speech openings on one same-her line instead of widening back into detached project shell narration.',
-        sameHerHoldDetail: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
         legacyMarker: 'preserve-existing-non-awareness-fields',
       }),
       preDialogueAwareness: expect.objectContaining({
         status: 'partial',
-        summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-        companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-        companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-        companionNextClosureLine: 'Keep speech openings on one same-her line instead of widening back into detached project shell narration.',
-        awarenessLine: 'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before speech widens outward.',
-        emotionalClosureCue: 'Keep the return gentle so the same living line does not restart from scratch.',
+        summaryLine: null,
+        companionHeadlineLine: null,
+        companionBriefingLine: null,
+        companionNextClosureLine: null,
+        awarenessLine: null,
+        emotionalClosureCue: null,
         reasonPreview: [
-          'generic continuity fallback that should not survive richer transport carry.',
           'same-segment face+motion+body recovery@segment-chat',
           'remaining-open=lipsync+voice',
         ],
       }),
     }))
     expect((metadata as any)?.preDialogueAwareness?.awarenessLine).not.toBe('开口前先记住：这是同一个数字生命项目，她现在仍在 Phase 1。')
+    expectNoFixedTemplateResidue(metadata)
   })
 
-  it('replaces a compact same-phase carry with a richer same-her hold detail on the speech metadata boundary', () => {
+  it('drops compact and richer fixed carry lines on the speech metadata boundary', () => {
     const holdDetailLine = 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
     const compactSamePhaseCarry = 'Same Phase 1 digital life. Speech-side continuity should keep the same living line rather than reopen from a fresh shell.'
 
@@ -198,11 +199,16 @@ describe('stage chat intent bridge', () => {
       ],
     })
 
-    expect((metadata as any)?.preDialogueAwareness?.awarenessLine).toBe(holdDetailLine)
+    expect((metadata as any)?.preDialogueAwareness?.awarenessLine).toBeNull()
     expect((metadata as any)?.preDialogueAwareness?.awarenessLine).not.toBe(compactSamePhaseCarry)
+    expect((metadata as any)?.projectState?.latestLandedProgress).toBe(
+      'Speech-side continuity already survives into the transport boundary before playback starts.',
+    )
+    expect((metadata as any)?.projectState?.sameHerHoldDetail).toBeUndefined()
+    expectNoFixedTemplateResidue(metadata)
   })
 
-  it('does not let a later compact same-phase carry overwrite an existing richer same-her hold detail on the speech metadata boundary', () => {
+  it('does not keep an existing richer fixed carry line on the speech metadata boundary', () => {
     const holdDetailLine = 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
     const compactSamePhaseCarry = 'Same Phase 1 digital life. Speech-side continuity should keep the same living line rather than reopen from a fresh shell.'
 
@@ -231,8 +237,13 @@ describe('stage chat intent bridge', () => {
       ],
     })
 
-    expect((metadata as any)?.preDialogueAwareness?.awarenessLine).toBe(holdDetailLine)
+    expect((metadata as any)?.preDialogueAwareness?.awarenessLine).toBeNull()
     expect((metadata as any)?.preDialogueAwareness?.awarenessLine).not.toBe(compactSamePhaseCarry)
+    expect((metadata as any)?.projectState?.latestLandedProgress).toBe(
+      'Speech-side continuity already survives into the transport boundary before playback starts.',
+    )
+    expect((metadata as any)?.projectState?.sameHerHoldDetail).toBeUndefined()
+    expectNoFixedTemplateResidue(metadata)
   })
 
   it('attaches fallback project-state and pre-dialogue closure carry to speech metadata before fallback voice opens outward', () => {
@@ -272,14 +283,14 @@ describe('stage chat intent bridge', () => {
       source: 'stage',
       intentSource: 'fallback',
       projectState: expect.objectContaining({
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        sameHerHoldDetail: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
+        latestLandedProgress: 'Fallback speech openings already keep the same project and embodiment repair line explicit before playback starts.',
+        primaryOpenLoop: 'Voice-side fallback openings still need to keep project identity, landed progress, and unresolved embodiment closure explicit before voice widens outward.',
       }),
       preDialogueClosure: expect.objectContaining({
         status: 'partial',
-        summaryLine: 'Fallback speech-side same-her closure is still open before this turn speaks outward.',
-        companionNextClosureLine: 'Keep fallback voice openings on one same-her line until voice, lipsync, and embodiment closure settle together.',
+        summaryLine: null,
+        companionBriefingLine: null,
+        companionNextClosureLine: null,
         reasons: [
           'Fallback voice opening still needs the unresolved embodiment closure to remain explicit.',
         ],
@@ -289,12 +300,19 @@ describe('stage chat intent bridge', () => {
         turnId: 'turn-fallback-voice-project-awareness',
       }),
     }))
+    expect((metadata as any)?.projectState?.identity).toBeUndefined()
+    expect((metadata as any)?.projectState?.sameHerHoldDetail).toBeUndefined()
+    expect((metadata as any)?.preDialogueAwareness?.awarenessLine).toContain('landed=')
+    expect((metadata as any)?.preDialogueAwareness?.awarenessLine).toContain('open=')
+    expectNoFixedTemplateResidue(metadata)
   })
 
   it('preserves richer runtime digest authority when fallback metadata only brings a thinner runtime shell', () => {
-    const richerIdentity = 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.'
-    const richerSameHerHoldDetail = 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.'
-    const richerNextClosureTarget = 'Keep fallback voice openings on one same-her line until voice, lipsync, and embodiment closure settle together.'
+    const richerIdentity = 'Runtime memory authority is carrying the corrected callback thread.'
+    const richerPhase = 'desktop-runtime-quality-gate'
+    const richerCallbackHoldDetail = 'callback_hold=measured_return; pressure=low; evidence=current_turn_runtime'
+    const richerNextClosureTarget = 'Rejoin voice and lipsync after the callback evidence stays grounded in runtime memory.'
+    const richerEmotionalClosureCue = 'return_pressure=low; room=more; reopen_from_scratch=false'
 
     const metadata = attachFallbackDialogueMetadataToSpeechMetadata({
       source: 'stage',
@@ -304,12 +322,12 @@ describe('stage chat intent bridge', () => {
         dominantChannel: 'active-memory',
         projectState: {
           identity: richerIdentity,
-          currentPhase: 'Phase 1: Local Digital Life',
+          currentPhase: richerPhase,
           latestLandedProgress: 'Renderer authority already knows what this project is before fallback speech opens.',
-          primaryOpenLoop: 'Fallback voice still needs to keep the same living line explicit before it widens outward.',
+          primaryOpenLoop: 'Fallback voice still needs the runtime memory cue before it widens outward.',
           nextClosureTarget: richerNextClosureTarget,
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerHoldDetail: richerSameHerHoldDetail,
+          sameHerSelfLine: 'runtime_callback_self_line=corrected_callback_memory',
+          sameHerHoldDetail: richerCallbackHoldDetail,
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'same-turn-if-invited',
           preferredBlinkCadence: 'linger',
@@ -321,7 +339,7 @@ describe('stage chat intent bridge', () => {
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'same-turn-if-invited',
         },
-        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        emotionalClosureCue: richerEmotionalClosureCue,
         shouldProactivelySpeak: false,
         shouldProactivelyAct: false,
         continuityPressure: 0.68,
@@ -363,9 +381,9 @@ describe('stage chat intent bridge', () => {
       preDialogueClosure: {
         status: 'partial',
         summaryLine: 'Fallback speech-side same-her closure is still open before this turn speaks outward.',
-        companionBriefingLine: richerSameHerHoldDetail,
+        companionBriefingLine: richerCallbackHoldDetail,
         companionNextClosureLine: richerNextClosureTarget,
-        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        emotionalClosureCue: richerEmotionalClosureCue,
         reasons: [
           'Fallback voice opening still needs the unresolved embodiment closure to remain explicit.',
         ],
@@ -375,9 +393,10 @@ describe('stage chat intent bridge', () => {
     expect((metadata as any)?.runtimeDigest).toEqual(expect.objectContaining({
       projectState: expect.objectContaining({
         identity: richerIdentity,
+        currentPhase: richerPhase,
         latestLandedProgress: 'Renderer authority already knows what this project is before fallback speech opens.',
         nextClosureTarget: richerNextClosureTarget,
-        sameHerHoldDetail: richerSameHerHoldDetail,
+        sameHerHoldDetail: richerCallbackHoldDetail,
         continuityArcStage: 'same-thread-continuation',
         continuityPreferredTiming: 'same-turn-if-invited',
         preferredBlinkCadence: 'linger',
@@ -388,10 +407,11 @@ describe('stage chat intent bridge', () => {
         continuityArcStage: 'same-thread-continuation',
         continuityPreferredTiming: 'same-turn-if-invited',
       }),
-      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      emotionalClosureCue: richerEmotionalClosureCue,
     }))
     expect((metadata as any)?.runtimeDigest?.projectState?.identity).not.toBe('Project continuity is active.')
     expect((metadata as any)?.runtimeDigest?.projectState?.latestLandedProgress).not.toBe('project continuity exists')
+    expectNoFixedTemplateResidue(metadata)
   })
 
   it('preserves memory closure identity when fallback runtime metadata has richer project wording but no derived bundle', () => {
@@ -483,28 +503,29 @@ describe('stage chat intent bridge', () => {
   })
 
   it('does not let thinner fallback project-state shells overwrite an already richer same-her speech project state', () => {
-    const richerIdentity = 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.'
+    const richerIdentity = 'Speech metadata is carrying the corrected callback memory authority.'
+    const richerPhase = 'voice-boundary-continuity-check'
     const richerLandedProgress = 'Speech-side project continuity already carries identity, landed progress, and still-open closure through the voice boundary before playback starts.'
-    const richerOpenLoop = 'Speech-side transport still needs to keep the richer same-her callback hold, landed progress, and unresolved life loop explicit before voice widens outward.'
-    const richerNextClosureTarget = 'Keep speech openings on one same-her line while voice and lipsync rejoin the already-carried body, face, and motion line.'
-    const richerSameHerHoldDetail = 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.'
+    const richerOpenLoop = 'Speech-side transport still needs the corrected callback evidence before voice widens outward.'
+    const richerNextClosureTarget = 'Rejoin voice and lipsync after the corrected callback evidence stays visible.'
+    const richerCallbackHoldDetail = 'callback_hold=voice_boundary; evidence=landed_progress; unresolved=audio_rejoin'
 
     const metadata = attachFallbackDialogueMetadataToSpeechMetadata({
       source: 'stage',
       intentSource: 'fallback',
       projectState: {
         identity: richerIdentity,
-        currentPhase: 'Phase 1: Local Digital Life',
+        currentPhase: richerPhase,
         latestLandedProgress: richerLandedProgress,
         primaryOpenLoop: richerOpenLoop,
         nextClosureTarget: richerNextClosureTarget,
         sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        sameHerHoldDetail: richerSameHerHoldDetail,
+        sameHerHoldDetail: richerCallbackHoldDetail,
         legacyMarker: 'preserve-existing-non-awareness-fields',
       },
       preDialogueAwareness: {
         status: 'partial',
-        awarenessLine: richerSameHerHoldDetail,
+        awarenessLine: richerCallbackHoldDetail,
       },
     } as any, {
       projectState: {
@@ -519,7 +540,7 @@ describe('stage chat intent bridge', () => {
       preDialogueClosure: {
         status: 'partial',
         summaryLine: 'Fallback speech-side same-her closure is still open before this turn speaks outward.',
-        companionBriefingLine: richerSameHerHoldDetail,
+        companionBriefingLine: richerCallbackHoldDetail,
         companionNextClosureLine: richerNextClosureTarget,
         reasons: [
           'Fallback voice opening still needs the unresolved embodiment closure to remain explicit.',
@@ -532,18 +553,19 @@ describe('stage chat intent bridge', () => {
       intentSource: 'fallback',
       projectState: expect.objectContaining({
         identity: richerIdentity,
-        currentPhase: 'Phase 1: Local Digital Life',
+        currentPhase: richerPhase,
         latestLandedProgress: richerLandedProgress,
         primaryOpenLoop: richerOpenLoop,
         nextClosureTarget: richerNextClosureTarget,
-        sameHerHoldDetail: richerSameHerHoldDetail,
+        sameHerHoldDetail: richerCallbackHoldDetail,
         legacyMarker: 'preserve-existing-non-awareness-fields',
       }),
       preDialogueAwareness: expect.objectContaining({
-        awarenessLine: richerSameHerHoldDetail,
+        companionBriefingLine: richerCallbackHoldDetail,
+        companionNextClosureLine: richerNextClosureTarget,
       }),
       preDialogueClosure: expect.objectContaining({
-        companionBriefingLine: richerSameHerHoldDetail,
+        companionBriefingLine: richerCallbackHoldDetail,
         companionNextClosureLine: richerNextClosureTarget,
       }),
     }))
@@ -551,9 +573,10 @@ describe('stage chat intent bridge', () => {
     expect((metadata as any)?.projectState?.latestLandedProgress).not.toBe('project continuity exists')
     expect((metadata as any)?.projectState?.primaryOpenLoop).not.toBe('project continuity still needs closure')
     expect((metadata as any)?.projectState?.nextClosureTarget).not.toBe('Carry project continuity forward.')
+    expectNoFixedTemplateResidue(metadata)
   })
 
-  it('does not let a broader fallback speech summary overwrite a richer current embodiment continuity line on the same speech boundary', () => {
+  it('drops broader fixed fallback speech summaries on the same speech boundary', () => {
     const richerEmbodimentSummary = 'Right now I am still holding together mainly through lipsync and voice, so that living audio thread is keeping the same-her carry alive while body, face, and motion need to rejoin before full cross-modal closure settles.'
 
     const metadata = attachFallbackDialogueMetadataToSpeechMetadata({
@@ -575,10 +598,15 @@ describe('stage chat intent bridge', () => {
       },
     } as any)
 
-    expect((metadata as any)?.preDialogueClosure?.summaryLine).toBe(richerEmbodimentSummary)
+    expect((metadata as any)?.preDialogueClosure?.summaryLine).toBeNull()
     expect((metadata as any)?.preDialogueClosure?.summaryLine).not.toBe(
       'Fallback speech-side same-her closure is still open before this turn speaks outward.',
     )
+    expect((metadata as any)?.preDialogueClosure?.summaryLine).not.toBe(richerEmbodimentSummary)
+    expect((metadata as any)?.preDialogueClosure?.reasons).toEqual([
+      'Fallback voice opening still needs the unresolved embodiment closure to remain explicit.',
+    ])
+    expectNoFixedTemplateResidue(metadata)
   })
 
   it('reopens a prepared chat intent with embodiment script metadata before the first token is written', () => {
@@ -700,7 +728,6 @@ describe('stage chat intent bridge', () => {
       },
       runtimeDigest: expect.objectContaining({
         projectState: expect.objectContaining({
-          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
           latestLandedProgress: 'Current-turn runtime authority already knows what this project is before the spoken opening lands.',
           continuityPreferredTiming: 'same-turn-if-invited',
         }),
@@ -709,11 +736,15 @@ describe('stage chat intent bridge', () => {
         }),
       }),
       preDialogueAwareness: expect.objectContaining({
-        companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-        awarenessLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-        emotionalClosureCue: 'Keep the spoken return gentle so the same living line does not restart from scratch.',
+        status: 'partial',
+        summaryLine: 'Current-turn runtime authority already knows what this project is before the spoken opening lands.',
+        companionBriefingLine: null,
+        awarenessLine: 'landed=Current-turn runtime authority already knows what this project is before the spoken opening lands. | summary=Current-turn runtime authority already knows what this project is before the spoken opening lands.',
+        emotionalClosureCue: null,
       }),
     }))
+    expect((openCalls[1]?.metadata as any)?.runtimeDigest?.projectState?.identity).toBeNull()
+    expectNoFixedTemplateResidue(openCalls[1]?.metadata)
     expect(handles[0]?.cancel).toHaveBeenCalledWith('metadata-upgrade')
     expect(handles[0]?.writeLiteral).not.toHaveBeenCalled()
     expect(handles[1]?.writeLiteral).toHaveBeenCalledWith('你好')

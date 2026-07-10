@@ -49,7 +49,7 @@ function normalizePreDialogueReasonPreview(reasonPreview: AlicizationPreDialogue
   const normalized: string[] = []
 
   for (const reason of reasonPreview ?? []) {
-    const trimmed = typeof reason === 'string' ? reason.trim() : ''
+    const trimmed = normalizeSpeechMetadataText(reason) ?? ''
     if (!trimmed || normalized.includes(trimmed))
       continue
     normalized.push(trimmed)
@@ -78,7 +78,13 @@ function normalizeSpeechMetadataText(value: unknown) {
     return null
 
   const normalized = value.trim()
-  return normalized || null
+  if (!normalized)
+    return null
+
+  const providerSafe = sanitizeAlicizationProviderFacingText(normalized, 800)
+  return providerSafe && providerSafe !== alicizationFixedTemplateReplacement
+    ? providerSafe
+    : null
 }
 
 function normalizeSpeechMetadataNumber(value: unknown) {
@@ -205,8 +211,16 @@ function mergeSpeechMetadataText(existing: unknown, incoming: unknown) {
 }
 
 function normalizeSpeechProjectStateText(value: unknown) {
-  return typeof value === 'string'
-    ? value.trim()
+  if (typeof value !== 'string')
+    return ''
+
+  const normalized = value.trim()
+  if (!normalized)
+    return ''
+
+  const providerSafe = sanitizeAlicizationProviderFacingText(normalized, 800)
+  return providerSafe && providerSafe !== alicizationFixedTemplateReplacement
+    ? providerSafe
     : ''
 }
 
@@ -356,13 +370,37 @@ function mergeSpeechProjectState(
   existingMetadata: Record<string, unknown> | null,
   incomingMetadata: Record<string, unknown> | null,
 ) {
-  if (!existingMetadata)
-    return incomingMetadata
-  if (!incomingMetadata)
-    return existingMetadata
+  if (!existingMetadata && !incomingMetadata)
+    return null
 
-  const merged: Record<string, unknown> = { ...existingMetadata }
-  for (const [key, value] of Object.entries(incomingMetadata)) {
+  const normalizeProjectStateRecord = (metadata: Record<string, unknown> | null) => {
+    if (!metadata)
+      return null
+
+    const normalized: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(metadata)) {
+      if (value == null)
+        continue
+      if (typeof value === 'string') {
+        const text = normalizeSpeechProjectStateText(value)
+        if (text)
+          normalized[key] = text
+        continue
+      }
+      normalized[key] = value
+    }
+    return Object.keys(normalized).length > 0 ? normalized : null
+  }
+
+  const existing = normalizeProjectStateRecord(existingMetadata)
+  const incoming = normalizeProjectStateRecord(incomingMetadata)
+  if (!existing)
+    return incoming
+  if (!incoming)
+    return existing
+
+  const merged: Record<string, unknown> = { ...existing }
+  for (const [key, value] of Object.entries(incoming)) {
     if (value == null)
       continue
     if (typeof value === 'string') {
@@ -520,13 +558,13 @@ export function attachPreDialogueSendIdentityToSpeechMetadata(
     ? { ...preDialogueSendIdentity.projectState }
     : null
   const normalizedPreDialogueAwareness = {
-    status: preDialogueSendIdentity.status,
-    summaryLine: preDialogueSendIdentity.summaryLine ?? null,
-    companionHeadlineLine: preDialogueSendIdentity.companionHeadlineLine ?? null,
-    companionBriefingLine: preDialogueSendIdentity.companionBriefingLine ?? null,
-    companionNextClosureLine: preDialogueSendIdentity.companionNextClosureLine ?? null,
-    awarenessLine: preDialogueSendIdentity.awarenessLine ?? null,
-    emotionalClosureCue: preDialogueSendIdentity.emotionalClosureCue ?? null,
+    status: normalizeSpeechMetadataText(preDialogueSendIdentity.status),
+    summaryLine: normalizeSpeechMetadataText(preDialogueSendIdentity.summaryLine),
+    companionHeadlineLine: normalizeSpeechMetadataText(preDialogueSendIdentity.companionHeadlineLine),
+    companionBriefingLine: normalizeSpeechMetadataText(preDialogueSendIdentity.companionBriefingLine),
+    companionNextClosureLine: normalizeSpeechMetadataText(preDialogueSendIdentity.companionNextClosureLine),
+    awarenessLine: normalizeSpeechMetadataText(preDialogueSendIdentity.awarenessLine),
+    emotionalClosureCue: normalizeSpeechMetadataText(preDialogueSendIdentity.emotionalClosureCue),
     reasonPreview: normalizePreDialogueReasonPreview(preDialogueSendIdentity.reasonPreview),
   }
   const hasNormalizedPreDialogueAwareness
