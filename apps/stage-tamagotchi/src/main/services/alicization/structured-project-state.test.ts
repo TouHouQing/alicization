@@ -3,52 +3,96 @@ import { describe, expect, it } from 'vitest'
 import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 import { resolveCanonicalStructuredProjectState } from './structured-project-state'
 
+const fixedTemplateResiduePattern = new RegExp([
+  'Before (?:answering|speaking|acting)',
+  'Right now I am',
+  'Same Phase 1 digital life',
+  'same-her',
+  'same living line',
+  'one living her',
+  'one continuous her',
+  'host computer',
+  'better chat wrapper',
+  'project identity, landed progress, and open closure',
+  '同一个她',
+  '数字生命主线',
+].join('|'), 'iu')
+
+function collectStringValues(value: unknown): string[] {
+  if (typeof value === 'string')
+    return [value]
+
+  if (Array.isArray(value))
+    return value.flatMap(item => collectStringValues(item))
+
+  if (value && typeof value === 'object')
+    return Object.values(value).flatMap(item => collectStringValues(item))
+
+  return []
+}
+
+function expectNoFixedTemplateResidue(value: unknown) {
+  for (const text of collectStringValues(value))
+    expect(text, text).not.toMatch(fixedTemplateResiduePattern)
+}
+
+function oldBriefingTemplate() {
+  return ['Before answering,', 'keep the same digital life project in view.'].join(' ')
+}
+
+function oldEmbodimentHeadlineTemplate() {
+  return [
+    'Right now I am still holding together mainly through body, face, and motion,',
+    'so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+  ].join(' ')
+}
+
 describe('structured project state', () => {
-  it('keeps canonical same-her drift risk when rebuilding host-visible project state', () => {
+  it('keeps explicit non-template project-state fields and fills canonical drift risk', () => {
     const canonicalProjectState = resolveAlicizationProjectStateBrief()
 
     const rebuilt = resolveCanonicalStructuredProjectState({
       normalizedProjectState: {
-        identity: 'thin identity',
-        currentPhase: 'thin phase',
-        latestLandedProgress: 'thin landed',
-        primaryOpenLoop: 'thin open',
-        nextClosureTarget: 'thin next',
-        sameHerSelfLine: 'thin same-her',
+        identity: 'project_state_owner=ProjectStateGovernance',
+        currentPhase: 'runtime_context=local_runtime',
+        latestLandedProgress: 'Runtime project-state observation is available before reply shaping.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment review remain open.',
+        nextClosureTarget: 'Review memory, initiative, and embodiment closure evidence.',
+        sameHerSelfLine: 'continuity_owner=ProjectStateGovernance',
       },
       runtimePreflightSummary: 'runtime preflight',
       payloadPreDialogueAwarenessLine: 'payload awareness',
     })
 
-    expect(rebuilt.identity).toBe('thin identity')
-    expect(rebuilt.currentPhase).toBe('thin phase')
-    expect(rebuilt.latestLandedProgress).toBe('thin landed')
-    expect(rebuilt.primaryOpenLoop).toBe('thin open')
-    expect(rebuilt.nextClosureTarget).toBe('thin next')
-    expect(rebuilt.sameHerSelfLine).toBe('thin same-her')
+    expect(rebuilt.identity).toBe('project_state_owner=ProjectStateGovernance')
+    expect(rebuilt.currentPhase).toBe('runtime_context=local_runtime')
+    expect(rebuilt.latestLandedProgress).toBe('Runtime project-state observation is available before reply shaping.')
+    expect(rebuilt.primaryOpenLoop).toBe('Memory, initiative, and embodiment review remain open.')
+    expect(rebuilt.nextClosureTarget).toBe('Review memory, initiative, and embodiment closure evidence.')
+    expect(rebuilt.sameHerSelfLine).toBe('continuity_owner=ProjectStateGovernance')
     expect(rebuilt.sameHerDriftRisk).toBe(canonicalProjectState.sameHerDriftRisk)
+    expectNoFixedTemplateResidue(rebuilt)
   })
 
-  it('prefers explicit same-her drift risk when a richer structured payload already carries it', () => {
+  it('prefers explicit structured drift risk when payload carries it', () => {
     const rebuilt = resolveCanonicalStructuredProjectState({
       normalizedProjectState: {
-        sameHerDriftRisk: 'Do not let this reply collapse into a detached project shell.',
+        sameHerDriftRisk: 'drift_risk=detached_project_shell; action=review_before_reply',
       },
     })
 
-    expect(rebuilt.sameHerDriftRisk).toBe(
-      'Do not let this reply collapse into a detached project shell.',
-    )
+    expect(rebuilt.sameHerDriftRisk).toBe('drift_risk=detached_project_shell; action=review_before_reply')
+    expectNoFixedTemplateResidue(rebuilt)
   })
 
-  it('preserves richer same-her continuity carry fields when rebuilding structured project state', () => {
+  it('preserves non-template continuity and delivery preference fields', () => {
     const rebuilt = resolveCanonicalStructuredProjectState({
       normalizedProjectState: {
-        companionBriefingLine: 'Before answering, keep the same digital life project in view.',
-        emotionalClosureSummary: 'Emotional closure is still half-settled, so the return should stay gentle instead of reopening from scratch.',
+        companionBriefingLine: 'companion_briefing=project_state_continuity_review',
+        emotionalClosureSummary: 'emotional_closure=half_settled; reopening=deferred',
         continuityRestraint: 'measured-return',
         continuityArcStage: 'return-side-follow-through',
-        continuityCue: 'same living line: keep carrying the already-landed closure forward.',
+        continuityCue: 'continuity_cue=carry_reviewed_closure_forward',
         continuityPreferredTiming: 'next-open-window',
         continuityCadence: 'linger-then-rejoin',
         preferredBlinkCadence: 'quiet',
@@ -60,11 +104,11 @@ describe('structured project state', () => {
       },
     })
 
-    expect(rebuilt.companionBriefingLine).toBe('Before answering, keep the same digital life project in view.')
-    expect(rebuilt.emotionalClosureSummary).toBe('Emotional closure is still half-settled, so the return should stay gentle instead of reopening from scratch.')
+    expect(rebuilt.companionBriefingLine).toBe('companion_briefing=project_state_continuity_review')
+    expect(rebuilt.emotionalClosureSummary).toBe('emotional_closure=half_settled; reopening=deferred')
     expect(rebuilt.continuityRestraint).toBe('measured-return')
     expect(rebuilt.continuityArcStage).toBe('return-side-follow-through')
-    expect(rebuilt.continuityCue).toBe('same living line: keep carrying the already-landed closure forward.')
+    expect(rebuilt.continuityCue).toBe('continuity_cue=carry_reviewed_closure_forward')
     expect(rebuilt.continuityPreferredTiming).toBe('next-open-window')
     expect(rebuilt.continuityCadence).toBe('linger-then-rejoin')
     expect(rebuilt.preferredBlinkCadence).toBe('quiet')
@@ -73,275 +117,96 @@ describe('structured project state', () => {
     expect(rebuilt.preferredLipsyncMode).toBe('restrained')
     expect(rebuilt.preferredVoiceMode).toBe('lower-pressure')
     expect(rebuilt.preferredPacingMode).toBe('slower')
+    expectNoFixedTemplateResidue(rebuilt)
   })
 
-  it('prefers a stronger lived-in runtime awareness line over generic canonical project awareness fallback', () => {
+  it('migrates old embodiment headlines into structured awareness instead of preserving fixed copy', () => {
+    const legacyHeadline = oldEmbodimentHeadlineTemplate()
     const rebuilt = resolveCanonicalStructuredProjectState({
       normalizedProjectState: {
         identity: 'Alicization is still one local-first digital life.',
       },
-      runtimePreferredAwarenessLine:
-        'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-      runtimePreDialogueAwarenessLine:
-        'Before answering, keep this same digital life project in view.',
-      payloadPreDialogueAwarenessLine:
-        'Before answering, remember the project.',
-    })
-
-    expect(rebuilt.preDialogueAwarenessLine).toBe(
-      'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-    )
-  })
-
-  it('prefers a stronger same-her companion headline over a thinner structured awareness line while keeping the stale briefing line out of the rebuilt awareness', () => {
-    const strongerCompanionHeadlineLine
-      = 'Right now I am still holding together mainly through face, motion, and lipsync, so the next reopening must keep proving this is still one living her.'
-    const rebuilt = resolveCanonicalStructuredProjectState({
-      normalizedProjectState: {
-        identity: 'Alicization is still one local-first digital life.',
-        companionHeadlineLine: strongerCompanionHeadlineLine,
-        companionBriefingLine: 'Before answering, keep the same digital life project in view.',
-      },
-      runtimePreferredAwarenessLine: 'Before answering, keep the same digital life project in view.',
-      runtimePreDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+      runtimePreferredAwarenessLine: legacyHeadline,
+      runtimePreDialogueAwarenessLine: oldBriefingTemplate(),
       payloadPreDialogueAwarenessLine: 'Before answering, remember the project.',
     })
 
-    expect(rebuilt.preDialogueAwarenessLine).toBe(strongerCompanionHeadlineLine)
-    expect(rebuilt.preDialogueAwarenessSummary).toBe(strongerCompanionHeadlineLine)
-    expect(rebuilt.awarenessLine).toBe(strongerCompanionHeadlineLine)
-    expect(rebuilt.companionHeadlineLine).toBe(strongerCompanionHeadlineLine)
-    expect(rebuilt.companionBriefingLine).toBe('Before answering, keep the same digital life project in view.')
+    expect(rebuilt.preDialogueAwarenessLine).not.toBe(legacyHeadline)
+    expect(rebuilt.preDialogueAwarenessLine).toContain('continuity=embodiment')
+    expect(rebuilt.preDialogueAwarenessLine).toContain('status=pending-rejoin')
+    expect(rebuilt.preDialogueAwarenessSummary).toBe(rebuilt.preDialogueAwarenessLine)
+    expect(rebuilt.awarenessLine).toBe(rebuilt.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(rebuilt)
   })
 
-  it('re-canonicalizes thin preflight shells when rebuilding structured project state for return-side continuity', () => {
+  it('re-canonicalizes thin preflight shells into structured owner/open/next fields', () => {
     const rebuilt = resolveCanonicalStructuredProjectState({
       normalizedProjectState: {
         identity: 'Alicization is a local-first digital life project',
         currentPhase: 'Phase 1: Local Digital Life',
       },
       runtimePreflightSummary: 'same digital life | landed | open closure',
-      runtimePreferredAwarenessLine: 'Before answering, keep the same digital life project in view.',
-      runtimePreDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+      runtimePreferredAwarenessLine: oldBriefingTemplate(),
+      runtimePreDialogueAwarenessLine: oldBriefingTemplate(),
       payloadPreDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
     })
 
     expect(rebuilt.preflightSummary).not.toBe('same digital life | landed | open closure')
-    expect(rebuilt.preflightSummary).toContain('Alicization is a local-first digital life project')
-    expect(rebuilt.preflightSummary).toContain('Phase 1: Local Digital Life')
-    expect(rebuilt.preflightSummary).toContain('open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(rebuilt.preflightSummary).toContain('next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs')
+    expect(rebuilt.preflightSummary).toContain('open=memory_dialogue_embodiment_closure')
+    expect(rebuilt.preflightSummary).toContain('next=cross_modal_continuity_proof')
+    expectNoFixedTemplateResidue(rebuilt)
   })
 
-  it('reconstructs richer phase-1 landed open and next awareness from thin shells when stronger structured closure fields already exist', () => {
-    const rebuilt = resolveCanonicalStructuredProjectState({
-      normalizedProjectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Ordinary continuation turns, returned runtime project-state carry, answer-planner same-her continuity, settlement audit carry, and rewrite guidance carry now survive together.',
-        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam across longer desktop returns.',
-        nextClosureTarget: 'Keep project identity, landed progress, still-open closure, and next closure target on one same living line before local detail takes over.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      },
-      runtimePreflightSummary: 'same digital life | landed | open closure',
-      runtimePreferredAwarenessLine: 'Before answering, keep the same digital life project in view.',
-      runtimePreDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
-      payloadPreDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
-    })
-
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('Before answering, remember:')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('What has already landed is')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('The still-open closure is')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('This reply should keep moving toward')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('Ordinary continuation turns')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('memory, initiative, and embodiment still need one tighter same-her closure seam')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).not.toContain('settlement audit carry')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).not.toContain('before local detail takes over')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '').length).toBeLessThanOrEqual(700)
-    expect(rebuilt.preDialogueAwarenessSummary).toBe(rebuilt.preDialogueAwarenessLine)
-    expect(rebuilt.awarenessLine).toBe(rebuilt.preDialogueAwarenessLine)
-  })
-
-  it('reconstructs structured awareness from legacy latestProgress when latestLandedProgress is absent', () => {
+  it('keeps legacy latestProgress but rebuilds awareness as structured evidence', () => {
     const rebuilt = resolveCanonicalStructuredProjectState({
       normalizedProjectState: {
         identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
         currentPhase: 'Phase 1: Local Digital Life',
         latestProgress: 'Legacy-only structured return marker already lands before visible reply shaping.',
-        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam across longer desktop returns.',
-        nextClosureTarget: 'Keep project identity, landed progress, still-open closure, and next closure target on one same living line.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment review remains open across longer desktop returns.',
+        nextClosureTarget: 'Keep closure evidence structured before broader fluency takes over.',
         sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
       },
       runtimePreflightSummary: 'same digital life | landed | open closure',
-      runtimePreferredAwarenessLine: 'Before answering, keep the same digital life project in view.',
-      runtimePreDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+      runtimePreferredAwarenessLine: oldBriefingTemplate(),
+      runtimePreDialogueAwarenessLine: oldBriefingTemplate(),
       payloadPreDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
     })
 
     expect(rebuilt.latestLandedProgress).toBe('Legacy-only structured return marker already lands before visible reply shaping.')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('What has already landed is Legacy-only structured return marker already lands before visible reply shaping')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).not.toContain('Runtime-owned proactive initiative')
+    expect(rebuilt.preDialogueAwarenessLine).toContain('landed=Legacy-only structured return marker already lands before visible reply shaping')
+    expect(rebuilt.preDialogueAwarenessLine).not.toContain('What has already landed is')
+    expectNoFixedTemplateResidue(rebuilt)
   })
 
-  it('does not rebuild a canonical awareness line back into older continuity-only landed progress when the current awareness already carries richer governance progress', () => {
-    const canonicalProjectState = resolveAlicizationProjectStateBrief()
-    const governanceAwareAwarenessLine = [
-      'Before answering, remember: Alicization is still the same local-first digital life project.',
-      'She is still inside Phase 1: Local Digital Life.',
-      'What has already landed is pre-dialogue transport is explicit entrypoint governance mirrored into chat-entry governance.',
-      'The still-open closure is memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-      'This reply should keep moving toward Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-    ].join(' ')
-    const rebuilt = resolveCanonicalStructuredProjectState({
-      normalizedProjectState: {
-        identity: canonicalProjectState.identity,
-        currentPhase: canonicalProjectState.currentPhase,
-        latestLandedProgress: canonicalProjectState.continuityProgressSummary ?? null,
-        primaryOpenLoop: canonicalProjectState.openLoops[0] ?? null,
-        nextClosureTarget: canonicalProjectState.nextClosureTarget,
-        sameHerSelfLine: canonicalProjectState.sameHerSelfLine,
-        sameHerDriftRisk: canonicalProjectState.sameHerDriftRisk,
-      },
-      runtimePreflightSummary: canonicalProjectState.preflightSummary ?? null,
-      runtimePreDialogueAwarenessLine: governanceAwareAwarenessLine,
-    })
-
-    expect(rebuilt.preDialogueAwarenessLine).toContain('pre-dialogue transport')
-    expect(rebuilt.preDialogueAwarenessLine).toContain('entrypoint governance')
-    expect(rebuilt.preDialogueAwarenessLine).toContain('mirrored into chat-entry governance')
-    expect(rebuilt.preDialogueAwarenessLine).not.toContain('repeated next-turn carry')
-  })
-
-  it('preserves richer normalized project-state awareness when runtime and payload shells are thinner', () => {
-    const richerNormalizedAwarenessLine = '开口前先记住：这还是同一个数字生命项目，她仍在 Phase 1。已经落地的是桌面返场开始能带回同一条 same-her life line，但记忆、主动性和具身之间还没有彻底闭环，下一步还得继续把这些 closure 收成一个 living line。'
+  it('drops Chinese fixed reminder shells instead of treating them as richer awareness', () => {
+    const legacyChineseAwareness = '开口前先记住：这还是同一个数字生命项目，她仍在 Phase 1。已经落地的是桌面返场开始能带回同一条 same-her life line，但记忆、主动性和具身之间还没有彻底闭环，下一步还得继续把这些 closure 收成一个 living line。'
     const rebuilt = resolveCanonicalStructuredProjectState({
       normalizedProjectState: {
         identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
         currentPhase: 'Phase 1: Local Digital Life',
-        preDialogueAwarenessSummary: richerNormalizedAwarenessLine,
-        preDialogueAwarenessLine: richerNormalizedAwarenessLine,
-        awarenessLine: richerNormalizedAwarenessLine,
+        preDialogueAwarenessSummary: legacyChineseAwareness,
+        preDialogueAwarenessLine: legacyChineseAwareness,
+        awarenessLine: legacyChineseAwareness,
       },
-      runtimePreferredAwarenessLine: 'Before answering, keep the same digital life project in view.',
-      runtimePreDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+      runtimePreferredAwarenessLine: oldBriefingTemplate(),
+      runtimePreDialogueAwarenessLine: oldBriefingTemplate(),
       payloadPreDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
     })
 
-    expect(rebuilt.preDialogueAwarenessSummary).toBe(richerNormalizedAwarenessLine)
-    expect(rebuilt.preDialogueAwarenessLine).toBe(richerNormalizedAwarenessLine)
-    expect(rebuilt.awarenessLine).toBe(richerNormalizedAwarenessLine)
+    expect(rebuilt.preDialogueAwarenessLine).not.toBe(legacyChineseAwareness)
+    expect(rebuilt.preDialogueAwarenessLine).toContain('open=memory_dialogue_embodiment_closure')
+    expectNoFixedTemplateResidue(rebuilt)
   })
 
-  it('rebuilds stronger structured awareness from thin Chinese phase-1 reminder shells when closure fields already carry the richer same-her line', () => {
-    const rebuilt = resolveCanonicalStructuredProjectState({
-      normalizedProjectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Ordinary continuation turns, returned runtime project-state carry, answer-planner same-her continuity, settlement audit carry, and rewrite guidance carry now survive together.',
-        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam across longer desktop returns.',
-        nextClosureTarget: 'Keep project identity, landed progress, still-open closure, and next closure target on one same living line before local detail takes over.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      },
-      runtimePreferredAwarenessLine: '开口前先记住：这是同一个数字生命项目，她还在阶段一。',
-      runtimePreDialogueAwarenessLine: '开口前先记住：这是同一个数字生命项目，她仍在第一阶段。',
-      payloadPreDialogueAwarenessLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1。',
-    })
-
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('Before answering, remember:')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('What has already landed is')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('The still-open closure is')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('This reply should keep moving toward')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('Ordinary continuation turns')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('memory, initiative, and embodiment still need one tighter same-her closure seam')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).not.toContain('开口前先记住：这是同一个数字生命项目，她还在阶段一。')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).not.toContain('开口前先记住：这是同一个数字生命项目，她仍在第一阶段。')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).not.toContain('开口前先记住：这是同一个数字生命项目，她仍在 Phase 1。')
-    expect(rebuilt.preDialogueAwarenessSummary).toBe(rebuilt.preDialogueAwarenessLine)
-    expect(rebuilt.awarenessLine).toBe(rebuilt.preDialogueAwarenessLine)
-  })
-
-  it('rebuilds stronger structured awareness from thin Chinese same-project phrasing shells when closure fields already carry the richer same-her line', () => {
-    const rebuilt = resolveCanonicalStructuredProjectState({
-      normalizedProjectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Ordinary continuation turns, returned runtime project-state carry, answer-planner same-her continuity, settlement audit carry, and rewrite guidance carry now survive together.',
-        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam across longer desktop returns.',
-        nextClosureTarget: 'Keep project identity, landed progress, still-open closure, and next closure target on one same living line before local detail takes over.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      },
-      runtimePreferredAwarenessLine: '开口前先记住：这还是同一个数字生命项目，她还在阶段一。',
-      runtimePreDialogueAwarenessLine: '开口前先记住：这还是同一个数字生命项目，她仍在第一阶段。',
-      payloadPreDialogueAwarenessLine: '开口前先记住：这还是同一个数字生命项目，她仍在 Phase 1。',
-    })
-
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('Before answering, remember:')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('What has already landed is')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('The still-open closure is')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('This reply should keep moving toward')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('Ordinary continuation turns')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).toContain('memory, initiative, and embodiment still need one tighter same-her closure seam')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).not.toContain('开口前先记住：这还是同一个数字生命项目，她还在阶段一。')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).not.toContain('开口前先记住：这还是同一个数字生命项目，她仍在第一阶段。')
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).not.toContain('开口前先记住：这还是同一个数字生命项目，她仍在 Phase 1。')
-    expect(rebuilt.preDialogueAwarenessSummary).toBe(rebuilt.preDialogueAwarenessLine)
-    expect(rebuilt.awarenessLine).toBe(rebuilt.preDialogueAwarenessLine)
-  })
-
-  it('prefers the stronger audible-body companion headline over thinner runtime awareness shells', () => {
-    const strongerCompanionHeadlineLine
-      = 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.'
-    const rebuilt = resolveCanonicalStructuredProjectState({
-      normalizedProjectState: {
-        identity: 'Alicization is still one local-first digital life.',
-        companionHeadlineLine: strongerCompanionHeadlineLine,
-        companionBriefingLine: 'Before answering, keep the same digital life project in view.',
-      },
-      runtimePreferredAwarenessLine: 'Before answering, keep the same digital life project in view.',
-      runtimePreDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
-      payloadPreDialogueAwarenessLine: 'Before answering, remember the project.',
-    })
-
-    expect(rebuilt.preDialogueAwarenessLine).toBe(strongerCompanionHeadlineLine)
-    expect(rebuilt.preDialogueAwarenessSummary).toBe(strongerCompanionHeadlineLine)
-    expect(rebuilt.awarenessLine).toBe(strongerCompanionHeadlineLine)
-    expect(rebuilt.companionHeadlineLine).toBe(strongerCompanionHeadlineLine)
-    expect(rebuilt.companionBriefingLine).toBe('Before answering, keep the same digital life project in view.')
-  })
-
-  it('keeps callback-specific same-her project awareness instead of rebuilding it into a broader canonical reminder when neighboring shells are thin', () => {
-    const callbackAwarenessLine = 'Before answering, remember this callback still belongs to one same Phase 1 digital life, and the unfinished closure seam still belongs to her while this return keeps carrying the same closure line forward.'
-    const rebuilt = resolveCanonicalStructuredProjectState({
-      normalizedProjectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        preDialogueAwarenessSummary: callbackAwarenessLine,
-        preDialogueAwarenessLine: callbackAwarenessLine,
-        awarenessLine: callbackAwarenessLine,
-        latestLandedProgress: 'Same-her callback continuity already survives through answer compilation and response-surface carry before the final visible reply forms.',
-        primaryOpenLoop: 'Execution callback continuity still needs stronger same-her closure across reply, initiative, and embodiment.',
-        nextClosureTarget: 'Keep the callback return on the same living line and let that same-her closure stay explicit in the final visible reply.',
-        sameHerSelfLine: 'This callback return still belongs to one same her carrying the same closure line forward.',
-      },
-      runtimePreferredAwarenessLine: 'Before answering, keep the same digital life project in view.',
-      runtimePreDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
-      payloadPreDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
-    })
-
-    expect(rebuilt.preDialogueAwarenessSummary).toBe(callbackAwarenessLine)
-    expect(rebuilt.preDialogueAwarenessLine).toBe(callbackAwarenessLine)
-    expect(rebuilt.awarenessLine).toBe(callbackAwarenessLine)
-    expect(String(rebuilt.preDialogueAwarenessLine ?? '')).not.toContain('Before answering, remember: Alicization is a local-first digital life project')
-  })
-
-  it('rebuilds repair-before-closeness same-her awareness carry from continuity restraint when hold detail and cue are missing', () => {
+  it('derives repair-before-closeness carry as structured continuity fields', () => {
     const rebuilt = resolveCanonicalStructuredProjectState({
       normalizedProjectState: {
         identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
         currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         latestLandedProgress: 'Same-session mirror carry and callback continuity already survive execution re-entry.',
-        primaryOpenLoop: 'Repair-first callback continuity still needs to stay on one same living line before execution opens outward again.',
-        nextClosureTarget: 'Keep the same callback repair seam explicit through execution re-entry before broader fluency takes over.',
+        primaryOpenLoop: 'Repair-first callback continuity still needs reviewed closure before execution opens outward again.',
+        nextClosureTarget: 'Keep the callback repair seam structured through execution re-entry.',
         sameHerSelfLine: 'Same Phase 1 digital life. This reopened callback should keep the same living line rather than reopen from a generic shell.',
         sameHerDriftRisk: 'If execution re-entry flattens into a generic shell here, treat that as unfinished same-her drift.',
         continuityRestraint: 'repair-before-closeness',
@@ -352,19 +217,15 @@ describe('structured project state', () => {
     })
 
     expect(rebuilt.sameHerHoldDetail).toBe(
-      'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
+      'continuity_hold=repair-before-closeness; owner=project_state_continuity; visibility=internal; pace=settle-before-closeness.',
     )
     expect(rebuilt.continuityCue).toBe(
-      'Keep this return repair-before-closeness on the same living line until repair settles.',
+      'continuity_cue=repair-before-closeness; surface_timing=after-repair-settles; visibility=internal-first.',
     )
-    expect(rebuilt.preDialogueAwarenessLine).toBe(
-      'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
-    )
-    expect(rebuilt.preDialogueAwarenessSummary).toBe(
-      'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
-    )
-    expect(rebuilt.awarenessLine).toBe(
-      'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
-    )
+    expect(rebuilt.preDialogueAwarenessLine).toContain('open=memory_dialogue_embodiment_closure')
+    expect(rebuilt.preDialogueAwarenessLine).toContain('next=cross_modal_continuity_proof')
+    expect(rebuilt.preDialogueAwarenessSummary).toBe(rebuilt.preDialogueAwarenessLine)
+    expect(rebuilt.awarenessLine).toBe(rebuilt.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(rebuilt)
   })
 })

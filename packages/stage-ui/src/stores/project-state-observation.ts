@@ -257,10 +257,11 @@ export function readConversationTurnProjectStateObservation(
     preDialogueAwareness && !normalizedPreDialogueAwareness,
   )
   const identity = sanitizeProjectStateObservationText(normalizedProjectState.identity, 180)
+    || 'project_state_owner=ProjectStateGovernance'
   const canonicalCurrentPhase = sanitizeProjectStateObservationText(normalizedProjectState.currentPhase, 180)
+    || 'runtime_context=local_runtime'
   const canonicalNextClosureTarget = sanitizeProjectStateObservationText(normalizedProjectState.nextClosureTarget, 320)
-  if (!identity || !canonicalCurrentPhase || !canonicalNextClosureTarget)
-    return null
+    || 'continuity_review_required'
 
   const closureReasonFallback = Array.isArray(visibleReplyClosure?.reasonCodes)
     ? visibleReplyClosure.reasonCodes

@@ -1,4 +1,8 @@
 import {
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+
+import {
   buildAlicizationProjectPreDialogueAwarenessLine,
   isAlicizationThinProjectAwarenessLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
@@ -11,6 +15,10 @@ function sanitizeStructuredProjectStateText(raw: unknown, maxChars: number) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function sanitizeProviderFacingStructuredProjectStateText(raw: unknown, maxChars: number) {
+  return sanitizeAlicizationProviderFacingText(raw, maxChars, '')
 }
 
 function isThinProjectAwarenessShell(value: string | null | undefined) {
@@ -284,7 +292,7 @@ function resolvePreferredStructuredProjectAwarenessLine(input: {
   const payloadPreDialogueAwarenessLine = sanitizeText(input.payloadPreDialogueAwarenessLine ?? '', '') || null
   const normalizedCompanionHeadlineLine = sanitizeText(input.normalizedCompanionHeadlineLine ?? '', '') || null
   const normalizedCompanionBriefingLine = sanitizeText(input.normalizedCompanionBriefingLine ?? '', '') || null
-  const normalizedSameHerSelfLine = sanitizeText(input.sameHerSelfLine ?? '', '') || null
+  const normalizedSameHerSelfLine = sanitizeProviderFacingStructuredProjectStateText(input.sameHerSelfLine ?? '', 220) || null
   const normalizedSameHerHoldDetail = sanitizeText(input.sameHerHoldDetail ?? '', '') || null
   const normalizedContinuityCue = sanitizeText(input.continuityCue ?? '', '') || null
   const normalizedContinuityRestraint = sanitizeText(input.continuityRestraint ?? '', '') || null
@@ -333,7 +341,7 @@ function resolvePreferredStructuredProjectAwarenessLine(input: {
         latestLandedProgress: sanitizeText(input.latestLandedProgress ?? '', '') || '',
         primaryOpenLoop: sanitizeText(input.primaryOpenLoop ?? '', '') || '',
         nextClosureTarget: sanitizeText(input.nextClosureTarget ?? '', '') || '',
-        sameHerSelfLine: sanitizeText(input.sameHerSelfLine ?? '', '') || '',
+        sameHerSelfLine: sanitizeProviderFacingStructuredProjectStateText(input.sameHerSelfLine ?? '', 220) || '',
       })
     : null
 
@@ -446,17 +454,17 @@ export function resolveCanonicalStructuredProjectState(input: {
   suppressCanonicalAwarenessFallback?: boolean
 }) {
   const canonicalProjectState = resolveAlicizationProjectStateBrief()
-  const resolvedIdentity = sanitizeText(
+  const resolvedIdentity = sanitizeProviderFacingStructuredProjectStateText(
     typeof input.normalizedProjectState?.identity === 'string'
       ? input.normalizedProjectState.identity
       : canonicalProjectState.identity,
-    '',
+    220,
   ) || canonicalProjectState.identity
-  const resolvedCurrentPhase = sanitizeText(
+  const resolvedCurrentPhase = sanitizeProviderFacingStructuredProjectStateText(
     typeof input.normalizedProjectState?.currentPhase === 'string'
       ? input.normalizedProjectState.currentPhase
       : canonicalProjectState.currentPhase,
-    '',
+    180,
   ) || canonicalProjectState.currentPhase
   const runtimePreferredAwarenessLine = sanitizeText(input.runtimePreferredAwarenessLine ?? '', '') || null
   const runtimePreDialogueAwarenessLine = sanitizeText(input.runtimePreDialogueAwarenessLine ?? '', '') || null
@@ -592,11 +600,11 @@ export function resolveCanonicalStructuredProjectState(input: {
     primaryOpenLoop: resolvedPrimaryOpenLoop,
     nextClosureTarget: resolvedNextClosureTarget,
     sameHerSelfLine:
-      sanitizeText(
+      sanitizeProviderFacingStructuredProjectStateText(
         typeof input.normalizedProjectState?.sameHerSelfLine === 'string'
           ? input.normalizedProjectState.sameHerSelfLine
           : canonicalProjectState.sameHerSelfLine,
-        '',
+        220,
       ) || canonicalProjectState.sameHerSelfLine,
     sameHerHoldDetail:
       sanitizeText(
@@ -642,11 +650,11 @@ export function resolveCanonicalStructuredProjectState(input: {
           primaryOpenLoop: resolvedPrimaryOpenLoop ?? '',
           nextClosureTarget: resolvedNextClosureTarget ?? '',
           sameHerSelfLine:
-            sanitizeText(
+            sanitizeProviderFacingStructuredProjectStateText(
               typeof input.normalizedProjectState?.sameHerSelfLine === 'string'
                 ? input.normalizedProjectState.sameHerSelfLine
                 : canonicalProjectState.sameHerSelfLine,
-              '',
+              220,
             ) || canonicalProjectState.sameHerSelfLine,
         })
       : null
@@ -668,7 +676,7 @@ export function resolveCanonicalStructuredProjectState(input: {
       : finalResolvedAwarenessLine
   const resolvedSameHerSelfLine = preferStrongerSameHerSelfLine({
     candidate: typeof input.normalizedProjectState?.sameHerSelfLine === 'string'
-      ? input.normalizedProjectState.sameHerSelfLine
+      ? sanitizeProviderFacingStructuredProjectStateText(input.normalizedProjectState.sameHerSelfLine, 220)
       : null,
     canonical: canonicalProjectState.sameHerSelfLine,
   })
@@ -679,9 +687,12 @@ export function resolveCanonicalStructuredProjectState(input: {
     '',
   ) || null
   const resolvedSameHerDriftRisk = sanitizeText(
-    typeof input.normalizedProjectState?.sameHerDriftRisk === 'string'
-      ? input.normalizedProjectState.sameHerDriftRisk
-      : canonicalProjectState.sameHerDriftRisk,
+    sanitizeProviderFacingStructuredProjectStateText(
+      typeof input.normalizedProjectState?.sameHerDriftRisk === 'string'
+        ? input.normalizedProjectState.sameHerDriftRisk
+        : canonicalProjectState.sameHerDriftRisk,
+      320,
+    ),
     '',
   ) || canonicalProjectState.sameHerDriftRisk
   const canonicalStructuredProjectStateSnapshot = resolveAlicizationProjectStateSnapshot({
