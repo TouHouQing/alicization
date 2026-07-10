@@ -8,7 +8,7 @@ import { ApiError } from '../../utils/error'
 import { createChatRoutes } from '../chats'
 
 describe('chatRoutes', () => {
-  it('preserves pre-dialogue project awareness through the browser server stream proxy boundary instead of stripping same-her carry at the remote transport schema seam', async () => {
+  it('preserves structured pre-dialogue continuity through the browser server stream proxy boundary', async () => {
     let capturedPayload: {
       preDialogueSendIdentity?: Record<string, unknown> | null
     } | null = null
@@ -57,21 +57,21 @@ describe('chatRoutes', () => {
         ],
         preDialogueSendIdentity: {
           status: 'grounded',
-          summaryLine: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-          companionBriefingLine: 'Phase 1 is still active, some closure has landed, and the still-open life loop remains memory, initiative, execution, and embodiment coherence.',
-          companionNextClosureLine: 'Keep extending cross-modal same-her proof before the answer widens outward.',
-          awarenessLine: 'Before answering, remember this is still one living digital life project and keep the same-her line explicit.',
-          emotionalClosureCue: 'Keep the return low-pressure and same-her continuous.',
+          summaryLine: 'Structured pre-dialogue continuity is available at the browser proxy boundary.',
+          companionBriefingLine: 'The current turn carries project identity, landed progress, and open loop metadata.',
+          companionNextClosureLine: 'Keep the proxy payload intact for the downstream chat service.',
+          awarenessLine: 'Proxy should forward structured continuity fields without rewriting them.',
+          emotionalClosureCue: 'Keep provider-facing reply grounded in the forwarded structured context.',
           reasonPreview: [
-            'same-her continuity stays explicit before widening outward.',
+            'Browser proxy carries structured continuity before dispatch.',
           ],
           projectState: {
-            identity: 'Alicization is a local-first digital life project',
-            currentPhase: 'Phase 1: Local Digital Life',
+            identity: 'Alicization local runtime project state',
+            currentPhase: 'local desktop life loop',
             latestLandedProgress: 'body-face-motion continuity has landed',
-            primaryOpenLoop: 'lipsync and voice still need to rejoin the same living line',
-            nextClosureTarget: 'close cross-modal same-her proof',
-            continuitySummary: 'same-her continuity is explicit before the turn.',
+            primaryOpenLoop: 'lipsync and voice still need rejoin validation',
+            nextClosureTarget: 'preserve structured continuity through browser proxy',
+            continuitySummary: 'browser proxy forwards structured continuity before the turn.',
           },
           emotionalKernel: {
             affectLabel: 'calm-resolute',
@@ -88,21 +88,21 @@ describe('chatRoutes', () => {
     const capturedPreDialogueSendIdentity = (capturedPayload as any)?.preDialogueSendIdentity
     expect(capturedPreDialogueSendIdentity).toEqual(expect.objectContaining({
       status: 'grounded',
-      summaryLine: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-      companionBriefingLine: 'Phase 1 is still active, some closure has landed, and the still-open life loop remains memory, initiative, execution, and embodiment coherence.',
-      awarenessLine: 'Before answering, remember this is still one living digital life project and keep the same-her line explicit.',
-      companionNextClosureLine: 'Keep extending cross-modal same-her proof before the answer widens outward.',
-      emotionalClosureCue: 'Keep the return low-pressure and same-her continuous.',
+      summaryLine: 'Structured pre-dialogue continuity is available at the browser proxy boundary.',
+      companionBriefingLine: 'The current turn carries project identity, landed progress, and open loop metadata.',
+      awarenessLine: 'Proxy should forward structured continuity fields without rewriting them.',
+      companionNextClosureLine: 'Keep the proxy payload intact for the downstream chat service.',
+      emotionalClosureCue: 'Keep provider-facing reply grounded in the forwarded structured context.',
       reasonPreview: [
-        'same-her continuity stays explicit before widening outward.',
+        'Browser proxy carries structured continuity before dispatch.',
       ],
       projectState: expect.objectContaining({
-        identity: 'Alicization is a local-first digital life project',
-        currentPhase: 'Phase 1: Local Digital Life',
+        identity: 'Alicization local runtime project state',
+        currentPhase: 'local desktop life loop',
         latestLandedProgress: 'body-face-motion continuity has landed',
-        primaryOpenLoop: 'lipsync and voice still need to rejoin the same living line',
-        nextClosureTarget: 'close cross-modal same-her proof',
-        continuitySummary: 'same-her continuity is explicit before the turn.',
+        primaryOpenLoop: 'lipsync and voice still need rejoin validation',
+        nextClosureTarget: 'preserve structured continuity through browser proxy',
+        continuitySummary: 'browser proxy forwards structured continuity before the turn.',
       }),
       emotionalKernel: expect.objectContaining({
         affectLabel: 'calm-resolute',
