@@ -8,8 +8,8 @@ const proofRows = [
     file: './mods/api/context-bridge.test.ts',
     snippets: [
       'forwards pre-dialogue project awareness through outgoing tool-call, chat message, and complete server events',
-      'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-      'Primary open life loop still centers on full cross-modal same-her recovery.',
+      'expect(messageEvent?.data?.[\'gen-ai:chat\']?.preDialogueSendIdentity).toEqual(context.preDialogueSendIdentity)',
+      'expect(completeEvent?.data?.[\'gen-ai:chat\']?.preDialogueSendIdentity).toEqual(context.preDialogueSendIdentity)',
     ],
   },
   {
@@ -25,9 +25,9 @@ const proofRows = [
     entry: 'context-bridge-before-send-inward-low-pressure-forwarding',
     file: './mods/api/context-bridge.test.ts',
     snippets: [
-      'broadcasts before-send same-her inward low-pressure project awareness for remote observers without thinning the carry',
-      'Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.',
-      '\'same-her-inward-carry\'',
+      'const beforeSendBroadcast = mocks.broadcastStreamPostMock.mock.calls.find(call => call[0]?.type === \'before-send\')?.[0]',
+      'expect(beforeSendBroadcast?.message).toBe',
+      'expect(beforeSendBroadcast?.context?.preDialogueSendIdentity).toEqual(context.preDialogueSendIdentity)',
     ],
   },
   {
@@ -44,7 +44,6 @@ const proofRows = [
     file: './alicization-epoch1.test.ts',
     snippets: [
       'preDialogueSendIdentity: undefined',
-      'expect(systemMessage).toContain(\'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.\')',
       'expect(systemMessage).toContain(\'local-first digital life project\')',
     ],
   },
@@ -86,7 +85,7 @@ const proofRows = [
 ] as const
 
 describe('direct bridge project awareness audit', () => {
-  it('keeps one explicit route-level proof that direct bridge dialogue surfaces preserve or intentionally rebuild same-her project awareness across remote channels', () => {
+  it('keeps one explicit route-level proof that direct bridge dialogue surfaces preserve or intentionally rebuild continuity awareness across remote channels', () => {
     expect(proofRows).toEqual([
       expect.objectContaining({ entry: 'context-bridge-server-event-forwarding' }),
       expect.objectContaining({ entry: 'context-bridge-broadcast-forwarding' }),
@@ -109,7 +108,7 @@ describe('direct bridge project awareness audit', () => {
     }
   })
 
-  it('makes this boundary explicit: current direct-bridge dialogue routes now have dedicated same-her proof, while future new dialogue entrypoints still remain open', () => {
+  it('makes this boundary explicit: current direct-bridge dialogue routes now have dedicated continuity proof, while future new dialogue entrypoints still remain open', () => {
     const matrixSource = readFileSync(new URL('../../../../docs/pre-dialogue-project-awareness-matrix.md', import.meta.url), 'utf8')
     const contextBridgeSource = readFileSync(new URL('./mods/api/context-bridge.test.ts', import.meta.url), 'utf8')
     const epoch1Source = readFileSync(new URL('./alicization-epoch1.test.ts', import.meta.url), 'utf8')
@@ -122,14 +121,12 @@ describe('direct bridge project awareness audit', () => {
       'forwards pre-dialogue project awareness through outgoing tool-call, chat message, and complete server events',
     )
     expect(contextBridgeSource).toContain(
-      'broadcasts before-send same-her inward low-pressure project awareness for remote observers without thinning the carry',
+      'expect(beforeSendBroadcast?.context?.preDialogueSendIdentity).toEqual(context.preDialogueSendIdentity)',
     )
     expect(contextBridgeSource).toContain(
       'injects explicit inspector-built pre-dialogue identity into raw context-recall input:text ingestion before the remote turn opens outward',
     )
-    expect(epoch1Source).toContain(
-      'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-    )
+    expect(epoch1Source).toContain('preDialogueSendIdentity: undefined')
     expect(rendererAppSource).toContain('transportPayload: transportPayloadSummary')
     expect(transportSource).toContain('hasPreDialogueSendIdentity')
     expect(transportSource).toContain('preDialogueSendIdentityStatus')

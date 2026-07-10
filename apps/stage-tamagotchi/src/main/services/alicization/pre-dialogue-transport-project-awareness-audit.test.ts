@@ -8,20 +8,17 @@ const proofRows = [
     file: '../../../../../../packages/stage-ui/src/stores/chat/text-composer-store.test.ts',
     snippets: [
       'await expect(store.sendCurrentMessage()).resolves.toBe(true)',
-      'summaryLine: \'Alicization is still in Phase 1 local digital life closure before this turn opens outward.\'',
-      'awarenessLine: \'Before speaking, remember this is still the same digital life project before local fluency takes over.\'',
-      '\'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.\'',
-      '\'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.\'',
-      '\'Keep carrying one same-her digital life line before local implementation fluency takes over.\'',
+      'expectNoPreDialogueTemplateResidue(identity)',
+      'expect(serializedIdentity).not.toMatch',
     ],
   },
   {
-    entry: 'renderer-send-preserves-stronger-same-her-headline',
+    entry: 'renderer-send-drops-stronger-fixed-headline',
     file: '../../../../../../packages/stage-ui/src/stores/chat/text-composer-store.test.ts',
     snippets: [
-      'preserves a stronger same-her companion headline from awareness carry even when no closure snapshot is available yet',
-      'companionHeadlineLine: \'Right now I still need to keep this same-her digital life line intact before widening into generic assistant output.\'',
-      'emotionalClosureCue: \'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.\'',
+      'companionHeadlineLine: fixedTemplateReplacementLine',
+      'emotionalClosureCue: fixedTemplateReplacementLine',
+      'expectNoPreDialogueTemplateResidue(identity)',
     ],
   },
   {
@@ -29,9 +26,7 @@ const proofRows = [
     file: '../../../shared/alicization-chat-transport.test.ts',
     snippets: [
       'sanitizes reactive-like and non-plain chat payloads into structured-clone-safe JSON',
-      'summaryLine: \'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=desktop execution closure still open\'',
-      '\'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.\'',
-      '\'Keep closing desktop execution continuity across memory, initiative, and embodiment.\'',
+      'expectNoFixedTemplateResidue(result.value.preDialogueSendIdentity)',
       'expect(() => structuredClone(result.value)).not.toThrow()',
     ],
   },
@@ -73,7 +68,7 @@ const proofRows = [
     snippets: [
       'forwards pre-dialogue project awareness through outgoing tool-call, chat message, and complete server events',
       'expect(messageEvent?.data?.[\'gen-ai:chat\']?.preDialogueSendIdentity).toEqual(context.preDialogueSendIdentity)',
-      'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+      'expect(completeEvent?.data?.[\'gen-ai:chat\']?.preDialogueSendIdentity).toEqual(context.preDialogueSendIdentity)',
     ],
   },
   {
@@ -83,21 +78,18 @@ const proofRows = [
       'broadcasts tool-call and assistant-message stream events with pre-dialogue project awareness for remote observers',
       'expect(toolCallBroadcast?.context?.preDialogueSendIdentity).toEqual(context.preDialogueSendIdentity)',
       'expect(assistantMessageBroadcast?.context?.preDialogueSendIdentity).toEqual(context.preDialogueSendIdentity)',
-      '\'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.\'',
-      '\'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.\'',
     ],
   },
   {
     entry: 'browser-server-stream-proxy-preserves-awareness-carry',
     file: '../../../../../../apps/server/src/routes/__test__/chats.test.ts',
     snippets: [
-      'preserves pre-dialogue project awareness through the browser server stream proxy boundary instead of stripping same-her carry at the remote transport schema seam',
+      'expect(response.status).toBe(200)',
+      'expect(chatService.streamChat).toHaveBeenCalledTimes(1)',
       'expect(capturedPayload).not.toBeNull()',
       'const capturedPreDialogueSendIdentity = (capturedPayload as any)?.preDialogueSendIdentity',
       'expect(capturedPreDialogueSendIdentity).toEqual(expect.objectContaining({',
-      'currentPhase: \'Phase 1: Local Digital Life\'',
-      'close cross-modal same-her proof',
-      'calm-resolute',
+      'emotionalKernel: expect.objectContaining({',
     ],
   },
 ] as const
@@ -106,7 +98,7 @@ describe('pre-dialogue transport project awareness audit', () => {
   it('keeps one explicit route-level proof that outbound pre-dialogue transport preserves continuity awareness across renderer send, transport sanitization, and bridge forwarding', () => {
     expect(proofRows).toEqual([
       expect.objectContaining({ entry: 'renderer-send-identity-materialization' }),
-      expect.objectContaining({ entry: 'renderer-send-preserves-stronger-same-her-headline' }),
+      expect.objectContaining({ entry: 'renderer-send-drops-stronger-fixed-headline' }),
       expect.objectContaining({ entry: 'transport-sanitization-preserves-project-triad' }),
       expect.objectContaining({ entry: 'transport-summary-preserves-project-state-closure-signals' }),
       expect.objectContaining({ entry: 'transport-sanitization-drops-body-led-fixed-carry' }),
@@ -142,7 +134,7 @@ describe('pre-dialogue transport project awareness audit', () => {
       'drops body-face-motion fixed send identity while preserving remaining-open transport evidence',
     )
     expect(composerSource).toContain(
-      'preserves a stronger same-her companion headline from awareness carry even when no closure snapshot is available yet',
+      'expectNoPreDialogueTemplateResidue(identity)',
     )
     expect(bridgeSource).toContain(
       'broadcasts tool-call and assistant-message stream events with pre-dialogue project awareness for remote observers',
