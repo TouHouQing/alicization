@@ -93,9 +93,9 @@ describe('pre-dialogue-transport-audit', () => {
     expect(transportSummarySource).toContain('hasPreDialogueEmotionalClosureCue')
     expect(transportSummarySource).toContain('hasPreDialogueReasonPreview')
     expect(transportSummarySource).toContain('hasPreDialogueContinuitySummary')
-    expect(transportSummarySource).toContain('hasPreDialogueSameHerSelfLine')
-    expect(transportSummarySource).toContain('hasPreDialogueSameHerDriftRisk')
-    expect(transportSummarySource).toContain('hasPreDialogueSameHerHoldDetail')
+    expect(transportSummarySource).toContain('hasPreDialogueContinuityAnchor')
+    expect(transportSummarySource).toContain('hasPreDialogueContinuityDriftRisk')
+    expect(transportSummarySource).toContain('hasPreDialogueContinuityHoldDetail')
   })
 
   it('requires every current pre-dialogue transport boundary to stay explicitly mirrored into chat-entry governance so send-identity seams cannot drift into a side registry', () => {

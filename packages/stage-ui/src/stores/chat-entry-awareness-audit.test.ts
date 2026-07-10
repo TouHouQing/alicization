@@ -195,9 +195,9 @@ describe('chat entry awareness audit', () => {
     expect(transportSource).toContain('hasPreDialoguePrimaryOpenLoop')
     expect(transportSource).toContain('hasPreDialogueNextClosureTarget')
     expect(transportSource).toContain('hasPreDialogueContinuitySummary')
-    expect(transportSource).toContain('hasPreDialogueSameHerSelfLine')
-    expect(transportSource).toContain('hasPreDialogueSameHerDriftRisk')
-    expect(transportSource).toContain('hasPreDialogueSameHerHoldDetail')
+    expect(transportSource).toContain('hasPreDialogueContinuityAnchor')
+    expect(transportSource).toContain('hasPreDialogueContinuityDriftRisk')
+    expect(transportSource).toContain('hasPreDialogueContinuityHoldDetail')
     expect(transportSource).toContain('preDialogueSendIdentity?.projectState')
   })
 
@@ -257,11 +257,12 @@ describe('chat entry awareness audit', () => {
     expect(source).toContain('projectStateContinuitySnapshot: effectiveProjectStateContinuitySnapshot')
     expect(source).toContain('preDialogueAwarenessSnapshot: effectivePreDialogueAwarenessSnapshot')
     expect(source).toContain('continuitySummary: normalizedContinuity?.continuitySummary ?? null')
-    expect(source).toContain('latestProgress?: string | null')
-    expect(source).toContain('landedProgressSummary?: string | null')
-    expect(source).toContain('normalizedContinuity.landedProgressSummary')
-    expect(source).toContain('.find(value => value.length > 0) ?? null')
-    expect(source).toContain('sameHerDriftRisk?: string | null')
+    expect(source).toContain('latestLandedProgress: effectiveProjectStateContinuitySnapshot.latestLandedProgress')
+    expect(source).toContain('projectStateAudit?.landedProgressSummary')
+    expect(source).toContain('const strongerLatestLandedProgress')
+    expect(source).toContain('?? normalizedLatestLandedProgress')
+    expect(source).toContain('sameHerDriftRiskSummary?: unknown')
+    expect(source).toContain('const strongerSameHerDriftRisk')
     expect(source).toContain('sameHerDriftRisk: effectiveProjectStateContinuitySnapshot.sameHerDriftRisk ?? null')
   })
 
@@ -292,16 +293,10 @@ describe('chat entry awareness audit', () => {
     expect(sendIdentitySource).toContain('latestProgress?.trim()')
     expect(sendIdentitySource).toContain('landedProgressSummary?.trim()')
     expect(sendIdentityTestSource).toContain(
-      'keeps legacy latestProgress alive as landed progress when explicit renderer voice/page entries build send identity from inspector snapshots',
-    )
-    expect(sendIdentityTestSource).toContain(
-      'keeps audit-style landedProgressSummary alive as landed progress when explicit renderer voice/page entries build send identity from inspector snapshots',
+      'keeps inspector snapshot legacy progress while excluding fixed-template residue',
     )
     expect(sendIdentityTestSource).toContain(
       'Legacy inspector continuity progress already survives into explicit voice/page send identity.',
-    )
-    expect(sendIdentityTestSource).toContain(
-      'Audit-style inspector continuity progress already survives into explicit voice/page send identity.',
     )
   })
 

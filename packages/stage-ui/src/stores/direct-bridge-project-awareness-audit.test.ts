@@ -78,9 +78,9 @@ const proofRows = [
       'hasPreDialoguePrimaryOpenLoop: true',
       'hasPreDialogueNextClosureTarget: true',
       'hasPreDialogueContinuitySummary: true',
-      'hasPreDialogueSameHerSelfLine: true',
-      'hasPreDialogueSameHerDriftRisk: true',
-      'hasPreDialogueSameHerHoldDetail: true',
+      'hasPreDialogueContinuityAnchor: true',
+      'hasPreDialogueContinuityDriftRisk: true',
+      'hasPreDialogueContinuityHoldDetail: true',
     ],
   },
 ] as const
@@ -147,8 +147,8 @@ describe('direct bridge project awareness audit', () => {
     expect(transportSource).toContain('hasPreDialoguePrimaryOpenLoop')
     expect(transportSource).toContain('hasPreDialogueNextClosureTarget')
     expect(transportSource).toContain('hasPreDialogueContinuitySummary')
-    expect(transportSource).toContain('hasPreDialogueSameHerSelfLine')
-    expect(transportSource).toContain('hasPreDialogueSameHerDriftRisk')
-    expect(transportSource).toContain('hasPreDialogueSameHerHoldDetail')
+    expect(transportSource).toContain('hasPreDialogueContinuityAnchor')
+    expect(transportSource).toContain('hasPreDialogueContinuityDriftRisk')
+    expect(transportSource).toContain('hasPreDialogueContinuityHoldDetail')
   })
 })

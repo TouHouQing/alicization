@@ -357,16 +357,16 @@ export function summarizeAlicizationChatStartPayloadForTransport(payload: Aliciz
   const hasPreDialogueContinuitySummary = hasPreDialogueProjectState
     && typeof preDialogueSendIdentity?.projectState?.continuitySummary === 'string'
     && preDialogueSendIdentity.projectState.continuitySummary.trim().length > 0
-  const hasPreDialogueSameHerSelfLine = hasPreDialogueProjectState
+  const hasPreDialogueContinuityAnchor = hasPreDialogueProjectState
     && typeof preDialogueSendIdentity?.projectState?.sameHerSelfLine === 'string'
     && preDialogueSendIdentity.projectState.sameHerSelfLine.trim().length > 0
-  const hasPreDialogueSameHerDriftRisk = hasPreDialogueProjectState
+  const hasPreDialogueContinuityDriftRisk = hasPreDialogueProjectState
     && typeof preDialogueSendIdentity?.projectState?.sameHerDriftRisk === 'string'
     && preDialogueSendIdentity.projectState.sameHerDriftRisk.trim().length > 0
-  const hasPreDialogueSameHerHoldDetail = hasPreDialogueProjectState
+  const hasPreDialogueContinuityHoldDetail = hasPreDialogueProjectState
     && typeof preDialogueSendIdentity?.projectState?.sameHerHoldDetail === 'string'
     && preDialogueSendIdentity.projectState.sameHerHoldDetail.trim().length > 0
-  const hasPreDialogueProactiveSameHerGap = hasPreDialogueProjectState
+  const hasPreDialogueProactiveContinuityGap = hasPreDialogueProjectState
     && typeof preDialogueSendIdentity?.projectState?.proactiveSameHerGap === 'string'
     && preDialogueSendIdentity.projectState.proactiveSameHerGap.trim().length > 0
   return {
@@ -387,10 +387,10 @@ export function summarizeAlicizationChatStartPayloadForTransport(payload: Aliciz
     hasPreDialoguePrimaryOpenLoop,
     hasPreDialogueNextClosureTarget,
     hasPreDialogueContinuitySummary,
-    hasPreDialogueSameHerSelfLine,
-    hasPreDialogueSameHerDriftRisk,
-    hasPreDialogueSameHerHoldDetail,
-    hasPreDialogueProactiveSameHerGap,
+    hasPreDialogueContinuityAnchor,
+    hasPreDialogueContinuityDriftRisk,
+    hasPreDialogueContinuityHoldDetail,
+    hasPreDialogueProactiveContinuityGap,
     messageSchema: payload.messages.map(message => ({
       role: message.role,
       contentKind: describeContentKind(message.content),

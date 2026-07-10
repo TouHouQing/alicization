@@ -53,18 +53,18 @@ const proofRows = [
       'hasPreDialoguePrimaryOpenLoop: true',
       'hasPreDialogueNextClosureTarget: true',
       'hasPreDialogueContinuitySummary: true',
-      'hasPreDialogueSameHerSelfLine: true',
-      'hasPreDialogueSameHerDriftRisk: true',
-      'hasPreDialogueSameHerHoldDetail: true',
+      'hasPreDialogueContinuityAnchor: true',
+      'hasPreDialogueContinuityDriftRisk: true',
+      'hasPreDialogueContinuityHoldDetail: true',
     ],
   },
   {
-    entry: 'transport-sanitization-preserves-body-led-same-her-carry',
+    entry: 'transport-sanitization-drops-body-led-fixed-carry',
     file: '../../../shared/alicization-chat-transport.test.ts',
     snippets: [
-      'preserves body-face-motion same-her send identity and remaining-open lipsync voice carry through transport sanitization',
-      'companionHeadlineLine: \'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.\'',
-      'companionNextClosureLine: \'Let lipsync and voice rejoin the already-reformed body, face, and motion line.\'',
+      'drops body-face-motion fixed send identity while preserving remaining-open transport evidence',
+      'companionHeadlineLine: null',
+      '\'remaining-open=lipsync+voice\'',
     ],
   },
   {
@@ -103,13 +103,13 @@ const proofRows = [
 ] as const
 
 describe('pre-dialogue transport project awareness audit', () => {
-  it('keeps one explicit route-level proof that outbound pre-dialogue transport preserves same-her project awareness across renderer send, transport sanitization, and bridge forwarding', () => {
+  it('keeps one explicit route-level proof that outbound pre-dialogue transport preserves continuity awareness across renderer send, transport sanitization, and bridge forwarding', () => {
     expect(proofRows).toEqual([
       expect.objectContaining({ entry: 'renderer-send-identity-materialization' }),
       expect.objectContaining({ entry: 'renderer-send-preserves-stronger-same-her-headline' }),
       expect.objectContaining({ entry: 'transport-sanitization-preserves-project-triad' }),
       expect.objectContaining({ entry: 'transport-summary-preserves-project-state-closure-signals' }),
-      expect.objectContaining({ entry: 'transport-sanitization-preserves-body-led-same-her-carry' }),
+      expect.objectContaining({ entry: 'transport-sanitization-drops-body-led-fixed-carry' }),
       expect.objectContaining({ entry: 'context-bridge-server-event-forwarding' }),
       expect.objectContaining({ entry: 'context-bridge-remote-observer-forwarding' }),
       expect.objectContaining({ entry: 'browser-server-stream-proxy-preserves-awareness-carry' }),
@@ -127,7 +127,7 @@ describe('pre-dialogue transport project awareness audit', () => {
     }
   })
 
-  it('makes this boundary explicit: current outbound transport routes now have dedicated same-her proof, while future new dialogue entrypoints still remain open', () => {
+  it('makes this boundary explicit: current outbound transport routes now have dedicated continuity proof, while future new dialogue entrypoints still remain open', () => {
     const matrixSource = readFileSync(new URL('../../../../../../docs/pre-dialogue-project-awareness-matrix.md', import.meta.url), 'utf8')
     const transportSource = readFileSync(new URL('../../../shared/alicization-chat-transport.test.ts', import.meta.url), 'utf8')
     const composerSource = readFileSync(new URL('../../../../../../packages/stage-ui/src/stores/chat/text-composer-store.test.ts', import.meta.url), 'utf8')
@@ -139,7 +139,7 @@ describe('pre-dialogue transport project awareness audit', () => {
     expect(matrixSource).toContain('Long-run proof is still incomplete')
     expect(matrixSource).toContain('pre-dialogue-transport-project-awareness-audit.test.ts')
     expect(transportSource).toContain(
-      'preserves body-face-motion same-her send identity and remaining-open lipsync voice carry through transport sanitization',
+      'drops body-face-motion fixed send identity while preserving remaining-open transport evidence',
     )
     expect(composerSource).toContain(
       'preserves a stronger same-her companion headline from awareness carry even when no closure snapshot is available yet',
@@ -155,7 +155,7 @@ describe('pre-dialogue transport project awareness audit', () => {
     expect(directBridgeSource).toContain('hasPreDialogueSummaryLine: true')
     expect(directBridgeSource).toContain('hasPreDialogueNextClosureTarget: true')
     expect(directBridgeSource).toContain('hasPreDialogueContinuitySummary: true')
-    expect(directBridgeSource).toContain('hasPreDialogueSameHerDriftRisk: true')
+    expect(directBridgeSource).toContain('hasPreDialogueContinuityDriftRisk: true')
     expect(directBridgeSource).toContain('hasPreDialogueCompanionHeadlineLine: true')
     expect(directBridgeSource).toContain('hasPreDialogueEmotionalClosureCue: true')
   })
