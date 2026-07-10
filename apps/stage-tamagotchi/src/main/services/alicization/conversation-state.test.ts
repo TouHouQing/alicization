@@ -657,8 +657,8 @@ describe('buildConversationState', () => {
       },
     })
 
-    expect(state?.owedRepair).toBe('Keep the same-her repair line active instead of reopening from temporary noise.')
-    expect(state?.memoryQueryHints.join(' | ')).toContain('Keep the same-her repair line active')
+    expect(state?.owedRepair).toBeNull()
+    expect(state?.memoryQueryHints.join(' | ')).not.toContain('same-her repair line')
     expect(state?.memoryQueryHints.join(' | ')).not.toContain('Do not reopen from the temporary wobble')
   })
 })

@@ -290,9 +290,9 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
       .join(' ')
       .toLowerCase()
 
-    const explicitSameHerInwardCarry = proactiveReasonCodes.some(code => typeof code === 'string' && code.toLowerCase() === 'same-her-inward-carry')
-      || residentReasonTags.some(tag => typeof tag === 'string' && tag.toLowerCase() === 'same-her-inward-carry')
-    const inwardSelfContinuity = /same-her-inward-carry|self-continuity|same living line|same living self|nearby-soft|quiet companionship|quiet-companionship/.test(combined)
+    const explicitSameHerInwardCarry = proactiveReasonCodes.some(code => typeof code === 'string' && code.toLowerCase() === 'continuity-inward-carry')
+      || residentReasonTags.some(tag => typeof tag === 'string' && tag.toLowerCase() === 'continuity-inward-carry')
+    const inwardSelfContinuity = /continuity-inward-carry|self-continuity|continuity line|same living self|nearby-soft|quiet companionship|quiet-companionship/.test(combined)
 
     return {
       explicitSameHerInwardCarry,
@@ -375,7 +375,7 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
         ...(executionLearning.executionCarry ? ['execution-callback-carry'] : []),
         ...(executionLearning.needsRoom ? ['callback-lower-pressure'] : []),
         ...(executionLearning.trustWarming ? ['callback-trust-warming'] : []),
-        ...(sameHerInwardCarry ? ['same-her-inward-carry'] : []),
+        ...(sameHerInwardCarry ? ['continuity-inward-carry'] : []),
         ...(memoryLearning.shouldStayInward ? ['memory-inward-carry'] : []),
         ...(memoryLearning.shouldDelayUntilAfterPayoff ? ['memory-delay-after-payoff'] : []),
         ...(memoryLearning.stableCoreOnly ? ['memory-stable-core-only'] : []),

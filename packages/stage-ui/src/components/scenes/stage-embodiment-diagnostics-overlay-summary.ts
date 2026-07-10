@@ -111,7 +111,7 @@ function buildExplicitSameHerContinuitySurface(input: {
     signature,
     ...reasonTags,
   ].filter((value): value is string =>
-    value === 'embodiment:audible-same-her-line'
+    value === 'embodiment:audible-continuity-line'
     || value === 'embodiment:body+voice-only'
     || value === 'embodiment:body-lipsync-voice-rejoin',
   )

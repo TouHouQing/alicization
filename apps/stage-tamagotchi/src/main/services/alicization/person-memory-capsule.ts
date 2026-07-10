@@ -1,6 +1,11 @@
 import type { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
+import {
+  alicizationFixedTemplateReplacement,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+
 type MemoryTurnArtifact = ReturnType<typeof buildAlicizationMemoryTurnArtifact>
 
 export interface AlicizationPersonMemoryCapsule {
@@ -83,7 +88,9 @@ export interface AlicizationPersonMemoryCapsule {
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
-  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  const sanitized = sanitizeAlicizationProviderFacingText(normalized, maxChars)
+  return sanitized === alicizationFixedTemplateReplacement ? '' : sanitized
 }
 
 function uniqueList(values: Array<string | null | undefined>, maxItems = 5, maxChars = 180) {
@@ -126,10 +133,7 @@ export function shouldUseCompactPersonMemoryCapsuleOnly(
 function pickIdentityLine(context: OrganicMemoryPromptContext) {
   return uniqueList([
     context.personStateProjection?.selfContinuityAuthority?.selfLine ?? null,
-    context.projectStateContinuity?.sameHerSelfLine ?? null,
     context.personStateProjection?.selfContinuityAuthority?.authoritySummary ?? null,
-    context.projectStateContinuity?.sameHerSummary ?? null,
-    context.projectStateContinuity?.identity ?? null,
   ], 1, 180)[0] ?? null
 }
 
@@ -149,7 +153,6 @@ function pickRelationshipLine(context: OrganicMemoryPromptContext) {
 function pickOpeningLine(context: OrganicMemoryPromptContext) {
   return uniqueList([
     context.personStateProjection?.openingGuidance ?? null,
-    context.projectStateContinuity?.preDialogueAwarenessLine ?? null,
     context.selfEvolution?.dominantTrajectory ?? null,
   ], 1, 200)[0] ?? null
 }

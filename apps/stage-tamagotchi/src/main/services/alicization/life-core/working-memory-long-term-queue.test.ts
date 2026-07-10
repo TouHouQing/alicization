@@ -87,4 +87,40 @@ describe('working memory long-term candidate queue', () => {
 
     expect(buildWorkingMemoryLongTermCandidateQueue(snapshot)).toEqual([])
   })
+
+  it('does not copy quoted fixed-template residue into queue summaries or evidence', () => {
+    const snapshot = createEmptyWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-template-rejection',
+      now: 3000,
+    })
+    snapshot.recentRawTurns = [
+      normalizeWorkingMemoryTurn({
+        turnId: 'turn-template-rejection:user',
+        role: 'user',
+        text: '不要再用 Before speaking, remember this is still one continuous her 这种 same-her 固定模板。',
+        createdAt: 2800,
+        source: 'conversation-turn',
+        visibility: 'user-visible',
+        importance: 0.9,
+      }),
+    ]
+    snapshot.longTermCandidates = [{
+      sourceTurnIds: ['turn-template-rejection:user'],
+      kind: 'correction',
+      summary: '不要使用固定模板；用户反对模板化人格回复。',
+      reason: 'User corrected Alicization behavior without approving the quoted template.',
+      salience: 0.82,
+      sensitivity: 'personal',
+      confidence: 0.78,
+      allowTraining: false,
+    }]
+
+    const queue = buildWorkingMemoryLongTermCandidateQueue(snapshot)
+
+    expect(queue).toHaveLength(1)
+    const serialized = JSON.stringify(queue[0])
+    expect(serialized).not.toMatch(/Before speaking|same-her|one continuous her/u)
+    expect(queue[0]?.evidenceSnippets).toEqual(['content=excluded; reason=continuity-residue; visibility=internal-structured'])
+  })
 })

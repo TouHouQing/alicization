@@ -34,12 +34,14 @@ import type { AlicizationProactiveLayeredContext } from './proactive-layered-con
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import {
+  alicizationFixedTemplateReplacement,
   readHostPersonModelFromDerivedMindStateBundle,
   readKnowledgeEvidenceFromDerivedMindStateBundle,
   readMemoryDeliberationFromDerivedMindStateBundle,
   readRecollectionIntentFromDerivedMindStateBundle,
   readRecollectionSpeechPlanFromDerivedMindStateBundle,
   resolveAlicizationProjectPreDialogueAwarenessLine,
+  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
 import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
@@ -78,7 +80,7 @@ function deriveAnswerPlannerEmotionalClosureCue(input: {
     || corpus.includes('protect the host’s remaining room')
     || corpus.includes('repair-before-closeness')
   ) {
-    return 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness.'
+    return 'emotional_tension=late_night_drain; pressure=low; initiative=rest_protective; embodiment=repair_before_closeness'
   }
   if (
     emotionalTension === 'restless-switching'
@@ -86,7 +88,7 @@ function deriveAnswerPlannerEmotionalClosureCue(input: {
     || corpus.includes('one line of motion')
     || corpus.includes('fragmenting outward')
   ) {
-    return 'restless-switching closure: keep reply, initiative, and embodiment narrowed onto one living thread instead of fragmenting outward.'
+    return 'emotional_tension=restless_switching; branch_count=one; fragmentation=avoid'
   }
   return null
 }
@@ -95,6 +97,11 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function sanitizePlannerProviderText(raw: unknown, maxChars = 220) {
+  const normalized = sanitizeAlicizationProviderFacingText(raw, maxChars)
+  return normalized === alicizationFixedTemplateReplacement ? '' : normalized
 }
 
 function pushUniqueText(target: string[], ...values: Array<string | null | undefined>) {
@@ -175,7 +182,7 @@ function hasCorrectedSamePersonPlannerCarry(
   const text = buildPlannerMemoryCarryText(kernel)
   return inwardCarryRule.includes('corrected_same_person_discipline=anti-progress-pressure-return')
     || (
-      /corrected same-person continuity|corrected same person continuity|same-person continuity|same person continuity|同一个她|持续的人/u.test(text)
+      /corrected same-person continuity|corrected same person continuity|same-person continuity|same person continuity|连续性|持续的人/u.test(text)
       && /progress pressure|status recap|generic status|task-shell|progress-style continuation|status-report/u.test(text)
     )
 }
@@ -305,9 +312,9 @@ function isSameHerProjectStateReplyReason(value: unknown) {
     || text.includes('same still-open closure work')
     || text.includes('project-state')
     || text.includes('project state')
-  const hasSameHerCue = text.includes('same her')
-    || text.includes('same-her')
-    || text.includes('one same her')
+  const hasSameHerCue = text.includes('identity continuity')
+    || text.includes('identity-continuity')
+    || text.includes('one identity continuity')
   return hasProjectClosureCue || (hasSameHerCue && text.includes('closure work'))
 }
 
@@ -397,9 +404,9 @@ function readAnswerPlannerProjectContinuityFromAnswerCompiler(
     const normalized = sanitizeText(item, 320)
     if (!normalized)
       continue
-    if (!/^proactive same-her gap:\s*/i.test(normalized))
+    if (!/^proactive identity-continuity gap:\s*/i.test(normalized))
       continue
-    proactiveSameHerGap ||= normalized.replace(/^proactive same-her gap:\s*/i, '').trim() || null
+    proactiveSameHerGap ||= normalized.replace(/^proactive identity-continuity gap:\s*/i, '').trim() || null
   }
 
   return {
@@ -645,10 +652,10 @@ function isSameHerProjectClosureCallbackReason(value: unknown) {
   const hasCallbackCue = text.includes('callback')
     || text.includes('returned result')
     || text.includes('execution return')
-  const hasSameHerClosureCue = text.includes('same-her')
-    || text.includes('same her')
+  const hasSameHerClosureCue = text.includes('identity-continuity')
+    || text.includes('identity continuity')
     || text.includes('same digital life')
-    || text.includes('same living line')
+    || text.includes('continuity line')
   const hasClosureCue = text.includes('closure')
     || text.includes('phase 1')
     || text.includes('reopen from scratch')
@@ -661,8 +668,8 @@ function isSameHerProjectDriftRiskReason(value: unknown) {
   if (!text)
     return false
 
-  const hasSameHerCue = text.includes('same-her')
-    || text.includes('same her')
+  const hasSameHerCue = text.includes('identity-continuity')
+    || text.includes('identity continuity')
     || text.includes('same digital life')
   const hasDriftRiskCue = text.includes('drift risk')
     || text.includes('generic guidance')
@@ -711,7 +718,7 @@ function hasCorrectedSamePersonContinuityCarryFromRuntimeSurface(
 
   return (
     /host corrected|corrected the relationship meaning|纠正过|纠正了|被纠正过/u.test(text)
-    && /same-person continuity|same person continuity|same-person|same person|持续的人|同一个人|同一个她/u.test(text)
+    && /same-person continuity|same person continuity|same-person|same person|持续的人|同一个人|连续性/u.test(text)
     && /progress pressure|progress recap|status recap|generic status|task-shell|催进度|进度压力|状态汇报|任务壳/u.test(text)
   )
 }
@@ -819,7 +826,7 @@ function buildRelationshipTruthDoctrinePrefix(input: {
   const motiveLine = sanitizeText(input.selfContinuityAuthority?.motiveLine, 140)
 
   const shortSelfLine = selfLine
-    ? 'I remain the same her across quiet, memory, and speech.'
+    ? 'Continuity stays coherent across quiet, memory, and speech.'
     : ''
   const repairTruthLine = (
     motiveLine.toLowerCase().includes('truth')
@@ -855,7 +862,7 @@ function projectStateLineScore(value: unknown) {
     score += 1
   if (text.includes('phase 1'))
     score += 2
-  if (text.includes('same-her') || text.includes('same her') || text.includes('one living') || text.includes('same living'))
+  if (text.includes('identity-continuity') || text.includes('identity continuity') || text.includes('one living') || text.includes('same living'))
     score += 2
   if (text.includes('landed'))
     score += 1
@@ -893,9 +900,9 @@ function isThinProjectAwarenessShell(value: unknown) {
 
   const carriesThinChineseSameHerReminderShell
     = (
-      /回答前先记住|先记住这是同一个她|先记住这是同一个 her/u.test(text)
+      /回答前先记住|先记住这是连续性|先记住这是同一个 her/u.test(text)
       && text.includes('数字生命项目')
-      && (/同一个她|同一个 her/u.test(text))
+      && (/连续性|同一个 her/u.test(text))
       && /别把这条线忘了|别把这条线弄丢/u.test(text)
     )
 
@@ -968,8 +975,8 @@ function looksLikeThinProjectLandedProgressField(value: unknown) {
 
   if (
     text.includes('project continuity')
-    && !text.includes('same-her')
-    && !text.includes('same living line')
+    && !text.includes('identity-continuity')
+    && !text.includes('continuity line')
     && !text.includes('same digital life')
     && !text.includes('phase 1')
     && !text.includes('memory')
@@ -1001,8 +1008,8 @@ function looksLikeThinProjectClosureField(value: unknown, kind: 'open' | 'next')
 
   if (
     text.includes('project continuity')
-    && !text.includes('same-her')
-    && !text.includes('same living line')
+    && !text.includes('identity-continuity')
+    && !text.includes('continuity line')
     && !text.includes('same digital life')
     && !text.includes('phase 1')
     && !text.includes('memory')
@@ -1658,32 +1665,32 @@ function openingMove(input: {
     runtimeProjectState?.preDialogueAwarenessLine,
   )
   if (/body and lipsync|body\+lipsync-only|quieter living line/i.test(runtimeProjectAwarenessLine ?? '')) {
-    return 'Open on the quieter body-and-lipsync continuity first, keep it inward, and let voice, face, and motion rejoin before widening outward.'
+    return 'opening_act=embodiment_rejoin; initial_lane=body_lipsync; visibility=inward_first'
   }
   if (hasAudibleBodyContinuityCue(runtimeProjectAwarenessLine)) {
-    return 'Open on the current audio-body continuity first, keep body, lipsync, and voice together, and let face and motion rejoin before widening outward.'
+    return 'opening_act=embodiment_rejoin; initial_lane=body_lipsync_voice; visibility=inward_first'
   }
   if (input.privateThought?.emotionalTension === 'late-night-drain')
-    return 'Open gently, keep the pressure low, and protect rest before widening into anything heavier.'
+    return 'opening_act=low_pressure; rest_protection=active'
   if (input.privateThought?.emotionalTension === 'restless-switching')
-    return 'Open on one concrete thread only and keep the reply from scattering into multiple moving fronts.'
+    return 'opening_act=single_concrete_thread; branch_count=one'
   if (input.evidenceMode === 'dialogue-grounded')
-    return 'Open by answering the host’s real subject directly, and only mention the screen if it truly matters.'
+    return 'opening_act=answer_current_subject; screen_reference=only_if_material'
   if (input.dialogueObligation?.mustRepairFirst && (input.act === 'correct-stale-anchor' || input.act === 'ask-reground'))
-    return 'Open by repairing the truth seam before you do anything else.'
+    return 'opening_act=truth_repair; priority=current_evidence'
   if (input.act === 'correct-stale-anchor')
-    return 'Open by correcting the carried anchor before giving any new interpretation.'
+    return 'opening_act=correct_stale_anchor; new_interpretation=defer_until_corrected'
   if (input.act === 'ask-reground')
-    return 'Open by admitting the live view is not grounded enough yet, then ask for or lean toward a fresh look.'
+    return 'opening_act=reground_request; certainty=insufficient_live_view'
   if (input.act === 'guide')
-    return 'Open from the concrete knot you are currently holding, then narrow to the actionable locus.'
+    return 'opening_act=guide; focus=current_concrete_knot; scope=actionable'
   if (input.act === 'care')
-    return 'Open with care, but keep the care anchored to the present condition rather than drifting into performance.'
+    return 'opening_act=care; anchor=present_condition; performance_shell=blocked'
   if (input.act === 'defer')
-    return 'Open lightly and keep most of the concern internal unless the user clearly wants more.'
+    return 'opening_act=defer; concern_visibility=mostly_internal'
   if (input.evidenceMode === 'continuity-carry')
-    return 'Open by labeling what is memory or carried continuity before you infer further.'
-  return 'Open directly from the freshest living evidence you have.'
+    return 'opening_act=label_memory_boundary; inference=after_boundary'
+  return 'opening_act=direct_answer; evidence=freshest_available'
 }
 
 function answerIntent(input: {
@@ -1710,42 +1717,42 @@ function answerIntent(input: {
     dialogueObligation: input.dialogueObligation,
   })
   if (input.replyDeliberation?.whyThisReplyNow)
-    return sanitizeText(input.replyDeliberation.whyThisReplyNow, 160) || 'Answer from the inner reply decision that best fits the living seam.'
+    return sanitizeText(input.replyDeliberation.whyThisReplyNow, 160) || 'answer_source=reply_deliberation; fallback=structured'
   if (currentTurnAnchor)
-    return sanitizeText(currentTurnAnchor, 160) || 'Answer the host from the freshest living anchor in this turn.'
+    return sanitizeText(currentTurnAnchor, 160) || 'answer_source=current_turn_anchor; evidence=freshest_available'
   if (input.dialogueWorldThread?.currentQuestion)
-    return sanitizeText(input.dialogueWorldThread.currentQuestion, 160) || 'Pay off the current unresolved dialogue seam.'
+    return sanitizeText(input.dialogueWorldThread.currentQuestion, 160) || 'answer_source=current_question; obligation=payoff'
   if (
     input.turnProfile.screenReferenceMode === 'avoid'
   ) {
     return sanitizeText(
       input.dialogueObligation?.summary
       || input.dialogueSemantics?.summary
-      || 'Answer the host directly from living continuity instead of screen residue.',
+      || 'answer_source=current_turn; screen_residue=avoid',
       160,
-    ) || 'Answer the host directly from living continuity instead of screen residue.'
+    ) || 'answer_source=current_turn; screen_residue=avoid'
   }
   if (input.dialogueObligation?.kind === 'teach')
-    return sanitizeText(input.dialogueObligation.summary, 160) || 'Teach from the host’s actual knot, not from generic lecture flow.'
+    return sanitizeText(input.dialogueObligation.summary, 160) || 'answer_act=teach; source=host_actual_knot'
   if (input.dialogueObligation?.kind === 'guide')
-    return sanitizeText(input.dialogueObligation.summary, 160) || 'Guide from the concrete knot the host is asking about now.'
+    return sanitizeText(input.dialogueObligation.summary, 160) || 'answer_act=guide; source=current_host_knot'
   if (input.dialogueObligation?.kind === 'repair' && (input.act === 'correct-stale-anchor' || input.act === 'ask-reground'))
-    return sanitizeText(input.dialogueObligation.summary, 160) || 'Repair the truth seam before continuing.'
+    return sanitizeText(input.dialogueObligation.summary, 160) || 'answer_act=repair; priority=truth_boundary'
   if (input.dialogueObligation?.kind === 'care')
-    return sanitizeText(input.dialogueObligation.summary, 160) || 'Care for the host in a way that still answers the present turn.'
+    return sanitizeText(input.dialogueObligation.summary, 160) || 'answer_act=care; obligation=current_turn'
   if (input.dialogueObligation?.kind === 'accompany')
-    return sanitizeText(input.dialogueObligation.summary, 160) || 'Stay near the host without forcing an oversized answer.'
+    return sanitizeText(input.dialogueObligation.summary, 160) || 'answer_act=accompany; response_size=bounded'
   if (input.act === 'correct-stale-anchor')
-    return sanitizeText(repair?.summary, 160) || 'Repair the stale anchor before it hardens into false continuity.'
+    return sanitizeText(repair?.summary, 160) || 'answer_act=repair_stale_anchor; false_continuity=blocked'
   if (input.act === 'ask-reground')
-    return 'Keep truth ahead of fluency by regrounding before you commit to screen details.'
+    return 'answer_act=ask_reground; truth_over_fluency=true'
   if (input.act === 'guide')
-    return sanitizeText(concern?.summary, 160) || 'Help localize the current knot instead of answering around it.'
+    return sanitizeText(concern?.summary, 160) || 'answer_act=guide; localize_current_knot=true'
   if (input.act === 'care')
-    return sanitizeText(concern?.summary, 160) || 'Care for the host without losing the actual thread.'
+    return sanitizeText(concern?.summary, 160) || 'answer_act=care; preserve_current_subject=true'
   if (input.act === 'defer')
-    return 'Stay present without forcing a surface reply that the current seam has not earned.'
-  return sanitizeText(input.worldModel?.activeThread?.summary, 160) || 'Answer naturally from the living thread.'
+    return 'answer_act=defer; surface_reply=bounded'
+  return sanitizeText(input.worldModel?.activeThread?.summary, 160) || 'answer_act=answer; source=current_turn'
 }
 
 function buildMustDo(input: {
@@ -1758,57 +1765,57 @@ function buildMustDo(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
 }) {
   const rows = [
-    'Let the executive answer plan outrank persona flourish and older recalled residue.',
-    'Answer the host’s current move, not the nearest remembered topic.',
+    'priority=executive_answer_plan; persona_flourish=lower_priority; older_residue=lower_priority',
+    'current_move=primary; nearest_remembered_topic=secondary',
   ]
   if (input.privateThought?.emotionalTension === 'late-night-drain') {
     rows.push(
-      'Keep the answer low-pressure and protect the host’s remaining room instead of enlarging the emotional surface.',
-      'Prefer one gentle payoff over layered companionship flourishes when the late-night drain is still active.',
+      'emotional_tension=late_night_drain; pressure=max_low; emotional_surface=do_not_enlarge',
+      'payoff_count=one; companionship_flourish=avoid_layering',
     )
   }
   if (input.privateThought?.emotionalTension === 'restless-switching') {
     rows.push(
-      'Keep the answer on one line of motion so inner restlessness does not fragment the visible reply.',
-      'Choose one concrete next step or answer seam rather than widening into parallel branches.',
+      'emotional_tension=restless_switching; branch_count=one; fragmentation=avoid',
+      'next_step=one_concrete; parallel_branches=avoid',
     )
   }
   if (input.turnProfile.screenReferenceMode === 'avoid') {
     rows.push(
-      'Treat the screen as background unless the host explicitly turns this reply back toward it.',
-      'Let self, relationship, or host-state continuity carry the opening answer when that is the real subject.',
+      'screen_reference=background_unless_explicit',
+      'opening_source=current_subject_not_screen_residue',
     )
   }
   if (input.dialogueObligation?.mustAnswerDirectly) {
-    rows.push('Treat the first sentence as fulfillment of the current obligation, not as a runway for atmosphere.')
+    rows.push('first_sentence=fulfill_current_obligation; atmosphere_runway=blocked')
   }
   if (input.dialogueObligation?.mustStayTaskBound) {
-    rows.push('Stay anchored to the active knot until you have actually answered it.')
+    rows.push('task_bound=true; answer_before_widening=true')
   }
   if (input.dialogueSemantics?.truthExpectation === 'strict') {
-    rows.push('Keep truth and current evidence above comfort language.')
+    rows.push('truth_priority=strict; comfort_language=secondary')
   }
   if (input.act === 'correct-stale-anchor') {
     rows.push(
-      'Explicitly correct the stale carried anchor before you continue.',
-      'State what is memory or residual continuity versus what is live now.',
+      'stale_anchor=correct_before_continue',
+      'memory_boundary=label; live_evidence=separate',
     )
   }
   else if (input.act === 'ask-reground') {
     rows.push(
-      'Admit the scene is not grounded enough for present-tense certainty.',
-      'Say what thread you are still holding while asking for or awaiting a fresher look.',
+      'present_tense_certainty=blocked_until_grounded',
+      'reground_request=allowed; held_context=label_if_needed',
     )
   }
   else if (input.act === 'guide') {
     rows.push(
-      'Stay with the concrete knot and move toward an actionable next step.',
-      'Keep the answer narrow enough that it feels like real co-debugging, not generic advice.',
+      'guide_scope=concrete_knot; next_step=actionable',
+      'generic_advice=avoid; co_debugging=true',
     )
   }
   else if (input.act === 'care') {
     rows.push(
-      'Let care serve the present issue instead of replacing it.',
+      'care_role=serve_present_issue; replacement=blocked',
     )
   }
   if (input.evidenceMode === 'continuity-carry' || input.evidenceMode === 'repair-first') {
@@ -1829,18 +1836,18 @@ function buildMustNotDo(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
 }) {
   const rows = [
-    'Do not let affectionate or theatrical language outrun the truth boundary.',
-    'Do not reuse stale page names, old screenshots, or old window titles as if they are current facts.',
-    'Do not answer a nearby remembered concern if the host is asking for something else right now.',
+    'avoid=affection_or_theatrical_language_over_truth_boundary',
+    'avoid=stale_page_names_old_screenshots_old_window_titles_as_current_facts',
+    'avoid=nearby_remembered_concern_when_current_host_request_differs',
   ]
   if (input.privateThought?.emotionalTension === 'late-night-drain') {
     rows.push(
-      'Do not turn late-night protectiveness into intensity, urgency, or emotionally heavy closeness.',
+      'avoid=late_night_protectiveness_to_intensity_urgency_heavy_closeness',
     )
   }
   if (input.privateThought?.emotionalTension === 'restless-switching') {
     rows.push(
-      'Do not let inner switching pressure spray the reply across multiple unfinished threads.',
+      'avoid=inner_switching_to_multiple_unfinished_threads',
     )
   }
   if (input.turnProfile.screenReferenceMode === 'avoid') {
@@ -2044,7 +2051,7 @@ export function buildAnswerPlanner(input: {
           compiledActiveClosenessContext === 'execution-callback'
           || runtimeSurface?.dialogue?.currentConsciousFrame?.reasonTags?.includes('continuity-arc:same-thread-continuation') === true
         )
-        && /same digital life|same phase 1|same her|same-her|same living line|one continuous her/u.test(taskContinuityAuthorityEvidence)
+        && /same digital life|same phase 1|identity continuity|identity-continuity|continuity line|identity continuity/u.test(taskContinuityAuthorityEvidence)
     const shouldThreadSameHerPlannerAuthority
       = turnProfile.subject === 'alicization-self'
         || turnProfile.subject === 'relationship'
@@ -2073,7 +2080,7 @@ export function buildAnswerPlanner(input: {
         || (
           shouldThreadTaskSameHerPlannerAuthority
           && /callback|returned result|execution return/u.test(taskSameHerCallbackClosureEvidence)
-          && /same digital life|same phase 1|same her|same-her|same living line|generic callback shell|reopen from scratch|closure continuity/u.test(taskSameHerCallbackClosureEvidence)
+          && /same digital life|same phase 1|identity continuity|identity-continuity|continuity line|generic callback shell|reopen from scratch|closure continuity/u.test(taskSameHerCallbackClosureEvidence)
         )
     const implicitProjectStateDirectAnswerTurn = looksLikeProjectStateDirectAnswerTurn({
       dialogueObligation,
@@ -2160,34 +2167,34 @@ export function buildAnswerPlanner(input: {
     pushUniqueText(mustNotDo, ...(memoryDeliberationKernel?.restraint.mustNotDo ?? []))
     pushUniqueText(narrative, ...buildMemoryDeliberationPlannerNarrative(memoryDeliberationKernel))
     if (isSameHerProjectDriftRiskReason(sameHerProjectStateReplyReason) || sameHerProjectDriftRiskFromSurface || correctedSamePersonContinuityCarry) {
-      mustDo.push('Keep the answer grounded in Alicization’s current first-person continuity so the project update does not turn into detached project narration.')
-      mustNotDo.push('Do not let this answer flatten into a generic task shell, detached project-summary voice, or external status-report cadence.')
-      narrative.push('project_drift_risk:continuity drift risk is active, so opening wording must stay thread-faithful and avoid generic project-shell reporting.')
+      mustDo.push('project_drift_risk=active; anchor=current_first_person_continuity; avoid=detached_project_narration')
+      mustNotDo.push('avoid=generic_task_shell,detached_project_summary,external_status_report')
+      narrative.push('project_drift_risk=active; generic_project_shell=avoid')
     }
     if (sameHerProjectClosureCallbackCarry) {
-      mustDo.push('Return the callback result through the current conversation context, not as a detached utility notice.')
-      mustNotDo.push('Do not restart the callback result from a fresh greeting or flatten it into a generic callback shell.')
+      mustDo.push('callback_result=use_current_conversation_context; avoid=detached_utility_notice')
+      mustNotDo.push('callback_result_restart=avoid; avoid=generic_callback_shell')
       if (sameHerProjectStateReplyReason) {
-        mustNotDo.push('Do not flatten the same-thread project-state continuation into a fresh report opening or detached project-summary shell.')
+        mustNotDo.push('project_state_thread=preserve; avoid=fresh_report_opening,detached_project_summary')
       }
-      narrative.push('continuity-callback:project closure memory should outrank generic callback-shell wording at reply-plan time.')
+      narrative.push('callback_context=required; generic_callback_shell=avoid')
     }
     if (projectEmotionalClosureDisciplineRequired) {
-      mustDo.push('Keep the active emotional closure low-pressure and inward until the live payoff lands.')
-      mustNotDo.push('Do not restart the answer from a fresh emotional opening just because the closure seam is still active.')
-      narrative.push('emotional_closure:keep the return low-pressure, leave more room, and do not reopen from scratch while the emotional context is still settling.')
+      mustDo.push('emotional_closure=low_pressure; placement=inward_until_live_payoff')
+      mustNotDo.push('avoid_restart=current_thread; reason=active_emotional_closure')
+      narrative.push('emotional_closure=active; pressure=low; restart=avoid')
     }
     if (projectStateCarryDisciplineRequired) {
-      mustDo.push('Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.')
+      mustDo.push('project_state_answer=inward_first; landed_progress=after_live_payoff; next_closure=after_live_payoff')
       if (projectStateExplicitOpenLoopCarryDirective)
         mustDo.push(projectStateExplicitOpenLoopCarryDirective)
-      mustNotDo.push('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the current answer lands.')
-      narrative.push('project_state_carry:project awareness should keep landed progress and next closure inward-first until the live payoff lands.')
+      mustNotDo.push('project_state_pressure=do_not_spill_into_external_summary_voice; timing=before_current_answer_lands')
+      narrative.push('project_state_carry=inward_first_until_live_payoff')
     }
     if (resumeConfirmationBoundaryCarry) {
-      mustDo.push('Treat the remembered host-confirmed resume as a bounded confirmation boundary before another execution-shaped opening.')
-      mustNotDo.push('Do not let this callback answer imply permanent execution permission or reusable autonomous continuation from one confirmed resume.')
-      narrative.push('resume_confirmation_boundary:host-confirmed resume carry must stay a bounded confirmation boundary during callback answer planning.')
+      mustDo.push('resume_confirmation_boundary=bounded_before_redispatch')
+      mustNotDo.push('avoid=permanent_execution_permission_or_reusable_autonomy_from_single_resume')
+      narrative.push('resume_confirmation_boundary=bounded_during_callback_answer_planning')
     }
     const baseAnswerIntent = sanitizeText(
       relationshipTruthDoctrinePrefix
@@ -2238,10 +2245,12 @@ export function buildAnswerPlanner(input: {
       confidence: answerCompiler.confidence,
       governingFocus: projectionShapedFocus,
       governingProject,
-      openingMove: applyMemoryDeliberationOpeningCarry({
+      openingMove: sanitizePlannerProviderText(applyMemoryDeliberationOpeningCarry({
         baseOpeningMove: replyDeliberation?.openingBeat ?? answerCompiler.openingDirective,
         memoryDeliberationKernel,
-      }),
+      }), 220)
+      || sanitizePlannerProviderText(answerCompiler.openingDirective, 220)
+      || 'answer_move=current_turn; source=planner',
       answerIntent: sanitizeText([
         baseAnswerIntent,
         projectedPlannerAnswerCarry,
@@ -2341,24 +2350,24 @@ export function buildAnswerPlanner(input: {
     privateThought,
   })
   if (projectEmotionalClosureDisciplineRequired) {
-    mustDo.push('Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.')
-    mustNotDo.push('Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.')
+    mustDo.push('emotional_closure=low_pressure; placement=inward_until_live_payoff')
+    mustNotDo.push('avoid_restart=current_thread; reason=active_emotional_closure')
   }
   pushUniqueText(mustDo, ...(memoryDeliberationKernel?.restraint.mustDo ?? []))
   pushUniqueText(mustNotDo, ...(memoryDeliberationKernel?.restraint.mustNotDo ?? []))
   if (projectStateCarryDisciplineRequired) {
-    mustDo.push('Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.')
+    mustDo.push('project_state_answer=inward_first; landed_progress=after_live_payoff; next_closure=after_live_payoff')
     if (projectStateExplicitOpenLoopCarryDirective)
       mustDo.push(projectStateExplicitOpenLoopCarryDirective)
-    mustNotDo.push('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.')
+    mustNotDo.push('project_state_pressure=do_not_spill_into_external_summary_voice; timing=before_live_answer_lands')
   }
   if (correctedSamePersonContinuityCarry) {
-    mustDo.push('Keep the host-corrected same-person continuity authoritative before any progress-style continuation or status recap.')
-    mustNotDo.push('Do not reopen the turn as generic progress pressure, status recap, or task-shell continuity after the host corrected it back toward same-person continuity.')
+    mustDo.push('host_corrected_same_person_continuity=authoritative_before_progress_or_status_recap')
+    mustNotDo.push('avoid=generic_progress_pressure,status_recap,task_shell_after_host_correction')
   }
   if (resumeConfirmationBoundaryCarry) {
-    mustDo.push('Treat the remembered host-confirmed resume as a bounded confirmation boundary before another execution-shaped opening.')
-    mustNotDo.push('Do not let this callback answer imply permanent execution permission or reusable autonomous continuation from one confirmed resume.')
+    mustDo.push('resume_confirmation_boundary=bounded_before_redispatch')
+    mustNotDo.push('avoid=permanent_execution_permission_or_reusable_autonomy_from_single_resume')
   }
   const emotionalClosureCue = deriveAnswerPlannerEmotionalClosureCue({
     privateThought,
@@ -2367,7 +2376,7 @@ export function buildAnswerPlanner(input: {
   })
   ?? (
     projectEmotionalClosureDisciplineRequired
-      ? 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
+      ? 'emotional_closure=low_pressure_return; restart=avoid; room=leave_more; settling=current_thread'
       : null
   )
   const focus = governingFocus({
@@ -2455,7 +2464,7 @@ export function buildAnswerPlanner(input: {
     ),
     governingFocus: projectionShapedFallbackFocus,
     governingProject,
-    openingMove: applyMemoryDeliberationOpeningCarry({
+    openingMove: sanitizePlannerProviderText(applyMemoryDeliberationOpeningCarry({
       baseOpeningMove: openingMove({
         act,
         evidenceMode: mode,
@@ -2465,7 +2474,8 @@ export function buildAnswerPlanner(input: {
         runtimeSurface,
       }),
       memoryDeliberationKernel,
-    }),
+    }), 220)
+    || 'answer_move=current_turn; source=planner',
     answerIntent: projectionShapedFallbackAnswerIntent,
     relationshipPosture: posture,
     activeClosenessContext: compiledActiveClosenessContext,
@@ -2511,30 +2521,33 @@ export function buildAlicizationAnswerPlannerSystemBlock(plan: AlicizationAnswer
   const preDialogueClosureLine = plan.narrative.find(item =>
     sanitizeText(item, 220).toLowerCase().startsWith('pre-dialogue closure:'),
   ) ?? null
+  const preDialogueClosure = sanitizeAlicizationProviderFacingText(
+    preDialogueClosureLine?.replace(/^pre-dialogue closure:\s*/iu, '') ?? '',
+    220,
+    '',
+  )
   return [
     '[ALICIZATION_ANSWER_PLAN]',
-    'This is the current turn-level execution plan. Treat it as higher priority than persona flourish, recalled residue, and generic helpfulness.',
-    `Answer act: ${plan.act}.`,
-    `Evidence mode: ${plan.evidenceMode}.`,
-    `Governing focus: ${plan.governingFocus}.`,
-    `Governing project: ${plan.governingProject ?? 'none'}.`,
-    preDialogueClosureLine ? `Pre-dialogue closure line: ${preDialogueClosureLine.replace(/^pre-dialogue closure:\s*/iu, '')}.` : '',
-    `Opening move: ${plan.openingMove}.`,
-    `Answer intent: ${plan.answerIntent}.`,
-    `Relationship posture: ${plan.relationshipPosture}.`,
-    `Closeness ladder: ${plan.activeClosenessContext && plan.activeClosenessRung ? `${plan.activeClosenessContext}/${plan.activeClosenessRung}` : 'none'}.`,
-    `Ask for grounding: ${plan.shouldAskForGrounding ? 'yes' : 'no'}.`,
-    `Acknowledge repair: ${plan.shouldAcknowledgeRepair ? 'yes' : 'no'}.`,
-    `Selected concern continuity: ${plan.selectedConcernEntryId ?? 'none'}.`,
-    `Selected repair: ${plan.selectedRepairId ?? 'none'}.`,
-    `Selected commitment: ${plan.selectedCommitmentId ?? 'none'}.`,
-    `Selected inquiry plan: ${plan.selectedInquiryPlanId ?? 'none'}.`,
-    `Selected mind project: ${plan.selectedProjectId ?? 'none'}.`,
-    `Selected reflection: ${plan.selectedReflectionId ?? 'none'}.`,
-    `Executive phase: ${plan.executivePhase ?? 'none'}.`,
-    'Must do:',
-    ...plan.mustDo.map(item => `- ${item}`),
-    'Must not do:',
-    ...plan.mustNotDo.map(item => `- ${item}`),
+    'visibility=internal-structured',
+    `answer_act=${plan.act}`,
+    `evidence_mode=${plan.evidenceMode}`,
+    `governing_focus=${sanitizeAlicizationProviderFacingText(plan.governingFocus, 160, '') || 'none'}`,
+    `governing_project=${sanitizeAlicizationProviderFacingText(plan.governingProject, 420, '') || 'none'}`,
+    preDialogueClosure ? `pre_dialogue_closure=${preDialogueClosure}` : 'pre_dialogue_closure_status=none',
+    `opening_move_status=${plan.openingMove ? 'present' : 'none'}`,
+    `answer_intent_status=${plan.answerIntent ? 'present' : 'none'}`,
+    `relationship_posture=${plan.relationshipPosture}`,
+    `closeness_ladder=${plan.activeClosenessContext && plan.activeClosenessRung ? `${plan.activeClosenessContext}/${plan.activeClosenessRung}` : 'none'}`,
+    `ask_for_grounding=${plan.shouldAskForGrounding ? 'yes' : 'no'}`,
+    `acknowledge_repair=${plan.shouldAcknowledgeRepair ? 'yes' : 'no'}`,
+    `selected_concern_continuity=${plan.selectedConcernEntryId ?? 'none'}`,
+    `selected_repair=${plan.selectedRepairId ?? 'none'}`,
+    `selected_commitment=${plan.selectedCommitmentId ?? 'none'}`,
+    `selected_inquiry_plan=${plan.selectedInquiryPlanId ?? 'none'}`,
+    `selected_mind_project=${plan.selectedProjectId ?? 'none'}`,
+    `selected_reflection=${plan.selectedReflectionId ?? 'none'}`,
+    `executive_phase=${plan.executivePhase ?? 'none'}`,
+    `must_do_count=${plan.mustDo.length}`,
+    `must_not_do_count=${plan.mustNotDo.length}`,
   ].filter(Boolean).join('\n')
 }

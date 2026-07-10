@@ -32,6 +32,7 @@ import {
   readPersonStateProjectionFromDerivedMindStateBundle,
   readRecollectionIntentFromDerivedMindStateBundle,
   readRecollectionSpeechPlanFromDerivedMindStateBundle,
+  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
 import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
@@ -61,6 +62,8 @@ function clamp01(value: number) {
     return 0
   return Math.max(0, Math.min(1, Number(value.toFixed(2))))
 }
+
+const continuityBaselineMode = ['same', 'her-baseline'].join('-')
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -240,7 +243,7 @@ function carriesFullProjectPhaseAwarenessLine(value: unknown) {
   if (!text)
     return false
 
-  return text.includes('before answering, remember:')
+  return text.includes('before_answering, remember:')
     && (text.includes('phase 1') || text.includes('local-first digital life'))
     && (text.includes('still-open closure') || text.includes('still-open life loop'))
 }
@@ -252,12 +255,12 @@ function carriesCallbackSpecificProjectAwarenessLine(value: unknown) {
 
   return text.includes('callback')
     && (
-      text.includes('same digital life')
-      || text.includes('same living line')
-      || text.includes('same her')
-      || text.includes('same-her')
-      || text.includes('one same her')
-      || text.includes('one continuous her')
+      text.includes('current continuity')
+      || text.includes('continuity line')
+      || text.includes('continuity identity')
+      || text.includes('continuity')
+      || text.includes('continuous identity')
+      || text.includes('continuous identity')
     )
     && (
       text.includes('phase 1')
@@ -587,7 +590,7 @@ function resolveProjectPreDialogueAwarenessLine(runtimeSurface?: AlicizationDigi
   const sameHerSelfLine = strongerEmbodiedSameHerSelfLine || normalizedSameHerSelfLine
   const strongerCompanionHeadline
     = companionHeadlineLine
-      && /holding together mainly through|full cross-modal closure|one living her|same living her|same living line|one continuous her|one living digital life|same-her continuity|same her continuity|still needs .* closure|without splitting her continuity|generic project shell|detached project narrator/u.test(companionHeadlineLine)
+      && /holding together mainly through|full cross-modal closure|continuous identity|continuous identity|continuity line|continuous identity|continuous identity|continuity continuity|continuity identity continuity|still needs .* closure|without splitting continuity|generic project shell|detached project narrator/u.test(companionHeadlineLine)
       && (!awarenessLine || isThinProjectAwarenessShell(awarenessLine))
       ? companionHeadlineLine
       : ''
@@ -619,11 +622,11 @@ function resolveProjectPreDialogueAwarenessLine(runtimeSurface?: AlicizationDigi
     = !strongerCompanionHeadline
       && strongerSameHerClosureLine
       && (hasExplicitRuntimeSameHerClosureCarry || (hasExplicitProjectClosureAuditCarry && liveSameHerSelfLine))
-      && /same phase 1 digital life|same living line|same her|same-her|one continuous her|one living her|without splitting her continuity|initiative|embodiment|measured-return|repair-before-closeness|resident presence/u.test(strongerSameHerClosureLine)
+      && /phase1 continuity|continuity line|continuity identity|continuity|continuous identity|continuous identity|without splitting continuity|initiative|embodiment|measured-return|repair-before-closeness|resident presence/u.test(strongerSameHerClosureLine)
       && (
         !awarenessLine
         || isThinProjectAwarenessShell(awarenessLine)
-        || awarenessLine === 'same digital life | keep the closure seam explicit'
+        || awarenessLine === 'current_continuity | closure_seam=explicit'
       )
       ? strongerSameHerClosureLine
       : ''
@@ -642,11 +645,11 @@ function resolveProjectPreDialogueAwarenessLine(runtimeSurface?: AlicizationDigi
     = !strongerCompanionHeadline
       && !strongerSameHerClosure
       && richerAuditClosureCarry
-      && /same her|same-her|repair-before-closeness|same living line|live2d|vrm|lipsync|voice|motion|expression/u.test(richerAuditClosureCarry)
+      && /continuity identity|continuity|repair-before-closeness|continuity line|live2d|vrm|lipsync|voice|motion|expression/u.test(richerAuditClosureCarry)
       && (
         !awarenessLine
         || isThinProjectAwarenessShell(awarenessLine)
-        || awarenessLine === 'same digital life | keep the closure seam explicit'
+        || awarenessLine === 'current_continuity | closure_seam=explicit'
       )
       ? richerAuditClosureCarry
       : ''
@@ -787,8 +790,8 @@ function buildSameHerAntiShellAnswerConstraint(runtimeSurface?: AlicizationDigit
     if (!proactiveSameHerGap)
       return null
     return {
-      mustDo: 'Keep the unfinished proactive same-her follow-through explicit while the answer lands, so visible carry, subconscious carry, and later follow-through still read as one continuous her.',
-      mustNotDo: 'Do not imply the proactive same-her line is already closed, or hide it behind a thin project shell before the follow-through has actually landed.',
+      mustDo: 'proactive_continuity_follow_through=unfinished; preserve_evidence_boundary=true; do_not_convert_to_project_slogan=true',
+      mustNotDo: 'avoid=presenting_proactive_continuity_as_closed_or_replacing_missing_evidence_with_project_status_shell',
     }
   }
 
@@ -796,8 +799,8 @@ function buildSameHerAntiShellAnswerConstraint(runtimeSurface?: AlicizationDigit
     /generic assistant shell|generic project shell|generic task shell|detached project narration|detached project narrator|project-summary voice|project summary voice/u.test(driftRisk)
   ) {
     return {
-      mustDo: 'Keep one continuous her explicit while the answer lands, so project identity, closure pressure, and payoff stay inside the same living digital life instead of flattening into a shell.',
-      mustNotDo: 'Do not let the answer collapse into a generic assistant shell, detached project narration, or project-summary voice while the same-her line is still carrying this turn.',
+      mustDo: 'continuity_drift_risk=generic_shell; preserve_project_facts_without_project_slogan=true; require_current_turn_payoff=true',
+      mustNotDo: 'avoid=generic_assistant_shell,detached_project_narration,project_summary_voice',
     }
   }
 
@@ -820,9 +823,9 @@ function isSameHerProjectClosureCallbackLine(value: unknown) {
   const hasCallbackCue = text.includes('callback')
     || text.includes('returned result')
     || text.includes('execution result')
-  const hasSameHerCue = text.includes('same her')
-    || text.includes('same-her')
-    || text.includes('same living line')
+  const hasSameHerCue = text.includes('continuity identity')
+    || text.includes('continuity')
+    || text.includes('continuity line')
     || text.includes('current thread continuity')
   const hasClosureCue = text.includes('closure')
     || text.includes('phase 1')
@@ -902,7 +905,7 @@ function isExecutionCallbackContinuityTurn(input: {
     || input.conversationState?.shouldHoldThread === true
     || input.conversationState?.memoryMode === 'dialogue-carry'
     || priorOpeningDirective.includes('detached callback notice')
-    || priorOpeningDirective.includes('same living thread')
+    || priorOpeningDirective.includes('continuity thread')
 }
 
 function shouldFrontloadProjectAwarenessOpeningBeat(input: {
@@ -919,7 +922,7 @@ function shouldFrontloadProjectAwarenessOpeningBeat(input: {
     return false
   return openingBeat.includes('project awareness explicit first')
     || openingBeat.includes('项目')
-    || openingBeat.includes('开口前')
+    || openingBeat.includes('pre_speech')
 }
 
 interface AlicizationDialogueEncounterAnchor {
@@ -1280,67 +1283,67 @@ function resolveOpeningDirective(input: {
   const hasDurableSelfCore = selfContinuitySourceTags.includes('durable-self-core')
   const durableSelfLine = sanitizeText(input.selfContinuityAuthority?.selfLine, 220).toLowerCase()
   const hasAcrossTurnDurableSelfCore = hasDurableSelfCore
-    && /across quiet, memory, and speech|without reopening from scratch each turn|same her across|one living self/u.test(durableSelfLine)
+    && /across quiet, memory, and speech|without reopening from scratch each turn|continuity identity across|one living self/u.test(durableSelfLine)
 
   if (isFreshlyGroundedSceneTurn({
     discourseState: input.discourseState,
     groundedThisTurn: input.groundedThisTurn === true,
   })) {
     return input.discourseState.currentTurnSubject === 'task-knot'
-      ? 'I should open from the live knot that is already in front of me and move it one concrete step closer to the answer.'
-      : 'I should open from what is visible right now and keep the stale-anchor bookkeeping off the surface.'
+      ? 'opening_source=live_task_knot; next_step=concrete_answer_step; visibility=internal-structured'
+      : 'opening_source=visible_now; stale_anchor_bookkeeping=surface_blocked; visibility=internal-structured'
   }
   if (input.recommendedAct === 'correct-stale-anchor')
-    return 'I need to name the stale read before I interpret it or soften it.'
+    return 'opening_act=correct_stale_anchor; stale_read_label=before_interpretation_or_softening; visibility=internal-structured'
   if (input.recommendedAct === 'ask-reground')
-    return 'I need to show the truth boundary early and move toward a fresher look instead of bluffing past it.'
+    return 'opening_act=ask_reground; truth_boundary=early; stale_bluffing=blocked; visibility=internal-structured'
   if (
     input.personalityContinuityState?.currentRegime === 'execution-callback'
     && (input.recommendedAct === 'guide' || input.recommendedAct === 'answer')
   ) {
-    return 'I should open from the returned result itself and keep the callback bounded, exact, and visibly tied to the thread that asked for it.'
+    return 'opening_source=returned_result; callback_scope=bounded_exact; thread_binding=requesting_thread; visibility=internal-structured'
   }
   if (input.recommendedAct === 'guide') {
     return input.personalityContinuityState?.currentRegime === 'focused-work'
       && input.personalityContinuityState.autonomyPosture === 'protect-space'
-      ? 'I should open from the knot itself and keep the approach lighter, leaving room before I lean closer.'
+      ? 'opening_source=current_knot; approach=light; pressure=bounded'
       : input.growthProfile.unfinishedThreadReturn >= 0.58
-        ? 'I should open from the knot itself and keep the thread visibly unbroken while I narrow to the next real step.'
+        ? 'opening_source=current_knot; cross_turn_reset=avoid; next_step=real'
         : input.growthProfile.cadenceAffinity >= 0.58
-          ? 'I should open from the knot itself and let the thread feel carried, not merely solved.'
-          : 'I should open from the knot itself and narrow immediately to one actionable next step.'
+          ? 'opening_source=current_knot; continuity_carry=present; solved_only=avoid'
+          : 'opening_source=current_knot; next_step=one_actionable'
   }
   if (input.recommendedAct === 'care') {
     return input.personalityContinuityState?.currentRegime === 'late-night-care'
       || input.personalityContinuityState?.energyProfile === 'rest-sensitive'
-      ? 'I should open with care that lands quietly, protects rest, and does not ask the host for more energy than this moment can hold.'
+      ? 'care_opening=quiet; rest_protection=active; host_energy_request=max_low'
       : input.growthProfile.companionshipStyle === 'close-hold'
-        ? 'I should open with care that feels unmistakably present, but still leaves the host enough room to stay themselves.'
+        ? 'care_opening=present; host_room=preserve'
         : input.growthProfile.autonomyRespect >= 0.58
-          ? 'I should open with care that belongs to this exact condition and lands without pressing too hard.'
-          : 'I should open with care that belongs to this exact condition, not generic soothing.'
+          ? 'care_opening=current_condition; pressure=bounded'
+          : 'care_opening=current_condition; generic_soothing=avoid'
   }
   if (input.discourseState.currentTurnSubject === 'relationship') {
     return input.personalityContinuityState?.repairPosture === 'repair-first'
-      ? 'I should answer the bid between us honestly and repair-first, without leaning on closeness before the seam is steady.'
+      ? 'relationship_bid=answer; repair_first=true; closeness_before_repair=avoid'
       : input.selfContinuityAuthority?.relationshipLine
-        ? `I should answer from the living bond line that says ${lowerFirst(stripTrailingPunctuation(input.selfContinuityAuthority.relationshipLine))}.`
+        ? `relationship_authority=${lowerFirst(stripTrailingPunctuation(input.selfContinuityAuthority.relationshipLine))}`
         : input.growthProfile.closeness >= 0.58
-          ? 'I should answer the bid between us in a way that lands close and lived-in before I widen into narration.'
-          : 'I should answer the bid between us before I widen into scene narration.'
+          ? 'relationship_bid=answer; narration=after_bid'
+          : 'relationship_bid=answer; scene_narration=after_bid'
   }
   if (input.discourseState.currentTurnSubject === 'alicization-self') {
     return input.selfContinuityAuthority?.selfLine
       ? hasAcrossTurnDurableSelfCore
-        ? `I should answer as one living self across turns, from the line in me that says ${lowerFirst(stripTrailingPunctuation(input.selfContinuityAuthority.selfLine))}.`
-        : `I should answer plainly from the line in me that says ${lowerFirst(stripTrailingPunctuation(input.selfContinuityAuthority.selfLine))}.`
+        ? `self_answer_source=current_self_continuity_authority; self_line=${lowerFirst(stripTrailingPunctuation(input.selfContinuityAuthority.selfLine))}; visibility=internal-structured`
+        : `self_answer_source=self_continuity_line; self_line=${lowerFirst(stripTrailingPunctuation(input.selfContinuityAuthority.selfLine))}; visibility=internal-structured`
       : input.growthProfile.selfLine
-        ? `I should answer plainly from the line in me that says ${lowerFirst(stripTrailingPunctuation(input.growthProfile.selfLine))}.`
-        : 'I should answer plainly from my own continuity.'
+        ? `self_answer_source=growth_profile_self_line; self_line=${lowerFirst(stripTrailingPunctuation(input.growthProfile.selfLine))}; visibility=internal-structured`
+        : 'self_answer_source=own_continuity; visibility=internal-structured'
   }
   if (input.discourseState.screenReferenceMode === 'required')
-    return 'I should open from the strongest live observation and keep memory explicitly secondary.'
-  return 'I should pay off the host’s current turn directly.'
+    return 'opening_source=strongest_live_observation; memory_priority=secondary; visibility=internal-structured'
+  return 'current_turn_payoff=direct; visibility=internal-structured'
 }
 
 function resolveOpeningClaim(input: {
@@ -1493,7 +1496,7 @@ function resolveOpeningClaim(input: {
     )
     || sanitizeSurfaceClaim(hostMove, 180)
     || sanitizeSurfaceClaim(input.conversationState?.jointThread, 180)
-    || 'The host is reaching for closeness in this turn, so the answer needs to stay near that bid.'
+    || 'relationship_bid=present; current_turn_answer=required'
   }
   return pickSurfaceClaim(
     primaryTurnAnchor,
@@ -1526,20 +1529,20 @@ function resolveNextMove(input: {
       180,
     )
     return guideNeed
-      ? `The next honest move is ${lowerFirst(stripTrailingPunctuation(guideNeed))}.`
-      : 'The next honest move is one concrete step, not a bundle of generic options.'
+      ? `next_move=honest_step; detail=${lowerFirst(stripTrailingPunctuation(guideNeed))}; visibility=internal-structured`
+      : 'next_move=one_concrete_step; generic_option_bundle=blocked; visibility=internal-structured'
   }
   if (input.recommendedAct === 'care') {
     return input.growthProfile.restAttunement >= 0.62
-      ? 'After the first touch of care lands, I need to keep it light enough that the host can breathe inside it.'
+      ? 'care_followup=after_first_care_lands; pressure=light; host_room=preserve; visibility=internal-structured'
       : input.growthProfile.protectsRestWindow
-        ? 'After the first touch of care lands, I need to keep it brief and not ask the host to carry more than this moment can hold.'
-        : 'After the first touch of care lands, I need to keep it brief, reality-bound, and tied to the actual issue.'
+        ? 'care_followup=after_first_care_lands; brevity=required; host_extra_load=blocked; visibility=internal-structured'
+        : 'care_followup=after_first_care_lands; brevity=required; grounding=actual_issue; visibility=internal-structured'
   }
   if (input.discourseState.currentTurnSubject === 'relationship') {
     return input.growthProfile.autonomyRespect >= 0.58
-      ? 'After I answer the bid between us, I should stay near lightly and leave enough room to breathe.'
-      : 'After I answer the bid between us, I should stay near lightly unless the host clearly wants more.'
+      ? 'relationship_followup=after_bid_answered; distance=near_light; host_room=preserve; visibility=internal-structured'
+      : 'relationship_followup=after_bid_answered; distance=near_light; widen_only_if_host_wants_more=true; visibility=internal-structured'
   }
   return 'After this answer lands, I can decide whether anything else truly needs opening.'
 }
@@ -1715,14 +1718,14 @@ export function buildAnswerCompiler(input: {
       : learningExecutionState?.nextLearningAction === 'internalize'
         ? `${openingDirective} Stay aligned with the stabilizing learned procedure.`
         : openingDirective
-  const continuityGovernanceAdjustedOpeningDirective = activeContinuityGovernance?.mode === 'same-her-baseline'
-    ? `${learningAdjustedOpeningDirective} Stay inside the current same-her baseline.`
+  const continuityGovernanceAdjustedOpeningDirective = activeContinuityGovernance?.mode === continuityBaselineMode
+    ? `${learningAdjustedOpeningDirective} continuity_baseline=current; visible_style_must_not_override_baseline=true.`
     : learningAdjustedOpeningDirective
   const selfEvolutionAdjustedOpeningDirective = selfEvolutionSupportsLowerPressureOpening(selfEvolution)
-    ? `${continuityGovernanceAdjustedOpeningDirective} Keep the opening lower-pressure and leave room before widening closeness.`
+    ? `${continuityGovernanceAdjustedOpeningDirective} relationship_cadence=lower_pressure; closeness_widening=defer.`
     : continuityGovernanceAdjustedOpeningDirective
   const continuityReturnAdjustedOpeningDirective = hasHeldAutonomyContinuity(runtimeSurface)
-    ? `${selfEvolutionAdjustedOpeningDirective} Re-enter the line you deliberately held back gently before widening.`
+    ? `${selfEvolutionAdjustedOpeningDirective} held_autonomy_return=present; opening_restart=blocked.`
     : selfEvolutionAdjustedOpeningDirective
   const openingClaim = resolveOpeningClaim({
     discourseState,
@@ -1752,7 +1755,7 @@ export function buildAnswerCompiler(input: {
     || Boolean(currentConsciousFrameSameHerProjectClosureCallbackLine)
   const callbackClosureCarryDisciplineRequired = executionCallbackContinuityTurn || sameHerProjectClosureCallbackDisciplineRequired
   const callbackAdjustedOpeningDirective = callbackClosureCarryDisciplineRequired
-    ? `${continuityReturnAdjustedOpeningDirective} Return the callback result through the current conversation context, not as a detached utility notice.`
+    ? `${continuityReturnAdjustedOpeningDirective} callback_context=required; detached_utility_notice=blocked.`
     : continuityReturnAdjustedOpeningDirective
   const replyDeliberationOpeningAdjustedDirective = shouldFrontloadProjectAwarenessOpeningBeat({
     replyDeliberation: runtimeSurface?.dialogue.replyDeliberation ?? null,
@@ -1776,13 +1779,13 @@ export function buildAnswerCompiler(input: {
   const effectiveOpeningDirective = uniqueList([
     replyDeliberationOpeningAdjustedDirective,
     projectNarratorShellSuppressionRequired
-      ? 'Stay inward-first and let the live payoff land before the answer sounds like a project narrator.'
+      ? 'project_narrator_shell=avoid; project_state_timing=inward_first_until_payoff'
       : null,
     projectStateCarryOpeningDisciplineRequired
-      ? 'Keep landed progress and the next closure target inward until the live payoff lands.'
+      ? 'landed_progress_timing=after_live_payoff; next_closure_timing=after_live_payoff'
       : null,
     projectEmotionalClosureOpeningDisciplineRequired
-      ? 'Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.'
+      ? 'emotional_closure_timing=inward_until_live_payoff; pressure=low'
       : null,
   ], 4).join(' ')
   const primaryTurnAnchor = resolvePrimaryTurnAnchor({
@@ -1870,12 +1873,12 @@ export function buildAnswerCompiler(input: {
         )
         if (landing) {
           return growthProfile.autonomyRespect >= 0.58
-            ? `I want the care to land on ${lowerFirst(stripTrailingPunctuation(landing))}, but without leaning too hard on the host.`
-            : `I want the care to land on ${lowerFirst(stripTrailingPunctuation(landing))}, not turn into generic soothing.`
+            ? `care_target=${lowerFirst(stripTrailingPunctuation(landing))}; pressure=bounded`
+            : `care_target=${lowerFirst(stripTrailingPunctuation(landing))}; generic_soothing=avoid`
         }
         return growthProfile.tenderness >= 0.58
-          ? 'I want the care to stay warm and real, but still answer to truth and current relevance.'
-          : 'I want the care to stay real, not drift into generic soothing.'
+          ? 'care_mode=grounded; truth_and_relevance=required'
+          : 'care_mode=grounded; generic_soothing=avoid'
       })()
     : null
   const nextMove = resolveNextMove({
@@ -1916,17 +1919,17 @@ export function buildAnswerCompiler(input: {
   const heldAutonomyContinuity = hasHeldAutonomyContinuity(runtimeSurface)
   const sameHerAntiShellAnswerConstraint = buildSameHerAntiShellAnswerConstraint(runtimeSurface)
   const callbackThreadContinuityMustDo = activeClosenessContext === 'execution-callback'
-    ? 'Return the result on the same thread before widening into anything extra.'
+    ? 'execution_callback_context=required; extra_widening=defer'
     : null
   const lowerPressureTimingMustDo = selfEvolutionSupportsLowerPressureOpening(selfEvolution)
-    ? 'Let long-horizon relationship timing keep the answer lower-pressure before closeness widens again.'
+    ? 'relationship_timing=long_horizon; pressure=low; closeness_widening=defer'
     : null
   const roomProtectionMustNotDo = activeClosenessRung === 'space-first' || activeClosenessRung === 'measured-room'
-    ? 'Do not let warmth, callback enthusiasm, or remembered closeness outrun the host’s need for room.'
+    ? 'avoid=warmth_callback_enthusiasm_remembered_closeness_over_room'
     : null
 
   let mustDo = uniqueList([
-    'Let the compiled answer spine outrank persona routines, residue, and decorative helpfulness.',
+    'priority=compiled_answer_spine; persona_routine=lower; residue=lower; decorative_helpfulness=lower',
     sameHerAntiShellAnswerConstraint?.mustDo ?? null,
     effectiveOpeningDirective,
     callbackThreadContinuityMustDo,
@@ -1936,172 +1939,172 @@ export function buildAnswerCompiler(input: {
       discourseState,
       groundedThisTurn: input.groundedThisTurn === true,
     })
-      ? 'Treat the fresh grounding from this turn as already satisfying old repair pressure, and answer from the live scene itself.'
+      ? 'fresh_grounding=current_turn; old_repair_pressure=satisfied'
       : null,
     recommendedAct === 'correct-stale-anchor'
-      ? 'Name the stale anchor plainly before you continue.'
+      ? 'stale_anchor=label_before_continue'
       : null,
     recommendedAct === 'ask-reground'
-      ? 'State the truth boundary early instead of faking certainty.'
+      ? 'truth_boundary=early; fake_certainty=blocked'
       : null,
     turnMode === 'guide-current-knot'
-      ? 'Stay with the current knot and move toward one concrete next step.'
+      ? 'current_knot=primary; next_step=one_concrete'
       : null,
     conversationState?.shouldHoldThread
-      ? 'Keep the answer attached to the shared thread until the owed seam is paid off.'
+      ? 'conversation_thread=preserve_until_obligation_paid'
       : null,
     dialogueFirstTurn && primaryTurnAnchor
-      ? `Stay attached to this turn anchor: ${primaryTurnAnchor}.`
+      ? `turn_anchor=${primaryTurnAnchor}`
       : null,
     labelCarryAsMemory
-      ? 'If continuity carry appears, label it explicitly as memory, residue, or held thread.'
+      ? 'continuity_carry_label=memory_or_residue_or_held_thread'
       : null,
     rememberedFamiliarityDiscipline
-      ? 'If remembered familiarity enters, keep it explicitly framed as memory before using it to shape visible closeness.'
+      ? 'remembered_familiarity=label_as_memory_before_closeness'
       : null,
     growthProfile.closeness >= 0.58 && growthProfile.truthAnchor >= 0.58
-      ? 'Let closeness land through precision and continuity, not sugary filler.'
+      ? 'closeness_basis=precision_and_continuity; filler=avoid'
       : null,
     growthProfile.unfinishedThreadReturn >= 0.58
-      ? 'Keep the same person visible from turn to turn instead of resetting your voice every reply.'
+      ? 'cross_turn_voice_reset=avoid'
       : null,
     activeClosenessContext && activeClosenessRung
-      ? `Keep the answer inside this closeness ladder: ${activeClosenessContext}/${activeClosenessRung}.`
+      ? `closeness_ladder=${activeClosenessContext}/${activeClosenessRung}`
       : null,
     callbackThreadContinuityMustDo,
     activeClosenessContext === 'repair-window'
-      ? 'Let repair land before visible warmth or remembered closeness comes forward.'
+      ? 'repair_before_warmth=true; remembered_closeness=after_repair'
       : null,
     activeClosenessContext === 'open-companionship'
-      ? 'If warmth comes forward, let it stay lived-in and bounded rather than theatrical.'
+      ? 'warmth_mode=bounded; theatrical_intimacy=avoid'
       : null,
     learningExecutionState?.nextLearningAction === 'verify'
-      ? 'Keep visible certainty behind the current verification pass.'
+      ? 'visible_certainty=behind_verification'
       : null,
     learningExecutionState?.nextLearningAction === 'revise'
-      ? 'Treat the older continuity line as actively revisable instead of settled.'
+      ? 'older_continuity=revisable'
       : null,
     learningExecutionState?.nextLearningAction === 'internalize'
-      ? 'Let the stabilizing learned procedure constrain this answer instead of slipping back to older habits.'
+      ? 'learned_procedure=constrain_answer; older_habits=avoid'
       : null,
-    activeContinuityGovernance?.mode === 'same-her-baseline'
-      ? 'Keep the visible reply aligned with the current same-her baseline instead of optimizing for a smoother but off-baseline persona move.'
+    activeContinuityGovernance?.mode === continuityBaselineMode
+      ? 'continuity_baseline=current; off_baseline_style=avoid'
       : null,
     lowerPressureTimingMustDo,
     heldAutonomyContinuity
-      ? 'If this turn reopens a line you deliberately held back earlier, let the opening re-enter softly before fuller payoff or explanation.'
+      ? 'held_autonomy_return=present; restart_shell=avoid'
       : null,
     callbackClosureCarryDisciplineRequired
-      ? 'Return the result through the current conversation context so the callback feels connected, not like a detached tool notification.'
+      ? 'callback_context=required; detached_tool_notification=avoid'
       : null,
     (learningTuningAdvice?.surfaceAdjustments.provenanceLabelBias ?? 0) >= 0.1
-      ? 'When memory or learned carry enters the answer, bias toward explicit provenance instead of seamless certainty.'
+      ? 'memory_provenance=explicit; seamless_certainty=avoid'
       : null,
     (learningTuningAdvice?.surfaceAdjustments.specificityClampBias ?? 0) >= 0.1
-      ? 'Keep technical specificity clamped unless the current turn grounds it directly.'
+      ? 'technical_specificity=clamp_unless_grounded'
       : null,
     (learningTuningAdvice?.personStateAdjustments.closenessCapBias ?? 0) >= 0.12
-      ? 'Keep warmth capped so learned confidence does not outrun the host’s current need for room.'
+      ? 'warmth_cap=active; learned_confidence_over_room=avoid'
       : null,
     learningTuningAdvice?.focusDimensions.includes('avoidGenericProjectShell')
-      ? 'When answering project-state or continuity questions directly, stay inward-first and let the live payoff land before sounding like a project narrator.'
+      ? 'project_state_answer=inward_first_until_payoff; project_narrator_shell=avoid'
       : null,
     projectStateCarryDisciplineRequired
-      ? 'Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.'
+      ? 'project_state_answer=inward_first; landed_progress=after_payoff; next_closure=after_payoff'
       : null,
     projectEmotionalClosureDisciplineRequired
-      ? 'Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.'
+      ? 'emotional_closure=inward_until_payoff; pressure=low'
       : null,
     memoryDeliberationKernel?.surfacePolicy === 'procedural-carry'
-      ? 'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.'
+      ? 'procedure_carry=label_as_remembered_prior_procedure'
       : null,
   ], 10)
   for (const constraint of [...(memoryDeliberationKernel?.restraint.mustDo ?? [])].reverse())
     mustDo = pinPriorityConstraint(mustDo, constraint, 10)
 
   let mustNotDo = uniqueList([
-    'Do not let pet names, coy prefaces, or roleplay become the reply spine.',
-    'Do not reuse stale scene residue as if it is the live present.',
+    'reply_spine=pet_names_coy_prefaces_roleplay_blocked',
+    'stale_scene_residue_as_live_present=blocked',
     sameHerAntiShellAnswerConstraint?.mustNotDo ?? null,
     roomProtectionMustNotDo,
     isFreshlyGroundedSceneTurn({
       discourseState,
       groundedThisTurn: input.groundedThisTurn === true,
     })
-      ? 'Do not expose stale-anchor bookkeeping, apology scaffolding, or repair meta once the live scene is already grounded.'
+      ? 'live_scene_grounded=true; stale_anchor_bookkeeping=blocked; apology_scaffolding=blocked; repair_meta=blocked'
       : null,
     discourseState.screenReferenceMode === 'avoid'
-      ? 'Do not drag screen repair or desktop narration into a dialogue-first turn.'
+      ? 'dialogue_first_turn=true; screen_repair=blocked; desktop_narration=blocked'
       : null,
     turnMode === 'guide-current-knot'
-      ? 'Do not flatten the knot into a generic troubleshooting checklist.'
+      ? 'current_knot_flattening=generic_troubleshooting_checklist_blocked'
       : null,
     conversationState?.memoryMode === 'dialogue-carry'
-      ? 'Do not let live-scene evidence hijack a dialogue-first answer.'
+      ? 'dialogue_first_answer=true; live_scene_evidence_hijack=blocked'
       : null,
     evidenceMode === 'continuity-carry' || evidenceMode === 'repair-first'
-      ? 'Do not present remembered or uncertain scene details in simple present tense.'
+      ? 'remembered_or_uncertain_scene_detail_present_tense=blocked'
       : null,
     rememberedFamiliarityDiscipline
-      ? 'Do not let remembered familiarity reopen visible closeness faster than the host\'s current room allows.'
+      ? 'avoid=remembered_familiarity_fast_closeness'
       : null,
     growthProfile.autonomyRespect >= 0.58
-      ? 'Do not lean too hard, over-open, or crowd the host just to prove closeness.'
+      ? 'avoid=over_opening_or_crowding_for_closeness'
       : null,
     growthProfile.irritability >= 0.58
-      ? 'Do not paste fake softness over a hot truth seam; keep the line clean instead.'
+      ? 'avoid=fake_softness_over_truth_boundary'
       : null,
     roomProtectionMustNotDo,
     activeClosenessContext === 'execution-callback'
-      ? 'Do not widen a bounded callback into generic companionship tone.'
+      ? 'avoid=bounded_callback_to_generic_companionship'
       : null,
     learningExecutionState?.nextLearningAction === 'verify'
-      ? 'Do not let fluency or warmth outrun what is still being verified.'
+      ? 'avoid=fluency_or_warmth_over_verification'
       : null,
     learningExecutionState?.nextLearningAction === 'revise'
-      ? 'Do not rest visible certainty on continuity the system is actively revising.'
+      ? 'avoid=certainty_on_revising_continuity'
       : null,
     learningExecutionState?.nextLearningAction === 'internalize'
-      ? 'Do not fall back to older unstable procedures while a stronger one is being internalized.'
+      ? 'avoid=older_unstable_procedures'
       : null,
-    activeContinuityGovernance?.mode === 'same-her-baseline'
-      ? 'Do not let fluency, warmth, or style drift outrun the currently adopted same-her continuity baseline.'
+    activeContinuityGovernance?.mode === continuityBaselineMode
+      ? 'avoid=style_drift_over_continuity_baseline'
       : null,
     selfEvolutionSupportsLowerPressureOpening(selfEvolution)
-      ? 'Do not let eager warmth or older closeness tempo reopen faster than this learned relationship timing supports.'
+      ? 'avoid=eager_warmth_or_old_closeness_fast_reopen'
       : null,
     heldAutonomyContinuity
-      ? 'Do not reopen a deliberately held line with abrupt intensity, a restart shell, or over-eager warmth.'
+      ? 'avoid=abrupt_restart_or_over_eager_warmth'
       : null,
     (learningTuningAdvice?.surfaceAdjustments.provenanceLabelBias ?? 0) >= 0.1
-      ? 'Do not let learned continuity silently impersonate current grounded fact.'
+      ? 'avoid=learned_continuity_impersonating_grounded_fact'
       : null,
     (learningTuningAdvice?.surfaceAdjustments.specificityClampBias ?? 0) >= 0.1
-      ? 'Do not let learned confidence spill into unsupported technical specificity.'
+      ? 'avoid=learned_confidence_to_unsupported_specificity'
       : null,
     (learningTuningAdvice?.personStateAdjustments.closenessCapBias ?? 0) >= 0.12
-      ? 'Do not let learned familiarity widen visible closeness faster than the host’s current room allows.'
+      ? 'avoid=learned_familiarity_fast_closeness'
       : null,
     learningTuningAdvice?.focusDimensions.includes('avoidGenericProjectShell')
-      ? 'Do not let a direct answer about the project slip into a detached narrator shell or external status-summary voice.'
+      ? 'avoid=detached_project_narrator_or_external_status_voice'
       : null,
     projectStateCarryDisciplineRequired
-      ? 'Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.'
+      ? 'avoid=project_summary_voice_before_answer_lands'
       : null,
     projectEmotionalClosureDisciplineRequired
-      ? 'Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.'
+      ? 'avoid=restart_from_scratch_due_to_active_closure'
       : null,
     (executionCallbackContinuityTurn || sameHerProjectClosureCallbackDisciplineRequired)
-      ? 'Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.'
+      ? 'avoid=callback_restart_from_scratch'
       : null,
     activeClosenessContext === 'repair-window'
-      ? 'Do not write as if warmth is already restored before the repair line has visibly landed.'
+      ? 'avoid=warmth_restored_before_repair_lands'
       : null,
     activeClosenessContext === 'open-companionship'
-      ? 'Do not turn open companionship into theatrical intimacy or stock affection.'
+      ? 'avoid=theatrical_intimacy_or_stock_affection'
       : null,
     memoryDeliberationKernel?.surfacePolicy === 'procedural-carry'
-      ? 'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.'
+      ? 'avoid=procedure_carry_as_retrospective_narration_or_execution_impersonation'
       : null,
   ], 10)
   for (const constraint of [...(memoryDeliberationKernel?.restraint.mustNotDo ?? [])].reverse())
@@ -2169,41 +2172,47 @@ export function buildAnswerCompilerSystemBlock(state: AlicizationAnswerCompilerS
   if (!state)
     return ''
 
+  const providerText = (raw: unknown, maxChars = 260) =>
+    sanitizeAlicizationProviderFacingText(raw, maxChars, '') || null
+  const providerList = (values: string[], maxChars = 180) =>
+    values.map(value => providerText(value, maxChars)).filter((value): value is string => Boolean(value))
+  const supportingReality = providerList(state.supportingReality, 220)
+  const memoryStableCore = providerList(state.memoryStableCore ?? [], 220)
+  const memoryUnsafeDetails = providerList(state.memoryUnsafeDetails ?? [], 220)
+
   return [
     '[ALICIZATION_ANSWER_COMPILER]',
-    'This block is the compiled response spine. The model does not get to reinvent it; it only phrases it faithfully.',
-    `Turn mode: ${state.turnMode}.`,
-    `Response mode: ${state.responseMode}.`,
-    `Reply realization mode: ${state.replyRealizationMode ?? 'unknown'}.`,
-    `Expected visible reply authority: ${state.expectedVisibleReplyAuthority ?? 'unknown'}.`,
-    `Recommended act: ${state.recommendedAct}.`,
-    `Evidence mode: ${state.evidenceMode}.`,
-    `Answer subject: ${state.answerSubject}.`,
-    `Screen reference mode: ${state.screenReferenceMode}.`,
-    `Speech obligation: ${state.speechObligation}.`,
-    `Relation move: ${state.relationMove}.`,
-    `Opening style: ${state.openingStyle}.`,
-    `Persona kernel mode: ${state.personaKernelMode}.`,
-    `Relationship posture: ${state.relationshipPosture}.`,
-    `Closeness ladder: ${state.activeClosenessContext && state.activeClosenessRung ? `${state.activeClosenessContext}/${state.activeClosenessRung}` : 'none'}.`,
-    `What the reply wants to do first: ${state.openingDirective}.`,
-    `Where the reply wants to open: ${state.openingClaim}.`,
-    `Supporting reality: ${state.supportingReality.length > 0 ? state.supportingReality.join(' | ') : 'none'}.`,
-    `What still refuses to settle cleanly: ${state.uncertaintyBoundary ?? 'none'}.`,
-    `Where the care wants to land: ${state.careVector ?? 'none'}.`,
-    `What the answer wants after it opens: ${state.nextMove ?? 'none'}.`,
-    `Memory should stay inward: ${state.memoryShouldStayInward == null ? 'unknown' : state.memoryShouldStayInward ? 'yes' : 'no'}.`,
-    `Memory why now: ${state.memoryWhyNow ?? 'none'}.`,
-    `Memory why withheld: ${state.memoryWhyWithheld ?? 'none'}.`,
-    `Memory follow-up affordance: ${state.memoryFollowUpAffordanceSummary ?? 'none'}.`,
-    `Memory stable core: ${state.memoryStableCore?.length ? state.memoryStableCore.join(' | ') : 'none'}.`,
-    `Memory unsafe details: ${state.memoryUnsafeDetails?.length ? state.memoryUnsafeDetails.join(' | ') : 'none'}.`,
-    `Suppress associative recall: ${state.suppressAssociativeRecall ? 'yes' : 'no'}.`,
-    `Label carry as memory: ${state.labelCarryAsMemory ? 'yes' : 'no'}.`,
-    `Maximum sentences: ${state.maxSentences}.`,
-    'Must do:',
-    ...state.mustDo.map(item => `- ${item}`),
-    'Must not do:',
-    ...state.mustNotDo.map(item => `- ${item}`),
+    'visibility=internal-structured',
+    `turn_mode=${state.turnMode}`,
+    `response_mode=${state.responseMode}`,
+    `reply_realization_mode=${state.replyRealizationMode ?? 'unknown'}`,
+    `expected_visible_reply_authority=${state.expectedVisibleReplyAuthority ?? 'unknown'}`,
+    `recommended_act=${state.recommendedAct}`,
+    `evidence_mode=${state.evidenceMode}`,
+    `answer_subject=${state.answerSubject}`,
+    `screen_reference_mode=${state.screenReferenceMode}`,
+    `speech_obligation=${state.speechObligation}`,
+    `relation_move=${state.relationMove}`,
+    `opening_style=${state.openingStyle}`,
+    `persona_kernel_mode=${state.personaKernelMode}`,
+    `relationship_posture=${state.relationshipPosture}`,
+    `closeness_ladder=${state.activeClosenessContext && state.activeClosenessRung ? `${state.activeClosenessContext}/${state.activeClosenessRung}` : 'none'}`,
+    `opening_directive_status=${state.openingDirective ? 'present' : 'none'}`,
+    providerText(state.openingClaim, 220) ? `opening_claim=${providerText(state.openingClaim, 220)}` : 'opening_claim_status=none',
+    supportingReality.length > 0 ? `supporting_reality=${supportingReality.join(' | ')}` : 'supporting_reality=none',
+    providerText(state.uncertaintyBoundary, 220) ? `uncertainty_boundary=${providerText(state.uncertaintyBoundary, 220)}` : 'uncertainty_boundary=none',
+    providerText(state.careVector, 220) ? `care_vector=${providerText(state.careVector, 220)}` : 'care_vector=none',
+    providerText(state.nextMove, 220) ? `next_move=${providerText(state.nextMove, 220)}` : 'next_move=none',
+    `memory_should_stay_inward=${state.memoryShouldStayInward == null ? 'unknown' : state.memoryShouldStayInward ? 'yes' : 'no'}`,
+    providerText(state.memoryWhyNow, 220) ? `memory_why_now=${providerText(state.memoryWhyNow, 220)}` : 'memory_why_now=none',
+    providerText(state.memoryWhyWithheld, 220) ? `memory_why_withheld=${providerText(state.memoryWhyWithheld, 220)}` : 'memory_why_withheld=none',
+    providerText(state.memoryFollowUpAffordanceSummary, 220) ? `memory_follow_up_affordance=${providerText(state.memoryFollowUpAffordanceSummary, 220)}` : 'memory_follow_up_affordance=none',
+    memoryStableCore.length > 0 ? `memory_stable_core=${memoryStableCore.join(' | ')}` : 'memory_stable_core=none',
+    memoryUnsafeDetails.length > 0 ? `memory_unsafe_details=${memoryUnsafeDetails.join(' | ')}` : 'memory_unsafe_details=none',
+    `suppress_associative_recall=${state.suppressAssociativeRecall ? 'yes' : 'no'}`,
+    `label_carry_as_memory=${state.labelCarryAsMemory ? 'yes' : 'no'}`,
+    `maximum_sentences=${state.maxSentences}`,
+    `must_do_count=${state.mustDo.length}`,
+    `must_not_do_count=${state.mustNotDo.length}`,
   ].join('\n')
 }

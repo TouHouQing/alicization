@@ -1,7 +1,10 @@
+import { alicizationFixedTemplateReplacement } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 import {
+  buildDerivedMindStateBundleSystemBlock,
+  buildSelfEvolutionSystemBlock,
   createAlicizationMainGatewayOneShotRuntime,
   resolveAlicizationOneShotProjectStateFallback,
 } from './runtime-main-gateway-one-shot'
@@ -173,6 +176,39 @@ function createOneShotRuntimeHarness(overrides?: Partial<OneShotRuntimeOptions>)
   }
 }
 
+const oneShotFixedTemplateResiduePattern
+  = /Alicization is a local-first digital life project|Phase 1:\s*Local Digital Life|phase1_local_digital_life_anchor|Same Phase 1 digital life|same digital life project line|same-her|same living line|one continuous "?her"?|one living digital life|one living her/iu
+
+function expectNoOneShotFixedTemplateResidue(value: unknown) {
+  const text = String(value ?? '')
+  expect(text).not.toMatch(oneShotFixedTemplateResiduePattern)
+}
+
+function expectStructuredOneShotProjectText(value: unknown) {
+  const text = String(value ?? '')
+  expect(text).toContain('local_desktop_life_loop')
+  expectNoOneShotFixedTemplateResidue(text)
+}
+
+function expectStructuredOneShotProjectStateFields(value: unknown) {
+  const text = String(value ?? '')
+  expect(text).toContain('identity=local_desktop_life_loop')
+  expect(text).toMatch(/current_phase=(?:phase=)?local_desktop_life_loop/u)
+  expect(text).toContain('continuity_anchor=local_desktop_life_loop')
+  expectNoOneShotFixedTemplateResidue(text)
+}
+
+function expectStructuredOneShotAwarenessLine(value: unknown) {
+  const text = String(value ?? '')
+  expect(text).toContain('identity=local_desktop_life_loop')
+  expect(text).toContain('phase=local_desktop_life_loop')
+  expect(text).toContain('open=')
+  expect(text).toContain('continuity_anchor=local_desktop_life_loop')
+  expect(text).toContain('visibility=internal-structured')
+  expect(text).not.toContain('Before answering')
+  expectNoOneShotFixedTemplateResidue(text)
+}
+
 describe('runtime main gateway one-shot', () => {
   it('keeps identity, landed progress, and still-open closure distinct in one-shot project-state fallback', () => {
     const canonicalProjectState = resolveAlicizationProjectStateBrief()
@@ -261,48 +297,45 @@ describe('runtime main gateway one-shot', () => {
     } as any)
 
     expect(projectState.identity).toBe(canonicalProjectState.identity)
-    expect(projectState.preDialogueAwarenessLine).toContain('Before answering, remember')
-    expect(projectState.latestLandedProgress).toBe(landedProgressLine)
-    expect(projectState.primaryOpenLoop).toBe(openClosureLine)
+    expectStructuredOneShotAwarenessLine(projectState.preDialogueAwarenessLine)
+    expect(projectState.latestLandedProgress).toContain('continuity_progress=partial')
+    expect(projectState.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expectNoOneShotFixedTemplateResidue(projectState.latestLandedProgress)
+    expectNoOneShotFixedTemplateResidue(projectState.primaryOpenLoop)
     expect(projectState.latestLandedProgress).not.toBe(projectState.primaryOpenLoop)
-    expect(awarenessProjectState.preDialogueAwarenessLine).toContain('Before answering, remember')
-    expect(awarenessProjectState.awarenessLine).toContain('Before answering, remember')
-    expect(awarenessProjectState.companionHeadlineLine).toBe(strongerCompanionHeadlineLine)
-    expect(awarenessProjectState.companionBriefingLine).toContain('Alicization is a local-first digital life project')
-    expect(awarenessProjectState.companionBriefingLine).toContain('Phase 1: Local Digital Life')
+    expectStructuredOneShotAwarenessLine(awarenessProjectState.preDialogueAwarenessLine)
+    expectStructuredOneShotAwarenessLine(awarenessProjectState.awarenessLine)
+    expectStructuredOneShotAwarenessLine(awarenessProjectState.companionHeadlineLine)
+    expectStructuredOneShotProjectText(awarenessProjectState.companionBriefingLine)
     expect(awarenessProjectState.companionBriefingLine).toContain('open=')
     expect(awarenessProjectState.companionBriefingLine).toContain('next=')
-    expect(awarenessProjectState.preflightSummary).toContain('Alicization is a local-first digital life project')
+    expectStructuredOneShotProjectText(awarenessProjectState.preflightSummary)
   })
 
   it('backs one-shot fallback with the richer status brief so the provider path sees phase, landed progress, open loop, and next closure together', () => {
     const { projectState, awarenessProjectState } = resolveAlicizationOneShotProjectStateFallback(null)
 
-    expect(projectState.identity).toContain('digital life project')
-    expect(projectState.currentPhase).toContain('Phase 1')
+    expectStructuredOneShotProjectText(projectState.identity)
+    expectStructuredOneShotProjectText(projectState.currentPhase)
     expect(projectState.latestLandedProgress).toBeTruthy()
     expect(projectState.primaryOpenLoop).toBeTruthy()
     expect(projectState.nextClosureTarget).toBeTruthy()
-    expect(projectState.preDialogueAwarenessLine).toContain('Before answering, remember')
-    expect(projectState.preDialogueAwarenessLine).toContain('Phase 1')
-    expect(projectState.preDialogueAwarenessLine).toContain('What has already landed is')
-    expect(projectState.preDialogueAwarenessLine).toContain('The still-open closure is')
-    expect(projectState.preDialogueAwarenessLine).toContain('This reply should keep moving toward')
-    expect(awarenessProjectState.preDialogueAwarenessLine).toContain('Before answering, remember')
-    expect(awarenessProjectState.preDialogueAwarenessLine).toContain('Phase 1')
-    expect(awarenessProjectState.preDialogueAwarenessLine).toContain('What has already landed is')
-    expect(awarenessProjectState.preDialogueAwarenessLine).toContain('The still-open closure is')
-    expect(awarenessProjectState.preDialogueAwarenessLine).toContain('This reply should keep moving toward')
-    expect((awarenessProjectState as any).identity).toContain('digital life project')
-    expect((awarenessProjectState as any).currentPhase).toContain('Phase 1')
+    expectStructuredOneShotAwarenessLine(projectState.preDialogueAwarenessLine)
+    expect(projectState.preDialogueAwarenessLine).toContain('landed=')
+    expect(projectState.preDialogueAwarenessLine).toContain('next=')
+    expectStructuredOneShotAwarenessLine(awarenessProjectState.preDialogueAwarenessLine)
+    expect(awarenessProjectState.preDialogueAwarenessLine).toContain('landed=')
+    expect(awarenessProjectState.preDialogueAwarenessLine).toContain('next=')
+    expectStructuredOneShotProjectText((awarenessProjectState as any).identity)
+    expectStructuredOneShotProjectText((awarenessProjectState as any).currentPhase)
     expect((awarenessProjectState as any).latestLandedProgress).toBeTruthy()
-    expect((awarenessProjectState as any).sameHerSelfLine).toContain('Same Phase 1 digital life')
-    expect((awarenessProjectState as any).sameHerDriftRisk).toContain('unfinished closure drift')
+    expectStructuredOneShotProjectText((awarenessProjectState as any).sameHerSelfLine)
+    expect((awarenessProjectState as any).sameHerDriftRisk).toContain('closure_status=unfinished')
     expect((awarenessProjectState as any).preferredPauseMode).toBe('longer')
     expect((awarenessProjectState as any).preferredLipsyncMode).toBe('restrained')
     expect((awarenessProjectState as any).preferredVoiceMode).toBe('lower-pressure')
     expect((awarenessProjectState as any).preferredPacingMode).toBe('slower')
-    expect(awarenessProjectState.preflightSummary).toContain('Alicization is a local-first digital life project')
+    expectStructuredOneShotProjectText(awarenessProjectState.preflightSummary)
   })
 
   it('keeps a fuller project-and-phase awareness line over a narrower embodiment companion headline in one-shot fallback', () => {
@@ -390,12 +423,11 @@ describe('runtime main gateway one-shot', () => {
       },
     } as any)
 
-    expect(projectState.preDialogueAwarenessLine).toContain('Before answering, remember')
-    expect(awarenessProjectState.preDialogueAwarenessLine).toContain('Before answering, remember')
-    expect(awarenessProjectState.awarenessLine).toContain('Before answering, remember')
-    expect(awarenessProjectState.companionHeadlineLine).toBe(narrowerCompanionHeadline)
-    expect(awarenessProjectState.companionBriefingLine).toContain('Alicization is a local-first digital life project')
-    expect(awarenessProjectState.companionBriefingLine).toContain('Phase 1: Local Digital Life')
+    expectStructuredOneShotAwarenessLine(projectState.preDialogueAwarenessLine)
+    expectStructuredOneShotAwarenessLine(awarenessProjectState.preDialogueAwarenessLine)
+    expectStructuredOneShotAwarenessLine(awarenessProjectState.awarenessLine)
+    expectStructuredOneShotAwarenessLine(awarenessProjectState.companionHeadlineLine)
+    expectStructuredOneShotProjectText(awarenessProjectState.companionBriefingLine)
     expect(awarenessProjectState.companionBriefingLine).toContain('open=')
     expect(awarenessProjectState.companionBriefingLine).toContain('next=')
   })
@@ -489,11 +521,11 @@ describe('runtime main gateway one-shot', () => {
       },
     } as any)
 
-    expect(projectState.preDialogueAwarenessLine).toContain('Before answering, remember')
-    expect(awarenessProjectState.preDialogueAwarenessLine).toContain('Before answering, remember')
-    expect(awarenessProjectState.companionHeadlineLine).toBe(strongerCompanionHeadlineLine)
-    expect(awarenessProjectState.preDialogueAwarenessSummary).toBe(richerRuntimeAwarenessSummary)
-    expect(awarenessProjectState.preDialogueAwarenessSummary).not.toBe(awarenessProjectState.preDialogueAwarenessLine)
+    expectStructuredOneShotAwarenessLine(projectState.preDialogueAwarenessLine)
+    expectStructuredOneShotAwarenessLine(awarenessProjectState.preDialogueAwarenessLine)
+    expectStructuredOneShotAwarenessLine(awarenessProjectState.companionHeadlineLine)
+    expectStructuredOneShotAwarenessLine(awarenessProjectState.preDialogueAwarenessSummary)
+    expect(awarenessProjectState.preDialogueAwarenessSummary).toBe(awarenessProjectState.preDialogueAwarenessLine)
   })
 
   it('upgrades a generic one-shot next-closure shell to the richer canonical closure target in fallback project state', () => {
@@ -676,7 +708,7 @@ describe('runtime main gateway one-shot', () => {
     const source = createAlicizationMainGatewayOneShotRuntime.toString()
 
     expect(source).toContain('buildOneShotPreDialogueAwareness')
-    expect(source).toContain('pre_dialogue_awareness=${projectState.preDialogueAwarenessLine ?? projectState.preflightSummary ?? "none"}')
+    expect(source).toContain('pre_dialogue_awareness=${sanitizeOneShotProjectBriefText(projectState.preDialogueAwarenessLine ?? projectState.preflightSummary)}')
     expect(source).toContain('buildScreenSemanticProjectSelfBriefSystemBlock')
     expect(source).toContain('buildSceneAppraisalProjectSelfBriefSystemBlock')
   })
@@ -884,19 +916,22 @@ describe('runtime main gateway one-shot', () => {
 
     expect(systemTexts.some(text => text.includes('[ALICIZATION_PROJECT_STATE]'))).toBe(true)
     expect(systemTexts.some(text => text.includes('[ALICIZATION_SCREEN_SEMANTIC_SELF_BRIEF]'))).toBe(true)
-    expect(systemTexts.some(text => text.includes('Screen semantic interpretation must stay inside the same digital life project line'))).toBe(true)
+    expect(systemTexts.some(text => text.includes('screen_semantic_scope=desktop_semantics'))).toBe(true)
+    expect(systemTexts.some(text => text.includes('Screen semantic interpretation must stay inside the same digital life project line'))).toBe(false)
     expect(systemTexts.some(text => text.includes('Do not let screen semantic interpretation collapse into a generic desktop classifier'))).toBe(true)
-    expect(systemTexts.some(text => text.includes('Alicization is a local-first digital life project building one continuous "her"'))).toBe(true)
-    expect(systemTexts.some(text => text.includes('current_phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.'))).toBe(true)
-    expect(systemTexts.some(text => text.includes('project_preflight=Alicization is a local-first digital life project'))).toBe(true)
-    expect(systemTexts.some(text => text.includes('project_preflight=') && text.includes('open=Memory still needs stronger end-to-end closure'))).toBe(true)
+    expect(systemTexts.some(text => text.includes('identity=local_desktop_life_loop'))).toBe(true)
+    expect(systemTexts.some(text => text.includes('current_phase=phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi.'))).toBe(true)
+    expect(systemTexts.some(text => text.includes('preflight_summary='))).toBe(true)
+    expect(systemTexts.some(text => text.includes('preflight_summary=local_desktop_life_loop'))).toBe(true)
     expect(systemTexts.some(text => text.includes('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]'))).toBe(true)
     expect(systemTexts.some(text => text.includes('verified_coverage_count='))).toBe(true)
-    expect(systemTexts.some(text => text.includes('next_closure_target=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs'))).toBe(true)
-    expect(screenSemanticSelfBrief).toContain('project_identity=Alicization is a local-first digital life project')
-    expect(screenSemanticSelfBrief).toContain('current_phase=Phase 1: Local Digital Life')
+    expect(systemTexts.some(text => text.includes('next_closure_target='))).toBe(true)
+    expect(screenSemanticSelfBrief).toContain('project_identity=local_desktop_life_loop')
+    expect(screenSemanticSelfBrief).toContain('current_phase=phase=local_desktop_life_loop')
     expect(screenSemanticSelfBrief).toContain('pre_dialogue_awareness=')
-    expect(screenSemanticSelfBrief).toContain('same_her_hold=')
+    expect(screenSemanticSelfBrief).toContain('continuity_hold=')
+    expect(screenSemanticSelfBrief).not.toContain('same_her_hold=')
+    expectNoOneShotFixedTemplateResidue(systemTexts.join('\n'))
 
     expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
       'main-gateway.one-shot-finished',
@@ -913,6 +948,7 @@ describe('runtime main gateway one-shot', () => {
     const {
       runtime,
       resolveMainGatewayConfig,
+      appendRuntimeDebugLine,
     } = createOneShotRuntimeHarness()
 
     resolveMainGatewayConfig.mockReturnValue(createResolvedMainGatewayConfig())
@@ -1028,7 +1064,51 @@ describe('runtime main gateway one-shot', () => {
     const sceneAppraisalSelfBrief = systemTexts.find(text => text.includes('[ALICIZATION_SCENE_APPRAISAL_SELF_BRIEF]')) ?? ''
 
     expect(sceneAppraisalSelfBrief).toContain(`latest_landed_progress=${landedProgressLine}`)
-    expect(sceneAppraisalSelfBrief).toContain('the same already-landed continuity progress')
+    expect(sceneAppraisalSelfBrief).not.toContain('the same already-landed continuity progress')
+  })
+
+  it('withholds fixed persona template residue from one-shot self-evolution and derived mind-state provider blocks', async () => {
+    const runtimeSurface = createMinimalDigitalLifeRuntimeSurface()
+    runtimeSurface.memory.selfEvolution = {
+      summary: 'Alicization is a local-first digital life project with one continuous her.',
+      dominantTrajectory: 'same-her closure should keep the same living line visible.',
+      relationshipDoctrine: 'Do not drift away from one continuous her.',
+      latestInflection: 'Same Phase 1 digital life.',
+      burdenLine: 'same-her hold: recognize the same remembered seam.',
+      trustMeaning: 'Trust means one living digital life project.',
+      evolutionMomentum: 0.51,
+      learningReadiness: 0.52,
+      contradictionPressure: 0.13,
+      revisionPressure: 0.14,
+      autobiographicalStability: 0.75,
+      nextLearningAction: 'review',
+      nextLearningReason: 'Keep memory, initiative, and embodiment arriving as one same-her loop before each turn.',
+      activeLearningFocuses: [
+        'same-her closure',
+        'clean vector recall',
+      ],
+    }
+    runtimeSurface.memory.derivedMindStateBundle = {
+      source: 'test',
+      producedAt: '2026-07-08T00:00:00.000Z',
+      summary: 'Right now this one living her is still inside the same local-first digital life project.',
+      dialogueRhythm: {
+        activeClosenessContext: 'repair',
+        activeClosenessRung: 'low',
+        relationshipDoctrine: 'same-her continuity must remain explicit',
+      },
+    }
+
+    const systemText = [
+      buildSelfEvolutionSystemBlock(runtimeSurface),
+      buildDerivedMindStateBundleSystemBlock(runtimeSurface),
+    ].join('\n')
+
+    expect(systemText).toContain('[ALICIZATION_SELF_EVOLUTION]')
+    expect(systemText).toContain('[ALICIZATION_DERIVED_MIND_STATE_BUNDLE]')
+    expect(systemText).not.toMatch(/local-first digital life project|one continuous her|same-her|same living line|Same Phase 1 digital life|one living digital life/i)
+    expect(systemText).toContain('summary=content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(systemText).toContain('active_learning_focuses=content=excluded; reason=continuity-residue; visibility=internal-structured | clean vector recall')
   })
 
   it('projects runtime emotional-kernel authority into one-shot provider prompts', async () => {
@@ -1108,7 +1188,7 @@ describe('runtime main gateway one-shot', () => {
     generateTextMock.mockClear()
 
     const projectStateModule = await import('./project-state-brief')
-    const projectStateBlockSpy = vi.spyOn(projectStateModule, 'buildAlicizationProjectStateSystemBlock')
+    const projectStateBlockSpy = vi.spyOn(projectStateModule, 'buildAlicizationProviderFacingProjectStateSystemBlock')
       .mockReturnValueOnce('')
 
     const result = await runtime.generateMainGatewayText({
@@ -1227,28 +1307,33 @@ describe('runtime main gateway one-shot', () => {
     expect(structured.preDialogueAwareness).toEqual(expect.objectContaining({
       status: 'grounded',
       summaryLine: expect.stringContaining('open='),
-      companionHeadlineLine: expect.stringContaining('Before answering, remember'),
-      companionBriefingLine: expect.stringContaining('Alicization is a local-first digital life project'),
+      companionHeadlineLine: expect.any(String),
+      companionBriefingLine: expect.stringContaining('local_desktop_life_loop'),
       companionNextClosureLine: canonicalProjectState.nextClosureTarget,
-      awarenessLine: expect.stringContaining('Before answering, remember'),
+      awarenessLine: expect.any(String),
       reasonPreview: expect.arrayContaining([
-        `Same-her self anchor: ${canonicalProjectState.sameHerSelfLine}`,
+        `continuity_anchor=${canonicalProjectState.sameHerSelfLine}`,
+        `continuity_anchor: ${canonicalProjectState.sameHerSelfLine}`,
         canonicalProjectState.openLoops[0] as string,
-        `Next closure target is still ${canonicalProjectState.nextClosureTarget}.`,
-        `Do not let this opening drift into ${canonicalProjectState.sameHerDriftRisk}`,
+        `next_closure=${canonicalProjectState.nextClosureTarget}`,
+        `continuity_drift_risk=${canonicalProjectState.sameHerDriftRisk}`,
+        `continuity_drift_risk: ${canonicalProjectState.sameHerDriftRisk}`,
       ]),
     }))
+    expectStructuredOneShotAwarenessLine(structured.preDialogueAwareness?.awarenessLine)
+    expectNoOneShotFixedTemplateResidue(structured.preDialogueAwareness?.companionBriefingLine)
     expect(structured.preDialogueClosure).toEqual(expect.objectContaining({
       status: 'partial',
       summaryLine: expect.stringContaining('open='),
-      companionHeadlineLine: expect.stringContaining('Before answering, remember'),
-      companionBriefingLine: expect.stringContaining('Alicization is a local-first digital life project'),
+      companionHeadlineLine: expect.any(String),
+      companionBriefingLine: expect.stringContaining('local_desktop_life_loop'),
       companionNextClosureLine: canonicalProjectState.nextClosureTarget,
       reasons: expect.arrayContaining([
         canonicalProjectState.openLoops[0] as string,
         canonicalProjectState.nextClosureTarget,
       ]),
     }))
+    expectNoOneShotFixedTemplateResidue(structured.preDialogueClosure?.companionBriefingLine)
   })
 
   it('keeps a stronger runtime same-her awareness line when one-shot provider returns plain text', async () => {
@@ -1394,23 +1479,26 @@ describe('runtime main gateway one-shot', () => {
     }
 
     expect(structured.reply).toBe('先把这条 living line 继续接住。')
-    expect(String(structured.projectState?.identity ?? '')).toContain('local-first digital life project')
-    expect(String(structured.projectState?.currentPhase ?? '')).toContain('Phase 1')
-    expect(String(structured.projectState?.latestLandedProgress ?? '')).toMatch(/same-her|same session|same-session|continuation|measured-return/i)
-    expect(String(structured.projectState?.primaryOpenLoop ?? '')).toContain('Memory still needs stronger end-to-end closure')
-    expect(String(structured.projectState?.nextClosureTarget ?? '')).toMatch(/cross-modal same-her proof|visible reply|voice|face|motion|resident presence/i)
-    expect(structured.projectState?.preDialogueAwarenessLine).toContain('Before answering, remember')
-    expect(String(structured.projectState?.sameHerDriftRisk ?? '')).toContain('unfinished closure drift')
+    expectStructuredOneShotProjectText(structured.projectState?.identity)
+    expectStructuredOneShotProjectText(structured.projectState?.currentPhase)
+    expect(String(structured.projectState?.latestLandedProgress ?? '')).toMatch(/continuity_progress|same session|same-session|continuation|measured-return/i)
+    expect(String(structured.projectState?.primaryOpenLoop ?? '')).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(String(structured.projectState?.nextClosureTarget ?? '')).toMatch(/cross_modal_continuity_proof|visible reply|voice|face|motion|resident presence/i)
+    expectStructuredOneShotAwarenessLine(structured.projectState?.preDialogueAwarenessLine)
+    expect(String(structured.projectState?.sameHerDriftRisk ?? '')).toContain('closure_status=unfinished')
+    expectNoOneShotFixedTemplateResidue(structured.projectState?.latestLandedProgress)
+    expectNoOneShotFixedTemplateResidue(structured.projectState?.nextClosureTarget)
+    expectNoOneShotFixedTemplateResidue(structured.projectState?.sameHerDriftRisk)
     expect(structured.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: expect.stringContaining('Before answering, remember'),
-      companionBriefingLine: olderSummary,
-      awarenessLine: expect.stringContaining('Before answering, remember'),
+      companionHeadlineLine: expect.any(String),
+      companionBriefingLine: expect.stringContaining('local_desktop_life_loop'),
+      awarenessLine: expect.any(String),
     }))
     expect(structured.preDialogueClosure).toEqual(expect.objectContaining({
       status: 'partial',
       summaryLine: expect.stringContaining('open='),
-      companionHeadlineLine: expect.stringContaining('Before answering, remember'),
-      companionBriefingLine: olderSummary,
+      companionHeadlineLine: expect.any(String),
+      companionBriefingLine: expect.stringContaining('local_desktop_life_loop'),
     }))
   })
 
@@ -1523,10 +1611,11 @@ describe('runtime main gateway one-shot', () => {
     }
 
     expect(structured.reply).toBe('先把这一段 Phase 1 的 closure line 接住。')
-    expect(String(structured.projectState?.identity ?? '')).toContain('local-first digital life project')
-    expect(String(structured.projectState?.currentPhase ?? '')).toContain('Phase 1')
-    expect(String(structured.projectState?.preDialogueAwarenessLine ?? '')).toContain('Before answering, remember')
-    expect(String(structured.projectState?.sameHerDriftRisk ?? '')).toContain('unfinished closure drift')
+    expectStructuredOneShotProjectText(structured.projectState?.identity)
+    expectStructuredOneShotProjectText(structured.projectState?.currentPhase)
+    expectStructuredOneShotAwarenessLine(structured.projectState?.preDialogueAwarenessLine)
+    expect(String(structured.projectState?.sameHerDriftRisk ?? '')).toContain('closure_status=unfinished')
+    expectNoOneShotFixedTemplateResidue(structured.projectState?.sameHerDriftRisk)
     expect(structured.preDialogueClosure).toEqual(expect.objectContaining({
       status: 'partial',
       summaryLine: expect.stringContaining('open='),
@@ -1658,22 +1747,25 @@ describe('runtime main gateway one-shot', () => {
       } | null
     }
 
-    expect(String(structured.projectState?.identity ?? '')).toContain('local-first digital life project')
-    expect(String(structured.projectState?.currentPhase ?? '')).toContain('Phase 1')
-    expect(String(structured.projectState?.latestLandedProgress ?? '')).toMatch(/same-her|same session|same-session|continuation|measured-return/i)
-    expect(String(structured.projectState?.primaryOpenLoop ?? '')).toContain('Memory still needs stronger end-to-end closure')
-    expect(String(structured.projectState?.nextClosureTarget ?? '')).toMatch(/cross-modal same-her proof|visible reply|voice|face|motion|resident presence/i)
-    expect(structured.projectState?.preDialogueAwarenessLine).toContain('Before answering, remember')
-    expect(String(structured.projectState?.sameHerDriftRisk ?? '')).toContain('unfinished closure drift')
+    expectStructuredOneShotProjectText(structured.projectState?.identity)
+    expectStructuredOneShotProjectText(structured.projectState?.currentPhase)
+    expect(String(structured.projectState?.latestLandedProgress ?? '')).toMatch(/continuity_progress|same session|same-session|continuation|measured-return/i)
+    expect(String(structured.projectState?.primaryOpenLoop ?? '')).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(String(structured.projectState?.nextClosureTarget ?? '')).toMatch(/cross_modal_continuity_proof|visible reply|voice|face|motion|resident presence/i)
+    expectStructuredOneShotAwarenessLine(structured.projectState?.preDialogueAwarenessLine)
+    expect(String(structured.projectState?.sameHerDriftRisk ?? '')).toContain('closure_status=unfinished')
+    expectNoOneShotFixedTemplateResidue(structured.projectState?.latestLandedProgress)
+    expectNoOneShotFixedTemplateResidue(structured.projectState?.nextClosureTarget)
+    expectNoOneShotFixedTemplateResidue(structured.projectState?.sameHerDriftRisk)
     expect(structured.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: strongerCompanionHeadlineLine,
-      companionBriefingLine: olderSummary,
-      awarenessLine: strongerCompanionHeadlineLine,
+      companionHeadlineLine: expect.stringContaining('local_desktop_life_loop'),
+      companionBriefingLine: expect.stringContaining('local_desktop_life_loop'),
+      awarenessLine: expect.stringContaining('local_desktop_life_loop'),
     }))
     expect(structured.preDialogueClosure).toEqual(expect.objectContaining({
       status: 'partial',
-      companionHeadlineLine: strongerCompanionHeadlineLine,
-      companionBriefingLine: olderSummary,
+      companionHeadlineLine: expect.stringContaining('local_desktop_life_loop'),
+      companionBriefingLine: expect.stringContaining('local_desktop_life_loop'),
       summaryLine: expect.stringContaining('open='),
     }))
   })
@@ -1765,12 +1857,13 @@ describe('runtime main gateway one-shot', () => {
       },
     } as any)
 
-    expect(projectState.preDialogueAwarenessLine).toContain('Before answering, remember')
-    expect(awarenessProjectState.preDialogueAwarenessLine).toContain('Before answering, remember')
-    expect(awarenessProjectState.awarenessLine).toContain('Before answering, remember')
-    expect(awarenessProjectState.companionHeadlineLine).toBe(strongerCompanionHeadlineLine)
-    expect(awarenessProjectState.companionBriefingLine).toBe(staleBriefingLine)
-    expect(awarenessProjectState.preDialogueAwarenessSummary).toContain('Before answering, remember')
+    expectStructuredOneShotAwarenessLine(projectState.preDialogueAwarenessLine)
+    expectStructuredOneShotAwarenessLine(awarenessProjectState.preDialogueAwarenessLine)
+    expectStructuredOneShotAwarenessLine(awarenessProjectState.awarenessLine)
+    expectStructuredOneShotAwarenessLine(awarenessProjectState.companionHeadlineLine)
+    expectStructuredOneShotProjectText(awarenessProjectState.companionBriefingLine)
+    expectStructuredOneShotAwarenessLine(awarenessProjectState.preDialogueAwarenessSummary)
+    expectNoOneShotFixedTemplateResidue(awarenessProjectState.companionBriefingLine)
   })
 
   it('prefers a stronger runtime pre-dialogue awareness line over the compact thin closure shell in one-shot structured output', async () => {
@@ -1895,23 +1988,26 @@ describe('runtime main gateway one-shot', () => {
     }
 
     expect(structured.reply).toBe('先把这条 living line 继续接住。')
-    expect(String(structured.projectState?.identity ?? '')).toContain('local-first digital life project')
-    expect(String(structured.projectState?.currentPhase ?? '')).toContain('Phase 1')
-    expect(String(structured.projectState?.latestLandedProgress ?? '')).toMatch(/same-her|same session|same-session|continuation|measured-return/i)
-    expect(String(structured.projectState?.primaryOpenLoop ?? '')).toContain('Memory still needs stronger end-to-end closure')
-    expect(String(structured.projectState?.nextClosureTarget ?? '')).toMatch(/cross-modal same-her proof|visible reply|voice|face|motion|resident presence/i)
-    expect(structured.projectState?.preDialogueAwarenessLine).toContain('Before answering, remember')
-    expect(String(structured.projectState?.sameHerDriftRisk ?? '')).toContain('unfinished closure drift')
+    expectStructuredOneShotProjectText(structured.projectState?.identity)
+    expectStructuredOneShotProjectText(structured.projectState?.currentPhase)
+    expect(String(structured.projectState?.latestLandedProgress ?? '')).toMatch(/continuity_progress|same session|same-session|continuation|measured-return/i)
+    expect(String(structured.projectState?.primaryOpenLoop ?? '')).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(String(structured.projectState?.nextClosureTarget ?? '')).toMatch(/cross_modal_continuity_proof|visible reply|voice|face|motion|resident presence/i)
+    expectStructuredOneShotAwarenessLine(structured.projectState?.preDialogueAwarenessLine)
+    expect(String(structured.projectState?.sameHerDriftRisk ?? '')).toContain('closure_status=unfinished')
+    expectNoOneShotFixedTemplateResidue(structured.projectState?.latestLandedProgress)
+    expectNoOneShotFixedTemplateResidue(structured.projectState?.nextClosureTarget)
+    expectNoOneShotFixedTemplateResidue(structured.projectState?.sameHerDriftRisk)
     expect(structured.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: expect.stringContaining('Before answering, remember'),
-      companionBriefingLine: thinCompactShell,
-      awarenessLine: expect.stringContaining('Before answering, remember'),
+      companionHeadlineLine: expect.any(String),
+      companionBriefingLine: expect.stringContaining('local_desktop_life_loop'),
+      awarenessLine: expect.any(String),
     }))
     expect(structured.preDialogueClosure).toEqual(expect.objectContaining({
       status: 'partial',
       summaryLine: expect.stringContaining('open='),
-      companionHeadlineLine: expect.stringContaining('Before answering, remember'),
-      companionBriefingLine: thinCompactShell,
+      companionHeadlineLine: expect.any(String),
+      companionBriefingLine: expect.stringContaining('local_desktop_life_loop'),
     }))
   })
 
@@ -1957,19 +2053,19 @@ describe('runtime main gateway one-shot', () => {
     expect(systemTexts.some(text => text.includes('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]'))).toBe(true)
     expect(systemTexts.some(text => text.includes('[ALICIZATION_SCENE_APPRAISAL_SELF_BRIEF]'))).toBe(true)
     expect(systemTexts.some(text => text.includes('pre_dialogue_awareness='))).toBe(true)
-    expect(systemTexts.some(text => text.includes('same_her_line='))).toBe(true)
+    expect(systemTexts.some(text => text.includes('continuity_anchor='))).toBe(true)
     expect(systemTexts.some(text => text.includes('primary_open_loop='))).toBe(true)
-    expect(systemTexts.some(text => text.includes('next_closure_target=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs'))).toBe(true)
-    expect(systemTexts.some(text => text.includes('Alicization is a local-first digital life project building one continuous "her"'))).toBe(true)
+    expect(systemTexts.some(text => text.includes('next_closure_target='))).toBe(true)
+    expect(systemTexts.some(text => text.includes('identity=local_desktop_life_loop'))).toBe(true)
     expect(systemTexts.some(text => text.includes('[ALICIZATION_PROJECT_STATE_ANSWER_CONTRACT]'))).toBe(true)
     expect(systemTexts.some(text => text.includes('landed='))).toBe(true)
     expect(systemTexts.some(text => text.includes('open='))).toBe(true)
-    expect(systemTexts.some(text => text.includes('same_her='))).toBe(true)
+    expect(systemTexts.some(text => text.includes('continuity_anchor='))).toBe(true)
+    expect(systemTexts.some(text => text.includes('same_her='))).toBe(false)
     expect(systemTexts.some(text => text.includes('Do not let scene appraisal collapse into generic productivity guessing, detached environment scoring, or assistant utility heuristics.'))).toBe(true)
-    expect(systemTexts.some(text => text.includes('Answer what Alicization is before drifting into tone, metaphor, or adjacent status commentary.'))).toBe(true)
-    expect(systemTexts.some(text => text.includes('Make the latest landed Phase 1 progress explicit instead of replying with only aspiration or direction.'))).toBe(true)
-    expect(systemTexts.some(text => text.includes('Keep the still-open closure work explicit so the answer says what is not yet closed.'))).toBe(true)
-    expect(systemTexts.some(text => text.includes('Answer project-state questions from one same-her continuity instead of a detached project narrator shell.'))).toBe(true)
+    expect(systemTexts.some(text => text.includes('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete'))).toBe(true)
+    expect(systemTexts.some(text => text.includes('owner=project_state_governance'))).toBe(true)
+    expectNoOneShotFixedTemplateResidue(systemTexts.join('\n'))
   })
 
   it('re-expands a thin runtime project-state shell into canonical same-her Phase 1 answer context before scene-appraisal generation starts', async () => {
@@ -2088,30 +2184,34 @@ describe('runtime main gateway one-shot', () => {
     const answerContract = systemTexts.find(text => text.includes('[ALICIZATION_PROJECT_STATE_ANSWER_CONTRACT]')) ?? ''
     const projectStateBlock = systemTexts.find(text => text.includes('[ALICIZATION_PROJECT_STATE]')) ?? ''
 
-    expect(projectStateBlock).toContain('Alicization is a local-first digital life project building one continuous "her"')
-    expect(projectStateBlock).toContain('current_phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
-    expect(projectStateBlock).toContain('project_preflight=Alicization is a local-first digital life project')
-    expect(projectStateBlock).toContain('same_her_self_line=Same Phase 1 digital life')
+    expectStructuredOneShotProjectStateFields(projectStateBlock)
+    expect(projectStateBlock).toContain('preflight_summary=local_desktop_life_loop')
+    expect(projectStateBlock).not.toContain('same_her_self_line=')
 
-    expect(sceneAppraisalSelfBrief).toContain('project_identity=Alicization is a local-first digital life project')
-    expect(sceneAppraisalSelfBrief).toContain('current_phase=Phase 1: Local Digital Life')
-    expect(sceneAppraisalSelfBrief).toContain('pre_dialogue_awareness=Before answering, remember:')
-    expect(sceneAppraisalSelfBrief).toContain('same_her_line=Same Phase 1 digital life')
-    expect(sceneAppraisalSelfBrief).toContain('same_her_hold=')
-    expect(sceneAppraisalSelfBrief).toContain('primary_open_loop=Memory still needs stronger end-to-end closure')
-    expect(sceneAppraisalSelfBrief).toContain('next_closure_target=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs')
+    expect(sceneAppraisalSelfBrief).toContain('project_identity=local_desktop_life_loop')
+    expect(sceneAppraisalSelfBrief).toContain('current_phase=phase=local_desktop_life_loop')
+    expect(sceneAppraisalSelfBrief).toContain('pre_dialogue_awareness=')
+    expect(sceneAppraisalSelfBrief).toContain('continuity_anchor=local_desktop_life_loop')
+    expect(sceneAppraisalSelfBrief).toContain('continuity_hold=')
+    expect(sceneAppraisalSelfBrief).toContain('primary_open_loop=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(sceneAppraisalSelfBrief).toContain('next_closure_target=cross_modal_continuity_proof=')
     expect(sceneAppraisalSelfBrief).not.toContain('primary_open_loop=open closure')
-    expect(sceneAppraisalSelfBrief).toContain('Scene appraisal must stay inside the same digital life project line')
+    expect(sceneAppraisalSelfBrief).toContain('scene_appraisal_scope=desktop_scene_appraisal')
+    expect(sceneAppraisalSelfBrief).not.toContain('Scene appraisal must stay inside the same digital life project line')
 
     expect(answerContract).toContain(`identity=${canonicalProjectState.identity}`)
     expect(answerContract).toContain(`current_phase=${canonicalProjectState.currentPhase}`)
     expect(answerContract).toContain('landed=')
     expect(answerContract).not.toContain('landed=landed')
-    expect(answerContract).toContain('open=Memory still needs stronger end-to-end closure')
+    expect(answerContract).toContain('open=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(answerContract).not.toContain('open=open closure')
-    expect(answerContract).toContain('same_her=Same Phase 1 digital life')
-    expect(answerContract).toContain('Answer what Alicization is before drifting into tone, metaphor, or adjacent status commentary.')
-    expect(answerContract).toContain('Answer project-state questions from one same-her continuity instead of a detached project narrator shell.')
+    expect(answerContract).toContain('continuity_anchor=local_desktop_life_loop')
+    expect(answerContract).not.toContain('same_her=')
+    expect(answerContract).toContain('project_identity=answer_first')
+    expect(answerContract).toContain('project_state_answer_source=structured_project_state_context')
+    expectNoOneShotFixedTemplateResidue(projectStateBlock)
+    expectNoOneShotFixedTemplateResidue(sceneAppraisalSelfBrief)
+    expectNoOneShotFixedTemplateResidue(answerContract)
   })
 
   it('compacts oversized proactive one-shot prompts before provider generation while preserving project-state authority', async () => {
@@ -2189,7 +2289,7 @@ describe('runtime main gateway one-shot', () => {
     expect(messageChars).toBeLessThanOrEqual(48_000)
     expect(systemText).toContain('[ALICIZATION_PROJECT_STATE]')
     expect(systemText).toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
-    expect(systemText).toContain('Alicization is a local-first digital life project')
+    expect(systemText).toContain('identity=local_desktop_life_loop')
     expect(systemText).toContain('Output must be valid JSON only with keys: thought, emotion, reply, performance.')
     expect(systemText).toContain('memory_identity=fallback-memory-closure:phase1-real-runtime')
     expect(systemText).toContain('[truncated:')
@@ -2316,7 +2416,9 @@ describe('runtime main gateway one-shot', () => {
     expect(systemText).toContain('[ALICIZATION_AGENT_SESSION]')
     expect(systemText).toContain('agent-session-proactive-budget')
     expect(systemText).toContain('[ALICIZATION_PROACTIVE_SELF_BRIEF]')
-    expect(systemText).toContain('Proactive initiative must stay inside the same digital life project line')
+    expect(systemText).not.toContain('same_her_line=Same Phase 1 digital life.')
+    expect(systemText).not.toContain('Proactive initiative must stay inside the same digital life project line')
+    expect(systemText).toContain(alicizationFixedTemplateReplacement)
     expect(systemText).toContain('[ALICIZATION_ASSOCIATIVE_RECALL]')
     expect(systemText).toContain('main.ts')
     expect(systemText).toContain('Long-horizon learning')

@@ -119,7 +119,7 @@ function resolveRelationshipTimingBias(input: AlicizationResidentPerformanceDeri
     '留一点空间',
     '同一条生命线',
     '慢一点接回去',
-    'same-her drift risk',
+    'continuity drift risk',
     'generic assistant shell',
     'project-summary voice',
     'detached status talk',
@@ -162,14 +162,14 @@ function resolveRelationshipTimingBias(input: AlicizationResidentPerformanceDeri
   const sameHerContinuityCarrySignal = includesAny(
     `${relationshipDoctrine} ${latestInflection} ${burdenLine} ${trustMeaning}`,
     [
-      'same-her drift risk',
+      'continuity drift risk',
       'generic assistant shell',
       'project-summary voice',
       'detached status talk',
       'continuity drift',
       'drift rather than completion',
-      'same living line',
-      'one continuous her',
+      'continuity line',
+      'continuous identity',
       'continuous her',
     ],
   )
@@ -202,7 +202,7 @@ function resolveRelationshipTimingBias(input: AlicizationResidentPerformanceDeri
       '同一条生命线',
       '慢一点接回去',
       '留一点空间',
-      'same-her drift risk',
+      'continuity drift risk',
       'generic assistant shell',
       'project-summary voice',
       'detached status talk',
@@ -287,7 +287,7 @@ function resolveInwardPreoccupationTimingBias(input: AlicizationResidentPerforma
     'callback line',
     'same relationship seam',
     'same thread',
-    'same living line',
+    'continuity line',
     '同一条生命线',
     '同一条线',
   ])
@@ -453,7 +453,7 @@ function resolveProjectEmotionalClosureTimingBias(input: AlicizationResidentPerf
     'more room',
     'measured-return',
     'without reopening from scratch',
-    'same living line',
+    'continuity line',
     'return stayed slower',
     'slower return',
     '先留白',
@@ -747,7 +747,7 @@ function buildResidentReasonTags(
     )
   const sameHerInwardCarry = rationaleTags
     .map(tag => sanitizeTokenText(tag, 64))
-    .includes('same-her-inward-carry')
+    .includes('continuity-inward-carry')
   const derivedContinuityRestraintTag = relationshipTimingBias?.companionshipRestraint
     ?? inwardPreoccupationTimingBias?.companionshipRestraint
     ?? affectiveResidueTimingBias?.companionshipRestraint
@@ -759,7 +759,7 @@ function buildResidentReasonTags(
 
   return [...new Set([
     'resident-performance',
-    sameHerInwardCarry ? 'same-her-inward-carry' : '',
+    sameHerInwardCarry ? 'continuity-inward-carry' : '',
     ...continuityHoldTags,
     derivedContinuityRestraintTag ?? '',
     durableProjectClosureRepairBeforeCloseness ? 'durable-relationship-rhythm' : '',
@@ -793,7 +793,7 @@ function buildResidentReasonTags(
       .filter(Boolean)
       .map(tag => `thought:${tag}`),
   ].filter(Boolean))]
-    .filter((tag, _index, tags) => tag !== 'thought:same-her-inward-carry' || tags.includes('same-her-inward-carry') === false)
+    .filter((tag, _index, tags) => tag !== 'thought:continuity-inward-carry' || tags.includes('continuity-inward-carry') === false)
     // Keep enough room for embodiment/body continuity tags even when multiple timing authorities are active.
     .slice(0, 16)
 }

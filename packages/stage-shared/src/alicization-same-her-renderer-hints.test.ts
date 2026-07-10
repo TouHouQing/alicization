@@ -12,6 +12,9 @@ import {
 
 describe('alicization same-her renderer hints', () => {
   it('normalizes hyphenated renderer hint tokens into the shared underscore form', () => {
+    expect(normalizeAlicizationRendererHintToken(' embodiment:audible-continuity-line ')).toBe(
+      'embodiment:audible_continuity_line',
+    )
     expect(normalizeAlicizationRendererHintToken(' embodiment:audible-same-her-line ')).toBe(
       'embodiment:audible_same_her_line',
     )
@@ -32,12 +35,12 @@ describe('alicization same-her renderer hints', () => {
 
   it('keeps coordinator-style body+voice-only continuity on a softer same-her carry instead of overstating it as an audible-body carry', () => {
     expect(hasAlicizationAudibleSameHerCarry({
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
       reasonTags: ['embodiment:body+voice-only'],
     })).toBe(false)
 
     expect(hasAlicizationSoftenedSameHerCarry({
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
       reasonTags: ['embodiment:body+voice-only'],
     })).toBe(true)
   })
@@ -56,7 +59,7 @@ describe('alicization same-her renderer hints', () => {
 
   it('treats body-lipsync-voice-rejoin continuity as an audible same-her carry across signature and reason-tag variants', () => {
     expect(hasAlicizationAudibleSameHerCarry({
-      signature: 'embodiment:audible-same-her-line',
+      signature: 'embodiment:audible-continuity-line',
       reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
     })).toBe(true)
 
@@ -155,7 +158,7 @@ describe('alicization same-her renderer hints', () => {
 
   it('treats audible, quieter, and still-voiced continuity as softened same-her carry', () => {
     expect(hasAlicizationSoftenedSameHerCarry({
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
       reasonTags: ['companionship'],
     })).toBe(true)
 

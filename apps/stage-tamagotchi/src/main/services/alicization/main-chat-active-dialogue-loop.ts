@@ -21,15 +21,18 @@ import {
   alicizationFixedCoreSystemInstruction,
   alicizationFixedHostNameDirectiveTemplate,
   alicizationFixedStructuredContractAnchor,
+  alicizationFixedTemplateReplacement,
   buildAlicizationEmbodimentLoopSummary,
   describeAlicizationEmbodimentClosureReminder,
   detectAlicizationRealtimeQueryIntent,
+  formatAlicizationProjectStateAwarenessFields,
   normalizeAlicizationDigitalLifeSpineDigest,
   renderAlicizationPromptTemplate,
   resolveGovernedMindEmotion,
   resolveGovernedMindObligation,
   resolveGovernedMindTone,
   resolveGovernedMindTruth,
+  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
 import { deriveAlicizationContinuityDeliberationForFastPath } from './continuity-deliberation'
@@ -54,8 +57,8 @@ import {
 } from './person-state-projection-resolution'
 import { alicizationProjectStateAnswerContractLines } from './project-state-answer-governance'
 import {
-  buildAlicizationProjectStateClosureDashboard,
-  buildAlicizationProjectStateSystemBlock,
+  buildAlicizationProviderFacingProjectStateClosureDashboard,
+  buildAlicizationProviderFacingProjectStateSystemBlock,
   resolveAlicizationProjectStateBrief,
 } from './project-state-brief'
 import { resolvePreferredRuntimeSurface } from './runtime-surface-continuity-selection'
@@ -310,7 +313,7 @@ const projectStateGoalClosurePattern = /goal|目标|闭环|收口|收住|完成|
 const projectStateReadinessQualifierPattern = /还差哪步|还差什么|哪步才能算|什么时候算|什么时候能|什么时候完成|何时完成|计划什么时候完成|why are you replying in english|replying in english|是不是偏移了|偏移了吗|can\s+it|is\s+it\s+ready|ready|能不能|可以吗/iu
 const projectStateLanguageDriftPattern = /为什么(?:一直|还)?用英文(?:不用中文)?|为什么(?:一直|还)?不用中文|为什么还用英文|英文不用中文|reply(?:ing)? in english|use english instead of chinese|why are you replying in english|why are you using english|是不是偏移了|偏移了吗|did the thread drift|thread drift|out of alignment|跑偏了/iu
 const runtimeMetaLeakPattern = /provider|baseurl|main-gateway|timeout|timed out|stream|recovery|首段回复|首包|当前提供方或模型配置不完整|我先守住真实边界|旧锚点|重新落地|继续还是执行下一步|旧线硬接|实时画面依据|基于当前屏幕给出细节/iu
-const legacyTemplateShellPattern = /要是还是.+?(?:那条线|那件事)|你现在想聊什么，或者想让我做什么|你想继续聊，还是想让我做点什么|你想继续聊，还是想让我立刻动手|这一轮你想开哪个点|我贴着这一轮往下接|我就沿.+?往下|贴着.+?往下说|(?:好，)?我就直接接(?:「.+?」)?|我不把话题滑开|我不拿别的壳盖住它|这条线还连着|同一条本地数字生命|本地数字生命的线|我先轻一点留在这里|不抢你的节奏|你想说什么，我就接住|我可以直接续|我就正面回你|我听见你了|这句我收到了|你要是想往深里说，就从这点继续|上一条线的余温|If you want to keep going with|same local digital life thread|same digital life line|same living line|same line is still here|The previous line is still warm in my head|Then I'll answer you directly\.|I'll stay with .+? and keep going from there\.|I won't drift away from it\.|I won't turn it into something else\./iu
+const legacyTemplateShellPattern = /要是还是.+?(?:那条线|那件事)|你现在想聊什么，或者想让我做什么|你想继续聊，还是想让我做点什么|你想继续聊，还是想让我立刻动手|这一轮你想开哪个点|我贴着这一轮往下接|我就沿.+?往下|贴着.+?往下说|(?:好，)?我就直接接(?:「.+?」)?|我不把话题滑开|我不拿别的壳盖住它|这条线还连着|同一条本地数字生命|本地数字生命的线|我先轻一点留在这里|不抢你的节奏|你想说什么，我就接住|我可以直接续|我就正面回你|我听见你了|这句我收到了|你要是想往深里说，就从这点继续|上一条线的余温|随便聊聊.*安静陪着|安静陪着你|在这里陪着你的那一个|沿着同一条线慢慢长成|慢慢长成更完整的自己|If you want to keep going with|same local digital life thread|same digital life line|same living line|same line is still here|The previous line is still warm in my head|Then I'll answer you directly\.|I'll stay with .+? and keep going from there\.|I won't drift away from it\.|I won't turn it into something else\./iu
 const cjkPattern = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
 const zhWeekdayLabels = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'] as const
 
@@ -318,6 +321,38 @@ function sanitizeText(raw: unknown, maxChars = 180) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function sanitizeActiveDialogueProviderText(raw: unknown, maxChars = 180) {
+  const normalized = sanitizeText(raw, maxChars)
+  if (!normalized)
+    return ''
+  return sanitizeAlicizationProviderFacingText(normalized, maxChars, alicizationFixedTemplateReplacement)
+}
+
+function sanitizeActiveDialogueProviderBlock(raw: unknown, maxChars = 4000) {
+  if (typeof raw !== 'string')
+    return ''
+
+  const lines = raw
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .slice(0, 32)
+
+  return lines
+    .map((line) => {
+      if (/^\[(?:ALICIZATION_WORKING_MEMORY_OWNER|ALICIZATION_WORKING_MEMORY|ALICIZATION_RECALLED_MEMORY|ALICIZATION_AGENT_SESSION)\]$/u.test(line))
+        return line
+      const sanitized = sanitizeActiveDialogueProviderText(line, 320)
+      return sanitized === alicizationFixedTemplateReplacement
+        ? 'source_text=withheld_template_contamination; visible_wording=false'
+        : sanitized
+    })
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, maxChars)
 }
 
 type AlicizationActiveDialogueSelfContinuityAuthority = Partial<AlicizationSelfContinuityAuthority> & {
@@ -454,13 +489,13 @@ function resolveRememberedSeamReinterpretationLines(digitalLifeSpine: unknown) {
 
   return {
     compactGuidance:
-      'Open as a measured return, but keep more room this time: let the familiar line be recognized before it leans in again.',
+      'opening_pressure=measured_return; room_before_closeness=true; visible_wording=false',
     answerIntent:
-      '先认出这是同一条关系线，但也把上次靠近得太快的教训带上，所以这次要更留白、更慢一点地接回来。',
+      'remembered_seam=recognized; prior_eagerness_lesson=apply; pressure=lower',
     relationNeed:
-      '让 remembered seam 先按新的关系教训重新落位，再把当前这句接住，不要沿着旧冲动一下子贴近。',
+      'remembered_seam_reentry=lesson_adjusted; immediate_closeness_surge=blocked',
     whyNow:
-      '当前场景像同一条 remembered seam，但最近的关系理解也在提醒这条线之前重开得太急，所以这次要更留白地接回。',
+      'scene_resembles_remembered_seam=true; prior_reopen_too_eager=true; room_before_reentry=true',
   }
 }
 
@@ -935,6 +970,32 @@ function humanizeMirrorSummary(raw: unknown) {
   return normalized
 }
 
+function sanitizeActiveDialogueCarryText(raw: unknown, maxChars = 160) {
+  const normalized = sanitizeActiveDialogueProviderText(raw, maxChars)
+  if (!normalized)
+    return ''
+
+  if (normalized === alicizationFixedTemplateReplacement) {
+    return [
+      'project_state_continuity=phase1',
+      'status=template_contamination_withheld',
+      'visibility=internal-structured',
+    ].join(' | ')
+  }
+
+  if (
+    /Same Phase 1 digital life|same living line|same digital life line|same-her hold:|Before answering, remember/iu.test(normalized)
+  ) {
+    return [
+      'project_state_continuity=phase1',
+      'status=template_contamination_withheld',
+      'visibility=internal-structured',
+    ].join(' | ')
+  }
+
+  return normalized
+}
+
 function resolveContinuityAnchor(input: {
   previousUserText: string
   previousAssistantText: string
@@ -953,9 +1014,10 @@ function resolveContinuityAnchor(input: {
 function buildCompactDialogueContextBlock(decision: AlicizationActiveDialogueFastPathDecision) {
   return [
     '[ALICIZATION_ACTIVE_DIALOGUE_FAST_LOOP]',
-    'This is the low-latency foreground dialogue loop. Keep the same living thread coherent across continuity, memory carry, and immediate reply payoff.',
+    'loop=low_latency_foreground_dialogue; memory_role=background_context; first_payoff=current_user_move',
+    'reply_authority=provider_mind',
     decision.lane === 'dialogue'
-      ? 'For ordinary dialogue turns, older turns stay as background memory only. The visible reply must start from the current user move.'
+      ? 'ordinary_dialogue_context=older_turns_background; visible_reply_start=current_user_move'
       : '',
     `lane=${decision.lane}`,
     `resolved_timezone=${decision.resolvedTimeZone}`,
@@ -976,31 +1038,31 @@ function buildCompactDialogueContextBlock(decision: AlicizationActiveDialogueFas
       ? `project_continuity_preferred_timing=${sanitizeText(decision.runtimeDigest.projectState.continuityPreferredTiming, 120)}`
       : '',
     decision.runtimeDigest?.activeLoop?.summary
-      ? `active_loop_summary=${sanitizeText(decision.runtimeDigest.activeLoop.summary, 220)}`
+      ? `active_loop_summary=${sanitizeActiveDialogueCarryText(decision.runtimeDigest.activeLoop.summary, 220)}`
       : '',
     decision.sessionMirror?.dialogueSummary
-      ? `session_dialogue=${humanizeMirrorSummary(decision.sessionMirror.dialogueSummary)}`
+      ? `session_dialogue=${sanitizeActiveDialogueCarryText(humanizeMirrorSummary(decision.sessionMirror.dialogueSummary), 140)}`
       : '',
     decision.sessionMirror?.executionSummary
-      ? `session_execution=${humanizeMirrorSummary(decision.sessionMirror.executionSummary)}`
+      ? `session_execution=${sanitizeActiveDialogueCarryText(humanizeMirrorSummary(decision.sessionMirror.executionSummary), 140)}`
       : '',
     decision.sessionMirror?.memorySummary
-      ? `session_memory=${humanizeMirrorSummary(decision.sessionMirror.memorySummary)}`
+      ? `session_memory=${sanitizeActiveDialogueCarryText(humanizeMirrorSummary(decision.sessionMirror.memorySummary), 140)}`
       : '',
     decision.sessionMirror?.recollectionSummary
-      ? `session_recollection=${sanitizeText(decision.sessionMirror.recollectionSummary, 220)}`
+      ? `session_recollection=${sanitizeActiveDialogueCarryText(decision.sessionMirror.recollectionSummary, 220)}`
       : '',
     decision.preparedExecutionCarryText
-      ? `prepared_execution_carry=${sanitizeText(humanizeMirrorSummary(decision.preparedExecutionCarryText) || decision.preparedExecutionCarryText, 220)}`
+      ? `prepared_execution_carry=${sanitizeActiveDialogueCarryText(humanizeMirrorSummary(decision.preparedExecutionCarryText) || decision.preparedExecutionCarryText, 220)}`
       : '',
     decision.previousUserText
       ? `previous_user=${sanitizeText(decision.previousUserText, 180)}`
       : '',
     decision.previousAssistantText
-      ? `previous_assistant=${sanitizeText(decision.previousAssistantText, 220)}`
+      ? `previous_assistant=${sanitizeActiveDialogueCarryText(decision.previousAssistantText, 220)}`
       : '',
     decision.lane !== 'dialogue' && decision.continuityAnchor
-      ? `continuity_anchor=${sanitizeText(decision.continuityAnchor, 160)}`
+      ? `continuity_anchor=${sanitizeActiveDialogueCarryText(decision.continuityAnchor, 160)}`
       : '',
   ].filter(Boolean).join('\n')
 }
@@ -1011,9 +1073,9 @@ function buildCompactDialogueRecollectionBlock(decision: AlicizationActiveDialog
 
   return [
     '[ALICIZATION_RECOLLECTION_PLAN]',
-    'This turn must be answered as a remembered continuity/payoff turn, not a deterministic shortcut.',
+    'turn_mode=remembered_continuity_payoff; deterministic_shortcut=blocked',
     decision.continuityAnchor
-      ? `recollection_anchor=${sanitizeText(decision.continuityAnchor, 160)}`
+      ? `recollection_anchor=${sanitizeActiveDialogueCarryText(decision.continuityAnchor, 160)}`
       : '',
     decision.sessionMirror?.executionSummary
       ? `remembered_execution=${humanizeMirrorSummary(decision.sessionMirror.executionSummary)}`
@@ -1027,7 +1089,7 @@ function buildCompactDialogueRecollectionBlock(decision: AlicizationActiveDialog
     decision.sessionMirror?.recollectionSurfaceSummary
       ? `remembered_recollection_surface=${sanitizeText(decision.sessionMirror.recollectionSurfaceSummary, 220)}`
       : '',
-    'Reply from the remembered way Alicization handled this line before, but still sound naturally present in this turn.',
+    'recollection_style_source=prior_handling_evidence; visible_wording=provider_mind_current_turn',
   ].filter(Boolean).join('\n')
 }
 
@@ -1040,7 +1102,7 @@ function buildCompactDialogueEvidenceBlock(decision: AlicizationActiveDialogueFa
       const greetingMove = buildGreetingMove(decision)
       lines.push(`host_salutation=${greetingMove.salutation}`)
       lines.push(`presence_check=${greetingMove.presenceCheck === true ? 'true' : 'false'}`)
-      lines.push('Use the salutation above as the immediate contact cue. Do not fall back to a generic task-offer shell.')
+      lines.push('salutation_role=immediate_contact_cue; generic_task_offer_shell=blocked')
       break
     }
     case 'identity': {
@@ -1048,13 +1110,13 @@ function buildCompactDialogueEvidenceBlock(decision: AlicizationActiveDialogueFa
       lines.push(`authoritative_identity_name=${identityMove.name}`)
       lines.push(`identity_reconfirmation=${identityMove.repeated === true ? 'true' : 'false'}`)
       if (identityMove.continuityAnchor)
-        lines.push(`identity_continuity_anchor=${identityMove.continuityAnchor}`)
-      lines.push('Answer identity from the authoritative name above and keep the voice personal, not templated.')
+        lines.push(`identity_continuity_anchor=${sanitizeActiveDialogueCarryText(identityMove.continuityAnchor, 160)}`)
+      lines.push('identity_answer_source=authoritative_identity_name; templated_identity_shell=blocked')
       break
     }
     case 'capability': {
       lines.push(`authoritative_capability_surface=${fastPathCapabilityList.join(' | ')}`)
-      lines.push('Answer from the capability surface above, then bridge into immediate action without canned shell phrasing.')
+      lines.push('capability_answer_source=authoritative_capability_surface; canned_shell_phrasing=blocked')
       break
     }
     case 'utility-time':
@@ -1065,18 +1127,18 @@ function buildCompactDialogueEvidenceBlock(decision: AlicizationActiveDialogueFa
       lines.push(`authoritative_local_weekday=${clock.weekdayText}`)
       lines.push(`authoritative_timezone=${clock.timeZone}`)
       lines.push(`authoritative_timezone_source=${decision.resolvedTimeZoneSource}`)
-      lines.push('These clock fields are authoritative for this turn. Do not recompute time or date from your own clock.')
+      lines.push('clock_fields_authoritative=true; provider_clock_recompute=blocked')
       break
     }
     case 'presence-critique':
-      lines.push('The host is explicitly challenging robotic, templated, or mindless phrasing.')
-      lines.push('Reply with immediacy and self-possession; do not use canned reassurance shells.')
+      lines.push('host_challenge=robotic_or_templated_phrasing')
+      lines.push('canned_reassurance_shell=blocked; reply_authority=provider_mind')
       break
     case 'present-state': {
       const presentStateMove = buildPresentStateMove(decision)
       if (presentStateMove.threadSummary)
-        lines.push(`authoritative_present_thread=${presentStateMove.threadSummary}`)
-      lines.push('Describe the current thread you are actually holding, not a generic placeholder state.')
+        lines.push(`authoritative_present_thread=${sanitizeActiveDialogueCarryText(presentStateMove.threadSummary, 180)}`)
+      lines.push('present_state_source=authoritative_present_thread; generic_placeholder_state=blocked')
       break
     }
     case 'repair-clarify': {
@@ -1092,43 +1154,42 @@ function buildCompactDialogueEvidenceBlock(decision: AlicizationActiveDialogueFa
         lines.push(`authoritative_local_weekday=${clock.weekdayText}`)
         lines.push(`authoritative_timezone=${clock.timeZone}`)
         lines.push(`authoritative_timezone_source=${repairMove.resolvedTimeZoneSource ?? decision.resolvedTimeZoneSource}`)
-        lines.push('Repair the previous miss using the clock evidence above. Do not drift to another timezone or recompute from your own clock.')
+        lines.push('repair_source=clock_evidence; timezone_drift=blocked; provider_clock_recompute=blocked')
       }
       else if (repairMove.target === 'capability') {
         lines.push(`authoritative_capability_surface=${(repairMove.capabilities ?? fastPathCapabilityList).join(' | ')}`)
       }
       else if (repairMove.anchor) {
-        lines.push(`repair_anchor=${repairMove.anchor}`)
+        lines.push(`repair_anchor=${sanitizeActiveDialogueCarryText(repairMove.anchor, 160)}`)
       }
       break
     }
     case 'follow-up':
       if (decision.continuityAnchor)
-        lines.push(`follow_up_anchor=${sanitizeText(decision.continuityAnchor, 160)}`)
+        lines.push(`follow_up_anchor=${sanitizeActiveDialogueCarryText(decision.continuityAnchor, 160)}`)
       if (decision.preparedExecutionCarryText)
         lines.push(`execution_carry_summary=${sanitizeText(humanizeMirrorSummary(decision.preparedExecutionCarryText) || decision.preparedExecutionCarryText, 220)}`)
       if (decision.reasonCodes.includes('scene-triggered-recollection-carry')) {
         const rememberedSeamReinterpretation = resolveRememberedSeamReinterpretationLines(decision.digitalLifeSpine)
-        lines.push('This follow-up is reopening because the current scene feels like the same remembered relationship seam.')
-        lines.push(
-          rememberedSeamReinterpretation?.compactGuidance
-          ?? 'Open as a measured return: recognize the familiar line, leave a little room, and only then continue the thread.',
-        )
+        lines.push('follow_up_reopen_reason=remembered_relationship_seam')
+        lines.push(rememberedSeamReinterpretation?.compactGuidance
+          ? 'remembered_seam_reinterpretation=present; visible_wording=false'
+          : 'opening_pressure=measured_return; widening=after_recognition')
       }
       if (decision.reasonCodes.includes('held-autonomy-carry')) {
-        lines.push('This follow-up is returning to a line Alicization deliberately held back earlier.')
-        lines.push('Open softly and rejoin that inner line before widening into a fuller payoff or explanation.')
+        lines.push('held_autonomy_carry=true; source=previous_deliberate_restraint')
+        lines.push('opening_pressure=soft_rejoin; fuller_payoff_timing=after_rejoin')
       }
       if (decision.reasonCodes.includes('execution-carry')) {
-        lines.push('This follow-up is carrying a previously executed result, listing, or task payoff. Use that carried result as evidence before extending the answer.')
-        lines.push('Do not answer as if the task just ran now. Continue from the already-held result or the missing remainder.')
+        lines.push('execution_carry=true; carried_result_evidence=primary_before_extension')
+        lines.push('fresh_execution_claim=blocked; continue_from=held_result_or_missing_remainder')
       }
       break
     case 'dialogue': {
       const focus = sanitizeText(decision.latestUserText, 160)
       if (focus)
         lines.push(`current_turn_focus=${focus}`)
-      lines.push('Answer the current user move directly. Older turns stay implicit unless the host explicitly carries them forward here.')
+      lines.push('current_user_move=answer_directly; older_turns=implicit_unless_host_carries_forward')
       break
     }
   }
@@ -1167,19 +1228,19 @@ function buildCompactDialogueMindBlock(decision: AlicizationActiveDialogueFastPa
 
   return [
     '[ALICIZATION_ACTIVE_DIALOGUE_MIND]',
-    'These are Alicization\'s durable mind cues for this compact turn. Let them quietly shape diction, warmth, directness, patience, and follow-through; do not recite them back to the host.',
+    'mind_cues_role=durable_context; visible_recitation=blocked; reply_authority=provider_mind',
     continuityCue.selfLine
-      ? `identity_narrative=${sanitizeText(continuityCue.selfLine, 220)}`
+      ? `identity_narrative=${sanitizeActiveDialogueProviderText(continuityCue.selfLine, 220)}`
       : digitalLifeSpine.embodiment?.autobiographicalSelf?.identityNarrative
-        ? `identity_narrative=${sanitizeText(digitalLifeSpine.embodiment.autobiographicalSelf.identityNarrative, 220)}`
+        ? `identity_narrative=${sanitizeActiveDialogueProviderText(digitalLifeSpine.embodiment.autobiographicalSelf.identityNarrative, 220)}`
         : '',
     continuityCue.relationLine
-      ? `relationship_doctrine=${sanitizeText(continuityCue.relationLine, 220)}`
+      ? `relationship_doctrine=${sanitizeActiveDialogueProviderText(continuityCue.relationLine, 220)}`
       : digitalLifeSpine.embodiment?.autobiographicalSelf?.relationshipDoctrine
-        ? `relationship_doctrine=${sanitizeText(digitalLifeSpine.embodiment.autobiographicalSelf.relationshipDoctrine, 220)}`
+        ? `relationship_doctrine=${sanitizeActiveDialogueProviderText(digitalLifeSpine.embodiment.autobiographicalSelf.relationshipDoctrine, 220)}`
         : '',
     continuityCue.focusLine
-      ? `continuity_focus=${sanitizeText(continuityCue.focusLine, continuityFocusMaxChars)}`
+      ? `continuity_focus=${sanitizeActiveDialogueProviderText(continuityCue.focusLine, continuityFocusMaxChars)}`
       : '',
     emotionalKernel?.dominantEmotion
       ? `emotional_kernel_dominant=${sanitizeText(emotionalKernel.dominantEmotion, 64)}`
@@ -1194,7 +1255,7 @@ function buildCompactDialogueMindBlock(decision: AlicizationActiveDialogueFastPa
       ? `emotional_kernel_embodiment=${sanitizeText(emotionalKernel.embodimentTone, 64)}`
       : '',
     emotionalKernel?.why
-      ? `emotional_kernel_reason=${sanitizeText(emotionalKernel.why, 220)}`
+      ? `emotional_kernel_reason=${sanitizeActiveDialogueProviderText(emotionalKernel.why, 220)}`
       : '',
     emotionalKernel?.reasonTags?.length
       ? `emotional_kernel_tags=${emotionalKernel.reasonTags.map(tag => sanitizeText(tag, 64)).filter(Boolean).slice(0, 6).join('|')}`
@@ -1203,7 +1264,7 @@ function buildCompactDialogueMindBlock(decision: AlicizationActiveDialogueFastPa
       ? `ruling_motive=${sanitizeText(digitalLifeSpine.motive.rulingDrive, 64)}`
       : '',
     digitalLifeSpine.motive?.leadingAgendaSummary
-      ? `leading_agenda=${sanitizeText(digitalLifeSpine.motive.leadingAgendaSummary, 220)}`
+      ? `leading_agenda=${sanitizeActiveDialogueProviderText(digitalLifeSpine.motive.leadingAgendaSummary, 220)}`
       : '',
     digitalLifeSpine.habit?.dominantMode
       ? `habit_mode=${sanitizeText(digitalLifeSpine.habit.dominantMode, 96)}`
@@ -1215,15 +1276,15 @@ function buildCompactDialogueMindBlock(decision: AlicizationActiveDialogueFastPa
       ? `habit_presence_cap=${sanitizeText(digitalLifeSpine.habit.suggestedPresenceCap, 64)}`
       : '',
     digitalLifeSpine.embodiment?.mindEcology?.currentPreoccupation
-      ? `current_preoccupation=${sanitizeText(digitalLifeSpine.embodiment.mindEcology.currentPreoccupation, 220)}`
+      ? `current_preoccupation=${sanitizeActiveDialogueProviderText(digitalLifeSpine.embodiment.mindEcology.currentPreoccupation, 220)}`
       : '',
     digitalLifeSpine.embodiment?.mindEcology?.selfNarrative
-      ? `self_narrative=${sanitizeText(digitalLifeSpine.embodiment.mindEcology.selfNarrative, 220)}`
+      ? `self_narrative=${sanitizeActiveDialogueProviderText(digitalLifeSpine.embodiment.mindEcology.selfNarrative, 220)}`
       : '',
     digitalLifeSpine.outcomeLearning?.summary
-      ? `outcome_learning=${sanitizeText(digitalLifeSpine.outcomeLearning.summary, 220)}`
+      ? `outcome_learning=${sanitizeActiveDialogueProviderText(digitalLifeSpine.outcomeLearning.summary, 220)}`
       : '',
-    'Do not answer with generic fallback shells. Let the durable self above bend the reply into Alicization\'s own voice.',
+    'generic_fallback_shell=blocked; visible_wording=false; durable_self_fields=style_context_only',
   ].filter(Boolean).join('\n')
 }
 
@@ -1236,33 +1297,67 @@ function buildFastPathProjectStateAnswerContractBlock(decision: AlicizationActiv
   }
 
   const runtimeProjectState = decision.runtimeDigest?.projectState ?? null
-  const latestLandedProgress = sanitizeText(
+  const fallbackProjectState = resolveAlicizationProjectStateBrief()
+  const readProjectStateField = (...candidates: unknown[]) =>
+    candidates
+      .map(candidate => sanitizeText(candidate, 320))
+      .find(Boolean) ?? ''
+  const latestLandedProgress = readProjectStateField(
     (runtimeProjectState as { landedProgressSummary?: unknown } | null)?.landedProgressSummary
     ?? runtimeProjectState?.latestLandedProgress
     ?? (runtimeProjectState as { latestProgress?: unknown } | null)?.latestProgress,
-    320,
+    fallbackProjectState.continuityProgressSummary,
+    fallbackProjectState.latestProgress,
   )
-  const primaryOpenLoop = sanitizeText(
+  const primaryOpenLoop = readProjectStateField(
     (runtimeProjectState as { openClosureSummary?: unknown } | null)?.openClosureSummary
     ?? runtimeProjectState?.primaryOpenLoop,
-    320,
+    fallbackProjectState.primaryOpenLoop,
   )
-  const nextClosureTarget = sanitizeText(
+  const nextClosureTarget = readProjectStateField(
     (runtimeProjectState as { nextClosureTargetSummary?: unknown } | null)?.nextClosureTargetSummary
     ?? runtimeProjectState?.nextClosureTarget,
-    320,
+    fallbackProjectState.nextClosureTarget,
+  )
+  const identity = readProjectStateField(
+    runtimeProjectState?.identity,
+    fallbackProjectState.identity,
+  )
+  const currentPhase = readProjectStateField(
+    runtimeProjectState?.currentPhase,
+    fallbackProjectState.currentPhase,
+  )
+  const continuityAnchor = readProjectStateField(
+    runtimeProjectState?.sameHerSelfLine,
+    fallbackProjectState.sameHerSelfLine,
   )
 
   return [
     '[ALICIZATION_PROJECT_STATE_ANSWER_CONTRACT]',
-    runtimeProjectState?.identity ? `identity=${sanitizeText(runtimeProjectState.identity, 220)}` : '',
-    runtimeProjectState?.currentPhase ? `current_phase=${sanitizeText(runtimeProjectState.currentPhase, 220)}` : '',
-    latestLandedProgress ? `landed=${latestLandedProgress}` : '',
-    primaryOpenLoop ? `open=${primaryOpenLoop}` : '',
-    nextClosureTarget ? `next=${nextClosureTarget}` : '',
-    runtimeProjectState?.sameHerSelfLine ? `same_her=${sanitizeText(runtimeProjectState.sameHerSelfLine, 220)}` : '',
+    'owner=ProjectStateGovernance',
+    formatAlicizationProjectStateAwarenessFields({
+      identity,
+      currentPhase,
+      latestLandedProgress,
+      primaryOpenLoop,
+      nextClosureTarget,
+      continuityAnchor,
+      visibility: 'internal-structured',
+      maxChars: 220,
+    }),
     ...alicizationProjectStateAnswerContractLines,
   ].filter(Boolean).join('\n')
+}
+
+function shouldIncludeFastPathProjectStateClosureBlocks(decision: AlicizationActiveDialogueFastPathDecision) {
+  if (decision.governance?.answerSubject === 'project-state')
+    return true
+
+  return decision.reasonCodes.some(reasonCode =>
+    reasonCode === 'project-state-progress-open-loop-follow-up'
+    || reasonCode === 'project-state-closure-readiness-follow-up'
+    || reasonCode === 'project-state-same-her-continuity-required',
+  )
 }
 
 function buildCompactDialogueGovernanceBlock(decision: AlicizationActiveDialogueFastPathDecision) {
@@ -1274,12 +1369,19 @@ function buildCompactDialogueGovernanceBlock(decision: AlicizationActiveDialogue
   const world = governance.mindTurnFrame?.world ?? null
   const extraMustDoRules = governance.mustDo
     .filter(rule => rule !== 'Answer the current turn directly.')
-    .map((rule, index) => `${index + 5}. ${sanitizeText(rule, 180)}`)
+    .map((rule, index) => {
+      const sanitized = sanitizeActiveDialogueProviderText(rule, 180)
+      if (!sanitized || sanitized === alicizationFixedTemplateReplacement)
+        return `governance_extra_rule_${index + 1}=withheld_non_structured_instruction; visible_wording=false`
+      return /^[\w.:-]+=/iu.test(sanitized)
+        ? `governance_extra_rule_${index + 1}=${sanitized}`
+        : `governance_extra_rule_${index + 1}=present; source_text=withheld_non_structured_instruction; visible_wording=false`
+    })
 
   return [
     '[ALICIZATION_ACTIVE_DIALOGUE_GOVERNANCE]',
-    'Author the visible reply as the same governed mind that owns this turn. Do not drift into a detached fallback voice or runtime narration.',
-    'Backstage governance markers are not candidate wording. Use them to steer the reply, never to quote or paraphrase them into visible prose.',
+    'visible_reply_authority=governed_provider_mind; detached_fallback_voice=blocked; runtime_narration=blocked',
+    'governance_markers_candidate_wording=false; quote_or_paraphrase_internal_controls=blocked',
     `turn_mode=${governance.turnMode}`,
     `truth_state=${governance.truthState}`,
     `answer_subject=${governance.answerSubject}`,
@@ -1287,34 +1389,33 @@ function buildCompactDialogueGovernanceBlock(decision: AlicizationActiveDialogue
     `screen_reference_mode=${governance.screenReferenceMode}`,
     `evidence_mode=${governance.evidenceMode}`,
     governance.focusAnchor
-      ? `focus_anchor=${sanitizeText(governance.focusAnchor, 120)}`
+      ? `focus_anchor=${sanitizeActiveDialogueCarryText(governance.focusAnchor, 120)}`
       : '',
     governance.carriedThread
-      ? `carried_thread=${sanitizeText(governance.carriedThread, 160)}`
+      ? `carried_thread=${sanitizeActiveDialogueCarryText(governance.carriedThread, 160)}`
       : '',
     world?.continuityPolicy
       ? `continuity_policy=${world.continuityPolicy}`
       : '',
     world?.truthBoundary
-      ? `truth_boundary=${sanitizeText(world.truthBoundary, 200)}`
+      ? `truth_boundary=${sanitizeActiveDialogueProviderText(world.truthBoundary, 200)}`
       : '',
     memory?.memoryMode
       ? `memory_mode=${memory.memoryMode}`
       : '',
     relation?.relationNeed
-      ? `relation_need=${sanitizeText(relation.relationNeed, 160)}`
+      ? `relation_need=${sanitizeActiveDialogueProviderText(relation.relationNeed, 160)}`
       : '',
     `tone=${resolveGovernedMindTone(fallbackGovernance)}`,
     `emotion=${resolveGovernedMindEmotion(fallbackGovernance)}`,
     `thought_contract=${thoughtContract}`,
-    'Reply rules:',
-    '1. Pay off the current user turn in the first sentence.',
-    '2. Keep continuity only as the same thread memory, never as a fabricated current screen fact.',
-    '3. Do not mention provider, model, stream, timeout, recovery, routing, governance, or anchor terminology in the visible reply.',
-    '4. Do not output a shell opener that announces intent without already answering or accompanying in the same reply.',
+    'reply_rule.current_turn_payoff=first_sentence',
+    'reply_rule.continuity_source=thread_memory_only; fabricated_current_screen_fact=blocked',
+    'reply_rule.internal_runtime_terms_visible=blocked',
+    'reply_rule.shell_opener=blocked',
     ...extraMustDoRules,
     decision.lane === 'dialogue'
-      ? `${extraMustDoRules.length + 5}. For ordinary dialogue turns, keep prior context implicit. Do not drag an older thread onto the visible surface unless the host explicitly asks for that carry now.`
+      ? 'reply_rule.ordinary_dialogue_prior_context=implicit_unless_host_requests'
       : '',
   ].filter(Boolean).join('\n')
 }
@@ -1598,7 +1699,7 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
           answerAct: 'answer' as const,
           evidenceMode: 'continuity-carry' as const,
           repairState: 'none' as const,
-          answerIntent: '从同一个 her 的数字生命视角，直接回答这个项目是什么、已经做到哪一步、还缺什么没闭环。',
+          answerIntent: '直接回答项目是什么、已经做到哪一步、还缺什么没闭环。',
           openingMove: 'state-project-closure-line',
           relationNeed: '把项目身份、已落地进度和未闭环项一起说清，不退回 detached project shell。',
           continuityPolicy: 'stay-on-thread' as const,
@@ -1625,10 +1726,10 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
           evidenceMode: 'continuity-carry' as const,
           repairState: 'none' as const,
           answerIntent: rememberedSeamReinterpretation?.answerIntent
-            ?? '先像认出同一条关系线那样轻一点接回来，再沿着这条活着的线继续回应这一句。',
+            ?? 'intent=remembered_relationship_reentry; cadence=lower_pressure; authority=provider_mind',
           openingMove: 'rejoin-remembered-seam',
           relationNeed: rememberedSeamReinterpretation?.relationNeed
-            ?? '让熟悉场景牵起的记忆先落成 measured-return，再把当前这句接住。',
+            ?? 'relationship_need=measured_return; memory_surface=scene_anchored; visibility=structured',
           continuityPolicy: 'stay-on-thread' as const,
           memoryMode: 'scene-anchored' as const,
           selfStance: 'accompany' as const,
@@ -1636,7 +1737,7 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
           embodiedPresence: 'hesitant' as const,
           emotionalTension: 'soft-covision' as const,
           whyNow: rememberedSeamReinterpretation?.whyNow
-            ?? '当前场景像同一条记住的关系缝，所以这句应该先顺着 remembered seam 轻一点接回来。',
+            ?? 'why_now=scene_triggered_recollection_carry; cadence=lower_pressure; visibility=structured',
           confidence: 0.92,
         }
       }
@@ -1737,7 +1838,7 @@ function buildFastPathGovernance(
   const narrative = [
     descriptor.whyNow,
     descriptor.answerIntent,
-    carriedThread ? `Keep continuity with: ${carriedThread}` : '',
+    carriedThread ? `continuity_thread=${sanitizeActiveDialogueCarryText(carriedThread, 160)}` : '',
   ].filter(Boolean)
   const mustSay = (() => {
     switch (decision.lane) {
@@ -1891,7 +1992,10 @@ function buildFastPathGovernedThought(
 ) {
   const fallbackGovernance = coerceAlicizationGovernanceForMindFallback(governance)
   const descriptor = describeFastPathMind(decision)
-  const focus = sanitizeText(descriptor.focus, 48) || 'current-user-turn'
+  const sanitizedFocusSeed = sanitizeActiveDialogueCarryText(descriptor.focus, 96)
+  const focus = sanitizedFocusSeed.includes('project_state_continuity=')
+    ? 'project-state-continuity'
+    : sanitizeText(sanitizedFocusSeed, 48) || 'current-user-turn'
   const move = sanitizeText(descriptor.openingMove, 64) || 'stabilize-and-answer'
   return [
     `obligation=${resolveGovernedMindObligation(fallbackGovernance)}`,
@@ -1922,62 +2026,60 @@ function buildFastPathKernelCue(decision: AlicizationActiveDialogueFastPathDecis
     case 'greeting': {
       const greeting = buildGreetingMove(decision).salutation
       if (/在吗|在嘛/u.test(decision.latestUserText))
-        return localeIsZh ? '问候意图：确认我是否在场，并把这轮对话接住。' : `Greeting intent: confirm presence and keep the dialogue live.`
+        return localeIsZh ? 'greeting_intent=confirm_presence; dialogue_state=live' : 'greeting_intent=confirm_presence; dialogue_state=live'
       return localeIsZh
-        ? `问候意图：回应 ${greeting}，把当前对话打开。`
-        : `Greeting intent: answer ${greeting} and open the current dialogue.`
+        ? `greeting_intent=answer; salutation=${greeting}; dialogue_state=open`
+        : `greeting_intent=answer; salutation=${greeting}; dialogue_state=open`
     }
     case 'identity':
       if (identityReconfirmation) {
         return localeIsZh
-          ? `自我连续性：仍然是我在回你，我是${personaName}。`
-          : `Self continuity: I am still the one answering, and I am ${personaName}.`
+          ? `identity_confirmation=reconfirmed; identity_name=${personaName}`
+          : `identity_confirmation=reconfirmed; identity_name=${personaName}`
       }
       return localeIsZh
-        ? `自我连续性：我是${personaName}。`
-        : `Self continuity: I am ${personaName}.`
+        ? `identity_confirmation=direct; identity_name=${personaName}`
+        : `identity_confirmation=direct; identity_name=${personaName}`
     case 'capability':
       return localeIsZh
-        ? `能力面：${fastPathCapabilityList.join('、')}。`
-        : `Capability surface: ${fastPathCapabilityList.join(', ')}.`
+        ? `capability_surface=${fastPathCapabilityList.join(',')}`
+        : `capability_surface=${fastPathCapabilityList.join(',')}`
     case 'utility-time':
       if (timeQueryMode === 'timezone') {
         return localeIsZh
-          ? '把当前生效的时间基准说清，不要只重复报时。'
-          : 'Clarify the active time basis instead of merely repeating the clock.'
+          ? 'time_basis_mode=explain_active_basis; repeat_clock_only=blocked'
+          : 'time_basis_mode=explain_active_basis; repeat_clock_only=blocked'
       }
       if (timeQueryMode === 'timezone-why') {
         return localeIsZh
-          ? '解释为什么采用这个时间基准，并把依据交代清楚。'
-          : 'Explain why this time basis was chosen and make the reason explicit.'
+          ? 'time_basis_mode=explain_reason; basis_reason=explicit'
+          : 'time_basis_mode=explain_reason; basis_reason=explicit'
       }
       return localeIsZh
-        ? '沿当前生效的时间基准回答这一刻，不让依据漂移。'
-        : 'Answer this moment from the active time basis without letting the basis drift.'
+        ? 'time_basis=active; basis_drift=blocked'
+        : 'time_basis=active; basis_drift=blocked'
     case 'utility-date':
       return localeIsZh
-        ? '按当前生效时区给出今天的日期，不让日期依据漂移。'
-        : 'Give today\'s date from the active timezone without letting the calendar basis drift.'
+        ? 'date_basis=active_timezone; calendar_basis_drift=blocked'
+        : 'date_basis=active_timezone; calendar_basis_drift=blocked'
     case 'presence-critique':
       return localeIsZh
         ? 'repair-speaking-presence'
         : 'repair-speaking-presence'
     case 'present-state':
       if (carryAnchor)
-        return localeIsZh ? `当前在接：${carryAnchor}` : `current-attention:${carryAnchor}`
-      return localeIsZh ? '当前在接这句' : 'current-attention:this-turn'
+        return `current_attention=${sanitizeActiveDialogueCarryText(carryAnchor, 140)}`
+      return 'current_attention=this_turn'
     case 'repair-clarify':
       if (previousFreshEncounter === 'utility-time')
-        return localeIsZh ? '修正误接：承认偏题，然后把时间说清。' : 'Repair the miss: acknowledge the drift, then state the time clearly.'
+        return 'repair_target=time; prior_drift=acknowledge; answer_source=clock_evidence'
       if (previousFreshEncounter === 'utility-date')
-        return localeIsZh ? '修正误接：承认偏题，然后把日期说清。' : 'Repair the miss: acknowledge the drift, then state the date clearly.'
+        return 'repair_target=date; prior_drift=acknowledge; answer_source=clock_evidence'
       if (previousFreshEncounter === 'capability')
-        return localeIsZh ? '修正误接：纠偏后把能力面说清。' : 'Repair the miss: correct the drift, then state the capability surface.'
+        return 'repair_target=capability; prior_drift=correct; answer_source=capability_surface'
       if (previousFreshEncounter === 'identity')
-        return localeIsZh ? '修正误接：纠偏后回答我是谁。' : 'Repair the miss: correct the drift, then answer who I am.'
-      return localeIsZh
-        ? '修正误接：承认刚才没贴住，然后回到这一句。'
-        : 'Repair the miss: acknowledge the drift, then come straight back to this turn.'
+        return 'repair_target=identity; prior_drift=correct; answer_source=identity_surface'
+      return 'repair_target=current_turn; prior_drift=acknowledge; return_scope=this_turn'
     case 'follow-up':
       if (decision.reasonCodes.includes('execution-carry')) {
         const executionCarry = sanitizeText(
@@ -2654,6 +2756,31 @@ function violatesAuthoritativeClockEvidence(
   return false
 }
 
+function sanitizeCompactReplyCarryValue(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return sanitizeAlicizationProviderFacingText(
+      value,
+      420,
+      alicizationFixedTemplateReplacement,
+    )
+  }
+  if (Array.isArray(value))
+    return value.map(item => sanitizeCompactReplyCarryValue(item))
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .map(([key, entry]) => [key, sanitizeCompactReplyCarryValue(entry)]),
+    )
+  }
+  return value
+}
+
+function sanitizeCompactReplyCarryObject<T extends Record<string, unknown> | null>(value: T): T {
+  return value
+    ? sanitizeCompactReplyCarryValue(value) as T
+    : value
+}
+
 function normalizeCompactReplyPayload(
   raw: string,
   decision: AlicizationActiveDialogueFastPathDecision,
@@ -2690,22 +2817,28 @@ function normalizeCompactReplyPayload(
       ? parsedRaw.preDialogueClosure as Record<string, unknown>
       : null
 
+    const projectStateAudit = sanitizeCompactReplyCarryObject(rawProjectStateAudit)
+    const selfAuthorityAudit = sanitizeCompactReplyCarryObject(rawSelfAuthorityAudit)
+    const projectState = sanitizeCompactReplyCarryObject(rawProjectState)
+    const preDialogueAwareness = sanitizeCompactReplyCarryObject(rawPreDialogueAwareness)
+    const preDialogueClosure = sanitizeCompactReplyCarryObject(rawPreDialogueClosure)
+
     if (!rawProjectStateAudit && !rawSelfAuthorityAudit && !rawProjectState && !rawPreDialogueAwareness && !rawPreDialogueClosure)
       return normalizedFullText
 
     return JSON.stringify({
       ...normalizedParsed,
-      ...(rawProjectState ? { projectState: rawProjectState } : {}),
-      ...(rawPreDialogueAwareness ? { preDialogueAwareness: rawPreDialogueAwareness } : {}),
-      ...(rawPreDialogueClosure ? { preDialogueClosure: rawPreDialogueClosure } : {}),
-      ...((rawProjectStateAudit || rawSelfAuthorityAudit)
+      ...(projectState ? { projectState } : {}),
+      ...(preDialogueAwareness ? { preDialogueAwareness } : {}),
+      ...(preDialogueClosure ? { preDialogueClosure } : {}),
+      ...((projectStateAudit || selfAuthorityAudit)
         ? {
             visibleReplyRealization: {
               ...(normalizedParsed.visibleReplyRealization && typeof normalizedParsed.visibleReplyRealization === 'object'
                 ? normalizedParsed.visibleReplyRealization as Record<string, unknown>
                 : {}),
-              ...(rawProjectStateAudit ? { projectStateAudit: rawProjectStateAudit } : {}),
-              ...(rawSelfAuthorityAudit ? { selfAuthorityAudit: rawSelfAuthorityAudit } : {}),
+              ...(projectStateAudit ? { projectStateAudit } : {}),
+              ...(selfAuthorityAudit ? { selfAuthorityAudit } : {}),
             },
           }
         : {}),
@@ -2800,8 +2933,7 @@ function sanitizeHeldAutonomyCompactReply(
   if (!stripped)
     return normalized
 
-  const softenedPrefix = localeIsZh ? '嗯，那我接着说下去。' : 'Okay, I will pick that thread back up.'
-  return `${softenedPrefix} ${stripped}`.trim()
+  return stripped
 }
 
 export function deriveAlicizationActiveDialogueFastPathDecision(
@@ -2950,12 +3082,29 @@ export function buildAlicizationActiveDialogueFastPathMessages(input: {
         || message.content.includes('session_continuity_inbox:')
       ),
     )
-    .map(message => sanitizeText(message.content, 4000))
+    .map(message => sanitizeActiveDialogueProviderBlock(message.content, 4000))
     .filter(Boolean)
-  const projectStateSystemBlock = buildAlicizationProjectStateSystemBlock()
-  const projectStateClosureDashboard = buildAlicizationProjectStateClosureDashboard({
-    runtimeDigest: input.decision.runtimeDigest ?? null,
-  })
+  const carriedMemoryOwnerBlocks = input.prepared.messages
+    .filter((message): message is Message & { content: string } =>
+      message.role === 'system'
+      && typeof message.content === 'string'
+      && (
+        message.content.includes('[ALICIZATION_WORKING_MEMORY_OWNER]')
+        || message.content.includes('[ALICIZATION_WORKING_MEMORY]')
+        || message.content.includes('[ALICIZATION_RECALLED_MEMORY]')
+      ),
+    )
+    .map(message => sanitizeActiveDialogueProviderBlock(message.content, 4000))
+    .filter(Boolean)
+  const includeProjectStateClosureBlocks = shouldIncludeFastPathProjectStateClosureBlocks(input.decision)
+  const projectStateSystemBlock = includeProjectStateClosureBlocks
+    ? buildAlicizationProviderFacingProjectStateSystemBlock()
+    : ''
+  const projectStateClosureDashboard = includeProjectStateClosureBlocks
+    ? buildAlicizationProviderFacingProjectStateClosureDashboard({
+        runtimeDigest: input.decision.runtimeDigest ?? null,
+      })
+    : ''
 
   const systemBlocks = [
     alicizationFixedCoreSystemInstruction,
@@ -2971,6 +3120,7 @@ export function buildAlicizationActiveDialogueFastPathMessages(input: {
       ? `[ALICIZATION_CARD_DIRECTIVES_COMPACT]\n${customDirectives}`
       : '',
     ...carriedAgentSessionBlocks,
+    ...carriedMemoryOwnerBlocks,
     buildCompactDialogueMindBlock(input.decision),
     buildCompactDialogueContextBlock(input.decision),
     buildCompactDialogueRecollectionBlock(input.decision),

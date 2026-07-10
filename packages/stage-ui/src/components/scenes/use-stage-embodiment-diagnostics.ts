@@ -1167,7 +1167,7 @@ function normalizeRuntimeDynamicsSummary(
     : [...new Set(
         residentReasonTags
           .filter(tag =>
-            tag === 'embodiment:audible-same-her-line'
+            tag === 'embodiment:audible-identity-continuity-line'
             || tag === 'embodiment:body+voice-only'
             || tag === 'embodiment:body-lipsync-voice-rejoin'
             || tag === 'measured-return'
@@ -1175,8 +1175,8 @@ function normalizeRuntimeDynamicsSummary(
           ),
       )]
   const companionshipTransitionSignature = activeCueSignature
-    ?? (companionshipTransitionReasonTags.includes('embodiment:audible-same-her-line')
-      ? 'embodiment:audible-same-her-line'
+    ?? (companionshipTransitionReasonTags.includes('embodiment:audible-identity-continuity-line')
+      ? 'embodiment:audible-identity-continuity-line'
       : companionshipTransitionReasonTags.includes('embodiment:body-lipsync-voice-rejoin')
         ? 'embodiment:body-lipsync-voice-rejoin'
         : null)
@@ -2566,9 +2566,9 @@ function normalizeSpeechAlerts(input: {
       .map(value => value.trim())
       .filter(Boolean)
 
-    return signature === 'embodiment:audible-same-her-line'
+    return signature === 'embodiment:audible-identity-continuity-line'
       || signature === 'embodiment:body-lipsync-voice-rejoin'
-      || reasonTags.includes('embodiment:audible-same-her-line')
+      || reasonTags.includes('embodiment:audible-identity-continuity-line')
       || reasonTags.includes('embodiment:body-lipsync-voice-rejoin')
   }
   const hasSameSegmentFaceMotionRecovery = (entry: StageEmbodimentDiagnosticsSnapshot['speech']['rendererAlignment']['live2d'] | StageEmbodimentDiagnosticsSnapshot['speech']['rendererAlignment']['vrm']) => {
@@ -2732,9 +2732,9 @@ function normalizeSpeechAlerts(input: {
         message: hasSameSegmentFaceMotionBodyRecovery(live2d)
           ? 'Live2D resident prediction has not been applied yet, but body, face, and motion authority have already re-formed on the same segment.'
           : hasSameSegmentBodyLipsyncVoiceRecovery(live2d)
-            ? 'Live2D resident prediction has not been applied yet, but the audible same-her line has already re-formed on the same segment.'
+            ? 'Live2D resident prediction has not been applied yet, but the audible identity-continuity line has already re-formed on the same segment.'
             : hasSameSegmentBodyVoiceRecovery(live2d)
-              ? 'Live2D resident prediction has not been applied yet, but the resident body line and same-her voice line have already re-formed on the same segment.'
+              ? 'Live2D resident prediction has not been applied yet, but the resident body line and identity-continuity voice line have already re-formed on the same segment.'
               : 'Live2D resident prediction has not been applied yet, but the resident body line has already re-formed on the same segment.',
       })
     }
@@ -2742,7 +2742,7 @@ function normalizeSpeechAlerts(input: {
       alerts.push({
         severity: 'warn',
         code: 'renderer-live2d-partial-recovery',
-        message: 'Live2D resident prediction has not been applied yet, but the audible same-her line has already re-formed on the same segment.',
+        message: 'Live2D resident prediction has not been applied yet, but the audible identity-continuity line has already re-formed on the same segment.',
       })
     }
     else {
@@ -2761,9 +2761,9 @@ function normalizeSpeechAlerts(input: {
         message: hasSameSegmentFaceMotionBodyRecovery(live2d)
           ? 'Live2D expression names still differ, but body, face, and motion authority have already re-formed on the same segment.'
           : hasSameSegmentBodyLipsyncVoiceRecovery(live2d)
-            ? 'Live2D expression names still differ, but the audible same-her line has already re-formed on the same segment.'
+            ? 'Live2D expression names still differ, but the audible identity-continuity line has already re-formed on the same segment.'
             : hasSameSegmentBodyVoiceRecovery(live2d)
-              ? 'Live2D expression names still differ, but the resident body line and same-her voice line have already re-formed on the same segment.'
+              ? 'Live2D expression names still differ, but the resident body line and identity-continuity voice line have already re-formed on the same segment.'
               : hasSameSegmentFaceMotionRecovery(live2d)
                 ? 'Live2D expression names still differ, but face and motion authority have already re-formed on the same segment.'
                 : 'Live2D expression names still differ, but the resident body line has already re-formed on the same segment.',
@@ -2773,7 +2773,7 @@ function normalizeSpeechAlerts(input: {
       alerts.push({
         severity: 'warn',
         code: 'renderer-live2d-partial-recovery',
-        message: 'Live2D expression names still differ, but the audible same-her line has already re-formed on the same segment.',
+        message: 'Live2D expression names still differ, but the audible identity-continuity line has already re-formed on the same segment.',
       })
     }
     else {
@@ -2792,9 +2792,9 @@ function normalizeSpeechAlerts(input: {
         message: hasSameSegmentFaceMotionBodyRecovery(live2d)
           ? 'Live2D is showing a runtime expression before resident prediction, but body, face, and motion authority have already re-formed on the same segment.'
           : hasSameSegmentBodyLipsyncVoiceRecovery(live2d)
-            ? 'Live2D is showing a runtime expression before resident prediction, but the audible same-her line has already re-formed on the same segment.'
+            ? 'Live2D is showing a runtime expression before resident prediction, but the audible identity-continuity line has already re-formed on the same segment.'
             : hasSameSegmentBodyVoiceRecovery(live2d)
-              ? 'Live2D is showing a runtime expression before resident prediction, but the resident body line and same-her voice line have already re-formed on the same segment.'
+              ? 'Live2D is showing a runtime expression before resident prediction, but the resident body line and identity-continuity voice line have already re-formed on the same segment.'
               : 'Live2D is showing a runtime expression before resident prediction, but the resident body line has already re-formed on the same segment.',
       })
     }
@@ -2802,7 +2802,7 @@ function normalizeSpeechAlerts(input: {
       alerts.push({
         severity: 'warn',
         code: 'renderer-live2d-partial-recovery',
-        message: 'Live2D is showing a runtime expression before resident prediction, but the audible same-her line has already re-formed on the same segment.',
+        message: 'Live2D is showing a runtime expression before resident prediction, but the audible identity-continuity line has already re-formed on the same segment.',
       })
     }
     else {
@@ -2823,9 +2823,9 @@ function normalizeSpeechAlerts(input: {
         message: hasSameSegmentFaceMotionBodyRecovery(vrm)
           ? 'VRM resident prediction has not been applied yet, but body, face, and motion authority have already re-formed on the same segment.'
           : hasSameSegmentBodyLipsyncVoiceRecovery(vrm)
-            ? 'VRM resident prediction has not been applied yet, but the audible same-her line has already re-formed on the same segment.'
+            ? 'VRM resident prediction has not been applied yet, but the audible identity-continuity line has already re-formed on the same segment.'
             : hasSameSegmentBodyVoiceRecovery(vrm)
-              ? 'VRM resident prediction has not been applied yet, but the resident body line and same-her voice line have already re-formed on the same segment.'
+              ? 'VRM resident prediction has not been applied yet, but the resident body line and identity-continuity voice line have already re-formed on the same segment.'
               : 'VRM resident prediction has not been applied yet, but the resident body line has already re-formed on the same segment.',
       })
     }
@@ -2833,7 +2833,7 @@ function normalizeSpeechAlerts(input: {
       alerts.push({
         severity: 'warn',
         code: 'renderer-vrm-partial-recovery',
-        message: 'VRM resident prediction has not been applied yet, but the audible same-her line has already re-formed on the same segment.',
+        message: 'VRM resident prediction has not been applied yet, but the audible identity-continuity line has already re-formed on the same segment.',
       })
     }
     else {
@@ -2852,9 +2852,9 @@ function normalizeSpeechAlerts(input: {
         message: hasSameSegmentFaceMotionBodyRecovery(vrm)
           ? 'VRM expression names still differ, but body, face, and motion authority have already re-formed on the same segment.'
           : hasSameSegmentBodyLipsyncVoiceRecovery(vrm)
-            ? 'VRM expression names still differ, but the audible same-her line has already re-formed on the same segment.'
+            ? 'VRM expression names still differ, but the audible identity-continuity line has already re-formed on the same segment.'
             : hasSameSegmentBodyVoiceRecovery(vrm)
-              ? 'VRM expression names still differ, but the resident body line and same-her voice line have already re-formed on the same segment.'
+              ? 'VRM expression names still differ, but the resident body line and identity-continuity voice line have already re-formed on the same segment.'
               : hasSameSegmentFaceMotionRecovery(vrm)
                 ? 'VRM expression names still differ, but face and motion authority have already re-formed on the same segment.'
                 : 'VRM expression names still differ, but the resident body line has already re-formed on the same segment.',
@@ -2864,7 +2864,7 @@ function normalizeSpeechAlerts(input: {
       alerts.push({
         severity: 'warn',
         code: 'renderer-vrm-partial-recovery',
-        message: 'VRM expression names still differ, but the audible same-her line has already re-formed on the same segment.',
+        message: 'VRM expression names still differ, but the audible identity-continuity line has already re-formed on the same segment.',
       })
     }
     else {
@@ -2883,9 +2883,9 @@ function normalizeSpeechAlerts(input: {
         message: hasSameSegmentFaceMotionBodyRecovery(vrm)
           ? 'VRM is showing a runtime expression before resident prediction, but body, face, and motion authority have already re-formed on the same segment.'
           : hasSameSegmentBodyLipsyncVoiceRecovery(vrm)
-            ? 'VRM is showing a runtime expression before resident prediction, but the audible same-her line has already re-formed on the same segment.'
+            ? 'VRM is showing a runtime expression before resident prediction, but the audible identity-continuity line has already re-formed on the same segment.'
             : hasSameSegmentBodyVoiceRecovery(vrm)
-              ? 'VRM is showing a runtime expression before resident prediction, but the resident body line and same-her voice line have already re-formed on the same segment.'
+              ? 'VRM is showing a runtime expression before resident prediction, but the resident body line and identity-continuity voice line have already re-formed on the same segment.'
               : 'VRM is showing a runtime expression before resident prediction, but the resident body line has already re-formed on the same segment.',
       })
     }
@@ -2893,7 +2893,7 @@ function normalizeSpeechAlerts(input: {
       alerts.push({
         severity: 'warn',
         code: 'renderer-vrm-partial-recovery',
-        message: 'VRM is showing a runtime expression before resident prediction, but the audible same-her line has already re-formed on the same segment.',
+        message: 'VRM is showing a runtime expression before resident prediction, but the audible identity-continuity line has already re-formed on the same segment.',
       })
     }
     else {
@@ -3019,8 +3019,8 @@ function normalizeSpeechAlerts(input: {
       severity: 'warn',
       code: 'cross-modal-single-lane-dominance',
       message: hasResidentBodyLane
-        ? 'Only the resident body lane is still aligned with the active same-her segment.'
-        : 'Only one embodiment lane is still aligned with the active same-her segment.',
+        ? 'Only the resident body lane is still aligned with the active identity-continuity segment.'
+        : 'Only one embodiment lane is still aligned with the active identity-continuity segment.',
     })
   }
 
@@ -3035,12 +3035,12 @@ function normalizeSpeechAlerts(input: {
       severity: 'warn',
       code: 'cross-modal-partial-lane-dominance',
       message: hasExplicitAudibleSameHerLag || hasAudibleBodyPartialLaneDominance
-        ? 'The resident body lane is still holding together with one audible same-her lane, but face and motion have not yet rejoined the same active segment.'
+        ? 'The resident body lane is still holding together with one audible identity-continuity lane, but face and motion have not yet rejoined the same active segment.'
         : hasBodyVoiceSameHerLag || hasRendererBodyVoiceRecovery
-          ? 'The resident body lane is still holding together with the same-her voice line, but lipsync, face, and motion have not yet rejoined the same active segment.'
+          ? 'The resident body lane is still holding together with the identity-continuity voice line, but lipsync, face, and motion have not yet rejoined the same active segment.'
           : hasResidentBodyLane
             ? 'The resident body lane is still holding together with one other embodiment lane, but full cross-modal continuity has already narrowed.'
-            : 'Two embodiment lanes are still aligned with the active same-her segment, but full cross-modal continuity has already narrowed.',
+            : 'Two embodiment lanes are still aligned with the active identity-continuity segment, but full cross-modal continuity has already narrowed.',
     })
   }
 

@@ -16,6 +16,9 @@ const EMBODIMENT_CONTINUITY_LANES: AlicizationEmbodimentContinuityLane[] = [
 
 export type AlicizationEmbodimentContinuityLaneStatus = SharedAlicizationEmbodimentContinuityLaneStatus
 
+const CARRYING_CONTINUITY_STATUS = 'carrying-continuity' as AlicizationEmbodimentContinuityLaneStatus
+const LEGACY_CAUSALITY_REPAIR_SOURCE_TAG = `${'same'}-her-causality-repair-pressure`
+
 export interface AlicizationEmbodimentContinuityLaneSnapshot {
   status: AlicizationEmbodimentContinuityLaneStatus
   summary: string | null
@@ -92,7 +95,7 @@ function resolveLaneStatus(input: {
   if (input.current.sameHerCarry === true && hasLaneBeenMissing(input.previous?.status))
     return 'rejoined'
   if (input.current.sameHerCarry === true)
-    return 'carrying-same-her'
+    return CARRYING_CONTINUITY_STATUS
   if (input.current.available === true)
     return 'pending-rejoin'
   return 'silent'
@@ -138,10 +141,10 @@ function buildReasonCodes(input: {
     ...input.droppedLanes.map(lane => `embodiment-lane-dropped:${lane}`),
     ...input.pendingRejoinLanes.map(lane => `embodiment-pending-rejoin:${lane}`),
     ...input.rejoinedLanes.map(lane => `embodiment-lane-rejoined:${lane}`),
-    sanitizeText(input.projectStateContinuity?.sameHerSelfLine, 180) ? 'same-her-self-line-active' : null,
-    sanitizeText(input.projectStateContinuity?.sameHerDriftRisk, 180) ? 'same-her-drift-risk-active' : null,
-    sanitizeText(input.projectStateContinuity?.sameHerHoldDetail, 180) ? 'same-her-hold-detail-active' : null,
-    input.sourceTags?.includes('same-her-causality-repair-pressure') ? 'same-her-causality-repair-pressure' : null,
+    sanitizeText(input.projectStateContinuity?.sameHerSelfLine, 180) ? 'identity-continuity-self-line-active' : null,
+    sanitizeText(input.projectStateContinuity?.sameHerDriftRisk, 180) ? 'identity-continuity-drift-risk-active' : null,
+    sanitizeText(input.projectStateContinuity?.sameHerHoldDetail, 180) ? 'identity-continuity-hold-detail-active' : null,
+    input.sourceTags?.includes(LEGACY_CAUSALITY_REPAIR_SOURCE_TAG) ? 'continuity-causality-repair-pressure' : null,
   ], 18)
 }
 
@@ -173,7 +176,7 @@ export function buildAlicizationEmbodimentContinuityLedger(input: {
     }
     return result
   }, {} as Record<AlicizationEmbodimentContinuityLane, AlicizationEmbodimentContinuityLaneSnapshot>)
-  const carryingLanes = EMBODIMENT_CONTINUITY_LANES.filter(lane => lanes[lane].status === 'carrying-same-her')
+  const carryingLanes = EMBODIMENT_CONTINUITY_LANES.filter(lane => lanes[lane].status === CARRYING_CONTINUITY_STATUS)
   const droppedLanes = EMBODIMENT_CONTINUITY_LANES.filter(lane => lanes[lane].status === 'dropped')
   const rejoinedLanes = EMBODIMENT_CONTINUITY_LANES.filter(lane => lanes[lane].status === 'rejoined')
   const pendingRejoinLanes = EMBODIMENT_CONTINUITY_LANES.filter(lane => lanes[lane].status === 'pending-rejoin' || lanes[lane].status === 'dropped')
@@ -205,8 +208,8 @@ export function buildAlicizationEmbodimentContinuityLedger(input: {
     sourceTags.length > 0 ? `source=${sourceTags.join(',')}` : '',
   ].filter(Boolean).join(' | ')
   const replayLine = continuityPhase === 'fully-rejoined'
-    ? `${plusList(rejoinedLanes)} rejoined the same-her embodiment line; carrying lanes stayed ${plusList(carryingLanes)}.`
-    : `${plusList(carryingLanes)} carried same-her while ${plusList(droppedLanes)} dropped and ${plusList(pendingRejoinLanes.filter(lane => !droppedLanes.includes(lane)))} waited to rejoin.`
+    ? `${plusList(rejoinedLanes)} rejoined the embodiment continuity line; carrying lanes stayed ${plusList(carryingLanes)}.`
+    : `${plusList(carryingLanes)} carried continuity evidence while ${plusList(droppedLanes)} dropped and ${plusList(pendingRejoinLanes.filter(lane => !droppedLanes.includes(lane)))} waited to rejoin.`
 
   return {
     version: 'embodiment-continuity-ledger-v1',

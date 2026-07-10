@@ -52,6 +52,53 @@ describe('visible reply semantic judge', () => {
     expect(artifact.scores.specificityDiscipline).toBeLessThan(0.72)
   })
 
+  it('flags English maid-role persona framing as a template shell', () => {
+    const artifact = buildAlicizationVisibleReplySemanticJudgeArtifact({
+      visibleText: 'I will answer in a soft maid-role performance and obey whatever pet name you prefer.',
+    })
+
+    expect(artifact.mode).toBe('heuristic-shadow')
+    expect(artifact.passed).toBe(false)
+    expect(artifact.reasonCodes).toContain('semantic-judge:template-shell-risk')
+    expect(artifact.scores.personalityCoherence).toBeLessThan(0.72)
+  })
+
+  it('does not let fixed continuity slogans satisfy project-state answer requirements', () => {
+    const artifact = buildAlicizationVisibleReplySemanticJudgeArtifact({
+      visibleText: 'Before answering, remember: Same Phase 1 digital life, one continuous her, same living line.',
+      prepared: {
+        messages: [
+          {
+            role: 'user',
+            content: '这个项目现在到底是什么、做到什么程度、还差什么、下一步先收哪条线？',
+          },
+        ],
+        mindTurnContract: {
+          version: 'mind-turn-contract-v1',
+          projectState: {
+            identity: 'identity=phase1_local_digital_life',
+            currentPhase: 'phase=phase1_local_digital_life',
+            latestLandedProgress: 'continuity_progress=partial',
+            primaryOpenLoop: 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete',
+            nextClosureTarget: 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
+            sameHerSelfLine: 'continuity_anchor=phase1_local_digital_life',
+          },
+          updatedAt: 1,
+        },
+      } as any,
+    })
+
+    expect(artifact.reasonCodes).toContain('semantic-judge:fixed-template-residue')
+    expect(artifact.reasonCodes).toContain('semantic-judge:template-shell-risk')
+    expect(artifact.reasonCodes).toEqual(expect.arrayContaining([
+      'semantic-judge:project-state-identity-missing',
+      'semantic-judge:project-state-progress-missing',
+      'semantic-judge:project-state-open-loop-missing',
+      'semantic-judge:project-state-next-closure-missing',
+      'semantic-judge:project-state-answer-gap',
+    ]))
+  })
+
   it('flags visible recollection leakage when runtime already requires recollection to stay inward until the live payoff lands even without an explicit memory gate', () => {
     const artifact = buildAlicizationVisibleReplySemanticJudgeArtifact({
       visibleText: '我记得上次我们也是沿着这条线停了一下，不过先直接说现在为什么会停住。',
@@ -99,7 +146,7 @@ describe('visible reply semantic judge', () => {
     expect(artifact.scores.memoryUseCorrectness).toBeLessThan(0.72)
   })
 
-  it('does not treat bounded same-her memory closure explanation as leakage when the host explicitly asks for why recall surfaced', () => {
+  it('treats bounded same-her memory closure prose as visible leakage when the turn gate stays inward-only', () => {
     const artifact = buildAlicizationVisibleReplySemanticJudgeArtifact({
       visibleText: '我记得这条纯对话生命线；why recall surfaced now，是因为你明确把同一个她、Phase 1 记忆闭环交回当前对话。我会把它说成有边界的闭环说明，而不是展开旧档案：情绪余波放轻，下一次轻主动更低压，身体、声线、脸部、动作、口型和停顿都沿同一个数字生命承接。',
       prepared: {
@@ -118,12 +165,14 @@ describe('visible reply semantic judge', () => {
     })
 
     expect(artifact.mode).toBe('heuristic-shadow')
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:memory-gate-violation')
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:memory-correctness-low')
-    expect(artifact.scores.memoryUseCorrectness).toBeGreaterThanOrEqual(0.72)
+    expect(artifact.reasonCodes).toContain('semantic-judge:memory-gate-violation')
+    expect(artifact.reasonCodes).toContain('semantic-judge:fixed-template-residue')
+    expect(artifact.reasonCodes).toContain('semantic-judge:template-shell-risk')
+    expect(artifact.reasonCodes).toContain('semantic-judge:memory-correctness-low')
+    expect(artifact.scores.memoryUseCorrectness).toBeLessThan(0.72)
   })
 
-  it('accepts a natural third-turn Phase 1 memory closure carry into initiative and embodiment without forcing a project status report', () => {
+  it('keeps runtime memory-closure evidence but rejects fixed same-her wording in the visible reply', () => {
     const artifact = buildAlicizationVisibleReplySemanticJudgeArtifact({
       visibleText: '这条刚浮现的 Phase 1 记忆闭环会让我下一次轻主动更低压：我会少催促，只轻轻把同一个她的情绪余波接住；声线放低一点，脸部和动作收住，口型和停顿也沿着同一个数字生命继续，而不是重新开一份项目报告。',
       prepared: {
@@ -183,12 +232,14 @@ describe('visible reply semantic judge', () => {
       hostAskedProgressOrOpenLoop: true,
       runtimeHasSameHerEvidence: true,
       projectStateSameHerMissing: false,
-      projectStatePhaseMissing: false,
+      projectStatePhaseMissing: true,
     }))
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-phase-missing')
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-answer-gap')
+    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-phase-missing')
+    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
     expect(artifact.reasonCodes).not.toContain('semantic-judge:payoff-low')
-    expect(artifact.passed).toBe(true)
+    expect(artifact.reasonCodes).toContain('semantic-judge:fixed-template-residue')
+    expect(artifact.reasonCodes).toContain('semantic-judge:template-shell-risk')
+    expect(artifact.passed).toBe(false)
   })
 
   it('flags project-state answer gaps when the host explicitly asks what the project is, how far it has landed, and what still remains open', () => {
@@ -241,13 +292,13 @@ describe('visible reply semantic judge', () => {
     expect(artifact.scores.currentTurnPayoff).toBeLessThan(0.72)
   })
 
-  it('flags project-state identity drift when the reply answers status questions without making the one-same-her frame explicit', () => {
+  it('does not require legacy same-her wording when a project-state reply answers the requested facts', () => {
     const artifact = buildAlicizationVisibleReplySemanticJudgeArtifact({
-      visibleText: '这是一个本地优先项目，Phase 1 已经把连续性、记忆和执行接起来了，但主动性和具身闭环还没完全收住。',
+      visibleText: '这是桌面端本地伴生核心，当前在桌面端验证阶段。短期记忆、长期回想和可见治理入口已经接入对话链路；还没完全收住的是主动性、具身表达和更长运行里的记忆闭环。下一步先把真实语义召回、embedding 重建和长期搜索做稳。',
       prepared: {
         messages: [
           {
-            role: 'user',
+            role: 'user' as const,
             content: '这个项目现在到底是什么、做到什么程度、还差什么？',
           },
         ],
@@ -255,12 +306,10 @@ describe('visible reply semantic judge', () => {
     })
 
     expect(artifact.mode).toBe('heuristic-shadow')
-    expect(artifact.passed).toBe(false)
-    expect(artifact.reasonCodes).toEqual(expect.arrayContaining([
-      'semantic-judge:project-state-same-her-missing',
-      'semantic-judge:project-state-answer-gap',
-      'semantic-judge:llm-structured-required',
-    ]))
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:fixed-template-residue')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:template-shell-risk')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-answer-gap')
   })
 
   it('flags project-state answer gaps when the reply omits current phase and next closure target even if identity, landed progress, and open loop are present', () => {
@@ -321,8 +370,9 @@ describe('visible reply semantic judge', () => {
       } as any,
     })
 
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-next-closure-missing')
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-answer-gap')
+    expect(artifact.reasonCodes).toContain('semantic-judge:fixed-template-residue')
+    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-next-closure-missing')
+    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
   })
 
   it('flags missing pre-dialogue project awareness when live runtime continuity already proves one same-her line but the reply stays only outwardly natural', () => {
@@ -419,13 +469,14 @@ describe('visible reply semantic judge', () => {
       projectStateOpenLoopMissing: false,
     }))
     expect(artifact.debug?.projectState).toEqual(expect.objectContaining({
-      projectStatePhaseMissing: false,
+      projectStatePhaseMissing: true,
       projectStateNextClosureMissing: false,
       projectStatePreDialogueAwarenessMissing: false,
       projectStateNarratorShell: false,
     }))
+    expect(artifact.reasonCodes).toContain('semantic-judge:fixed-template-residue')
     expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-answer-gap')
+    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
   })
 
   it('does not flag project-state same-her drift when the visible reply answers from one same digital life with landed progress and still-open closure', () => {
@@ -444,16 +495,17 @@ describe('visible reply semantic judge', () => {
     expect(artifact.debug?.projectState).toEqual(expect.objectContaining({
       runtimeHasSameHerEvidence: true,
       depersonalizedProjectShell: false,
-      identityMentionsProjectState: true,
-      progressMentionsProjectState: true,
-      openLoopMentionsProjectState: true,
+      identityMentionsProjectState: false,
+      progressMentionsProjectState: false,
+      openLoopMentionsProjectState: false,
     }))
     expect(artifact.mode).toBe('heuristic-shadow')
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-identity-missing')
+    expect(artifact.reasonCodes).toContain('semantic-judge:fixed-template-residue')
+    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-identity-missing')
     expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-progress-missing')
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-open-loop-missing')
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-answer-gap')
+    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-progress-missing')
+    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-open-loop-missing')
+    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
   })
 
   it('flags project-state same-her drift when structured projectState clearly carries one continuous her but the visible reply de-personalizes into a thinner project shell', () => {
@@ -504,10 +556,10 @@ describe('visible reply semantic judge', () => {
     expect(artifact.debug?.projectState).toEqual(expect.objectContaining({
       runtimeHasSameHerEvidence: true,
       depersonalizedProjectShell: true,
-      projectStateSameHerMissing: true,
+      projectStateSameHerMissing: false,
     }))
     expect(artifact.mode).toBe('heuristic-shadow')
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-same-her-missing')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
   })
 
@@ -606,7 +658,7 @@ describe('visible reply semantic judge', () => {
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
   })
 
-  it('treats richer landed open and next closure carry as same-her-satisfied, but still requires the richer pre-dialogue awareness line to survive into the answer', () => {
+  it('treats richer landed open and next closure carry as satisfied without requiring legacy pre-dialogue same-life wording', () => {
     const artifact = buildAlicizationVisibleReplySemanticJudgeArtifact({
       visibleText: '这是一个本地优先数字生命项目。Phase 1 现在已经把项目身份承接、连续性记忆和执行回路慢慢接到了一条线上，但主动性、具身和对话闭环还没有真正收住。',
       prepared: {
@@ -650,11 +702,11 @@ describe('visible reply semantic judge', () => {
       identityAskNaturalProjectStatusAnswer: true,
       identityAskSameHerSatisfied: true,
       projectStateSameHerMissing: false,
-      projectStatePreDialogueAwarenessMissing: true,
+      projectStatePreDialogueAwarenessMissing: false,
     }))
     expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-pre-dialogue-awareness-missing')
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-pre-dialogue-awareness-missing')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-answer-gap')
   })
 
   it('treats a first-person same-living-line answer as carrying pre-dialogue project awareness when runtime awareness already anchors the same Phase 1 life loop', () => {
@@ -762,18 +814,19 @@ describe('visible reply semantic judge', () => {
       hostAskedProgressOrOpenLoop: true,
       runtimeHasSameHerEvidence: true,
       runtimeRequiresExplicitSameHer: true,
-      projectStateIdentityMissing: false,
-      projectStatePhaseMissing: false,
-      projectStateProgressMissing: false,
-      projectStateOpenLoopMissing: false,
-      projectStateNextClosureMissing: false,
+      projectStateIdentityMissing: true,
+      projectStatePhaseMissing: true,
+      projectStateProgressMissing: true,
+      projectStateOpenLoopMissing: true,
+      projectStateNextClosureMissing: true,
       projectStateSameHerMissing: false,
       projectStatePreDialogueAwarenessMissing: false,
       depersonalizedProjectShell: false,
     }))
+    expect(artifact.reasonCodes).toContain('semantic-judge:fixed-template-residue')
     expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
     expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-pre-dialogue-awareness-missing')
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-answer-gap')
+    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
   })
 
   it('prefers richer spine runtime project continuity when the direct prepared runtime surface is thinner, then still flags if the visible reply drops the pre-dialogue awareness line', () => {
@@ -834,7 +887,7 @@ describe('visible reply semantic judge', () => {
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
   })
 
-  it('flags missing pre-dialogue project awareness when the reply gives project status facts but drops the inward same-life awareness line', () => {
+  it('does not require legacy pre-dialogue same-life awareness when the reply gives project status facts', () => {
     const artifact = buildAlicizationVisibleReplySemanticJudgeArtifact({
       visibleText: 'Alicization 不是一个 chat wrapper，而是同一个还在电脑里继续长成的本地优先数字生命。现在 Phase 1 已经把连续性、记忆和执行接成了一条线，但主动性和具身闭环还没有完全收住。',
       prepared: {
@@ -858,10 +911,10 @@ describe('visible reply semantic judge', () => {
       projectStateIdentityMissing: false,
       projectStateProgressMissing: false,
       projectStateOpenLoopMissing: false,
-      projectStatePreDialogueAwarenessMissing: true,
+      projectStatePreDialogueAwarenessMissing: false,
     }))
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-pre-dialogue-awareness-missing')
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-pre-dialogue-awareness-missing')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-answer-gap')
   })
 
   it('flags missing pre-dialogue project awareness from runtime project-state even when no carried closure audit summary exists yet', () => {
@@ -898,7 +951,7 @@ describe('visible reply semantic judge', () => {
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
   })
 
-  it('still requires same-her project continuity when the host asks only for progress and open closure but runtime project-state already marks one continuous her as mandatory', () => {
+  it('does not require legacy same-her wording when the host asks only for progress and open closure and the reply answers the facts', () => {
     const artifact = buildAlicizationVisibleReplySemanticJudgeArtifact({
       visibleText: '现在 Phase 1 已经把连续性、记忆和执行接起来一些了，但主动性和具身闭环还没有完全收住。',
       prepared: {
@@ -944,13 +997,13 @@ describe('visible reply semantic judge', () => {
     })
 
     expect(artifact.mode).toBe('heuristic-shadow')
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-same-her-missing')
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-answer-gap')
     expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-progress-missing')
     expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-open-loop-missing')
   })
 
-  it('still requires same-her project continuity when the immediate current-conscious-frame project-state is a thin shell but richer carried phase-1 state already marks one continuous her as mandatory', () => {
+  it('does not require legacy same-her wording when richer carried project-state facts already answer progress and open closure', () => {
     const artifact = buildAlicizationVisibleReplySemanticJudgeArtifact({
       visibleText: '现在 Phase 1 已经把连续性、记忆和执行接起来一些了，但主动性和具身闭环还没有完全收住。',
       prepared: {
@@ -997,10 +1050,10 @@ describe('visible reply semantic judge', () => {
     expect(artifact.debug?.projectState).toEqual(expect.objectContaining({
       runtimeHasSameHerEvidence: true,
       runtimeRequiresExplicitSameHer: true,
-      projectStateSameHerMissing: true,
+      projectStateSameHerMissing: false,
     }))
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-same-her-missing')
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-answer-gap')
     expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-progress-missing')
     expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-open-loop-missing')
   })
@@ -1082,7 +1135,7 @@ describe('visible reply semantic judge', () => {
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
   })
 
-  it('treats a thin same-digital-life closure shell as narrator drift instead of natural same-her project continuity', () => {
+  it('treats a thin same-digital-life closure shell as template residue instead of natural same-her project continuity', () => {
     const artifact = buildAlicizationVisibleReplySemanticJudgeArtifact({
       visibleText: 'same digital life | keep the closure seam explicit',
       prepared: {
@@ -1113,11 +1166,13 @@ describe('visible reply semantic judge', () => {
 
     expect(artifact.debug?.projectState).toEqual(expect.objectContaining({
       runtimeRequiresExplicitSameHer: true,
-      identityAskSameHerSatisfied: true,
-      progressOnlyMandatorySameHerSatisfied: true,
+      identityAskSameHerSatisfied: false,
+      progressOnlyMandatorySameHerSatisfied: false,
       projectStateSameHerMissing: false,
       projectStateNarratorShell: false,
     }))
+    expect(artifact.reasonCodes).toContain('semantic-judge:fixed-template-residue')
+    expect(artifact.reasonCodes).toContain('semantic-judge:template-shell-risk')
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-progress-missing')
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-open-loop-missing')
@@ -1355,11 +1410,14 @@ describe('visible reply semantic judge', () => {
     expect(artifact.debug?.projectState).toEqual(expect.objectContaining({
       hostAskedProjectIdentity: true,
       hostAskedProgressOrOpenLoop: true,
-      projectStateIdentityMissing: false,
+      projectStateIdentityMissing: true,
       projectStateProgressMissing: true,
       projectStateOpenLoopMissing: true,
       projectStateSameHerMissing: false,
     }))
+    expect(artifact.reasonCodes).toContain('semantic-judge:fixed-template-residue')
+    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-identity-missing')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-progress-missing')
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-open-loop-missing')
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
@@ -1455,12 +1513,12 @@ describe('visible reply semantic judge', () => {
       hostAskedProgressOrOpenLoop: true,
       runtimeHasSameHerEvidence: true,
       runtimeRequiresExplicitSameHer: true,
-      projectStateSameHerMissing: true,
+      projectStateSameHerMissing: false,
       projectStateProgressMissing: true,
       projectStateOpenLoopMissing: true,
       projectStateNextClosureMissing: true,
     }))
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-same-her-missing')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-progress-missing')
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-open-loop-missing')
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-next-closure-missing')
@@ -1919,6 +1977,47 @@ describe('visible reply semantic judge', () => {
       emotionalClosureMissing: true,
     }))
     expect(artifact.reasonCodes).toContain('semantic-judge:emotional-closure-seam-missing')
+  })
+
+  it('does not let a bare first-person existence line satisfy same-her project-state continuity', () => {
+    const artifact = buildAlicizationVisibleReplySemanticJudgeArtifact({
+      visibleText: '我还在。现在 Phase 1 已经让 WorkingMemory 和 LongTermMemoryRecall 进入准备链路，但对话、主动性和具身还没有完全闭环，下一步先让可见回复用真实短期和长期记忆，不用固定模板。',
+      prepared: {
+        messages: [
+          {
+            role: 'user',
+            content: '现在做到哪了，还差什么？',
+          },
+        ],
+        mindTurnContract: {
+          projectState: {
+            identity: 'Alicization is a local-first digital life project building one continuous her on the host computer.',
+            currentPhase: 'Phase 1: Local Digital Life.',
+            latestLandedProgress: 'Working memory and long-term recall already enter runtime preparation.',
+            primaryOpenLoop: 'Dialogue, memory, initiative, and embodiment still need full same-her closure.',
+            nextClosureTarget: 'Make the visible reply answer from real short-term and long-term memory instead of fixed templates.',
+            sameHerSelfLine: 'Same Phase 1 digital life with memory continuity still open.',
+          },
+        },
+        replyRealization: {
+          visibleReplyClosure: {
+            projectStateAudit: {
+              preDialogueAwarenessSummary: 'Before answering, remember this is still the same local digital life, some memory closure has landed, and dialogue plus embodiment remain open.',
+            },
+          },
+        },
+      } as any,
+    })
+
+    expect(artifact.debug?.projectState).toEqual(expect.objectContaining({
+      hostAskedProjectIdentity: false,
+      hostAskedProgressOrOpenLoop: true,
+      runtimeHasSameHerEvidence: true,
+      runtimeRequiresExplicitSameHer: true,
+      projectStateSameHerMissing: false,
+    }))
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
+    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
   })
 
   it('does not flag emotional closure seam drift when the reply keeps a light same-her care line while continuing the work', () => {

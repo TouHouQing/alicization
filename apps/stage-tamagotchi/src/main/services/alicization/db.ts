@@ -30,6 +30,7 @@ import type {
   AlicizationListExecutionEventsInput,
   AlicizationListExecutorSessionsInput,
   AlicizationListTaskThreadsInput,
+  AlicizationLongTermMemoryReviewItem,
   AlicizationMemoryDomain,
   AlicizationMemoryEmbeddingReindexResult,
   AlicizationMemoryFact,
@@ -37,8 +38,12 @@ import type {
   AlicizationMemoryLegacySnapshot,
   AlicizationMemoryMigrationResult,
   AlicizationMemoryProvenance,
-  AlicizationLongTermMemoryReviewItem,
   AlicizationMemoryRecallProbeResult,
+  AlicizationMemoryReflectionInput,
+  AlicizationMemoryReflectionRecord,
+  AlicizationMemoryReflectionStatus,
+  AlicizationMemorySource,
+  AlicizationMemoryStats,
   AlicizationMemoryWorkbenchHealth,
   AlicizationMemoryWorkbenchItem,
   AlicizationMemoryWorkbenchKind,
@@ -46,17 +51,12 @@ import type {
   AlicizationMemoryWorkbenchSensitivity,
   AlicizationMemoryWorkbenchTrainingState,
   AlicizationMemoryWorkbenchVisibility,
-  AlicizationMemoryReflectionInput,
-  AlicizationMemoryReflectionRecord,
-  AlicizationMemoryReflectionStatus,
-  AlicizationMemorySource,
-  AlicizationMemoryStats,
   AlicizationMindHeadKey,
   AlicizationMindTurnEventInput,
   AlicizationMindTurnEventKind,
   AlicizationMindTurnEventRecord,
-  AlicizationPersonaCandidateWorkbenchDecision,
   AlicizationPersonaCandidateListResult,
+  AlicizationPersonaCandidateWorkbenchDecision,
   AlicizationPersonaCandidateWorkbenchItem,
   AlicizationPersonaCandidateWorkbenchStatus,
   AlicizationPersonaReinforcementEventInput,
@@ -72,10 +72,17 @@ import type {
   AlicizationTaskThreadStatus,
   AlicizationTaskThreadUpsertInput,
 } from '../../../shared/eventa'
+import type { WorkingMemoryLongTermQueueItem } from './life-core/working-memory-long-term-queue'
+import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
+import type {
+  LongTermMemoryEvidenceBundle,
+  LongTermMemoryEvidenceCandidate,
+  LongTermMemoryQueryPlan,
+} from './long-term-memory-recall'
+import type { LongTermMemoryReviewDecision, LongTermMemoryReviewItem } from './long-term-memory-review-queue'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationEventGraphNeighborhood } from './memory-event-graph-runtime'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
-import type { WorkingMemoryLongTermQueueItem } from './life-core/working-memory-long-term-queue'
 
 import { randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
@@ -84,9 +91,30 @@ import { join } from 'node:path'
 import sqlite3 from 'sqlite3'
 
 import { errorMessageFrom } from '@moeru/std'
-import { normalizeAlicizationMemoryProvenance } from '@proj-alicization/stage-shared'
+import { normalizeAlicizationMemoryProvenance, sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
 
 import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
+import { cleanWorkingMemoryLongTermQueueItem } from './life-core/working-memory-long-term-cleaner'
+import { createWorkingMemoryLongTermCleaningTransaction } from './life-core/working-memory-long-term-cleaning'
+import { createWorkingMemoryLongTermCleaningStoreRuntime } from './life-core/working-memory-long-term-cleaning-store'
+import { projectWorkingMemoryLongTermCandidate } from './life-core/working-memory-long-term-projection'
+import { safeEmbedLongTermMemoryTexts } from './long-term-memory-embedding-provider'
+import {
+  episodicEventToLongTermEvidenceCandidate,
+  memoryConsolidationToLongTermEvidenceCandidate,
+  memoryFactToLongTermEvidenceCandidate,
+  memoryReflectionToLongTermEvidenceCandidate,
+} from './long-term-memory-evidence'
+import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-persistent-vector-store'
+import {
+  buildLongTermMemoryEvidenceBundle,
+  buildLongTermMemoryQueryPlan,
+  deriveLongTermMemoryRecallIntent,
+} from './long-term-memory-recall'
+import {
+  applyLongTermMemoryReviewDecision as applyLongTermMemoryReviewDecisionToTransaction,
+  createLongTermMemoryReviewItemFromTransaction,
+} from './long-term-memory-review-queue'
 import { buildMemoryConsolidationRecords, searchMemoryConsolidationRecords } from './memory-consolidation'
 import { createAlicizationMemoryConsolidationRuntime } from './memory-consolidation-runtime'
 import { rankAlicizationConversationTurnsForRecall } from './memory-conversation-retrieval'
@@ -101,42 +129,14 @@ import { createAlicizationMemoryRelationshipRuntime } from './memory-relationshi
 import { createAlicizationMemoryRetrievalTelemetryRuntime } from './memory-retrieval-telemetry'
 import { buildAlicizationMemoryStatsProjection } from './memory-stats-projection'
 import { createAlicizationMemorySubconsciousRuntime } from './memory-subconscious-runtime'
-import { cleanWorkingMemoryLongTermQueueItem } from './life-core/working-memory-long-term-cleaner'
-import { createWorkingMemoryLongTermCleaningTransaction } from './life-core/working-memory-long-term-cleaning'
-import { createWorkingMemoryLongTermCleaningStoreRuntime } from './life-core/working-memory-long-term-cleaning-store'
-import { projectWorkingMemoryLongTermCandidate } from './life-core/working-memory-long-term-projection'
-import {
-  episodicEventToLongTermEvidenceCandidate,
-  memoryConsolidationToLongTermEvidenceCandidate,
-  memoryFactToLongTermEvidenceCandidate,
-  memoryReflectionToLongTermEvidenceCandidate,
-} from './long-term-memory-evidence'
-import {
-  buildLongTermMemoryEvidenceBundle,
-  buildLongTermMemoryQueryPlan,
-  deriveLongTermMemoryRecallIntent,
-} from './long-term-memory-recall'
-import { safeEmbedLongTermMemoryTexts } from './long-term-memory-embedding-provider'
-import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-persistent-vector-store'
-import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
-import type {
-  LongTermMemoryEvidenceBundle,
-  LongTermMemoryEvidenceCandidate,
-  LongTermMemoryQueryPlan,
-} from './long-term-memory-recall'
-import type { LongTermMemoryReviewDecision, LongTermMemoryReviewItem } from './long-term-memory-review-queue'
-import {
-  applyLongTermMemoryReviewDecision as applyLongTermMemoryReviewDecisionToTransaction,
-  createLongTermMemoryReviewItemFromTransaction,
-} from './long-term-memory-review-queue'
-import { createMemoryWorkbenchHealthRuntime } from './memory-workbench-health'
-import { createMemoryWorkbenchPersonaCandidateRuntime } from './memory-workbench-persona-candidates'
 import {
   deriveConsolidationMemoryTier,
   deriveEpisodicMemoryTier,
   deriveFactMemoryTier,
   deriveTierCounts,
 } from './memory-tiering'
+import { createMemoryWorkbenchHealthRuntime } from './memory-workbench-health'
+import { createMemoryWorkbenchPersonaCandidateRuntime } from './memory-workbench-persona-candidates'
 import { createMemoryWorkbenchPolicyStoreRuntime, mergeMemoryWorkbenchPolicy } from './memory-workbench-policy-store'
 import { createAlicizationPersonStateEvolutionRuntime } from './person-state-evolution-runtime'
 import { normalizeOrganicRecallText } from './runtime-organic-recall'
@@ -1049,6 +1049,10 @@ function mapScheduledTaskRow(row: DbScheduledTaskRow): AlicizationScheduledTaskR
   }
 }
 
+function sanitizeLearningTaskPayloadText(raw: unknown, maxChars: number) {
+  return sanitizeAlicizationProviderFacingText(raw, maxChars) || null
+}
+
 function parseLearningTaskPayload(raw: string): AlicizationLearningTaskPayload {
   try {
     const candidate = JSON.parse(raw) as Partial<AlicizationLearningTaskPayload> | null
@@ -1065,26 +1069,26 @@ function parseLearningTaskPayload(raw: string): AlicizationLearningTaskPayload {
       action: candidate?.action === 'record' || candidate?.action === 'reflect' || candidate?.action === 'verify' || candidate?.action === 'revise' || candidate?.action === 'internalize'
         ? candidate.action
         : 'record',
-      reason: typeof candidate?.reason === 'string' && candidate.reason.trim() ? candidate.reason.trim().slice(0, 280) : null,
+      reason: sanitizeLearningTaskPayloadText(candidate?.reason, 280),
       projectStateContinuity: projectStateContinuity
         ? {
-            identity: typeof projectStateContinuity.identity === 'string' && projectStateContinuity.identity.trim() ? projectStateContinuity.identity.trim().slice(0, 220) : null,
-            currentPhase: typeof projectStateContinuity.currentPhase === 'string' && projectStateContinuity.currentPhase.trim() ? projectStateContinuity.currentPhase.trim().slice(0, 160) : null,
-            sameHerSummary: typeof projectStateContinuity.sameHerSummary === 'string' && projectStateContinuity.sameHerSummary.trim() ? projectStateContinuity.sameHerSummary.trim().slice(0, 220) : null,
-            landedProgressSummary: typeof projectStateContinuity.landedProgressSummary === 'string' && projectStateContinuity.landedProgressSummary.trim() ? projectStateContinuity.landedProgressSummary.trim().slice(0, 220) : null,
-            openClosureSummary: typeof projectStateContinuity.openClosureSummary === 'string' && projectStateContinuity.openClosureSummary.trim() ? projectStateContinuity.openClosureSummary.trim().slice(0, 220) : null,
-            proactiveSameHerGap: typeof projectStateContinuity.proactiveSameHerGap === 'string' && projectStateContinuity.proactiveSameHerGap.trim() ? projectStateContinuity.proactiveSameHerGap.trim().slice(0, 220) : null,
-            nextClosureTarget: typeof projectStateContinuity.nextClosureTarget === 'string' && projectStateContinuity.nextClosureTarget.trim() ? projectStateContinuity.nextClosureTarget.trim().slice(0, 220) : null,
-            preDialogueAwarenessLine: typeof projectStateContinuity.preDialogueAwarenessLine === 'string' && projectStateContinuity.preDialogueAwarenessLine.trim() ? projectStateContinuity.preDialogueAwarenessLine.trim().slice(0, 320) : null,
-            emotionalClosureCue: typeof projectStateContinuity.emotionalClosureCue === 'string' && projectStateContinuity.emotionalClosureCue.trim() ? projectStateContinuity.emotionalClosureCue.trim().slice(0, 220) : null,
-            sameHerSelfLine: typeof projectStateContinuity.sameHerSelfLine === 'string' && projectStateContinuity.sameHerSelfLine.trim() ? projectStateContinuity.sameHerSelfLine.trim().slice(0, 220) : null,
-            sameHerHoldDetail: typeof projectStateContinuity.sameHerHoldDetail === 'string' && projectStateContinuity.sameHerHoldDetail.trim() ? projectStateContinuity.sameHerHoldDetail.trim().slice(0, 220) : null,
-            sameHerDriftRisk: typeof projectStateContinuity.sameHerDriftRisk === 'string' && projectStateContinuity.sameHerDriftRisk.trim() ? projectStateContinuity.sameHerDriftRisk.trim().slice(0, 320) : null,
+            identity: sanitizeLearningTaskPayloadText(projectStateContinuity.identity, 220),
+            currentPhase: sanitizeLearningTaskPayloadText(projectStateContinuity.currentPhase, 160),
+            sameHerSummary: sanitizeLearningTaskPayloadText(projectStateContinuity.sameHerSummary, 220),
+            landedProgressSummary: sanitizeLearningTaskPayloadText(projectStateContinuity.landedProgressSummary, 220),
+            openClosureSummary: sanitizeLearningTaskPayloadText(projectStateContinuity.openClosureSummary, 220),
+            proactiveSameHerGap: sanitizeLearningTaskPayloadText(projectStateContinuity.proactiveSameHerGap, 220),
+            nextClosureTarget: sanitizeLearningTaskPayloadText(projectStateContinuity.nextClosureTarget, 220),
+            preDialogueAwarenessLine: sanitizeLearningTaskPayloadText(projectStateContinuity.preDialogueAwarenessLine, 320),
+            emotionalClosureCue: sanitizeLearningTaskPayloadText(projectStateContinuity.emotionalClosureCue, 220),
+            sameHerSelfLine: sanitizeLearningTaskPayloadText(projectStateContinuity.sameHerSelfLine, 220),
+            sameHerHoldDetail: sanitizeLearningTaskPayloadText(projectStateContinuity.sameHerHoldDetail, 220),
+            sameHerDriftRisk: sanitizeLearningTaskPayloadText(projectStateContinuity.sameHerDriftRisk, 320),
           }
         : null,
-      focuses: Array.isArray(candidate?.focuses) ? candidate.focuses.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean).slice(0, 12) : [],
-      dominantTrajectory: typeof candidate?.dominantTrajectory === 'string' && candidate.dominantTrajectory.trim() ? candidate.dominantTrajectory.trim().slice(0, 220) : null,
-      sourceSignals: Array.isArray(candidate?.sourceSignals) ? candidate.sourceSignals.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean).slice(0, 12) : [],
+      focuses: Array.isArray(candidate?.focuses) ? candidate.focuses.map(item => sanitizeLearningTaskPayloadText(item, 220)).filter((item): item is string => Boolean(item)).slice(0, 12) : [],
+      dominantTrajectory: sanitizeLearningTaskPayloadText(candidate?.dominantTrajectory, 220),
+      sourceSignals: Array.isArray(candidate?.sourceSignals) ? candidate.sourceSignals.map(item => sanitizeLearningTaskPayloadText(item, 220)).filter((item): item is string => Boolean(item)).slice(0, 12) : [],
       learningReadiness: Number.isFinite(Number(candidate?.learningReadiness)) ? Math.max(0, Math.min(1, Number(candidate?.learningReadiness))) : 0,
       contradictionPressure: Number.isFinite(Number(candidate?.contradictionPressure)) ? Math.max(0, Math.min(1, Number(candidate?.contradictionPressure))) : 0,
       revisionPressure: Number.isFinite(Number(candidate?.revisionPressure)) ? Math.max(0, Math.min(1, Number(candidate?.revisionPressure))) : 0,
@@ -5326,6 +5330,7 @@ export async function setupAlicizationDb(
       memoryRelationshipRuntime.listMemoryReflections({
         cardId: input.cardId,
         limit: sourceLimit,
+        status: 'confirmed',
       }).catch(() => []),
       searchEpisodicEvents({
         recallSeed,
@@ -5746,8 +5751,8 @@ export async function setupAlicizationDb(
           score: item.score,
           visibleMode: item.visibleMode,
           queryMatches: item.queryMatches,
-            rankReasons: item.rankReasons,
-          })),
+          rankReasons: item.rankReasons,
+        })),
         semantic,
         latencyMs,
         errors: [],

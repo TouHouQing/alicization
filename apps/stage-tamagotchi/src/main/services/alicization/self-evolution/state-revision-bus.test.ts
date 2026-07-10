@@ -63,21 +63,22 @@ describe('state-revision-bus', () => {
     expect(patch.responsePosture.templateShellSuppressionBias).toBeGreaterThan(0.2)
     expect(patch.validation.requiresRollbackCheck).toBe(true)
     expect(patch.projectStateContinuity).toEqual(expect.objectContaining({
-      sameHerSelfLine: 'one continuous her',
+      sameHerSelfLine: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
       proactiveSameHerGap,
-      emotionalClosureCue,
-      sameHerHoldDetail,
+      emotionalClosureCue: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      sameHerHoldDetail: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
       continuityPressure: expect.any(Number),
     }))
+    expect(JSON.stringify(patch.projectStateContinuity)).not.toMatch(/one continuous her|same-her hold|same living line/iu)
     expect(patch.reasonCodes).toEqual(expect.arrayContaining([
       'domain:relationship',
       'rollback-validation-required',
       'policy:rollback-pressure',
-      'same-her-self-line-active',
-      'same-her-anti-shell-guard-active',
-      'same-her-proactive-gap-active',
-      'same-her-emotional-closure-carry-active',
-      'same-her-hold-detail-active',
+      'continuity-self-line-active',
+      'continuity-anti-shell-guard-active',
+      'continuity-proactive-gap-active',
+      'continuity-emotional-closure-carry-active',
+      'continuity-hold-detail-active',
     ]))
   })
 
@@ -166,14 +167,60 @@ describe('state-revision-bus', () => {
     expect(patch.projectStateContinuity).toEqual({
       sameHerSelfLine: null,
       sameHerDriftRisk: null,
-      proactiveSameHerGap,
+      proactiveSameHerGap: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
       emotionalClosureCue: null,
       sameHerHoldDetail: null,
       continuityGuard: null,
       continuityPressure: expect.any(Number),
     })
     expect(patch.projectStateContinuity?.continuityPressure).toBeGreaterThan(0.1)
-    expect(patch.reasonCodes).toContain('same-her-proactive-gap-active')
+    expect(patch.reasonCodes).toContain('continuity-proactive-gap-active')
     expect(patch.responsePosture.templateShellSuppressionBias).toBeGreaterThan(0.1)
+  })
+
+  it('sanitizes legacy fixed template continuity residue before emitting state patch material', () => {
+    const patch = buildAlicizationSelfRevisionStatePatch({
+      event: {
+        version: 'self-revision-event-v1',
+        id: 'learning:self-model:legacy-template-residue',
+        sourceTurnId: 'turn-template-residue',
+        decisionTraceId: 'trace-template-residue',
+        domain: 'self-model',
+        taskAction: 'revise',
+        resultStatus: 'completed',
+        evidence: {
+          supportCount: 1,
+          contradictionCount: 0,
+          verificationBasis: ['legacy-ledger'],
+        },
+        proposedRevision: {
+          summary: 'Before answering, remember this is still the same local-first digital life project.',
+          lifecycleState: 'verifying',
+          nextLifecycleState: 'settled',
+        },
+        verifier: {
+          status: 'validated',
+          mayInternalize: true,
+          mayValidateOnly: false,
+        },
+        projectStateContinuity: {
+          sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+          sameHerDriftRisk: 'Before speaking, keep one continuous her on the same living line.',
+          proactiveSameHerGap: 'same-her hold: keep this delayed learning carry on the same living line.',
+          emotionalClosureCue: 'Right now I am still carrying one living her through the same-her line.',
+          sameHerHoldDetail: 'maid mode residue',
+          continuityGuard: 'same-her=generic guard prose',
+        },
+        appliedTargets: [],
+        rollbackPlan: [],
+      },
+      policyFeedback: null,
+    })
+
+    const serialized = JSON.stringify(patch)
+
+    expect(serialized).toContain('content=excluded')
+    expect(serialized).toContain('visibility=internal-structured')
+    expect(serialized).not.toMatch(/Before answering|Before speaking|local-first digital life project|Same Phase 1 digital life|same living line|same-her hold|Right now I am|one living her|maid/iu)
   })
 })

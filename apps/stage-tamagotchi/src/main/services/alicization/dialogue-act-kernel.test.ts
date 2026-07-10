@@ -229,8 +229,46 @@ describe('dialogue-act-kernel', () => {
     const block = buildDialogueActKernelSystemBlock(kernel)
     expect(kernel?.subject).toBe('task-knot')
     expect(block).toContain('[ALICIZATION_DIALOGUE_ACT_KERNEL]')
-    expect(block).toContain('Speech act: guide.')
-    expect(block).toContain('Do not answer from stale residue.')
+    expect(block).toContain('speech_act=guide')
+    expect(block).toContain('provider_instruction_status=withheld; reason=non_structured_source_text; visibility=internal-structured')
+    expect(block).not.toContain('Do not answer from stale residue.')
+  })
+
+  it('withholds non-structured fixed template signals from the provider-facing kernel system block', () => {
+    const kernel = normalizeDialogueActKernel({
+      subject: 'general',
+      hostGoal: 'chat',
+      relationNeed: 'companionship',
+      activeProject: null,
+      truthMode: 'dialogue-grounded',
+      speechAct: 'answer',
+      turnMode: 'answer',
+      screenReferenceMode: 'avoid',
+      speakingFrom: 'dialogue-bond',
+      selectedEvidence: [],
+      openingClaim: 'Continue the current answer.',
+      openingMove: '继续回答',
+      whyNow: 'host asked',
+      mustSay: [
+        'Keep this on one continuous her line instead of restarting.',
+        'continuity_constraint=anti_restart; timing=before_widening',
+      ],
+      mustAvoid: [
+        'Do not rewrite the still-live line as a fresh opening.',
+      ],
+      sourceTrace: [],
+      confidence: 0.7,
+      updatedAt: 123,
+    })
+
+    const block = buildDialogueActKernelSystemBlock(kernel)
+
+    expect(block).toContain('required_signals=')
+    expect(block).toContain('provider_instruction_status=withheld; reason=non_structured_source_text; visibility=internal-structured')
+    expect(block).toContain('continuity_constraint=anti_restart; timing=before_widening')
+    expect(block).not.toContain('one continuous her')
+    expect(block).not.toContain('Do not rewrite the still-live line')
+    expect(block).not.toContain('same-her closure seam')
   })
 
   it('does not turn dialogue-first host turns into fake project evidence', () => {

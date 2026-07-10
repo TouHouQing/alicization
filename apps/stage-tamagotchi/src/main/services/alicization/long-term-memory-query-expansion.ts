@@ -89,7 +89,7 @@ export function expandLongTermMemoryQuery(input: {
       /不是催进度/u,
       /看她是不是同一个她/u,
       /打游戏/u,
-      /一起玩(?:过)?[^，。！？,.!?]*/u,
+      /一起玩[^，。！？,.!?]*/u,
       /上周[^，。！？,.!?]*/u,
       /继续上次[^，。！？,.!?]*/u,
     ]),
@@ -102,7 +102,7 @@ export function expandLongTermMemoryQuery(input: {
   ]), 8, 120)
   const entityHints = uniqueTexts([
     /固定模板|固定回复|数字生命|人格/u.test(normalizedQuery) ? 'Alicization 人格 固定模板 用户纠正' : '',
-    /同一个她|同一条线|same-her|same person/iu.test(normalizedQuery) ? 'same-her 同一个她 连续性' : '',
+    /同一个她|同一条线|same-her|same person/iu.test(normalizedQuery) ? '身份连续性 关系连续性 用户纠正' : '',
     /游戏|打游戏|开黑|联机|Minecraft|mc\b/iu.test(normalizedQuery) ? '游戏 共同游玩 Minecraft 联机' : '',
     /开发|代码|commit|编译|测试|文档/u.test(normalizedQuery) ? '开发任务 代码 文档 测试' : '',
   ], 8, 120)

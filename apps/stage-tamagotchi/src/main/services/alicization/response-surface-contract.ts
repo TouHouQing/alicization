@@ -19,13 +19,17 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
 import {
+  alicizationFixedTemplateReplacement,
+  containsAlicizationFixedTemplateResidue,
   deriveAlicizationMemoryClosureDiscipline,
+  formatAlicizationProjectStateAwarenessFields,
   normalizeAlicizationNormalVisibleReplyAuthority,
   readKnowledgeEvidenceFromDerivedMindStateBundle,
   readLearningExecutionStateFromDerivedMindStateBundle,
   readMemoryDeliberationFromDerivedMindStateBundle,
   readPersonStateProjectionFromDerivedMindStateBundle,
   resolveAlicizationProjectPreDialogueAwarenessLine,
+  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
 import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
@@ -224,8 +228,8 @@ export function buildRecollectionSpeechVisibleSurfaceRules(
   }
 
   return {
-    mustDo,
-    mustNotDo,
+    mustDo: normalizeResponseSurfaceRuleList(mustDo, 'mustDo'),
+    mustNotDo: normalizeResponseSurfaceRuleList(mustNotDo, 'mustNotDo'),
     latentControls,
   }
 }
@@ -330,7 +334,7 @@ function hasRepairBeforeClosenessSameThreadCarry(currentConsciousFrame?: Aliciza
     .join(' ')
 
   const carriesRepairBeforeCloseness = /repair-before-closeness|repair before closeness|repair-first|let repair settle|先修复再靠近|修复优先/u.test(combined)
-  const carriesSameThreadReturn = /same callback|same thread|same living line|callback repair line|same repair line|同一条线|修补线/u.test(combined)
+  const carriesSameThreadReturn = /same callback|same thread|continuity line|callback repair line|same repair line|同一条线|修补线/u.test(combined)
   const carriesRoomGivingRestraint = /leave room|room-giving|before widening closeness|before warmth widens|不要突然放宽|留一点空间|留空间/u.test(combined)
 
   return carriesRepairBeforeCloseness && carriesSameThreadReturn && carriesRoomGivingRestraint
@@ -367,7 +371,7 @@ function hasRestProtectiveSameThreadCarry(currentConsciousFrame?: AlicizationCur
     .join(' ')
 
   const carriesRestProtection = /rest-protective|rest protective|fatigue-aware|late-night-drain|protective-watch|rest-first|rest line/u.test(combined)
-  const carriesSameThreadReturn = /same callback|same thread|same living line|callback line|same line|同一条线/u.test(combined)
+  const carriesSameThreadReturn = /same callback|same thread|continuity line|callback line|same line|同一条线/u.test(combined)
   const carriesRoomGivingRestraint = /leave room|room-giving|before widening closeness|before warmth widens|留一点空间|留空间/u.test(combined)
 
   return carriesRestProtection && carriesSameThreadReturn && carriesRoomGivingRestraint
@@ -399,7 +403,7 @@ function hasCrossModalSameHerProjectContinuityCue(input: {
     speakingIntention,
   ].join(' ')
   return (
-    /cross-modal|same-her proof|same living her|same digital life/u.test(combined)
+    /cross-modal|continuity proof|continuous identity|current continuity/u.test(combined)
     && /visible reply|voice|facial state|face|motion|lipsync|resident presence|embodiment|closure/u.test(combined)
   )
 }
@@ -418,11 +422,11 @@ function deriveProjectSurfaceClosureRule(input: {
     return []
   const rules = [
     asSurfaceSentence(
-      'Keep the visible reply anchored to the active digital-life closure seam: ',
+      'visible_reply_anchor=active_digital_life_closure_seam; detail=',
       text.slice(0, 180),
     ),
   ]
-  if (/same-her|same her|same living thread|one same her/u.test(lower)) {
+  if (/continuity|continuity identity|continuity thread|continuous identity/u.test(lower)) {
     rules.push(alicizationProjectStateSameHerContinuityReminder)
     rules.push(alicizationProjectStateVisibleReplySameHerReminder.replace('questions', 'status'))
   }
@@ -456,6 +460,306 @@ function asSurfaceSentence(prefix: string, value: string) {
 function normalizeProjectContinuityField(value: unknown) {
   const text = String(value ?? '').trim()
   return text || null
+}
+
+function normalizeProjectContinuityProviderFacingField(value: unknown, maxChars = 1600) {
+  const sanitized = sanitizeAlicizationProviderFacingText(value, maxChars)
+  return sanitized && sanitized !== alicizationFixedTemplateReplacement
+    ? sanitized
+    : null
+}
+
+function containsResponseSurfaceNaturalInstruction(value: string) {
+  return /\b(?:Do not|Open with|Let the first|Let active recollection|Let the visible reply|Start with|Use the first sentence|Complete the actual|State plainly|Before widening|Before answering|Keep this|Keep the visible|Keep the active|If warmth|If memory|When surfacing|Land the live payoff)\b/iu.test(value)
+}
+
+function normalizeResponseSurfaceProviderValue(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, '_')
+    .replace(/[^\w=;|:./,-]+/giu, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function responseSurfaceProviderField(key: string, value: unknown, maxChars = 320) {
+  const normalized = normalizeProjectContinuityProviderFacingField(value, maxChars)
+  if (!normalized)
+    return ''
+
+  const controlKey = normalizeResponseSurfaceControlCode(key)
+  if (containsResponseSurfaceNaturalInstruction(normalized))
+    return `${controlKey}=present; visible_wording=false; source=structured_signal.`
+
+  return `${controlKey}=${normalizeResponseSurfaceProviderValue(normalized)}.`
+}
+
+function responseSurfaceContractEvidenceField(key: string, value: unknown, maxChars = 1600) {
+  const controlKey = normalizeResponseSurfaceControlCode(key)
+  const raw = normalizeProjectContinuityField(value)
+  if (!raw)
+    return null
+
+  const normalized = normalizeProjectContinuityProviderFacingField(raw, maxChars)
+  if (!normalized)
+    return `${controlKey}=present; content=excluded; visibility=internal_structured`
+  if (containsResponseSurfaceNaturalInstruction(normalized))
+    return `${controlKey}=present; visible_wording=false; source=structured_signal`
+
+  return normalizeResponseSurfaceProviderValue(normalized)
+}
+
+function responseSurfaceProviderListItem(value: unknown) {
+  const normalized = normalizeProjectContinuityProviderFacingField(value, 360)
+  return normalized ? `- ${normalized}` : ''
+}
+
+type AlicizationResponseSurfaceRuleLane = 'mustDo' | 'mustNotDo'
+
+function normalizeResponseSurfaceControlCode(value: string) {
+  return value
+    .trim()
+    .replace(/;\s*/g, ';')
+    .replace(/\|\s*/g, '|')
+    .replace(/\s+/g, '_')
+    .replace(/[^\w=;|:./-]+/giu, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase()
+}
+
+function pushUniqueSurfaceControl(target: string[], value: string) {
+  const normalized = normalizeResponseSurfaceControlCode(value)
+  if (!normalized || target.includes(normalized))
+    return
+  target.push(normalized)
+}
+
+function classifyResponseSurfaceNaturalLanguageRule(value: string, lane: AlicizationResponseSurfaceRuleLane) {
+  const normalized = value.trim()
+  const lower = normalized.toLowerCase()
+  const controls: string[] = []
+
+  if (!normalized)
+    return controls
+  if (/^[a-z][a-z0-9_]*=[a-z0-9_.:/-]+(?:;\s*[a-z][a-z0-9_]*=[a-z0-9_.:/-]+)*$/u.test(normalized)) {
+    pushUniqueSurfaceControl(controls, normalized)
+    return controls
+  }
+  if (/^[-a-z0-9_]+\{[^{}\n]+\}$/u.test(normalized)) {
+    pushUniqueSurfaceControl(controls, normalized)
+    return controls
+  }
+
+  if (lower.includes('visible reply') || lower.includes('visible answer') || lower.includes('visible surface'))
+    pushUniqueSurfaceControl(controls, 'visible_wording=false')
+  if (
+    lower.includes('fully realize the visible reply')
+    || lower.includes('actual answer payoff')
+    || lower.includes('actual answer')
+    || lower.includes('care move')
+    || lower.includes('companionship move')
+    || lower.includes('payoff')
+    || lower.includes('first sentence')
+    || lower.includes('start with the answer')
+    || lower.includes('lead with what is visible')
+    || lower.includes('begin with payoff')
+    || lower.includes('current-turn')
+    || lower.includes('current ask')
+    || lower.includes('current follow-up')
+    || lower.includes('concrete answer')
+  ) {
+    pushUniqueSurfaceControl(controls, 'surface.start=answer_immediate')
+    pushUniqueSurfaceControl(controls, 'visible_reply_payoff=concrete_current_turn')
+  }
+  if (lower.includes('provider-mind') || lower.includes('local deterministic layer') || lower.includes('fallback'))
+    pushUniqueSurfaceControl(controls, 'provider_visible_reply_authority=mind_required')
+  if (
+    lower.includes('transparent')
+    || lower.includes('state plainly')
+    || lower.includes('failed')
+    || lower.includes('blocked')
+    || lower.includes('cancelled')
+    || lower.includes('waiting')
+    || lower.includes('confirmation')
+  ) {
+    pushUniqueSurfaceControl(controls, 'failure_transparency=required')
+  }
+  if (
+    lower.includes('moans')
+    || lower.includes('pet names')
+    || lower.includes('ellipsis')
+    || lower.includes('roleplay')
+    || lower.includes('stage directions')
+    || lower.includes('body-action')
+    || lower.includes('body narration')
+    || lower.includes('persona flourishes')
+    || lower.includes('persona script')
+    || lower.includes('persona-preface')
+    || lower.includes('theatrical')
+    || lower.includes('scene narration')
+    || lower.includes('decorative')
+  ) {
+    if (lane === 'mustNotDo')
+      pushUniqueSurfaceControl(controls, 'persona_shell=blocked')
+    pushUniqueSurfaceControl(controls, 'stage_direction_persona_padding=blocked')
+  }
+  if (
+    lower.includes('planning jargon')
+    || lower.includes('governance labels')
+    || lower.includes('internal control summaries')
+    || lower.includes('internal control summary')
+  ) {
+    pushUniqueSurfaceControl(controls, 'internal_control_summary=blocked')
+  }
+  if (
+    lower.includes('reuse drafted recollection')
+    || lower.includes('verbatim')
+    || lower.includes('exact remembered wording')
+    || lower.includes('quote')
+    || lower.includes('reconstruct exact')
+    || lower.includes('exact details')
+    || lower.includes('date-recital')
+    || lower.includes('archive dump')
+  ) {
+    pushUniqueSurfaceControl(controls, 'memory_recollection_verbatim_copy=blocked')
+  }
+  if (
+    lower.includes('recollection')
+    || lower.includes('remembered continuity')
+    || lower.includes('memory')
+    || lower.includes('recall')
+    || lower.includes('remembered')
+    || lower.includes('carried continuity')
+    || lower.includes('residue')
+    || lower.includes('stable core')
+  ) {
+    if (lane === 'mustDo') {
+      const carriesInwardMemory = lower.includes('inward')
+        || lower.includes('inside')
+        || lower.includes('without announcing')
+        || lower.includes('behind the live answer')
+      if (carriesInwardMemory) {
+        pushUniqueSurfaceControl(controls, 'memory.visibility=inward_only')
+        pushUniqueSurfaceControl(controls, 'memory_recollection_inner_carry=required')
+      }
+      if (lower.includes('approximate') || lower.includes('uncertainty') || lower.includes('hypothesis') || lower.includes('reconstruction'))
+        pushUniqueSurfaceControl(controls, 'memory_uncertainty_label=required')
+      if (lower.includes('stable core') || lower.includes('gist'))
+        pushUniqueSurfaceControl(controls, 'memory_visible_surface=stable_core_or_gist')
+    }
+    else {
+      if (lower.includes('surface recollection') || lower.includes('visible') || lower.includes('visibly cite') || lower.includes('narrate this memory'))
+        pushUniqueSurfaceControl(controls, 'memory_recollection_visible_dump=blocked')
+      if (lower.includes('fresh execution') || lower.includes('execution impersonation'))
+        pushUniqueSurfaceControl(controls, 'memory_execution_impersonation=blocked')
+      if (lower.includes('current screen') || lower.includes('fresh live read'))
+        pushUniqueSurfaceControl(controls, 'memory_as_live_screen=blocked')
+    }
+  }
+  if (
+    lower.includes('unsupported specificity')
+    || lower.includes('specific file')
+    || lower.includes('file names')
+    || lower.includes('class names')
+    || lower.includes('enum names')
+    || lower.includes('field changes')
+    || lower.includes('not grounded')
+  ) {
+    pushUniqueSurfaceControl(controls, 'unsupported_specificity=blocked')
+  }
+  if (lower.includes('hypothesis') || lower.includes('guess') || lower.includes('uncertainty'))
+    pushUniqueSurfaceControl(controls, lane === 'mustDo' ? 'hypothesis_label=required' : 'unsupported_certainty=blocked')
+  if (
+    lower.includes('fresh approach')
+    || lower.includes('fresh report opening')
+    || lower.includes('fresh-opening')
+    || lower.includes('restart')
+    || lower.includes('reopening')
+    || lower.includes('new opening')
+    || lower.includes('generic proactive reopening')
+    || lower.includes('fresh live read')
+  ) {
+    pushUniqueSurfaceControl(controls, 'fresh_restart=blocked')
+  }
+  if (
+    lower.includes('detached project-summary')
+    || lower.includes('project-summary voice')
+    || lower.includes('detached project narration')
+    || lower.includes('generic project-awareness')
+    || lower.includes('generic task shell')
+    || lower.includes('generic assistant')
+    || lower.includes('generic guidance')
+    || lower.includes('detached utility notice')
+    || lower.includes('external summary cadence')
+  ) {
+    pushUniqueSurfaceControl(controls, 'detached_project_summary_voice=blocked')
+  }
+  if (
+    lower.includes('template shell')
+    || lower.includes('thin shell')
+    || lower.includes('shell opener')
+    || lower.includes('empty empathy shell')
+    || lower.includes('pacing shell')
+    || lower.includes('default persona script')
+  ) {
+    pushUniqueSurfaceControl(controls, 'template_shell=blocked')
+  }
+  if (
+    lower.includes('same thread')
+    || lower.includes('same-thread')
+    || lower.includes('same callback')
+    || lower.includes('current thread')
+    || lower.includes('current opening')
+    || lower.includes('callback line')
+    || lower.includes('same result line')
+  ) {
+    if (lane === 'mustDo')
+      pushUniqueSurfaceControl(controls, 'continuity_arc=same_thread')
+    pushUniqueSurfaceControl(controls, lane === 'mustDo' ? 'continuity_thread=current_turn' : 'continuity_thread_break=blocked')
+  }
+  if (lower.includes('widen') || lower.includes('warmth') || lower.includes('closeness') || lower.includes('intimacy')) {
+    if (lane === 'mustDo') {
+      pushUniqueSurfaceControl(controls, 'closeness_widening=defer_until_payoff')
+      pushUniqueSurfaceControl(controls, 'relationship_widening=after_payoff_if_room')
+    }
+    else {
+      pushUniqueSurfaceControl(controls, 'premature_closeness_widening=blocked')
+    }
+  }
+  if (lower.includes('room') || lower.includes('low-pressure') || lower.includes('bounded') || lower.includes('space-first'))
+    pushUniqueSurfaceControl(controls, 'relationship_pressure=bounded')
+  if (lower.includes('project continuity') || lower.includes('continuity drift-risk') || lower.includes('continuity route') || lower.includes('continuity guard'))
+    pushUniqueSurfaceControl(controls, lane === 'mustDo' ? 'project_continuity=structured_context' : 'project_continuity_flattening=blocked')
+  if (lower.includes('cross-modal') || lower.includes('voice') || lower.includes('face') || lower.includes('motion') || lower.includes('resident presence') || lower.includes('embodiment'))
+    pushUniqueSurfaceControl(controls, lane === 'mustDo' ? 'embodiment_continuity=preserve' : 'embodiment_continuity_flattening=blocked')
+  if (lower.includes('learning') || lower.includes('verification') || lower.includes('verified') || lower.includes('revising') || lower.includes('internalized'))
+    pushUniqueSurfaceControl(controls, lane === 'mustDo' ? 'learning_state=structured_evidence' : 'learning_overclaim=blocked')
+  if (lower.includes('screen-status caveats') || lower.includes('grounding requests') || lower.includes('screen grounding'))
+    pushUniqueSurfaceControl(controls, lane === 'mustDo' ? 'screen_grounding=background' : 'screen_status_caveat=blocked')
+  if (lower.includes('mirror') || lower.includes('paraphrase the host'))
+    pushUniqueSurfaceControl(controls, 'host_line_mirroring=blocked')
+  if (lower.includes('urge-to-speak') || lower.includes('unsolicited initiative'))
+    pushUniqueSurfaceControl(controls, 'unsolicited_initiative=blocked')
+
+  if (controls.length > 0)
+    return controls
+
+  const sanitized = sanitizeAlicizationProviderFacingText(normalized, 180, '')
+  if (!sanitized)
+    return []
+
+  pushUniqueSurfaceControl(controls, `${lane === 'mustDo' ? 'structured_obligation' : 'structured_boundary'}=${sanitized}`)
+  return controls
+}
+
+function normalizeResponseSurfaceRuleList(values: string[], lane: AlicizationResponseSurfaceRuleLane) {
+  const normalized: string[] = []
+  for (const value of values) {
+    for (const control of classifyResponseSurfaceNaturalLanguageRule(value, lane))
+      pushUniqueSurfaceControl(normalized, control)
+  }
+  return normalized
 }
 
 function pickProjectContinuityField(...values: unknown[]) {
@@ -497,7 +801,7 @@ function looksLikeSameHerProjectContinuityLine(value: unknown) {
   if (!normalized)
     return false
 
-  const carriesSameHer = /same phase 1 digital life|same living line|same her|same-her|one continuous her|one same her|one living her|current thread continuity/u.test(normalized)
+  const carriesSameHer = /phase1 continuity|continuity line|continuity identity|continuity|continuous identity|continuous identity|continuous identity|current thread continuity/u.test(normalized)
   const carriesClosureContext = /callback|returned result|execution|project|closure|phase 1|open closure|next closure|generic callback shell|detached utility notice/u.test(normalized)
 
   return carriesSameHer && carriesClosureContext
@@ -520,7 +824,7 @@ function readProjectContinuityFromAnswerCompiler(answerCompiler?: AlicizationAns
     currentPhase ||= stripProjectContinuityPrefix(normalized, /^current phase:\s*/i)
     latestLandedProgress ||= stripProjectContinuityPrefix(normalized, /^project progress:\s*/i)
     primaryOpenLoop ||= stripProjectContinuityPrefix(normalized, /^phase-one open loop:\s*/i)
-    proactiveSameHerGap ||= stripProjectContinuityPrefix(normalized, /^proactive same-her gap:\s*/i)
+    proactiveSameHerGap ||= stripProjectContinuityPrefix(normalized, /^proactive continuity gap:\s*/i)
     nextClosureTarget ||= stripProjectContinuityPrefix(normalized, /^next closure target:\s*/i)
   }
 
@@ -532,7 +836,7 @@ function readProjectContinuityFromAnswerCompiler(answerCompiler?: AlicizationAns
     .find(item =>
       Boolean(item)
       && /generic assistant shell|generic task shell|detached project narration|project-summary voice|generic callback shell|detached utility notice/u.test(String(item))
-      && /same-her|same her|same living line|current thread continuity|one continuous her/u.test(String(item).toLowerCase()),
+      && /continuity|continuity identity|continuity line|current thread continuity|continuous identity/u.test(String(item).toLowerCase()),
     ) ?? null
 
   return {
@@ -552,21 +856,23 @@ function isThinProjectAwarenessShell(value: unknown) {
   if (!text)
     return false
 
-  return /keep this same digital life project in view|detached project shell|generic project shell/u.test(text)
-    || text === 'same digital life | keep the closure seam explicit'
+  return /keep current continuity in view|detached project shell|generic project shell/u.test(text)
+    || text === 'current_continuity | closure_seam=explicit'
 }
 
 function scoreProjectContinuitySameHerLine(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
     return 0
+  if (containsAlicizationFixedTemplateResidue(value))
+    return 0
 
   let score = normalized.length >= 140 ? 2 : normalized.length >= 80 ? 1 : 0
-  if (/same phase 1 digital life|same living line|same her|same-her|one continuous her|one same her|one living her/u.test(normalized))
+  if (/local_desktop_life_loop|project_state_continuity|continuity_anchor=|continuity_(?:line|identity|thread)|cross_modal_continuity_proof/u.test(normalized))
     score += 4
   if (/callback|initiative|embodiment|resident presence|voice|face|motion|lipsync|closure|repair-before-closeness|measured-return/u.test(normalized))
     score += 2
-  if (/keep this same digital life project in view|generic reminder|generic guidance/u.test(normalized))
+  if (/keep current continuity in view|generic reminder|generic guidance/u.test(normalized))
     score -= 2
   return score
 }
@@ -575,8 +881,10 @@ function hasRicherProjectContinuityClosureCarry(value: string | null | undefined
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(value))
+    return false
 
-  const carriesSameHer = /same phase 1 digital life|same living line|same her|same-her|one continuous her|one same her|one living her/u.test(normalized)
+  const carriesSameHer = /local_desktop_life_loop|project_state_continuity|continuity_anchor=|continuity_(?:line|identity|thread)|cross_modal_continuity_proof/u.test(normalized)
   const carriesClosureContext = /callback|initiative|embodiment|resident presence|voice|face|motion|lipsync|open closure|next closure|generic callback shell|repair-before-closeness|measured-return/u.test(normalized)
   return carriesSameHer && carriesClosureContext
 }
@@ -584,6 +892,8 @@ function hasRicherProjectContinuityClosureCarry(value: string | null | undefined
 function carriesProjectIdentityAwareness(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
+    return false
+  if (containsAlicizationFixedTemplateResidue(value))
     return false
 
   return /alicization is (?:still the same )?local-first digital life project|same local-first digital life project|local-first digital life project building one continuous "her"/u.test(normalized)
@@ -593,8 +903,10 @@ function carriesProjectClosureBriefing(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(value))
+    return false
 
-  return /local-first digital life project|phase 1|returned project-state carry|what has already landed|still-open closure|open closure|next closure|closure seam|landed progress|project identity/u.test(normalized)
+  return /local_desktop_life_loop|project_state_continuity|returned project-state carry|landed=|open=|next=|still-open closure|open closure|next closure|closure seam|landed progress|project identity/u.test(normalized)
 }
 
 function looksLikeEmbodimentClosureHeadline(value: string | null | undefined) {
@@ -602,7 +914,7 @@ function looksLikeEmbodimentClosureHeadline(value: string | null | undefined) {
   if (!normalized)
     return false
 
-  return /holding together mainly through|living audio thread is still intact|face and motion need to rejoin|full cross-modal closure settles|voice, face, and motion|body, lipsync, and voice/u.test(normalized)
+  return /continuity=embodiment|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|holding together mainly through|living audio thread is still intact|face and motion need to rejoin|full cross-modal closure settles|voice, face, and motion|body, lipsync, and voice/u.test(normalized)
 }
 
 function looksLikeProjectClosureReanchorSummary(value: string | null | undefined) {
@@ -618,9 +930,9 @@ function looksLikeProjectClosureReanchorSummary(value: string | null | undefined
     = normalized.includes('what has already landed')
       || normalized.includes('still-open closure')
       || normalized.includes('unfinished closure')
-      || normalized.includes('same living line')
-      || normalized.includes('same-her proof')
-      || normalized.includes('same-her closure')
+      || normalized.includes('continuity line')
+      || normalized.includes('continuity proof')
+      || normalized.includes('continuity closure')
 
   return carriesProjectIdentity && carriesPhase && carriesClosureReanchor
 }
@@ -1079,23 +1391,56 @@ export function buildAlicizationResponseSurfaceContract(input: {
       emotionalClosureCue,
       emotionalClosureSummary,
       sameHerHoldDetail,
-    ].some(value => /same-her|same her|same living thread|one same her|one continuous her/u.test(String(value ?? '').toLowerCase()))
+    ].some(value => /continuity|continuity identity|continuity thread|continuous identity|continuous identity/u.test(String(value ?? '').toLowerCase()))
 
     if (!currentPhase && !latestProgress && !primaryOpenLoop && !proactiveSameHerGap && !nextClosureTarget && !preDialogueAwarenessLine && !sameHerSelfLine && !sameHerDriftRisk && !emotionalClosureCue && !emotionalClosureSummary && !sameHerHoldDetail && !sameHerLineRequired)
       return null
 
-    return {
+    const structuredPreDialogueAwarenessLine = normalizeProjectContinuityField(formatAlicizationProjectStateAwarenessFields({
       currentPhase,
-      latestProgress,
+      latestLandedProgress: latestProgress,
       primaryOpenLoop,
-      proactiveSameHerGap,
       nextClosureTarget,
-      preDialogueAwarenessLine,
-      sameHerSelfLine,
-      sameHerDriftRisk,
+      continuityAnchor: sameHerSelfLine,
+      continuityDriftRisk: sameHerDriftRisk,
+      proactiveSameHerGap,
       emotionalClosureCue,
-      emotionalClosureSummary,
-      sameHerHoldDetail,
+      status: normalizeProjectContinuityProviderFacingField(preDialogueAwarenessLine, 1600),
+      visibility: 'response-surface-structured',
+      maxChars: 1600,
+    }))
+    const safeSameHerDriftRisk = responseSurfaceContractEvidenceField('continuity_drift_risk', sameHerDriftRisk)
+    const safeProactiveSameHerGap = responseSurfaceContractEvidenceField('proactive_continuity_gap', proactiveSameHerGap)
+    const safeEmotionalClosureCue = responseSurfaceContractEvidenceField('emotional_closure_cue', emotionalClosureCue)
+    const safeEmotionalClosureSummary = responseSurfaceContractEvidenceField('emotional_closure_summary', emotionalClosureSummary)
+    const safeSameHerHoldDetail = responseSurfaceContractEvidenceField('continuity_hold_detail', sameHerHoldDetail)
+    const safePreDialogueAwarenessLine = normalizeProjectContinuityField(formatAlicizationProjectStateAwarenessFields({
+      currentPhase,
+      latestLandedProgress: latestProgress,
+      primaryOpenLoop,
+      nextClosureTarget,
+      continuityAnchor: sameHerSelfLine,
+      continuityDriftRisk: safeSameHerDriftRisk,
+      proactiveSameHerGap: safeProactiveSameHerGap,
+      emotionalClosureCue: safeEmotionalClosureCue,
+      sameHerHoldDetail: safeSameHerHoldDetail,
+      status: structuredPreDialogueAwarenessLine,
+      visibility: 'response-surface-structured',
+      maxChars: 1600,
+    }))
+
+    return {
+      currentPhase: responseSurfaceContractEvidenceField('current_phase', currentPhase),
+      latestProgress: responseSurfaceContractEvidenceField('latest_progress', latestProgress),
+      primaryOpenLoop: responseSurfaceContractEvidenceField('primary_open_loop', primaryOpenLoop),
+      proactiveSameHerGap: safeProactiveSameHerGap,
+      nextClosureTarget: responseSurfaceContractEvidenceField('next_closure_target', nextClosureTarget),
+      preDialogueAwarenessLine: safePreDialogueAwarenessLine,
+      sameHerSelfLine: responseSurfaceContractEvidenceField('continuity_anchor', sameHerSelfLine),
+      sameHerDriftRisk: safeSameHerDriftRisk,
+      emotionalClosureCue: safeEmotionalClosureCue,
+      emotionalClosureSummary: safeEmotionalClosureSummary,
+      sameHerHoldDetail: safeSameHerHoldDetail,
       sameHerLineRequired,
     }
   })()
@@ -1134,7 +1479,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
     pushUnique(mustNotDo, 'Do not treat a hold-for-opening continuity line like a clean new opening or a readiness signal for immediate widened closeness.')
   }
   else if (runtimeContinuityArcCue === 'gentle-reopen') {
-    pushUnique(mustDo, 'Re-enter the current thread softly before widening outward or adding extra warmth.')
+    pushUnique(mustDo, 'continuity_arc=gentle-reopen; surface_timing=soft_reentry_before_extra_warmth')
     pushUnique(mustNotDo, 'Do not inflate a gentle-reopen continuity line into a louder restart or a broader closeness jump than the moment can hold.')
   }
 
@@ -1146,16 +1491,16 @@ export function buildAlicizationResponseSurfaceContract(input: {
     pushUnique(mustDo, item)
 
   if (projectContinuity?.sameHerLineRequired && projectContinuity.sameHerSelfLine) {
-    pushUnique(mustDo, `Carry this project continuity self line directly in the visible reply posture: ${projectContinuity.sameHerSelfLine}`)
+    pushUnique(mustDo, 'project_continuity_anchor=required; preserve_as_structured_context=true; do_not_quote_anchor=true')
     pushUnique(mustNotDo, 'Do not degrade a required project continuity self line into generic project-awareness, generic companionship, or detached project-summary wording.')
     if (runtimeContinuityArcCue === 'same-thread-continuation') {
       pushUnique(mustNotDo, 'Do not flatten this same-thread project-state continuation into a fresh report opening or detached project-summary shell.')
     }
   }
   if (projectContinuity?.preDialogueAwarenessLine) {
-    pushUnique(mustDo, `Before widening outward, keep this pre-dialogue project awareness line alive inside the visible reply posture: ${projectContinuity.preDialogueAwarenessLine}`)
+    pushUnique(mustDo, 'project_pre_dialogue_awareness=present; use_as_internal_context=true; do_not_quote_awareness_line=true')
     if (projectContinuity.sameHerLineRequired || hasRicherProjectContinuityClosureCarry(projectContinuity.preDialogueAwarenessLine)) {
-      pushUnique(mustDo, `Keep the visible reply anchored to the active project closure context: ${projectContinuity.preDialogueAwarenessLine}`)
+      pushUnique(mustDo, 'active_project_closure_context=present; preserve_factual_fields_without_slogans=true')
     }
   }
   if (projectContinuity?.sameHerDriftRisk) {
@@ -1163,7 +1508,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
     pushUnique(mustNotDo, 'Do not let the visible reply flatten into a generic task shell, detached project narration, generic assistant guidance, or project-summary voice just because the project update is explicit this turn.')
   }
   if (projectContinuity?.proactiveSameHerGap) {
-    pushUnique(mustDo, `Keep this still-open proactive continuity gap explicit in the visible reply posture before widening outward: ${projectContinuity.proactiveSameHerGap}`)
+    pushUnique(mustDo, 'proactive_continuity_gap=open; preserve_as_status_field=true; do_not_quote_gap_text=true')
     pushUnique(mustNotDo, 'Do not answer as though proactive continuity closure is already finished, or flatten the still-open proactive gap into generic progress recap, generic companionship, or a detached project-summary shell.')
   }
   if (hasCrossModalSameHerProjectContinuityCue({ projectContinuity, currentConsciousFrame })) {
@@ -1248,6 +1593,16 @@ export function buildAlicizationResponseSurfaceContract(input: {
   for (const item of dialogueActKernel?.mustAvoid ?? [])
     pushUnique(mustNotDo, item)
 
+  const normalizedMustDo = normalizeResponseSurfaceRuleList(mustDo, 'mustDo')
+  const normalizedMustNotDo = normalizeResponseSurfaceRuleList(mustNotDo, 'mustNotDo')
+  pushUniqueSurfaceControl(normalizedMustDo, 'visible_wording=false')
+  pushUniqueSurfaceControl(normalizedMustDo, 'visible_reply_payoff=concrete_current_turn')
+  pushUniqueSurfaceControl(normalizedMustDo, 'provider_visible_reply_authority=mind_required')
+  pushUniqueSurfaceControl(normalizedMustDo, 'failure_transparency=required')
+  pushUniqueSurfaceControl(normalizedMustNotDo, 'stage_direction_persona_padding=blocked')
+  pushUniqueSurfaceControl(normalizedMustNotDo, 'internal_control_summary=blocked')
+  pushUniqueSurfaceControl(normalizedMustNotDo, 'fresh_restart=blocked')
+
   const contract: AlicizationResponseSurfaceContract = {
     openingStyle,
     replyRealizationMode,
@@ -1265,8 +1620,8 @@ export function buildAlicizationResponseSurfaceContract(input: {
     recollectionLatentControls: recollectionSpeechRules.latentControls,
     activeSelfRevisionPatchId: selfRevisionPatch?.id ?? null,
     projectContinuity,
-    mustDo,
-    mustNotDo,
+    mustDo: normalizedMustDo,
+    mustNotDo: normalizedMustNotDo,
   }
 
   return {
@@ -1297,47 +1652,31 @@ export function buildAlicizationResponseSurfaceContract(input: {
       `Truth discipline stable-core-only: ${truthDiscipline.shouldOnlySurfaceMemoryStableCore ? 'yes' : 'no'}.`,
       `Truth discipline delay memory until payoff: ${truthDiscipline.shouldDelayMemoryUntilAfterPayoff ? 'yes' : 'no'}.`,
       currentConsciousFrame
-        ? `Current conscious need: ${currentConsciousFrame.consciousNeed}.`
+        ? responseSurfaceProviderField('Current conscious need', currentConsciousFrame.consciousNeed)
         : '',
       currentConsciousFrame
-        ? `Current conscious tension: ${currentConsciousFrame.consciousTension}.`
+        ? responseSurfaceProviderField('Current conscious tension', currentConsciousFrame.consciousTension)
         : '',
       currentConsciousFrame
-        ? `Current speaking intention: ${currentConsciousFrame.speakingIntention}.`
+        ? responseSurfaceProviderField('Current speaking intention', currentConsciousFrame.speakingIntention)
         : '',
       currentConsciousFrame?.focusAnchor
-        ? `Current conscious focus anchor: ${currentConsciousFrame.focusAnchor}.`
+        ? responseSurfaceProviderField('Current conscious focus anchor', currentConsciousFrame.focusAnchor)
         : '',
       currentConsciousFrame?.shouldWithholdSpecificity
         ? 'Current conscious frame withholds unsupported specificity: yes.'
         : '',
       contract.projectContinuity?.currentPhase
-        ? `Project continuity current phase: ${contract.projectContinuity.currentPhase}.`
+        ? responseSurfaceProviderField('Project continuity current phase', contract.projectContinuity.currentPhase)
         : '',
-      contract.projectContinuity?.latestProgress
-        ? `Project continuity latest progress: ${contract.projectContinuity.latestProgress}.`
-        : '',
-      contract.projectContinuity?.primaryOpenLoop
-        ? `Project continuity primary open loop: ${contract.projectContinuity.primaryOpenLoop}.`
-        : '',
-      contract.projectContinuity?.proactiveSameHerGap
-        ? `Project continuity proactive gap: ${contract.projectContinuity.proactiveSameHerGap}.`
-        : '',
-      contract.projectContinuity?.nextClosureTarget
-        ? `Project continuity next closure target: ${contract.projectContinuity.nextClosureTarget}.`
-        : '',
-      contract.projectContinuity?.preDialogueAwarenessLine
-        ? `Project continuity pre-dialogue awareness line: ${contract.projectContinuity.preDialogueAwarenessLine}.`
-        : '',
-      contract.projectContinuity?.emotionalClosureCue
-        ? `Project continuity emotional closure cue: ${contract.projectContinuity.emotionalClosureCue}.`
-        : '',
-      contract.projectContinuity?.sameHerSelfLine
-        ? `Project continuity self line: ${contract.projectContinuity.sameHerSelfLine}.`
-        : '',
-      contract.projectContinuity?.sameHerDriftRisk
-        ? `Project continuity drift risk: ${contract.projectContinuity.sameHerDriftRisk}.`
-        : '',
+      responseSurfaceProviderField('Project continuity latest progress', contract.projectContinuity?.latestProgress),
+      responseSurfaceProviderField('Project continuity primary open loop', contract.projectContinuity?.primaryOpenLoop),
+      responseSurfaceProviderField('Project continuity proactive gap', contract.projectContinuity?.proactiveSameHerGap),
+      responseSurfaceProviderField('Project continuity next closure target', contract.projectContinuity?.nextClosureTarget),
+      responseSurfaceProviderField('Project continuity pre-dialogue awareness line', contract.projectContinuity?.preDialogueAwarenessLine),
+      responseSurfaceProviderField('Project continuity emotional closure cue', contract.projectContinuity?.emotionalClosureCue),
+      responseSurfaceProviderField('Project continuity self line', contract.projectContinuity?.sameHerSelfLine),
+      responseSurfaceProviderField('Project continuity drift risk', contract.projectContinuity?.sameHerDriftRisk),
       contract.projectContinuity
         ? `Project continuity self line required: ${contract.projectContinuity.sameHerLineRequired ? 'yes' : 'no'}.`
         : '',
@@ -1375,10 +1714,10 @@ export function buildAlicizationResponseSurfaceContract(input: {
       digitalLifeArchitecture
         ? `Digital life architecture: ${digitalLifeArchitecture.summary}.`
         : '',
-      'Must do:',
-      ...contract.mustDo.map(item => `- ${item}`),
-      'Must not do:',
-      ...contract.mustNotDo.map(item => `- ${item}`),
+      'surface_must_do_controls:',
+      ...contract.mustDo.map(responseSurfaceProviderListItem).filter(Boolean),
+      'surface_must_not_do_controls:',
+      ...contract.mustNotDo.map(responseSurfaceProviderListItem).filter(Boolean),
     ].filter(Boolean).join('\n'),
   }
 }

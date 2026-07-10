@@ -32,7 +32,7 @@ function buildBodyContinuityGovernanceNote(params: {
   const rendererSurface = formatRendererRejoinSurfaceName(params.rendererRejoinSurfaceKey)
 
   if (params.bodyContinuityPhase === 'body-only-hold') {
-    return '身体连续性仍主要由身体线独自托住同一段 living segment，虽然显形层还没有稳定补回，但这条 same-her 生命线本身没有断。'
+    return '身体连续性仍主要由身体线独自托住同一段 living segment，虽然显形层还没有稳定补回，但这条 identity-continuity 生命线本身没有断。'
   }
 
   if (params.bodyContinuityPhase === 'body-carried-to-renderer-rejoin') {
@@ -49,16 +49,16 @@ function buildBodyContinuityGovernanceNote(params: {
 
   if (params.bodyContinuityPhase === 'renderer-rejoin-without-body') {
     if (params.survivingVisibleLane === 'face+lipsync+voice-only') {
-      return '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。'
+      return '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。'
     }
     if (params.survivingVisibleLane === 'motion+lipsync+voice-only') {
-      return '当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线。'
+      return '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线。'
     }
     if (params.survivingVisibleLane === 'face+lipsync-only') {
-      return '当前只有 face 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线。'
+      return '当前只有 face 和 lipsync 这条 identity-continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线。'
     }
     if (params.survivingVisibleLane === 'motion+lipsync-only') {
-      return '当前只有 motion 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线。'
+      return '当前只有 motion 和 lipsync 这条 identity-continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线。'
     }
     return rendererSurface
       ? `显形回接失身态已经被完整记录：${rendererSurface} 显形权威已经回接，但身体线没有继续托住同一段 living segment。`

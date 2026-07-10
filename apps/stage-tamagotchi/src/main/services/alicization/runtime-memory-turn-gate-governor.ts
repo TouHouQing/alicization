@@ -27,23 +27,23 @@ export function applyMemoryTurnGateToGovernance(input: {
   const mustNotDo = [...(governance.mustNotDo ?? [])]
   const gate = artifact.visibleMemoryGate
 
-  pushUnique(mustDo, `Honor the turn memory gate before speaking: ${gate.status}.`)
+  pushUnique(mustDo, `memory_turn_gate.status=${gate.status}`)
   if (gate.status === 'closed' || gate.status === 'inward-only') {
-    pushUnique(mustDo, 'Let memory shape caution, ordering, care, and uncertainty inwardly without narrating recall this turn.')
-    pushUnique(mustNotDo, 'Do not visibly cite, narrate, or dramatize recalled material while the turn memory gate is inward-only or closed.')
+    pushUnique(mustDo, 'memory_surface.visibility=inward_only; memory_influence=caution,ordering,care,uncertainty')
+    pushUnique(mustNotDo, 'memory_surface.visible_citation=blocked; memory_surface.recall_narration=blocked')
   }
   if (gate.status === 'gist-only') {
-    pushUnique(mustDo, 'If memory becomes visible, reduce it to a brief gist that serves the current payoff.')
-    pushUnique(mustNotDo, 'Do not quote remembered wording, over-specify chronology, or widen gist-only memory into an archive report.')
+    pushUnique(mustDo, 'memory_surface.visibility=gist_only; memory_surface.payoff_role=support_current_turn')
+    pushUnique(mustNotDo, 'memory_surface.verbatim_quote=blocked; memory_surface.exact_chronology=blocked; memory_surface.archive_report=blocked')
   }
   if (gate.recallReadiness < 0.42)
-    pushUnique(mustNotDo, 'Do not let low recall readiness drive the visible answer.')
+    pushUnique(mustNotDo, 'memory_recall_readiness.visible_answer_driver=blocked')
   if (gate.precisionProxy < 0.56)
-    pushUnique(mustNotDo, 'Do not let low memory precision claim exact detail or settled continuity.')
+    pushUnique(mustNotDo, 'memory_precision.exact_detail_claim=blocked; memory_precision.settled_continuity_claim=blocked')
   if (gate.wrongThreadRisk >= 0.38)
-    pushUnique(mustNotDo, 'Do not merge competing or wrong-thread memory into the current answer.')
+    pushUnique(mustNotDo, 'memory_wrong_thread.merge_into_current_answer=blocked')
   if (gate.latencyPressure >= 0.72)
-    pushUnique(mustDo, 'Prefer the live payoff over expensive recollection when memory latency pressure is high.')
+    pushUnique(mustDo, 'memory_latency_pressure.priority=live_payoff')
 
   const closureTrace = artifact.memoryClosureTrace ?? null
   if (closureTrace?.authority === 'memory-os') {
@@ -55,21 +55,21 @@ export function applyMemoryTurnGateToGovernance(input: {
     const executionCarry = compactText(execution?.carry, 220)
     const embodimentCadence = compactText(embodiment?.cadence, 220)
 
-    pushUnique(mustDo, 'Use the Memory OS closure trace as the authority for this turn\'s same-her memory carry.')
+    pushUnique(mustDo, 'memory_closure_trace.authority=memory_os')
     if (initiativeRestraint || initiativeTiming) {
       pushUnique(
         mustDo,
-        `Keep proactive pressure ${initiativeRestraint || 'restrained'}${initiativeTiming ? ` and wait for ${initiativeTiming}` : ''} before widening the memory line.`,
+        `memory_closure_trace.initiative_restraint=${initiativeRestraint || 'restrained'}${initiativeTiming ? `; initiative_timing=${initiativeTiming}` : ''}`,
       )
     }
     if (executionCarry)
-      pushUnique(mustDo, `Carry execution feedback forward: ${executionCarry}`)
+      pushUnique(mustDo, `memory_closure_trace.execution_carry=${executionCarry}`)
     if (embodimentCadence)
-      pushUnique(mustDo, `Keep embodied delivery coherent with memory: ${embodimentCadence}`)
+      pushUnique(mustDo, `memory_closure_trace.embodiment_cadence=${embodimentCadence}`)
     if (closureTrace.closureState.open || closureTrace.closureState.revisionRequired) {
       pushUnique(
         mustNotDo,
-        'Do not close, revise away, or over-certify this memory line; the Memory OS trace still marks it open or revision-required.',
+        'memory_closure_trace.close_or_over_certify=blocked; closure_state=open_or_revision_required',
       )
     }
   }

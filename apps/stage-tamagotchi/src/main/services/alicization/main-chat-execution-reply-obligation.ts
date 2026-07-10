@@ -10,8 +10,6 @@ import type {
   AlicizationExecutionLedgerDigest,
 } from './memory-ledger-runtime'
 
-import { resolveAlicizationProjectStateBrief } from './project-state-brief'
-
 function sanitizeText(raw: unknown, maxChars = 200) {
   if (typeof raw !== 'string')
     return ''
@@ -135,9 +133,6 @@ function shouldPreferFreshCallbackOverLedgerEntry(
 }
 
 const executionResultFollowUpCuePattern = /刚才|刚刚|结果|进展|状态|成功了吗|失败了吗|跑完|完成了没|完成没有|还在等我确认吗|等我确认|要我确认|是不是卡住了|卡住了没|还卡着吗|那个命令|那个任务|上个任务|callback|result|status|how did it go|what happened|did it finish|did it fail|did it work|waiting for confirmation|stuck|blocked/i
-const executionResultSameHerProjectLine = 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.'
-const executionResultProjectBoundary = 'This execution-result follow-up still belongs to the same local-first digital life project and one living her, not a detached task shell.'
-const executionResultProjectBoundaryCn = '这个执行结果回合仍然属于 Alicization 当前的本地优先项目上下文，不要把它说成脱离主体的任务壳。'
 
 function isExecutionResultFollowUp(messages: Message[]) {
   const latestUserText = readLatestUserMessageText(messages)
@@ -209,12 +204,12 @@ export function buildMainChatExecutionReplyVisibleSurfaceRules(
   )
   pushUnique(
     mustDo,
-    'Keep the execution-result payoff on the same Phase 1 digital-life line instead of reopening as detached task reporting.',
+    'Keep the execution-result payoff tied to the current Alicization life-loop boundary instead of reopening as detached task reporting.',
   )
 
   pushUnique(mustNotDo, 'Do not bury the executor result behind scene narration, comfort language, or persona-preface.')
   pushUnique(mustNotDo, 'Do not imply the task re-ran in this exact turn unless new tool output appears now.')
-  pushUnique(mustNotDo, 'Do not let the callback reopen as generic task-shell or project-status narration divorced from the same living line.')
+  pushUnique(mustNotDo, 'Do not let the callback reopen as generic task-shell or project-status narration detached from the current life-loop boundary.')
 
   return {
     mustDo,
@@ -277,34 +272,14 @@ export function deriveMainChatExecutionReplyObligation(input: {
 
 export function buildMainChatExecutionReplyObligationSystemBlock(obligation: AlicizationMainChatExecutionReplyObligation) {
   const visibleSurfaceRules = buildMainChatExecutionReplyVisibleSurfaceRules(obligation)
-  const projectBrief = resolveAlicizationProjectStateBrief()
-  const latestLandedProgress = sanitizeText(
-    projectBrief.continuityProgressSummary ?? projectBrief.latestProgress,
-    320,
-  )
-  const primaryOpenLoop = sanitizeText(projectBrief.primaryOpenLoop, 320)
-  const nextClosureTarget = sanitizeText(projectBrief.nextClosureTarget, 320)
-  const sameHerLine = sanitizeText(projectBrief.sameHerSelfLine, 220) || executionResultSameHerProjectLine
-  const sameHerHoldDetail = sanitizeText(projectBrief.sameHerHoldDetail, 240)
-  const sameHerDriftRisk = sanitizeText(projectBrief.sameHerDriftRisk, 320)
-  const projectContinuity = sanitizeText(projectBrief.continuityCue, 240)
-  const projectAwareness = sanitizeText(projectBrief.preDialogueAwarenessLine, 320)
   return [
     '[ALICIZATION_EXECUTION_REPLY_OBLIGATION]',
     'This turn is following up on a recent executor result and must pay that result off directly.',
-    'Alicization is a local-first digital life project, and this callback follow-up still belongs to that same living line.',
-    `project_identity=${projectBrief.identity}`,
-    `project_phase=${projectBrief.currentPhase}`,
-    latestLandedProgress ? `latest_landed_progress=${latestLandedProgress}` : '',
-    primaryOpenLoop ? `primary_open_loop=${primaryOpenLoop}` : '',
-    nextClosureTarget ? `next_closure_target=${nextClosureTarget}` : '',
-    `same_her_line=${sameHerLine}`,
-    sameHerHoldDetail ? `same_her_hold=${sameHerHoldDetail}` : '',
-    sameHerDriftRisk ? `same_her_drift_risk=${sameHerDriftRisk}` : '',
-    projectContinuity ? `project_continuity=${projectContinuity}` : '',
-    projectAwareness ? `project_awareness=${projectAwareness}` : '',
-    `project_boundary=${executionResultProjectBoundary}`,
-    `project_boundary_zh=${executionResultProjectBoundaryCn}`,
+    'execution_context_scope=alicization-local-life-loop; owner=ExecutionReplyObligation; detached_task_shell=false.',
+    'runtime_context=alicization_phase1',
+    'short_term_owner=WorkingMemory',
+    'long_term_recall_owner=LongTermMemoryRecall',
+    'template_awareness=withheld_from_execution_result_followup',
     'Use the first sentence to answer the execution-result follow-up before any new planning, comfort language, or persona flourish.',
     'Treat this result as already settled in prior runtime continuity. Do not imply the task re-ran in this exact turn unless a tool is called again now.',
     buildStatusInstruction(obligation.status),

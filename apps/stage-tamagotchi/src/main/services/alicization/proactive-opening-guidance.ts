@@ -115,6 +115,8 @@ export function buildAlicizationOpeningGuidanceBlockedReason(
     return null
   if (openingGuidanceViolationReason === 'proactive-project-state-audit-violation:lower-pressure')
     return 'opening-guidance:lower-pressure'
+  if (openingGuidanceViolationReason === 'proactive-visible-reply-fixed-template-contamination')
+    return 'visible-reply:fixed-template-contamination'
   return openingGuidanceViolationReason.replace('proactive-opening-guidance-violation:', 'opening-guidance:')
 }
 
@@ -156,23 +158,23 @@ export function describeAlicizationOpeningGuidanceRewriteGuidance(input: {
   const lines: string[] = []
 
   if (input.blockedReason === 'opening-guidance:lower-pressure') {
-    lines.push('Keep the opening lower-pressure. Re-enter the current turn before widening visible closeness.')
+    lines.push('opening_guidance_repair=lower_pressure; visible_closeness_widening=blocked_until_current_turn_reentered; visible_wording=false')
   }
 
   if (input.openingGuidanceHoldDetail === 'memory-familiarity-closeness-cap') {
-    lines.push('Keep remembered familiarity explicitly framed as memory, and do not let it reopen visible closeness faster than the host\'s current room allows.')
+    lines.push('remembered_familiarity_surface=memory_label; closeness_reopen_speed=bounded_by_host_current_room; visible_wording=false')
   }
   if (input.openingGuidanceHoldDetail === 'generic-availability-shell') {
-    lines.push('Do not hide lower-pressure timing inside a generic permission shell like "if you are free now". Re-enter the live seam itself with lighter pressure instead.')
+    lines.push('generic_availability_shell=blocked; lower_pressure_timing=explicit; reentry_source=current_turn_thread; visible_wording=false')
   }
   if (input.openingGuidanceHoldDetail === 'same-thread-restart-shell') {
-    lines.push('Do not restart the line as a fresh opening. Continue the already-live same thread instead of phrasing it like a new beginning.')
+    lines.push('fresh_opening_restart=blocked; current_thread_continuation=required; visible_wording=false')
   }
   if (input.openingGuidanceHoldDetail === 'even-natural-cadence') {
-    lines.push('Keep the re-entry even and steady, and let pacing stay natural and unforced instead of sounding performative or rushed.')
+    lines.push('reentry_cadence=even_steady; pacing=natural_unforced; performative_or_rushed_reopen=blocked; visible_wording=false')
   }
   if (input.openingGuidanceHoldDetail === 'hover-first-live-seam') {
-    lines.push('Keep the opening hover-first. Re-enter the live seam itself before any reminder-like framing, and do not fall back to a service-style availability shell.')
+    lines.push('opening_mode=hover_first; reentry_source=current_turn_thread; reminder_like_framing=defer; service_availability_shell=blocked; visible_wording=false')
   }
 
   return lines

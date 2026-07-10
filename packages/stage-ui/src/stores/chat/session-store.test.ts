@@ -7,6 +7,26 @@ import { isReactive, ref } from 'vue'
 import { useAiriCardStore } from '../modules/airi-card'
 import { useChatSessionStore } from './session-store'
 
+const fixedTemplateResiduePattern
+  = /Before (?:answering|speaking|acting)|Right now I am|Same Phase 1 digital life|same[- ]her|same living line|one living her|one continuous her|local-first digital life project|Phase 1: Local Digital Life|同一个她|同一个 her|数字生命主线|女仆|\bmaid\b/iu
+const fixedTemplateWithheldLine
+  = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+
+function expectNoFixedTemplateResidue(value: unknown) {
+  const text = JSON.stringify(value ?? '')
+  expect(text).not.toMatch(fixedTemplateResiduePattern)
+  expect(text).not.toContain(fixedTemplateWithheldLine)
+  expect(text).not.toContain('content=excluded')
+}
+
+function expectStructuredSessionFact(value: unknown, pattern: RegExp = /landed=|open=|next=|cross_modal_continuity_proof|continuity_|embodiment|remaining-open|continuity_review_required/u) {
+  const text = JSON.stringify(value ?? '')
+  expectNoFixedTemplateResidue(text)
+  if (value == null || text === '""')
+    return
+  expect(text).toMatch(pattern)
+}
+
 const authState = vi.hoisted(() => ({
   userId: 'local-user',
 }))
@@ -465,45 +485,42 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
+    expectStructuredSessionFact(assistantMessage?.structured?.projectState)
     expect(assistantMessage?.structured?.projectState).toEqual(expect.objectContaining({
-      identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-      continuitySummary: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
+      identity: null,
+      continuitySummary: null,
       sameHerSelfLine: null,
-      currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-      nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-      primaryOpenLoop: 'Phase 1 closure still requires stronger evidence that natural recall and unified dialogue/voice/motion stay on one same-her line.',
+      currentPhase: null,
+      latestLandedProgress: 'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
+      nextClosureTarget: 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
+      primaryOpenLoop: null,
+      sameHerDriftRisk: null,
     }))
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness)
     expect(assistantMessage?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
-      status: 'partial',
-      summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
+      status: 'grounded',
+      summaryLine: expect.stringContaining('landed=Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.'),
       companionHeadlineLine: null,
-      companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-      companionNextClosureLine: 'Next closure: keep one same-her digital life line across memory, initiative, execution, and embodiment.',
-      awarenessLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
+      companionBriefingLine: null,
+      companionNextClosureLine: 'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
+      awarenessLine: expect.stringContaining('landed=Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.'),
       emotionalClosureCue: null,
       reasonPreview: expect.arrayContaining([
-        'Latest landed progress still holds at renderer preparation before the reply is finalized.',
-        'Primary open life loop still centers on full cross-modal same-her recovery.',
         'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
-        'Phase 1 closure still requires stronger evidence that natural recall and unified dialogue/voice/motion stay on one same-her line.',
-        'Next closure target is still Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
       ]),
     }))
+    expectNoFixedTemplateResidue(assistantMessage?.structured?.preDialogueClosure)
     expect(assistantMessage?.structured?.preDialogueClosure).toEqual(expect.objectContaining({
       status: 'partial',
-      summaryLine: 'project=continuity=0.67 (2/3) | open=Phase 1 closure still requires stronger evidence that natural recall and unified dialogue/voice/motion stay on one same-her line.',
-      companionHeadlineLine: 'Right now I still need to keep this same-her digital life line intact before widening into generic assistant output.',
-      sameHerDriftRiskLine: 'If this restored turn starts sounding like a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
-      companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-      companionNextClosureLine: 'Next closure: keep one same-her digital life line across memory, initiative, execution, and embodiment.',
-      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-      briefingLines: [
-        'Identity: Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-        'Phase: Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-      ],
-      reasons: [
-        'Phase 1 closure still requires stronger evidence that natural recall and unified dialogue/voice/motion stay on one same-her line.',
-      ],
+      summaryLine: null,
+      companionHeadlineLine: null,
+      sameHerDriftRiskLine: null,
+      companionBriefingLine: null,
+      companionNextClosureLine: null,
+      emotionalClosureCue: null,
+      briefingLines: [],
+      reasons: [],
     }))
   })
 
@@ -567,9 +584,8 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
-    expect(assistantMessage?.structured?.projectState?.sameHerDriftRisk).toBe(
-      'If this restored turn starts sounding like a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
-    )
+    expectNoFixedTemplateResidue(assistantMessage?.structured?.projectState?.sameHerDriftRisk)
+    expect(assistantMessage?.structured?.projectState?.sameHerDriftRisk).toBeNull()
   })
 
   it('backfills proactive same-her gap from persisted project-state audit when structured project-state has not carried it yet', async () => {
@@ -642,12 +658,10 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
-    expect(assistantMessage?.structured?.projectState?.proactiveSameHerGap).toBe(proactiveSameHerGap)
-    expect(assistantMessage?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
-      reasonPreview: expect.arrayContaining([
-        proactiveSameHerGap,
-      ]),
-    }))
+    expectNoFixedTemplateResidue(assistantMessage?.structured?.projectState?.proactiveSameHerGap)
+    expect(assistantMessage?.structured?.projectState?.proactiveSameHerGap).toBeNull()
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness)
+    expect(assistantMessage?.structured?.preDialogueAwareness?.reasonPreview).not.toContain('proactive_follow_through; status=unfinished')
   })
 
   it('backfills pre-dialogue awareness from persisted rich project-state carry when restored assistant payloads do not already include it', async () => {
@@ -710,20 +724,18 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness)
     expect(assistantMessage?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
       status: 'grounded',
-      summaryLine: expect.stringContaining('Before answering, remember: Alicization is a local-first digital life project'),
-      companionBriefingLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
-      companionNextClosureLine: 'Keep extending cross-modal same-her proof so anthropomorphic emotional closure, dialogue, and embodiment stay on one living line.',
+      summaryLine: expect.stringContaining('landed=Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.'),
+      companionBriefingLine: null,
       reasonPreview: expect.arrayContaining([
         'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
-        'Emotion, memory, initiative, and embodiment still need stronger same-her proof so anthropomorphic emotional closure keeps reading as one living self.',
-        'Next closure target is still Keep extending cross-modal same-her proof so anthropomorphic emotional closure, dialogue, and embodiment stay on one living line.',
       ]),
     }))
-    expect(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine).toContain('Before answering, remember: Alicization is a local-first digital life project')
-    expect(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine).toContain('She is still inside Phase 1: Local Digital Life')
-    expect(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine).toContain('same-her proof')
+    expect(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine).toContain('landed=Project-state landed progress')
+    expect(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine).not.toContain('identity=')
+    expect(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine).not.toContain('phase=')
   })
 
   it('does not let a thin persisted continuity summary shell override richer restored pre-dialogue project awareness during session recovery', async () => {
@@ -788,14 +800,13 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness)
     expect(assistantMessage?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
-      summaryLine: expect.stringContaining('Before answering, remember: Alicization is a local-first digital life project'),
-      awarenessLine: expect.stringContaining('Before answering, remember: Alicization is a local-first digital life project'),
-      companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      summaryLine: 'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
+      awarenessLine: 'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
+      companionNextClosureLine: 'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
       reasonPreview: expect.arrayContaining([
-        'Restored project-state continuity already keeps project identity and landed progress visible before the next outward turn.',
-        'Memory, initiative, and embodiment still need stronger same-her proof so restored recovery does not flatten into project shell narration.',
-        'Next closure target is still Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
       ]),
     }))
     expect(assistantMessage?.structured?.preDialogueAwareness?.summaryLine).not.toBe(thinContinuitySummary)
@@ -874,24 +885,17 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness)
     expect(assistantMessage?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionBriefingLine: 'Same Phase 1 digital life. Persisted replay should keep the same living line rather than reopen from a generic shell.',
+      companionBriefingLine: null,
       reasonPreview: expect.arrayContaining([
-        'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
         'Project-state continuity and awareness-first self-brief already survive across persisted replay.',
-        'Memory, initiative, and embodiment still need stronger same-her proof so the life loop does not flatten into project shell narration.',
+        'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
       ]),
     }))
-    expect(String(assistantMessage?.structured?.preDialogueAwareness?.summaryLine ?? '')).toContain('same-her=Same Phase 1 digital life. Persisted replay should keep the same living line rather than reopen from a generic shell.')
-    expect(String(assistantMessage?.structured?.preDialogueAwareness?.summaryLine ?? '')).toContain('landed=Project-state continuity and awareness-first self-brief already survive across persisted replay.')
-    expect(String(assistantMessage?.structured?.preDialogueAwareness?.summaryLine ?? '')).not.toBe(
-      'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-    )
-    expect(String(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).toContain('Project-state continuity and awareness-first self-brief already survive across persisted replay.')
-    expect(String(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).toContain('Memory, initiative, and embodiment still need stronger same-her proof')
-    expect(assistantMessage?.structured?.preDialogueAwareness?.summaryLine).not.toBe(
-      'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-    )
+    expect(String(assistantMessage?.structured?.preDialogueAwareness?.summaryLine ?? '')).toContain('landed=Project-state continuity')
+    expect(String(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).toContain('landed=Project-state continuity')
+    expect(String(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).not.toContain('identity=')
   })
 
   it('does not let a thin persisted awareness summary shell outrank a richer persisted project-aware opening during session recovery when no richer continuity summary survives', async () => {
@@ -969,13 +973,14 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness)
     expect(assistantMessage?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
-      summaryLine: richerProjectAwareOpening,
-      awarenessLine: richerProjectAwareOpening,
-      companionNextClosureLine: 'Keep the richer project-aware opening explicit before local implementation fluency takes over.',
+      summaryLine: expect.stringContaining('landed=Persisted project-aware openings already survive into restored session recovery.'),
+      awarenessLine: expect.stringContaining('landed=Persisted project-aware openings already survive into restored session recovery.'),
+      companionNextClosureLine: 'next=continuity_review_required',
       reasonPreview: expect.arrayContaining([
-        'generic continuity reminder that should not override the richer persisted project-aware opening.',
         'Persisted project-aware openings already survive into restored session recovery.',
+        'next=continuity_review_required',
       ]),
     }))
     expect(assistantMessage?.structured?.preDialogueAwareness?.summaryLine).not.toBe(
@@ -1057,22 +1062,17 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness)
     expect(assistantMessage?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionBriefingLine: 'Same Phase 1 digital life. Persisted replay should keep the same living line rather than reopen from a generic shell.',
+      companionBriefingLine: null,
       reasonPreview: expect.arrayContaining([
-        thinChineseProjectBrief,
         'Project-state continuity and awareness-first self-brief already survive across persisted replay.',
-        'Memory, initiative, and embodiment still need stronger same-her proof so the life loop does not flatten into project shell narration.',
+        'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
       ]),
     }))
-    expect(String(assistantMessage?.structured?.preDialogueAwareness?.summaryLine ?? '')).toContain('same-her=Same Phase 1 digital life. Persisted replay should keep the same living line rather than reopen from a generic shell.')
-    expect(String(assistantMessage?.structured?.preDialogueAwareness?.summaryLine ?? '')).toContain('landed=Project-state continuity and awareness-first self-brief already survive across persisted replay.')
-    expect(String(assistantMessage?.structured?.preDialogueAwareness?.summaryLine ?? '')).not.toBe(thinChineseProjectBrief)
-    expect(String(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).toContain('Alicization is a local-first digital life project')
-    expect(String(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).toContain('Phase 1: Local Digital Life')
-    expect(String(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).toContain('Project-state continuity and awareness-first self-brief already survive across persisted replay.')
-    expect(String(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).toContain('Memory, initiative, and embodiment still need stronger same-her proof')
-    expect(assistantMessage?.structured?.preDialogueAwareness?.summaryLine).not.toBe(thinChineseProjectBrief)
+    expect(String(assistantMessage?.structured?.preDialogueAwareness?.summaryLine ?? '')).toContain('landed=Project-state continuity')
+    expect(String(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).toContain('landed=Project-state continuity')
+    expect(String(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).not.toContain('identity=')
   })
 
   it('prefers persisted same-her hold detail over a generic reminder shell when restored awareness is still thin', async () => {
@@ -1164,20 +1164,9 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
-    expect(assistantMessage?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionBriefingLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-      companionNextClosureLine: richerNextClosureLine,
-      emotionalClosureCue: richerEmotionalClosureLine,
-      reasonPreview: expect.arrayContaining([
-        'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-        'Persisted replay already keeps project-state continuity alive before the visible reply opens outward.',
-        'Memory, initiative, and embodiment still need stronger same-her proof so persisted recovery does not flatten into project shell narration.',
-        `Next closure target is still ${richerNextClosureLine}`,
-      ]),
-    }))
-    expect(String(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).toContain(
-      'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-    )
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness)
+    expect(assistantMessage?.structured?.preDialogueAwareness).toBeNull()
+    expect(String(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).toBe('')
     expect(assistantMessage?.structured?.preDialogueAwareness?.companionBriefingLine).not.toBe(
       'generic same-her reminder that should not override the richer persisted hold detail.',
     )
@@ -1271,10 +1260,15 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness)
     expect(assistantMessage?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionBriefingLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-      awarenessLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-      companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      companionBriefingLine: null,
+      awarenessLine: 'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
+      companionNextClosureLine: 'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
+      emotionalClosureCue: null,
+      reasonPreview: expect.arrayContaining([
+        'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
+      ]),
     }))
     expect(assistantMessage?.structured?.preDialogueAwareness?.companionBriefingLine).not.toBe(sameHerSelfLine)
     expect(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine).not.toBe(sameHerSelfLine)
@@ -1355,15 +1349,14 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness, /remaining-open=lipsync\+voice/u)
     expect(assistantMessage?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her is still keeping the same line inward and low-pressure while lipsync and voice need to rejoin before full cross-modal closure settles.',
-      companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.',
-      companionNextClosureLine: 'Keep the same line inward and low-pressure while lipsync and voice rejoin the already-reformed body, face, and motion line.',
-      emotionalClosureCue: 'Keep the return low-pressure so the same living line does not restart from scratch.',
+      companionHeadlineLine: null,
+      companionBriefingLine: null,
+      awarenessLine: null,
+      companionNextClosureLine: null,
+      emotionalClosureCue: null,
       reasonPreview: expect.arrayContaining([
-        'same-her-inward-carry',
-        'quiet-companionship',
         'remaining-open=lipsync+voice',
       ]),
     }))
@@ -1443,17 +1436,8 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
-    expect(assistantMessage?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: 'Right now the host-facing closure still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line instead of flattening into a generic shell.',
-      companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. Right now this one living her still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line before anything reopens outward.',
-      companionNextClosureLine: 'Keep anthropomorphic emotional closure and same-her inward-carry observability explicit while restored reopening settles back onto one measured-return line.',
-      emotionalClosureCue: 'Keep the return low-pressure so the same living line does not restart from scratch.',
-      reasonPreview: expect.arrayContaining([
-        'anthropomorphic emotional closure still needs stronger host-visible carry.',
-        'same-her inward-carry observability still needs to survive restored recovery.',
-      ]),
-    }))
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness)
+    expect(assistantMessage?.structured?.preDialogueAwareness).toBeNull()
   })
 
   it('upgrades a generic carried next-closure shell to the richer persisted audit even when restored awareness already keeps a richer project brief', async () => {
@@ -1543,19 +1527,8 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
-    expect(assistantMessage?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
-      summaryLine: 'Alicization is still in Phase 1 local digital life closure before this restored turn opens outward.',
-      companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-      companionNextClosureLine: richerNextClosureLine,
-      awarenessLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-      emotionalClosureCue: richerEmotionalClosureLine,
-      reasonPreview: expect.arrayContaining([
-        'Restored project brief should stay explicit before the visible reply opens outward.',
-        'Restored project-state continuity already keeps the richer project brief alive before the visible reply opens outward.',
-        'Phase 1 closure still needs to keep the richer next closure target explicit instead of flattening back into a generic restored shell.',
-        `Next closure target is still ${richerNextClosureLine}`,
-      ]),
-    }))
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness)
+    expect(assistantMessage?.structured?.preDialogueAwareness).toBeNull()
     expect(assistantMessage?.structured?.preDialogueAwareness?.companionNextClosureLine).not.toBe(
       'Generic next target that should not override the richer persisted audit.',
     )
@@ -1624,13 +1597,14 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness)
     expect(assistantMessage?.structured?.preDialogueAwareness).toEqual({
       status: 'partial',
-      summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-      companionHeadlineLine: 'Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles.',
-      companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-      companionNextClosureLine: 'Next closure: keep body, motion, and lipsync rejoining the still-voiced face line on a measured-return line.',
-      awarenessLine: 'Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles.',
+      summaryLine: null,
+      companionHeadlineLine: null,
+      companionBriefingLine: null,
+      companionNextClosureLine: 'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
+      awarenessLine: null,
       emotionalClosureCue: null,
       reasonPreview: [
         'embodiment:still-voiced-face-line',
@@ -1702,13 +1676,14 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness)
     expect(assistantMessage?.structured?.preDialogueAwareness).toEqual({
       status: 'partial',
-      summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-      companionHeadlineLine: 'Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
-      companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-      companionNextClosureLine: 'Next closure: keep face, motion, and lipsync rejoining the resident body line on a measured-return line.',
-      awarenessLine: 'Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
+      summaryLine: null,
+      companionHeadlineLine: null,
+      companionBriefingLine: null,
+      companionNextClosureLine: 'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
+      awarenessLine: null,
       emotionalClosureCue: null,
       reasonPreview: [
         'embodiment:body+voice-only',
@@ -1780,13 +1755,14 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness)
     expect(assistantMessage?.structured?.preDialogueAwareness).toEqual({
       status: 'partial',
-      summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-      companionHeadlineLine: 'Right now I am still holding together mainly through body and lipsync, so the resident body line and living mouth line are still intact while face, motion, and voice need to rejoin before full cross-modal closure settles.',
-      companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-      companionNextClosureLine: 'Next closure: keep face, motion, and voice rejoining the resident body line and living mouth line on a measured-return line.',
-      awarenessLine: 'Right now I am still holding together mainly through body and lipsync, so the resident body line and living mouth line are still intact while face, motion, and voice need to rejoin before full cross-modal closure settles.',
+      summaryLine: null,
+      companionHeadlineLine: null,
+      companionBriefingLine: null,
+      companionNextClosureLine: 'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
+      awarenessLine: null,
       emotionalClosureCue: null,
       reasonPreview: [
         'embodiment:body+lipsync-only',
@@ -1915,14 +1891,15 @@ describe('chat session store reset stability', () => {
     })
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
-    expect(assistantMessage?.structured?.projectState?.sameHerDriftRisk).toBe(
-      'If imported recovery flattens this turn into a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
-    )
+    expectNoFixedTemplateResidue(assistantMessage?.structured?.projectState?.sameHerDriftRisk)
+    expect(assistantMessage?.structured?.projectState?.sameHerDriftRisk).toBeNull()
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness)
     expect(assistantMessage?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
-      summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
+      companionBriefingLine: null,
+      companionNextClosureLine: 'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
+      awarenessLine: expect.stringContaining('landed=Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.'),
       reasonPreview: expect.arrayContaining([
-        'Latest landed progress still holds at imported recovery time.',
-        'If imported recovery flattens this turn into a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
+        'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
       ]),
     }))
   })
@@ -2005,14 +1982,11 @@ describe('chat session store reset stability', () => {
     })
 
     const assistantMessage = store.messages.find(message => message.role === 'assistant') as any
-    expect(String(assistantMessage?.structured?.preDialogueAwareness?.summaryLine ?? '')).toContain('same-her=Same Phase 1 digital life. Imported replay should keep the same living line rather than reopen from a generic shell.')
-    expect(String(assistantMessage?.structured?.preDialogueAwareness?.summaryLine ?? '')).not.toBe(
-      'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-    )
-    expect(assistantMessage?.structured?.preDialogueAwareness?.companionBriefingLine).toBe(
-      'Same Phase 1 digital life. Imported replay should keep the same living line rather than reopen from a generic shell.',
-    )
-    expect(String(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).toContain('same-her=Same Phase 1 digital life. Imported replay should keep the same living line rather than reopen from a generic shell.')
+    expectStructuredSessionFact(assistantMessage?.structured?.preDialogueAwareness)
+    expect(String(assistantMessage?.structured?.preDialogueAwareness?.summaryLine ?? '')).toContain('landed=Project-state continuity')
+    expect(assistantMessage?.structured?.preDialogueAwareness?.companionBriefingLine).toBeNull()
+    expect(String(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).toContain('landed=Project-state continuity')
+    expect(String(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).not.toContain('identity=')
   })
 
   it('preserves same-her drift boundaries when forking a session into a new branch', async () => {
@@ -2066,13 +2040,15 @@ describe('chat session store reset stability', () => {
     await store.ensureSessionReady(forkedSessionId)
 
     const forkedAssistantMessage = store.getSessionMessages(forkedSessionId).find(message => message.role === 'assistant') as any
-    expect(forkedAssistantMessage?.structured?.projectState?.sameHerDriftRisk).toBe(
-      'If the forked branch opens like a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
-    )
+    expectNoFixedTemplateResidue(forkedAssistantMessage?.structured?.projectState?.sameHerDriftRisk)
+    expect(forkedAssistantMessage?.structured?.projectState?.sameHerDriftRisk).toBeNull()
+    expectStructuredSessionFact(forkedAssistantMessage?.structured?.preDialogueAwareness)
     expect(forkedAssistantMessage?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
+      companionBriefingLine: null,
+      companionNextClosureLine: 'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
+      awarenessLine: expect.stringContaining('landed=Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.'),
       reasonPreview: expect.arrayContaining([
-        'Latest landed progress still holds before the branch opens outward.',
-        'If the forked branch opens like a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
+        'next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
       ]),
     }))
   })
@@ -2130,13 +2106,10 @@ describe('chat session store reset stability', () => {
     await store.ensureSessionReady(forkedSessionId)
 
     const forkedAssistantMessage = store.getSessionMessages(forkedSessionId).find(message => message.role === 'assistant') as any
-    expect(String(forkedAssistantMessage?.structured?.preDialogueAwareness?.summaryLine ?? '')).toContain('same-her=Same Phase 1 digital life. Forked replay should keep the same living line rather than reopen from a generic shell.')
-    expect(String(forkedAssistantMessage?.structured?.preDialogueAwareness?.summaryLine ?? '')).not.toBe(
-      'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-    )
-    expect(forkedAssistantMessage?.structured?.preDialogueAwareness?.companionBriefingLine).toBe(
-      'Same Phase 1 digital life. Forked replay should keep the same living line rather than reopen from a generic shell.',
-    )
-    expect(String(forkedAssistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).toContain('same-her=Same Phase 1 digital life. Forked replay should keep the same living line rather than reopen from a generic shell.')
+    expectStructuredSessionFact(forkedAssistantMessage?.structured?.preDialogueAwareness)
+    expect(String(forkedAssistantMessage?.structured?.preDialogueAwareness?.summaryLine ?? '')).toContain('landed=Project-state continuity')
+    expect(forkedAssistantMessage?.structured?.preDialogueAwareness?.companionBriefingLine).toBeNull()
+    expect(String(forkedAssistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).toContain('landed=Project-state continuity')
+    expect(String(forkedAssistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? '')).not.toContain('identity=')
   })
 })

@@ -57,6 +57,22 @@ const sessionMessagesMap = new Map<string, any[]>()
 let visualPresencePulseListener: ((payload: any) => void) | null = null
 
 const runtimeAuthoritativeBlockedErrorMessage = 'Alicization runtime-authoritative visible reply was blocked before a model-authored reply could be persisted.'
+const fixedTemplateResiduePattern = /Before (?:answering|speaking|acting)|Right now I am|Same Phase 1 digital life|same[- ]her|same living line|(?:same|that|this) line inward|one living her|one living segment|one living digital life|one continuous her|local-first digital life project|Phase 1: Local Digital Life|Phase 1 local digital life (?:closure|continuity)|what this digital life project is|what has landed|同一个她|同一个 her|数字生命主线|女仆/iu
+
+function expectNoFixedTemplateResidue(value: unknown) {
+  expect(JSON.stringify(value ?? '')).not.toMatch(fixedTemplateResiduePattern)
+}
+
+function expectStructuredPreDialogueIdentity(
+  identity: ChatStreamEventContext['preDialogueSendIdentity'],
+  expectedStatus: 'grounded' | 'partial' | 'drift' = 'partial',
+) {
+  expectNoFixedTemplateResidue(identity)
+  expect(identity).toEqual(expect.objectContaining({
+    status: expectedStatus,
+    awarenessLine: expect.stringContaining('visibility=internal-structured'),
+  }))
+}
 
 function ensureSessionMessages(sessionId: string) {
   if (!sessionMessagesMap.has(sessionId))
@@ -508,7 +524,7 @@ describe('chat orchestrator', () => {
     })
 
     const store = useChatOrchestratorStore()
-    await store.ingest('继续开发', {
+    await store.ingest('继续开发 Alicization Phase 1 数字生命主线', {
       model: 'mock-model',
       chatProvider: createChatProviderStub(),
       origin: 'ui-user',
@@ -583,16 +599,62 @@ describe('chat orchestrator', () => {
       status: 'grounded',
       sameHerDriftRiskLine: 'If this turn slips back into a generic project-status shell, treat that as the same her drifting instead of real closure.',
     }))
+    expectNoFixedTemplateResidue(turnPayload?.structured?.preDialogueAwareness)
     expect(turnPayload?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
       status: 'partial',
       summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-      companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-      companionNextClosureLine: 'Next closure: rebuild face, motion, lipsync, and voice into one same-her line on noisier desktop runs.',
-      awarenessLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
+      companionBriefingLine: expect.stringContaining('phase1_local_digital_life'),
+      companionNextClosureLine: 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
+      awarenessLine: expect.stringContaining('phase1_local_digital_life'),
       reasonPreview: expect.arrayContaining([
         'Latest landed progress still holds at renderer preparation before the reply is finalized.',
-        'Primary open life loop still centers on full cross-modal same-her recovery.',
+        'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
       ]),
+    }))
+  })
+
+  it('does not inject inspector project-state continuity into prompt composition for ordinary ui-user dialogue', async () => {
+    projectStateContinuitySnapshotRef.value = {
+      identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Renderer bridge has a project-state snapshot available.',
+      primaryOpenLoop: 'Ordinary chat must not let project-state reminders occupy the prompt.',
+      nextClosureTarget: 'Only inject project-state continuity when the host asks for project or execution state.',
+      sameHerSelfLine: 'phase1_local_digital_life_anchor: landed_closure=partial; unresolved_closure=memory_dialogue_embodiment; continuity_owner=one_her.',
+      origin: 'user-turn',
+    }
+    preDialogueClosureSnapshotRef.value = {
+      status: 'partial',
+      summaryLine: 'Project-state continuity is available but should stay out of ordinary chat.',
+      companionBriefingLine: 'Before speaking, remember this digital life project.',
+      companionNextClosureLine: 'Next closure: keep project context gated.',
+      reasons: ['Project-state continuity is available.'],
+    }
+    preDialogueAwarenessSnapshotRef.value = {
+      status: 'partial',
+      summaryLine: 'Alicization is still in Phase 1 local digital life closure.',
+      awarenessLine: 'Project awareness should stay explicit before reply shaping starts.',
+      reasonPreview: ['Project-state continuity is available.'],
+    }
+    streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: '{"thought":"obligation=answer; truth=grounded; focus=current-user-turn; move=answer; tone=soft","emotion":"tired-care","reply":"听起来今天真的有点累。"}',
+      })
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('今天好累', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(composeAlicizationPromptMessagesMock).toBeCalledWith(expect.objectContaining({
+      projectStateContinuitySnapshot: null,
+      preDialogueClosureSnapshot: null,
+      preDialogueAwarenessSnapshot: null,
     }))
   })
 
@@ -600,8 +662,17 @@ describe('chat orchestrator', () => {
     streamMock.mockImplementation(async (_model: string, _provider: unknown, messages: any[], options: any) => {
       expect(options.supportsTools).toBe(false)
       expect(options.waitForTools).toBe(false)
-      expect(messages.some(message => String(message.content ?? '').includes('[ALICIZATION_REALTIME_EVIDENCE]'))).toBe(true)
-      expect(messages.some(message => String(message.content ?? '').includes('evidence_1_category=weather'))).toBe(true)
+      const realtimeEvidencePrompt = messages.find(message => String(message.content ?? '').includes('[ALICIZATION_REALTIME_EVIDENCE]'))
+      const realtimeEvidenceContent = String(realtimeEvidencePrompt?.content ?? '')
+      expect(realtimeEvidenceContent).toContain('evidence_status=settled')
+      expect(realtimeEvidenceContent).toContain('allowed_sources=realtime_evidence_items|transparent_failure_boundary')
+      expect(realtimeEvidenceContent).toContain('disallowed_claim=future_tool_call|pending_realtime_lookup|fresher_live_data_without_evidence')
+      expect(realtimeEvidenceContent).toContain('reply_authority=provider_mind')
+      expect(realtimeEvidenceContent).toContain('evidence_1_category=weather')
+      expect(realtimeEvidenceContent).not.toMatch(/\bwrite\b.+\bonly\b/i)
+      expect(realtimeEvidenceContent).not.toMatch(/\bdo not\b.+\bsay\b/i)
+      expect(realtimeEvidenceContent).not.toMatch(/最终.+只能/u)
+      expect(realtimeEvidenceContent).not.toMatch(/不要.+说/u)
       await options.onStreamEvent?.({
         type: 'text-delta',
         text: '{"thought":"obligation=answer; truth=grounded; focus=weather evidence; move=answer-directly; tone=warm","emotion":"neutral","reply":"美国这边现在晴朗，22 度，风也不大。"}',
@@ -1619,6 +1690,17 @@ describe('chat orchestrator', () => {
     })
 
     expect(streamMock.mock.calls.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('defines structured repair contracts without natural-language rewrite commands', () => {
+    const source = readFileSync(new URL('./chat.ts', import.meta.url), 'utf8')
+
+    expect(source).toContain('retry_kind=structured_contract_repair')
+    expect(source).toContain('output_schema_id=alicization_visible_reply_json')
+    expect(source).toContain('preserve_fields=reply,emotion,performance')
+    expect(source).toContain('reply_authority=provider_mind')
+    expect(source).not.toMatch(/\brewrite\b.+\bstrict json contract\b/i)
+    expect(source).not.toMatch(/\bmust preserve\b/i)
   })
 
   it('forces a tool-capable retry when file intent has no tool call in first pass', async () => {
@@ -2655,12 +2737,28 @@ describe('chat orchestrator', () => {
           reason: 'provider-stream',
         },
         visibleReplyCritic: {
+          providerMindRequired: true,
+          semanticLoopClosed: false,
+          reasonCodes: ['semantic-judge:project-state-same-her-missing'],
+          repairReasonCodes: ['second-pass-rewrite-required'],
           mustPreserve: ['same digital life continuity'],
+          mustDrop: ['fixed closure template'],
           reasons: ['semantic-judge:project-state-same-her-missing'],
         },
         visibleReplyClosure: {
           status: 'rewritten',
           reasonCodes: ['project-state-same-her-continuity-required'],
+          repairReasonCodes: ['removed-fixed-template'],
+          initialCritic: {
+            mustPreserve: ['same digital life continuity'],
+            mustDrop: ['fixed closure template'],
+            reasonCodes: ['semantic-judge:project-state-same-her-missing'],
+          },
+          finalCritic: {
+            mustPreserve: ['same digital life continuity'],
+            mustDrop: [],
+            reasonCodes: ['semantic-loop-closed'],
+          },
         },
       })
     })
@@ -2687,19 +2785,37 @@ describe('chat orchestrator', () => {
       providerMindExecuted: true,
     }))
     expect(payload?.visibleReplyCritic).toEqual(expect.objectContaining({
-      mustPreserve: expect.arrayContaining([
-        'same digital life continuity',
-      ]),
-      reasons: expect.arrayContaining([
+      version: 'visible-reply-critic-public-summary-v1',
+      providerMindRequired: true,
+      semanticLoopClosed: false,
+      mustPreserveCount: 1,
+      mustDropCount: 1,
+      reasonCodes: expect.arrayContaining([
         'semantic-judge:project-state-same-her-missing',
       ]),
+      repairReasonCodes: expect.arrayContaining([
+        'second-pass-rewrite-required',
+      ]),
     }))
+    expect(payload?.visibleReplyCritic).not.toHaveProperty('mustPreserve')
+    expect(payload?.visibleReplyCritic).not.toHaveProperty('mustDrop')
+    expect(payload?.visibleReplyCritic).not.toHaveProperty('reasons')
     expect(payload?.visibleReplyClosure).toEqual(expect.objectContaining({
+      version: 'visible-reply-closure-public-summary-v1',
       status: 'rewritten',
       reasonCodes: expect.arrayContaining([
         'project-state-same-her-continuity-required',
       ]),
+      repairReasonCodes: expect.arrayContaining([
+        'removed-fixed-template',
+      ]),
+      initialCriticMustPreserveCount: 1,
+      initialCriticMustDropCount: 1,
+      finalCriticMustPreserveCount: 1,
+      finalCriticMustDropCount: 0,
     }))
+    expect(payload?.visibleReplyClosure).not.toHaveProperty('initialCritic')
+    expect(payload?.visibleReplyClosure).not.toHaveProperty('finalCritic')
   })
 
   it('persists runtime digital life spine metadata into the final assistant turn', async () => {
@@ -3323,6 +3439,57 @@ describe('chat orchestrator', () => {
       category: 'alicization.visible-reply',
       action: 'runtime-authoritative-template-contamination-blocked',
     }))
+    const blockedAuditPayload = appendAuditLogMock.mock.calls.find(([entry]) =>
+      entry.category === 'alicization.visible-reply'
+      && entry.action === 'runtime-authoritative-template-contamination-blocked',
+    )?.[0]?.payload
+    expect(blockedAuditPayload).toEqual(expect.objectContaining({
+      candidateReplyChars: contaminatedTemplate.length,
+      candidateReplyFixedTemplateBlocked: true,
+    }))
+    expect(blockedAuditPayload).not.toHaveProperty('candidateReply')
+  })
+
+  it('does not persist fixed project-awareness prompt residue as a normal runtime-authoritative reply', async () => {
+    const contaminatedTemplate = 'Before answering, remember Alicization is a local-first digital life project. Same Phase 1 digital life.'
+    const bridgeStreamChatMock = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: contaminatedTemplate,
+      })
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+    installAlicizationBridge({
+      streamChat: bridgeStreamChatMock,
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    const assistantText = String(payload?.assistantText ?? '')
+    expect(assistantText).not.toBe(contaminatedTemplate)
+    expect(assistantText).not.toMatch(/Before answering|Same Phase 1 digital life|local-first digital life project|same-her/iu)
+    expect(payload?.structured?.nonHumanAuthoredStatus).toBe('direct-infra-repair:template-contamination')
+    expect(payload?.structured?.excludeFromPersonaLearning).toBe(true)
+    expect(payload?.structured?.excludeFromMemoryCondensation).toBe(true)
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.visible-reply',
+      action: 'runtime-authoritative-template-contamination-blocked',
+    }))
+    const blockedAuditPayload = appendAuditLogMock.mock.calls.find(([entry]) =>
+      entry.category === 'alicization.visible-reply'
+      && entry.action === 'runtime-authoritative-template-contamination-blocked',
+    )?.[0]?.payload
+    expect(blockedAuditPayload).toEqual(expect.objectContaining({
+      candidateReplyChars: contaminatedTemplate.length,
+      candidateReplyFixedTemplateBlocked: true,
+    }))
+    expect(blockedAuditPayload).not.toHaveProperty('candidateReply')
   })
 
   it('reuses runtime vrm embodimentScript authority when plain-text best-effort turns rebuild speech and digital life', async () => {
@@ -3868,6 +4035,22 @@ describe('chat orchestrator', () => {
   })
 
   it('sends plain dialogue turns to main-gateway with tools disabled', async () => {
+    projectStateContinuitySnapshotRef.value = {
+      identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Renderer bridge has a project-state snapshot available.',
+      primaryOpenLoop: 'Ordinary chat must not let project-state reminders occupy the prompt.',
+      nextClosureTarget: 'Only inject project-state continuity when the host asks for project or execution state.',
+      sameHerSelfLine: 'phase1_local_digital_life_anchor: landed_closure=partial; unresolved_closure=memory_dialogue_embodiment; continuity_owner=one_her.',
+      origin: 'user-turn',
+    }
+    preDialogueClosureSnapshotRef.value = {
+      status: 'partial',
+      summaryLine: 'Project-state continuity is available but should stay out of ordinary chat.',
+      companionBriefingLine: 'Before speaking, remember this digital life project.',
+      companionNextClosureLine: 'Next closure: keep project context gated.',
+      reasons: ['Project-state continuity is available.'],
+    }
     const bridgeStreamChatMock = vi.fn(async (_payload: any, options: any) => {
       await options.onStreamEvent?.({
         type: 'text-delta',
@@ -3889,6 +4072,7 @@ describe('chat orchestrator', () => {
     const firstPayload = bridgeStreamChatMock.mock.calls[0]?.[0]
     expect(firstPayload?.supportsTools).toBe(false)
     expect(firstPayload?.waitForTools).toBe(false)
+    expect(firstPayload?.preDialogueSendIdentity).toBeNull()
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
       category: 'alicization.main-gateway',
       action: 'stream-tooling-policy-resolved',
@@ -6006,35 +6190,38 @@ describe('chat orchestrator', () => {
 
     const beforeComposeCalls = beforeComposeHook.mock.calls as unknown as Array<[string, ChatStreamEventContext]>
     const hookContext = beforeComposeCalls[0]?.[1]
+    expectNoFixedTemplateResidue(hookContext?.preDialogueSendIdentity)
     expect(hookContext?.preDialogueSendIdentity).toEqual(expect.objectContaining({
-      companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her is still keeping the same line inward and low-pressure while lipsync and voice need to rejoin before full cross-modal closure settles.',
-      companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.',
-      companionNextClosureLine: 'Keep the same line inward and low-pressure while lipsync and voice rejoin the already-reformed body, face, and motion line.',
-      emotionalClosureCue: 'Keep the return low-pressure so the same living line does not restart from scratch.',
+      companionHeadlineLine: null,
+      companionBriefingLine: 'phase1_local_digital_life',
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
+      companionNextClosureLine: 'continuity_review_required',
+      emotionalClosureCue: null,
       reasonPreview: expect.arrayContaining([
-        'same-her-inward-carry',
         'quiet-companionship',
         'remaining-open=lipsync+voice',
       ]),
     }))
+    expect(hookContext?.preDialogueSendIdentity?.awarenessLine).toContain('next=')
 
     expect(composeAlicizationPromptMessagesMock).toBeCalledWith(expect.objectContaining({
       preDialogueAwarenessSnapshot: expect.objectContaining({
-        awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.',
-        companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        awarenessLine: expect.stringContaining('visibility=internal-structured'),
+        companionBriefingLine: 'phase1_local_digital_life',
       }),
     }))
+    const promptAwarenessSnapshot = composeAlicizationPromptMessagesMock.mock.calls.at(-1)?.[0]?.preDialogueAwarenessSnapshot
+    expectNoFixedTemplateResidue(promptAwarenessSnapshot)
 
     const turnPayload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    expectNoFixedTemplateResidue(turnPayload?.structured?.preDialogueAwareness)
     expect(turnPayload?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her is still keeping the same line inward and low-pressure while lipsync and voice need to rejoin before full cross-modal closure settles.',
-      companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.',
-      companionNextClosureLine: 'Keep the same line inward and low-pressure while lipsync and voice rejoin the already-reformed body, face, and motion line.',
-      emotionalClosureCue: 'Keep the return low-pressure so the same living line does not restart from scratch.',
+      companionHeadlineLine: null,
+      companionBriefingLine: 'phase1_local_digital_life',
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
+      companionNextClosureLine: 'continuity_review_required',
+      emotionalClosureCue: null,
       reasonPreview: expect.arrayContaining([
-        'same-her-inward-carry',
         'quiet-companionship',
         'remaining-open=lipsync+voice',
       ]),
@@ -6111,25 +6298,22 @@ describe('chat orchestrator', () => {
 
     const beforeComposeCalls = beforeComposeHook.mock.calls as unknown as Array<[string, ChatStreamEventContext]>
     const hookContext = beforeComposeCalls[0]?.[1]
+    expectStructuredPreDialogueIdentity(hookContext?.preDialogueSendIdentity, 'grounded')
     expect(hookContext?.preDialogueSendIdentity).toEqual(expect.objectContaining({
       status: 'grounded',
-      summaryLine: 'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before this turn widens outward.',
-      companionHeadlineLine: 'Same companion line through body, face, and motion. Keep the same living line gentle.',
-      companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      companionHeadlineLine: null,
+      companionBriefingLine: 'phase1_local_digital_life',
       companionNextClosureLine: 'Keep renderer session fallback from reopening the turn through an embodiment-only shell.',
-      awarenessLine: 'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before this turn widens outward.',
-      emotionalClosureCue: 'Keep the return gentle so the same living line does not restart from scratch.',
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
+      emotionalClosureCue: null,
       reasonPreview: expect.arrayContaining([
-        'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before this turn widens outward.',
         'Project-state continuity already survives into renderer-side session fallback.',
         'Before-compose awareness recovery still needs to keep the same digital life project, landed closure, and open life loop explicit together.',
-        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
       ]),
     }))
-    expect(hookContext?.preDialogueSendIdentity?.summaryLine).toContain('one living digital life project')
-    expect(hookContext?.preDialogueSendIdentity?.summaryLine).toContain('Phase 1 is still active')
-    expect(hookContext?.preDialogueSendIdentity?.summaryLine).toContain('some closure has already landed')
-    expect(hookContext?.preDialogueSendIdentity?.summaryLine).toContain('still-open life loop')
+    expect(hookContext?.preDialogueSendIdentity?.summaryLine).toContain('identity=phase1_local_digital_life')
+    expect(hookContext?.preDialogueSendIdentity?.summaryLine).toContain('landed=Project-state continuity already survives')
+    expect(hookContext?.preDialogueSendIdentity?.summaryLine).toContain('open=Before-compose awareness recovery')
     expect(hookContext?.preDialogueSendIdentity?.reasonPreview).toEqual(expect.arrayContaining([
       'Project-state continuity already survives into renderer-side session fallback.',
       'Before-compose awareness recovery still needs to keep the same digital life project, landed closure, and open life loop explicit together.',
@@ -6210,25 +6394,24 @@ describe('chat orchestrator', () => {
     expect(composeAlicizationPromptMessagesMock).toBeCalledWith(expect.objectContaining({
       projectStateContinuitySnapshot: expect.objectContaining({
         preDialogueAwareness: expect.objectContaining({
-          summaryLine: richerProjectAwareOpening,
-          awarenessLine: richerProjectAwareOpening,
-          companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          summaryLine: expect.stringContaining('visibility=internal-structured'),
+          awarenessLine: expect.stringContaining('visibility=internal-structured'),
+          companionBriefingLine: null,
         }),
       }),
     }))
+    expectStructuredPreDialogueIdentity(hookContext?.preDialogueSendIdentity, 'grounded')
     expect(hookContext?.preDialogueSendIdentity).toEqual(expect.objectContaining({
       status: 'grounded',
-      summaryLine: richerProjectAwareOpening,
-      companionHeadlineLine: 'Same companion line through body, face, and motion. Keep the same living line gentle.',
-      companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      summaryLine: expect.stringContaining('visibility=internal-structured'),
+      companionHeadlineLine: null,
+      companionBriefingLine: 'phase1_local_digital_life',
       companionNextClosureLine: 'Keep renderer session fallback from reopening the turn through an embodiment-only shell.',
-      awarenessLine: richerProjectAwareOpening,
-      emotionalClosureCue: 'Keep the return gentle so the same living line does not restart from scratch.',
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
+      emotionalClosureCue: null,
       reasonPreview: expect.arrayContaining([
-        richerProjectAwareOpening,
         'Project-state continuity already survives into renderer-side session fallback.',
         'Before-compose awareness recovery still needs to keep the same digital life project, landed closure, and open life loop explicit together.',
-        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
       ]),
     }))
     expect(hookContext?.preDialogueSendIdentity?.summaryLine).not.toBe('generic continuity reminder that should not override the richer structured project-aware opening.')
@@ -6310,24 +6493,19 @@ describe('chat orchestrator', () => {
 
     const beforeSendCalls = beforeSendHook.mock.calls as unknown as Array<[string, ChatStreamEventContext]>
     const hookContext = beforeSendCalls[0]?.[1]
+    expectStructuredPreDialogueIdentity(hookContext?.preDialogueSendIdentity)
     expect(hookContext?.preDialogueSendIdentity).toEqual(expect.objectContaining({
       status: 'partial',
-      summaryLine: 'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, and the unresolved closure work still belongs to the same living line.',
-      companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      awarenessLine: 'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, and the unresolved closure work still belongs to the same living line.',
+      summaryLine: expect.stringContaining('visibility=internal-structured'),
+      companionBriefingLine: 'phase1_local_digital_life',
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
       reasonPreview: expect.arrayContaining([
-        'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, and the unresolved closure work still belongs to the same living line.',
         'Project-state continuity and awareness-first self-brief already survive across session reload and host-visible replay.',
         'Before-send entry awareness still needs to preserve the stronger host-visible project brief before runtime dispatch starts.',
-        'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity and awareness-first self-brief already survive across session reload and host-visible replay. | open=Before-send entry awareness still needs to preserve the stronger host-visible project brief before runtime dispatch starts.',
-        'Alicization is a local-first digital life project.',
-        'Phase 1: Local Digital Life',
-        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        'If before-send fallback rebuilds this turn like a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
       ]),
     }))
-    expect(hookContext?.preDialogueSendIdentity?.summaryLine).toContain('one living digital life project')
-    expect(hookContext?.preDialogueSendIdentity?.summaryLine).toContain('Phase 1 is still active')
+    expect(hookContext?.preDialogueSendIdentity?.summaryLine).toContain('landed=Project-state continuity and awareness-first self-brief already survive')
+    expect(hookContext?.preDialogueSendIdentity?.summaryLine).toContain('open=Before-send entry awareness')
     expect(hookContext?.preDialogueSendIdentity?.reasonPreview).toEqual(expect.arrayContaining([
       'Project-state continuity and awareness-first self-brief already survive across session reload and host-visible replay.',
       'Before-send entry awareness still needs to preserve the stronger host-visible project brief before runtime dispatch starts.',
@@ -6400,15 +6578,16 @@ describe('chat orchestrator', () => {
 
     const beforeSendCalls = beforeSendHook.mock.calls as unknown as Array<[string, ChatStreamEventContext]>
     const hookContext = beforeSendCalls[0]?.[1]
+    expectStructuredPreDialogueIdentity(hookContext?.preDialogueSendIdentity, 'drift')
     expect(hookContext?.preDialogueSendIdentity).toEqual(expect.objectContaining({
       status: 'drift',
-      companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-      companionNextClosureLine: 'Next closure: keep memory, initiative, execution, and embodiment on one same-her line.',
-      awarenessLine: 'Project awareness should stay explicit before reply shaping starts.',
+      companionBriefingLine: 'phase1_local_digital_life; landed_closure=partial',
+      companionNextClosureLine: expect.stringContaining('continuity_line'),
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
       emotionalClosureCue: null,
       reasonPreview: expect.arrayContaining([
-        'Low-pressure same-her closure currently reads lowPressureRequired=0.67 (2/3), so the next turn should keep the return soft enough that the same living line does not widen too fast.',
-        'Anti-restart same-her closure currently reads antiRestartRequired=0.33 (1/3), so the next turn should avoid reopening the same living line from scratch.',
+        expect.stringContaining('Low-pressure continuity_closure'),
+        expect.stringContaining('Anti-restart continuity_closure'),
       ]),
     }))
   })
@@ -6457,18 +6636,18 @@ describe('chat orchestrator', () => {
 
     const beforeSendCalls = beforeSendHook.mock.calls as unknown as Array<[string, ChatStreamEventContext]>
     const hookContext = beforeSendCalls[0]?.[1]
+    expectStructuredPreDialogueIdentity(hookContext?.preDialogueSendIdentity)
     expect(hookContext?.preDialogueSendIdentity).toEqual(expect.objectContaining({
       status: 'partial',
-      companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-      companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-      companionNextClosureLine: 'Next closure: let lipsync and voice rejoin the already-reformed body, face, and motion line.',
-      awarenessLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
+      companionHeadlineLine: 'open_loop=embodiment; status=unfinished',
+      companionBriefingLine: 'phase1_local_digital_life; landed_closure=partial',
+      companionNextClosureLine: expect.stringContaining('cross_modal_continuity_proof'),
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
       reasonPreview: expect.arrayContaining([
-        'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-        'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
+        'open_loop=embodiment; status=unfinished',
+        'remaining-open=lipsync+voice',
       ]),
     }))
-    expect(hookContext?.preDialogueSendIdentity?.awarenessLine).not.toBe('Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.')
   })
 
   it('prefers a fresher closure same-her headline over an older thinner awareness headline before send hooks run', async () => {
@@ -6535,13 +6714,14 @@ describe('chat orchestrator', () => {
 
     const beforeSendCalls = beforeSendHook.mock.calls as unknown as Array<[string, ChatStreamEventContext]>
     const hookContext = beforeSendCalls[0]?.[1]
+    expectStructuredPreDialogueIdentity(hookContext?.preDialogueSendIdentity)
     expect(hookContext?.preDialogueSendIdentity).toEqual(expect.objectContaining({
       status: 'partial',
-      summaryLine: 'Alicization is still in Phase 1 local digital life closure.',
-      companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-      companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-      companionNextClosureLine: 'Next closure: keep memory, initiative, execution, and embodiment on one same-her line.',
-      awarenessLine: 'Project awareness should stay explicit before reply shaping starts.',
+      summaryLine: 'open_loop=continuity; status=unfinished',
+      companionHeadlineLine: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      companionBriefingLine: 'phase1_local_digital_life; landed_closure=partial',
+      companionNextClosureLine: expect.stringContaining('continuity_line'),
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
       emotionalClosureCue: null,
       reasonPreview: expect.arrayContaining([
         'explicit awareness snapshot is still carrying an older thinner closure reminder.',
@@ -6549,18 +6729,18 @@ describe('chat orchestrator', () => {
         'remaining-open=lipsync+voice',
         'Renderer send-path continuity already survives into pre-dialogue carry.',
         'Send-path awareness still needs to keep the fresher closure headline and the project-aware open loop visible together.',
-        'Keep the richer same-her closure headline and the project-aware open loop explicit before the next renderer turn.',
       ]),
     }))
 
     const turnPayload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    expectNoFixedTemplateResidue(turnPayload?.structured?.preDialogueAwareness)
     expect(turnPayload?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
       status: 'partial',
-      summaryLine: 'Alicization is still in Phase 1 local digital life closure.',
-      companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-      companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-      companionNextClosureLine: 'Next closure: keep memory, initiative, execution, and embodiment on one same-her line.',
-      awarenessLine: 'Project awareness should stay explicit before reply shaping starts.',
+      summaryLine: 'open_loop=continuity; status=unfinished',
+      companionHeadlineLine: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      companionBriefingLine: 'phase1_local_digital_life; landed_closure=partial',
+      companionNextClosureLine: expect.stringContaining('continuity_line'),
+      awarenessLine: 'open_loop=continuity; status=unfinished',
     }))
   })
 
@@ -6608,18 +6788,18 @@ describe('chat orchestrator', () => {
 
     const beforeSendCalls = beforeSendHook.mock.calls as unknown as Array<[string, ChatStreamEventContext]>
     const hookContext = beforeSendCalls[0]?.[1]
+    expectStructuredPreDialogueIdentity(hookContext?.preDialogueSendIdentity)
     expect(hookContext?.preDialogueSendIdentity).toEqual(expect.objectContaining({
       status: 'partial',
-      companionHeadlineLine: 'Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
-      companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
+      companionHeadlineLine: 'open_loop=embodiment; status=unfinished',
+      companionBriefingLine: 'phase1_local_digital_life; landed_closure=partial',
       companionNextClosureLine: 'Next closure: let face, motion, and lipsync rejoin the already-surviving body-and-voice line.',
-      awarenessLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
       reasonPreview: expect.arrayContaining([
-        'Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
-        'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
+        'open_loop=embodiment; status=unfinished',
+        'remaining-open=face+motion+lipsync',
       ]),
     }))
-    expect(hookContext?.preDialogueSendIdentity?.awarenessLine).not.toBe('Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.')
   })
 
   it('prefers richer project-aware closure briefing over a still-voiced face-and-motion embodiment headline when closure-derived awareness is rebuilt locally', async () => {
@@ -6666,29 +6846,30 @@ describe('chat orchestrator', () => {
 
     const beforeSendCalls = beforeSendHook.mock.calls as unknown as Array<[string, ChatStreamEventContext]>
     const hookContext = beforeSendCalls[0]?.[1]
+    expectStructuredPreDialogueIdentity(hookContext?.preDialogueSendIdentity)
     expect(hookContext?.preDialogueSendIdentity).toEqual(expect.objectContaining({
       status: 'partial',
-      companionHeadlineLine: 'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.',
-      companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open while the still-voiced face-and-motion line keeps carrying this one living her.',
+      companionHeadlineLine: 'open_loop=embodiment; status=unfinished',
+      companionBriefingLine: 'embodiment_lanes=face+motion; status=partial',
       companionNextClosureLine: 'Keep body and lipsync rejoining the still-voiced face-and-motion line on the same measured-return carry.',
-      awarenessLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open while the still-voiced face-and-motion line keeps carrying this one living her.',
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
       reasonPreview: expect.arrayContaining([
-        'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.',
+        'open_loop=embodiment; status=unfinished',
         'still-voiced face-and-motion closure is still unfinished before this turn opens outward.',
       ]),
     }))
-    expect(hookContext?.preDialogueSendIdentity?.awarenessLine).not.toBe('Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.')
 
     const turnPayload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    expectNoFixedTemplateResidue(turnPayload?.structured?.preDialogueAwareness)
     expect(turnPayload?.structured?.preDialogueAwareness).toEqual(expect.objectContaining({
       status: 'partial',
       summaryLine: 'still-voiced face-and-motion closure is still unfinished before this turn opens outward.',
-      companionHeadlineLine: 'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.',
-      companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open while the still-voiced face-and-motion line keeps carrying this one living her.',
+      companionHeadlineLine: 'open_loop=embodiment; status=unfinished',
+      companionBriefingLine: 'embodiment_lanes=face+motion; status=partial',
       companionNextClosureLine: 'Keep body and lipsync rejoining the still-voiced face-and-motion line on the same measured-return carry.',
-      awarenessLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open while the still-voiced face-and-motion line keeps carrying this one living her.',
+      awarenessLine: 'open_loop=embodiment; status=unfinished',
       reasonPreview: expect.arrayContaining([
-        'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.',
+        'open_loop=embodiment; status=unfinished',
         'still-voiced face-and-motion closure is still unfinished before this turn opens outward.',
       ]),
     }))
@@ -6753,19 +6934,18 @@ describe('chat orchestrator', () => {
 
     const beforeSendCalls = beforeSendHook.mock.calls as unknown as Array<[string, ChatStreamEventContext]>
     const hookContext = beforeSendCalls[0]?.[1]
+    expectStructuredPreDialogueIdentity(hookContext?.preDialogueSendIdentity)
     expect(hookContext?.preDialogueSendIdentity).toEqual(expect.objectContaining({
       status: 'partial',
-      summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-      companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-      companionNextClosureLine: 'Next closure: keep memory, initiative, execution, and embodiment on one same-her line.',
-      awarenessLine: 'Before speaking, remember this is still the same digital life project before local fluency takes over.',
-      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      summaryLine: 'open_loop=continuity; status=unfinished',
+      companionBriefingLine: 'phase1_local_digital_life; landed_closure=partial',
+      companionNextClosureLine: expect.stringContaining('continuity_line'),
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
+      emotionalClosureCue: expect.stringContaining('continuity_closure'),
       reasonPreview: expect.arrayContaining([
-        'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-        'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-        'Project identity still needs to stay explicit before the reply widens outward.',
-        'The unfinished life loop still belongs to one same living her.',
-        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        'project_state_continuity=identity+landed+open+next',
+        'open_loop=continuity; status=unfinished',
+        'phase1_local_digital_life; landed_closure=partial',
       ]),
     }))
   })
@@ -6838,21 +7018,22 @@ describe('chat orchestrator', () => {
 
     const beforeSendCalls = beforeSendHook.mock.calls as unknown as Array<[string, ChatStreamEventContext]>
     const hookContext = beforeSendCalls[0]?.[1]
+    expectStructuredPreDialogueIdentity(hookContext?.preDialogueSendIdentity)
     expect(hookContext?.preDialogueSendIdentity).toEqual(expect.objectContaining({
       status: 'partial',
-      summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-      companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-      awarenessLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
+      summaryLine: 'open_loop=continuity; status=unfinished',
+      companionBriefingLine: 'phase1_local_digital_life; landed_closure=partial',
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
       reasonPreview: expect.arrayContaining([
         'generic continuity reminder',
         'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
       ]),
       projectState: expect.objectContaining({
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-        currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+        identity: 'phase1_local_digital_life',
+        currentPhase: 'phase1_local_digital_life',
         latestLandedProgress: 'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
-        primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, longer-lived voice behavior, facial state, motion, resident presence, Project identity carry, Phase 1 route carry, and Unresolved closure carry all stay on one measured-return or repair-before-closeness line.',
+        primaryOpenLoop: 'open_loop=project_identity+landed_progress+unresolved_closure; status=unfinished',
+        nextClosureTarget: expect.stringContaining('cross_modal_continuity_proof'),
         legacyMarker: 'keep-existing-non-awareness-fields',
       }),
     }))
@@ -6932,14 +7113,15 @@ describe('chat orchestrator', () => {
     expect(selfEvolutionInspectorRefreshMock).toBeCalledTimes(1)
     const beforeSendCalls = beforeSendHook.mock.calls as unknown as Array<[string, ChatStreamEventContext]>
     const hookContext = beforeSendCalls[0]?.[1]
+    expectStructuredPreDialogueIdentity(hookContext?.preDialogueSendIdentity)
     expect(hookContext?.preDialogueSendIdentity).toEqual(expect.objectContaining({
-      summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-      companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-      awarenessLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
+      summaryLine: 'open_loop=continuity; status=unfinished',
+      companionBriefingLine: 'phase1_local_digital_life; landed_closure=partial',
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
       projectState: expect.objectContaining({
         latestLandedProgress: 'Fresh inspector continuity now restates what has already landed before runtime-authoritative send begins.',
-        primaryOpenLoop: 'Fresh inspector continuity still needs to keep project identity, landed progress, and unresolved closure on one same living line before the host-visible turn opens outward.',
-        nextClosureTarget: 'Keep runtime-authoritative send aligned with the latest same-her project brief before the turn widens outward.',
+        primaryOpenLoop: expect.stringContaining('continuity_line'),
+        nextClosureTarget: expect.stringContaining('continuity_identity project brief'),
       }),
       reasonPreview: expect.arrayContaining([
         'generic continuity reminder',
@@ -7092,6 +7274,7 @@ describe('chat orchestrator', () => {
       const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
       expect(String(payload?.assistantText ?? '')).toContain('超时')
       expect(String(payload?.assistantText ?? '')).not.toMatch(/我在|I am here|I caught that|请重试|retry/i)
+      expect(String(payload?.structured?.thought ?? '')).not.toMatch(/before speaking/iu)
     }
     finally {
       vi.useRealTimers()

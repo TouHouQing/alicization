@@ -51,17 +51,17 @@ function resolveSurvivingVisibleLane(
     return 'face+lipsync+voice-only'
   if (joined.includes('当前仅剩动作、口型、声音维持同一段连续性'))
     return 'motion+lipsync+voice-only'
-  if (joined.includes('当前只有 face 和 lipsync 这条 same-her 生命线'))
+  if (joined.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线'))
     return 'face+lipsync-only'
-  if (joined.includes('当前只有 motion 和 lipsync 这条 same-her 生命线'))
+  if (joined.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线'))
     return 'motion+lipsync-only'
-  if (joined.includes('当前仍只有表情、口型、声音这条 same-her 生命线'))
+  if (joined.includes('当前仍只有表情、口型、声音这条 identity-continuity 生命线'))
     return 'face+lipsync+voice-only'
-  if (joined.includes('当前仍只有动作、口型、声音这条 same-her 生命线'))
+  if (joined.includes('当前仍只有动作、口型、声音这条 identity-continuity 生命线'))
     return 'motion+lipsync+voice-only'
-  if (joined.includes('当前仍只有表情、口型这条 same-her 生命线'))
+  if (joined.includes('当前仍只有表情、口型这条 identity-continuity 生命线'))
     return 'face+lipsync-only'
-  if (joined.includes('当前仍只有动作、口型这条 same-her 生命线'))
+  if (joined.includes('当前仍只有动作、口型这条 identity-continuity 生命线'))
     return 'motion+lipsync-only'
 
   return null
@@ -102,29 +102,29 @@ function formatBodyContinuityClosureOutcome(params: {
   if (bodyContinuityPhase === 'renderer-rejoin-without-body') {
     if (survivingVisibleLane === 'face+lipsync+voice-only') {
       return {
-        summaryLine: '表情、口型、声音 same-her 存活线闭环已确认。',
-        detailLine: '这次身体连续性虽然已经再次得到验证，但当前确认的仍只有表情、口型、声音这条 same-her 生命线与同一段 living segment 对齐，body、motion 还没有重新接回这条表情口型声音线；这说明 quieter carry 已经被追踪闭环，却仍不能把它叙述成同一条身体承接线上的可信显形补回。',
+        summaryLine: '表情、口型、声音 identity-continuity 存活线闭环已确认。',
+        detailLine: '这次身体连续性虽然已经再次得到验证，但当前确认的仍只有表情、口型、声音这条 identity-continuity 生命线与同一段 living segment 对齐，body、motion 还没有重新接回这条表情口型声音线；这说明 quieter carry 已经被追踪闭环，却仍不能把它叙述成同一条身体承接线上的可信显形补回。',
       }
     }
 
     if (survivingVisibleLane === 'motion+lipsync+voice-only') {
       return {
-        summaryLine: '动作、口型、声音 same-her 存活线闭环已确认。',
-        detailLine: '这次身体连续性虽然已经再次得到验证，但当前确认的仍只有动作、口型、声音这条 same-her 生命线与同一段 living segment 对齐，body、face 还没有重新接回这条动作口型声音线；这说明 quieter carry 已经被追踪闭环，却仍不能把它叙述成同一条身体承接线上的可信显形补回。',
+        summaryLine: '动作、口型、声音 identity-continuity 存活线闭环已确认。',
+        detailLine: '这次身体连续性虽然已经再次得到验证，但当前确认的仍只有动作、口型、声音这条 identity-continuity 生命线与同一段 living segment 对齐，body、face 还没有重新接回这条动作口型声音线；这说明 quieter carry 已经被追踪闭环，却仍不能把它叙述成同一条身体承接线上的可信显形补回。',
       }
     }
 
     if (survivingVisibleLane === 'face+lipsync-only') {
       return {
-        summaryLine: '表情、口型 same-her 存活线闭环已确认。',
-        detailLine: '这次身体连续性虽然已经再次得到验证，但当前确认的仍只有表情、口型这条 same-her 生命线与同一段 living segment 对齐，body、motion、voice 还没有重新接回这条表情口型线；这说明 quieter carry 已经被追踪闭环，却仍不能把它叙述成同一条身体承接线上的可信显形补回。',
+        summaryLine: '表情、口型 identity-continuity 存活线闭环已确认。',
+        detailLine: '这次身体连续性虽然已经再次得到验证，但当前确认的仍只有表情、口型这条 identity-continuity 生命线与同一段 living segment 对齐，body、motion、voice 还没有重新接回这条表情口型线；这说明 quieter carry 已经被追踪闭环，却仍不能把它叙述成同一条身体承接线上的可信显形补回。',
       }
     }
 
     if (survivingVisibleLane === 'motion+lipsync-only') {
       return {
-        summaryLine: '动作、口型 same-her 存活线闭环已确认。',
-        detailLine: '这次身体连续性虽然已经再次得到验证，但当前确认的仍只有动作、口型这条 same-her 生命线与同一段 living segment 对齐，body、face、voice 还没有重新接回这条动作口型线；这说明 quieter carry 已经被追踪闭环，却仍不能把它叙述成同一条身体承接线上的可信显形补回。',
+        summaryLine: '动作、口型 identity-continuity 存活线闭环已确认。',
+        detailLine: '这次身体连续性虽然已经再次得到验证，但当前确认的仍只有动作、口型这条 identity-continuity 生命线与同一段 living segment 对齐，body、face、voice 还没有重新接回这条动作口型线；这说明 quieter carry 已经被追踪闭环，却仍不能把它叙述成同一条身体承接线上的可信显形补回。',
       }
     }
 
@@ -144,8 +144,8 @@ function formatBodyContinuityClosureOutcome(params: {
         ? `身体与 ${rendererRejoinSurface} 跨模态重锁闭环已确认。`
         : '身体跨模态重锁闭环已确认。',
       detailLine: rendererRejoinSurface
-        ? `这次身体连续性已经再次得到验证，身体线与 ${rendererRejoinSurface} authority 仍稳定锁在同一段 living segment 上，所以这更像同一个 her 的跨模态重锁，而不是临时显形补回。`
-        : '这次身体连续性已经再次得到验证，身体线与显形权威仍稳定锁在同一段 living segment 上，所以这更像同一个 her 的跨模态重锁，而不是临时显形补回。',
+        ? `这次身体连续性已经再次得到验证，身体线与 ${rendererRejoinSurface} authority 仍稳定锁在同一段 living segment 上，所以这更像身份连续性的跨模态重锁，而不是临时显形补回。`
+        : '这次身体连续性已经再次得到验证，身体线与显形权威仍稳定锁在同一段 living segment 上，所以这更像身份连续性的跨模态重锁，而不是临时显形补回。',
     }
   }
 
@@ -161,7 +161,7 @@ function formatBodyContinuityClosureOutcome(params: {
       ? `身体承接态 -> ${rendererRejoinSurface} 显形补回闭环已确认。`
       : '身体连续性闭环已确认。',
     detailLine: rendererRejoinSurface
-      ? `这次身体连续性已经再次得到验证，身体线继续托住同一段 living segment，而 ${rendererRejoinSurface} authority 也沿着同一条连续身体线补回，所以这更像同一个 her 的显形回归，而不是新的 renderer branch。`
+      ? `这次身体连续性已经再次得到验证，身体线继续托住同一段 living segment，而 ${rendererRejoinSurface} authority 也沿着同一条连续身体线补回，所以这更像身份连续性的显形回归，而不是新的 renderer branch。`
       : '这次身体连续性已经再次得到验证，身体线继续托住同一段 living segment，表情、动作、口型都仍朝着同一条连续身体线补回。',
   }
 }
@@ -217,7 +217,7 @@ export function buildSelfEvolutionRepairOutcome(input: {
       line.includes('项目状态连续性治理已经被新的验证快照再次确认'),
     )
     const continuityGovernanceConfirmed = input.repairClosureAfter.summaryLines.some(line =>
-      line.includes('same-her 连续性治理已经被新的验证快照再次确认'),
+      line.includes('identity-continuity 连续性治理已经被新的验证快照再次确认'),
     )
     const bodyContinuityConfirmed = input.repairClosureAfter.summaryLines.some(line =>
       line.includes('身体连续性已经被新的验证快照再次确认')
@@ -254,7 +254,7 @@ export function buildSelfEvolutionRepairOutcome(input: {
         : projectStateContinuityConfirmed
           ? '项目状态连续性闭环已确认。'
           : continuityGovernanceConfirmed
-            ? 'same-her 连续性闭环已确认。'
+            ? 'identity-continuity 连续性闭环已确认。'
             : relationshipCadenceConfirmed
               ? relationshipCadenceCallbackLine
                 ? 'relationship cadence callback-line 闭环已确认。'
@@ -265,12 +265,12 @@ export function buildSelfEvolutionRepairOutcome(input: {
       detailLine: bodyContinuityClosureOutcome
         ? bodyContinuityClosureOutcome.detailLine
         : projectStateContinuityConfirmed
-          ? '这次项目状态连续性治理已经再次得到验证，项目身份、Phase 1 本地主数字生命主线与未闭环任务承接继续保持在同一条 same-her 生命线程里。'
+          ? '这次项目状态连续性治理已经再次得到验证，项目身份、Phase 1 本地主continuity evidence与未闭环任务承接继续保持在同一条 identity-continuity 生命线程里。'
           : continuityGovernanceConfirmed
-            ? '这次连续性治理已经再次得到验证，remembered familiarity 仍然保持 memory-first，same-her room 与 bounded-growth 继续一致。'
+            ? '这次连续性治理已经再次得到验证，remembered familiarity 仍然保持 memory-first，identity-continuity room 与 bounded-growth 继续一致。'
             : relationshipCadenceConfirmed
               ? relationshipCadenceCallbackLine
-                ? '这次关系节奏治理已经再次得到验证，但 companionship hold mode、settle cadence 与 resident projection 仍停在 same-turn-if-invited measured-return 的同一条 callback line 上，所以这更像同一个 her 的克制回身，而不是一段已经重新外放的靠近。'
+                ? '这次关系节奏治理已经再次得到验证，但 companionship hold mode、settle cadence 与 resident projection 仍停在 same-turn-if-invited measured-return 的同一条 callback line 上，所以这更像身份连续性的克制回身，而不是一段已经重新外放的靠近。'
                 : relationshipCadenceInternalized
                   ? '这次关系节奏治理已经再次得到验证，companionship hold mode、settle cadence 与 resident projection 不只保持同一条回归路径，也开始被固定成长期关系节律。'
                   : '这次关系节奏治理已经再次得到验证，companionship hold mode、settle cadence 与 resident projection 继续保持同一条回归路径。'

@@ -45,7 +45,7 @@ const eventKindLabels: Record<string, string> = {
 const governanceLayerLabels: Record<string, string> = {
   'persona-thought': '人格/思绪层',
   'renderer-authority': '显形权威层',
-  'same-her-continuity': '同一个她连续性层',
+  'identity-continuity-continuity': '身份连续性连续性层',
   'body-continuity': '身体连续性层',
 }
 

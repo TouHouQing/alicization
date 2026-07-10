@@ -4,6 +4,11 @@ import type {
 } from './working-memory'
 
 import {
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+
+import {
   clampWorkingMemoryScore,
   normalizeWorkingMemoryText,
 } from './working-memory'
@@ -17,10 +22,25 @@ const relationshipPattern = /出错|超时|直接说明|关系边界|修复|透�
 const commitmentPattern = /我会|我先|我已经|接下来|继续|开始|完成|修复|提交|commit|push|编译/u
 const fallbackTemplatePattern = /我在。同一条本地数字生命的线还在|同一条本地数字生命的线还在|我先轻一点留在这里|你想说什么，我就接住/u
 
+function isTemplateRejectionCorrection(text: string) {
+  return /(?:不要|别|不想要|禁止|移除|清除|别再|不要再)[^。.!?]*(?:固定模板|固定回复|模板化|same-her|one continuous her|Before (?:answering|speaking|acting)|Right now I am|local-first digital life project|同一个她|同一个\s*her|数字生命主线)/iu.test(text)
+}
+
+function safeLongTermCandidateSummary(text: string) {
+  const normalized = normalizeWorkingMemoryText(text, 260)
+  if (!normalized)
+    return ''
+  if (isTemplateRejectionCorrection(normalized))
+    return '不要使用固定模板；用户反对模板化人格/记忆回复。'
+  return sanitizeAlicizationProviderFacingText(normalized, 260, '') || ''
+}
+
 export function shouldExcludeTurnFromLongTermCandidate(turn: WorkingMemoryTurn) {
   if (turn.failureKind)
     return true
   if (fallbackTemplatePattern.test(turn.text))
+    return true
+  if (containsAlicizationFixedTemplateResidue(turn.text) && !isTemplateRejectionCorrection(turn.text))
     return true
   if (turn.role === 'tool' || turn.visibility === 'internal')
     return true
@@ -64,9 +84,13 @@ export function createLongTermCandidatesFromWorkingTurns(turns: WorkingMemoryTur
     if (!text)
       continue
 
+    const summary = safeLongTermCandidateSummary(turn.text)
+    if (!summary)
+      continue
+
     const base = {
       sourceTurnIds: [turn.turnId],
-      summary: normalizeWorkingMemoryText(turn.text, 260),
+      summary,
       sensitivity: 'personal' as const,
       allowTraining: false,
     }

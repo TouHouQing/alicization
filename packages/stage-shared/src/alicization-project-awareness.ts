@@ -1,3 +1,7 @@
+import { describeAlicizationEmbodimentClosureHeadline } from './alicization-embodiment-closure'
+import { containsAlicizationFixedTemplateResidue } from './alicization-fixed-template-sanitizer'
+import { formatAlicizationProjectStateAwarenessFields } from './alicization-project-state-awareness-format'
+
 function sanitizeProjectAwarenessText(raw: unknown, maxChars: number) {
   if (typeof raw !== 'string')
     return ''
@@ -5,6 +9,347 @@ function sanitizeProjectAwarenessText(raw: unknown, maxChars: number) {
 }
 
 const PROJECT_AWARENESS_RETURN_MAX_CHARS = 3200
+
+function containsProjectAwarenessFixedTemplateResidue(raw: unknown) {
+  const normalized = sanitizeProjectAwarenessText(raw, PROJECT_AWARENESS_RETURN_MAX_CHARS)
+  return Boolean(normalized) && (
+    containsAlicizationFixedTemplateResidue(normalized)
+    || /\bBefore (?:answering|speaking|acting)\b/iu.test(normalized)
+  )
+}
+
+type AlicizationProjectAwarenessSource = {
+  identity?: unknown
+  currentPhase?: unknown
+  preDialogueAwarenessLine?: unknown
+  awarenessLine?: unknown
+  companionHeadlineLine?: unknown
+  companionBriefingLine?: unknown
+  preDialogueAwarenessSummary?: unknown
+  latestLandedProgress?: unknown
+  latestProgress?: unknown
+  primaryOpenLoop?: unknown
+  emotionalClosureCue?: unknown
+  landedProgressSummary?: unknown
+  openClosureSummary?: unknown
+  nextClosureTarget?: unknown
+  nextClosureTargetSummary?: unknown
+  sameHerSelfLine?: unknown
+  sameHerHoldDetail?: unknown
+  continuityCue?: unknown
+  proactiveSameHerGap?: unknown
+  sameHerDriftRisk?: unknown
+  sameHerDriftRiskSummary?: unknown
+  emotionalClosureSummary?: unknown
+} | null | undefined
+
+function hasMeaningfulStructuredProjectAwarenessFact(text: string) {
+  return /(?:^|\|\s*)(?:identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|proactive_gap|emotional_closure|project_state_continuity|status|summary|continuity|lane|pending_rejoin|closure|evidence|ref|trace|source|affective_closure|observability|timing)=/iu.test(text)
+}
+
+function preserveStructuredProjectAwarenessFragments(text: string) {
+  const fragments = text
+    .split('|')
+    .map(fragment => fragment.trim())
+    .filter((fragment) => {
+      if (!fragment || !/^[a-z][\w+-]*=/iu.test(fragment))
+        return false
+      if (/^(?:same_her|same-her|project_awareness)=/iu.test(fragment))
+        return false
+      return !containsProjectAwarenessFixedTemplateResidue(fragment)
+    })
+
+  const preserved = fragments
+    .filter((fragment, index, list) => list.indexOf(fragment) === index)
+    .join(' | ')
+
+  return preserved && hasMeaningfulStructuredProjectAwarenessFact(preserved)
+    ? preserved
+    : ''
+}
+
+function neutralizeContinuityCarryText(text: unknown) {
+  const normalized = sanitizeProjectAwarenessText(text, 640)
+    .replace(/^\s*same-her hold\s*[:=]\s*/iu, '')
+    .trim()
+  if (!normalized)
+    return ''
+
+  const lower = normalized.toLowerCase()
+  if (/repair-before-closeness|repair before closeness|repair-first|repair first/u.test(lower)) {
+    return [
+      'repair_before_closeness',
+      /before closeness widens|closeness widens/u.test(lower) ? 'timing=before_closeness_widens' : '',
+      /repair settles|repair settle/u.test(lower) ? 'until=repair_settles' : '',
+    ].filter(Boolean).join('; ')
+  }
+  if (/rest-protective|rest protective|protect rest|rest protection/u.test(lower)) {
+    return [
+      'rest_protective',
+      /fatigue-aware|fatigue aware/u.test(lower) ? 'timing=fatigue_aware' : '',
+      /inward|内收/u.test(lower) ? 'direction=inward' : '',
+    ].filter(Boolean).join('; ')
+  }
+  if (/measured-return|measured return|lower-pressure|low-pressure/u.test(lower)) {
+    return [
+      'measured_return',
+      /lower-pressure|low-pressure/u.test(lower) ? 'pressure=lower' : '',
+      /slower/u.test(lower) ? 'pacing=slower' : '',
+      /longer/u.test(lower) ? 'pause=longer' : '',
+      /restrained/u.test(lower) ? 'lipsync=restrained' : '',
+    ].filter(Boolean).join('; ')
+  }
+
+  return containsProjectAwarenessFixedTemplateResidue(normalized) ? '' : normalized
+}
+
+function buildStructuredProjectAwarenessFromState(
+  projectState: AlicizationProjectAwarenessSource,
+  options?: {
+    allowContinuityHoldOnly?: boolean
+  },
+) {
+  if (!projectState)
+    return ''
+
+  const identity = (() => {
+    const value = sanitizeProjectAwarenessText(projectState.identity, 640)
+    return containsProjectAwarenessFixedTemplateResidue(value) || /alicization is .*local-first digital life project|local_desktop_life_loop/iu.test(value)
+      ? ''
+      : value
+  })()
+  const currentPhase = (() => {
+    const value = sanitizeProjectAwarenessText(projectState.currentPhase, 640)
+    return containsProjectAwarenessFixedTemplateResidue(value) || /local digital life|local_desktop_life_loop|第一阶段|阶段一/iu.test(value)
+      ? ''
+      : value
+  })()
+  const continuityAnchor = (() => {
+    const sameHerSelfLine = sanitizeProjectAwarenessText(projectState.sameHerSelfLine, 640)
+    if (containsProjectAwarenessFixedTemplateResidue(sameHerSelfLine) || /\blocal_desktop_life_loop\b|phase1_local_digital_life/iu.test(sameHerSelfLine))
+      return ''
+    return sameHerSelfLine
+  })()
+  const continuityHold = (() => {
+    const value = sanitizeProjectAwarenessText(
+      projectState.sameHerHoldDetail ?? projectState.continuityCue,
+      640,
+    )
+    return neutralizeContinuityCarryText(value)
+  })()
+  const hasCoreProjectAwarenessFact = Boolean(
+    identity
+    || currentPhase
+    || sanitizeProjectAwarenessText(
+      projectState.latestLandedProgress
+      ?? projectState.landedProgressSummary
+      ?? projectState.latestProgress,
+      640,
+    )
+    || sanitizeProjectAwarenessText(
+      projectState.primaryOpenLoop
+      ?? projectState.openClosureSummary,
+      640,
+    )
+    || sanitizeProjectAwarenessText(
+      projectState.nextClosureTarget
+      ?? projectState.nextClosureTargetSummary,
+      640,
+    )
+    || continuityAnchor
+    || sanitizeProjectAwarenessText(projectState.sameHerDriftRiskSummary ?? projectState.sameHerDriftRisk, 640)
+    || sanitizeProjectAwarenessText(projectState.proactiveSameHerGap, 640)
+    || sanitizeProjectAwarenessText(projectState.emotionalClosureCue ?? projectState.emotionalClosureSummary, 640)
+    || sanitizeProjectAwarenessText(projectState.preDialogueAwarenessSummary, 640),
+  )
+
+  if (!hasCoreProjectAwarenessFact && continuityHold && options?.allowContinuityHoldOnly !== true)
+    return ''
+
+  const structuredFacts = formatAlicizationProjectStateAwarenessFields({
+    identity,
+    currentPhase,
+    latestLandedProgress:
+      projectState.latestLandedProgress
+      ?? projectState.landedProgressSummary
+      ?? projectState.latestProgress,
+    primaryOpenLoop:
+      projectState.primaryOpenLoop
+      ?? projectState.openClosureSummary,
+    nextClosureTarget:
+      projectState.nextClosureTarget
+      ?? projectState.nextClosureTargetSummary,
+    continuityAnchor,
+    sameHerHoldDetail: continuityHold,
+    continuityDriftRisk:
+      projectState.sameHerDriftRiskSummary
+      ?? projectState.sameHerDriftRisk,
+    proactiveSameHerGap: projectState.proactiveSameHerGap,
+    emotionalClosureCue:
+      projectState.emotionalClosureCue
+      ?? projectState.emotionalClosureSummary,
+    summary: projectState.preDialogueAwarenessSummary,
+    maxChars: PROJECT_AWARENESS_RETURN_MAX_CHARS,
+  })
+
+  if (hasMeaningfulStructuredProjectAwarenessFact(structuredFacts))
+    return structuredFacts
+
+  return buildStructuredProjectAwarenessFromLegacyLine(
+    projectState.preDialogueAwarenessLine
+    ?? projectState.awarenessLine
+    ?? projectState.companionBriefingLine
+    ?? projectState.companionHeadlineLine,
+  )
+}
+
+function buildStructuredEmbodimentAwarenessFromLegacyLine(text: string) {
+  const normalized = sanitizeProjectAwarenessText(text, PROJECT_AWARENESS_RETURN_MAX_CHARS)
+  if (!/\bRight now (?:I am|the host-facing|this one living her|her)\b/iu.test(normalized))
+    return ''
+
+  const structuredHeadline = describeAlicizationEmbodimentClosureHeadline({
+    authoritySummary: normalized,
+  })
+  if (hasMeaningfulStructuredProjectAwarenessFact(structuredHeadline))
+    return structuredHeadline
+
+  if (/anthropomorphic emotional closure/iu.test(normalized)) {
+    return [
+      'affective_closure=anthropomorphic-emotional-closure',
+      /(?:same-her|continuity) inward-carry observability/iu.test(normalized)
+        ? 'observability=continuity-inward-carry'
+        : '',
+      /measured-return/iu.test(normalized)
+        ? 'timing=measured-return'
+        : '',
+      'visibility=internal',
+    ].filter(Boolean).join(' | ')
+  }
+
+  const lowerCased = normalized.toLowerCase()
+  const allLanes = ['body', 'face', 'motion', 'lipsync', 'voice']
+  const mentionedLanes = allLanes.filter((lane) => {
+    const pattern = new RegExp(`\\b${lane}\\b`, 'iu')
+    return pattern.test(lowerCased)
+  })
+  const pendingLanes = allLanes.filter((lane) => {
+    const pattern = new RegExp(`\\b${lane}\\b[^.]{0,90}\\b(?:need|needs|still need|still needs)\\b[^.]{0,50}\\brejoin`, 'iu')
+    return pattern.test(lowerCased)
+  })
+  const activeLanes = mentionedLanes.filter(lane => !pendingLanes.includes(lane))
+  if (!activeLanes.length && !pendingLanes.length)
+    return ''
+
+  const effectiveActiveLanes = activeLanes.length
+    ? activeLanes
+    : allLanes.filter(lane => !pendingLanes.includes(lane))
+  return [
+    'continuity=embodiment',
+    `lane=${effectiveActiveLanes.join('+')}${pendingLanes.length ? '-only' : ''}`,
+    `status=${pendingLanes.length ? 'pending-rejoin' : 'closed'}`,
+    `pending_rejoin=${pendingLanes.length ? pendingLanes.join('+') : 'none'}`,
+    `closure=${pendingLanes.length ? 'full-cross-modal-open' : 'full-cross-modal-closed'}`,
+    /low-pressure|same line inward|inward-carry/iu.test(normalized)
+      ? 'evidence=low-pressure-inward-carry'
+      : 'evidence=legacy-headline-migrated',
+    'visibility=renderer-internal',
+  ].join(' | ')
+}
+
+function extractLegacySentenceAfterMarker(text: string, marker: RegExp) {
+  const match = marker.exec(text)
+  if (!match?.index && match?.index !== 0)
+    return ''
+
+  const start = match.index + match[0].length
+  return sanitizeProjectAwarenessText(
+    text.slice(start).split(/(?<=[.!?。！？])\s+/u)[0],
+    420,
+  )
+}
+
+function buildStructuredProjectAwarenessFromLegacyLine(text: unknown) {
+  const normalized = sanitizeProjectAwarenessText(text, PROJECT_AWARENESS_RETURN_MAX_CHARS)
+  if (!normalized)
+    return ''
+
+  const latestLandedProgress
+    = extractLegacySentenceAfterMarker(normalized, /\b(?:What has already landed is|Landed:|Latest landed progress:)\s*/iu)
+  const primaryOpenLoop
+    = extractLegacySentenceAfterMarker(normalized, /\b(?:The still-open closure is|Still-open closure gap:|Open:)\s*/iu)
+  const nextClosureTarget
+    = extractLegacySentenceAfterMarker(normalized, /\b(?:This reply should keep moving toward|The next closure target is|Next closure target:)\s*/iu)
+  if (!latestLandedProgress && !primaryOpenLoop && !nextClosureTarget)
+    return ''
+
+  const structuredFacts = formatAlicizationProjectStateAwarenessFields({
+    latestLandedProgress,
+    primaryOpenLoop,
+    nextClosureTarget,
+    maxChars: PROJECT_AWARENESS_RETURN_MAX_CHARS,
+  })
+
+  return hasMeaningfulStructuredProjectAwarenessFact(structuredFacts)
+    ? structuredFacts
+    : ''
+}
+
+function buildStructuredTemplateExclusionAwareness(text: unknown) {
+  const normalized = sanitizeProjectAwarenessText(text, PROJECT_AWARENESS_RETURN_MAX_CHARS)
+  if (!normalized || !containsProjectAwarenessFixedTemplateResidue(normalized))
+    return ''
+
+  return ''
+}
+
+function buildStructuredContinuityHoldFromLegacyLine(text: string) {
+  const normalized = sanitizeProjectAwarenessText(text, 640)
+  if (!/^same-her hold\s*[:=]/iu.test(normalized))
+    return ''
+
+  return buildStructuredProjectAwarenessFromState({
+    sameHerHoldDetail: normalized,
+  }, { allowContinuityHoldOnly: true })
+}
+
+function finalizeProjectAwarenessLine(input: {
+  candidate: unknown
+  runtimeProjectState?: AlicizationProjectAwarenessSource
+  fallbackProjectState?: AlicizationProjectAwarenessSource
+}) {
+  const candidate = sanitizeProjectAwarenessText(
+    input.candidate,
+    PROJECT_AWARENESS_RETURN_MAX_CHARS,
+  )
+  if (!candidate)
+    return ''
+
+  const candidateContainsFixedTemplate = containsProjectAwarenessFixedTemplateResidue(candidate)
+  if (!candidateContainsFixedTemplate && hasMeaningfulStructuredProjectAwarenessFact(candidate))
+    return candidate
+
+  const structuredFragments = preserveStructuredProjectAwarenessFragments(candidate)
+  if (structuredFragments)
+    return structuredFragments
+
+  if (!candidateContainsFixedTemplate) {
+    const structuredSummary = formatAlicizationProjectStateAwarenessFields({
+      summary: candidate,
+      maxChars: PROJECT_AWARENESS_RETURN_MAX_CHARS,
+    })
+    return hasMeaningfulStructuredProjectAwarenessFact(structuredSummary)
+      ? structuredSummary
+      : ''
+  }
+
+  return buildStructuredContinuityHoldFromLegacyLine(candidate)
+    || buildStructuredProjectAwarenessFromLegacyLine(candidate)
+    || buildStructuredEmbodimentAwarenessFromLegacyLine(candidate)
+    || buildStructuredProjectAwarenessFromState(input.runtimeProjectState)
+    || buildStructuredProjectAwarenessFromState(input.fallbackProjectState)
+    || buildStructuredTemplateExclusionAwareness(candidate)
+}
 
 function looksLikeThinProjectAwarenessShell(text: string) {
   const normalized = sanitizeProjectAwarenessText(text, 320).toLowerCase()
@@ -90,8 +435,19 @@ function carriesLivedInSameHerLine(text: unknown) {
   const normalized = sanitizeProjectAwarenessText(text, 320)
   if (!normalized)
     return false
+  if (containsProjectAwarenessFixedTemplateResidue(normalized))
+    return false
 
-  return /继续|沿着|别飘回|不要退回|不要掉回|口吻|同一个她|同一个 her|数字生命主线|same living line|without splitting her continuity|generic assistant|project shell/u.test(normalized)
+  const lower = normalized.toLowerCase()
+  const carriesStructuredAuthority
+    = /(?:^|\|\s*)(?:continuity_hold|continuity_cue|continuity_drift_risk|continuity|evidence|ref|trace|source)=/iu.test(normalized)
+      || carriesStructuredEmbodimentContinuityProof(normalized)
+  const carriesBehavioralContinuity
+    = /继续|沿着|别飘回|不要退回|不要掉回|口吻|generic assistant|project shell|without splitting/u.test(normalized)
+  const carriesEvidenceDomain
+    = /记忆|主动性|具身|执行|情绪|对话|memory|initiative|embodiment|execution|emotion|dialogue|runtime|audit|trace|source|evidence/u.test(lower)
+
+  return carriesStructuredAuthority || (carriesBehavioralContinuity && carriesEvidenceDomain)
 }
 
 function carriesStructuredEmbodimentContinuityProof(text: unknown) {
@@ -135,8 +491,11 @@ function looksLikeLivedInSameHerHoldDetail(text: unknown) {
   return normalized.includes('same-her hold')
     || normalized.includes('same remembered seam')
     || normalized.includes('measured-return')
+    || normalized.includes('measured_return')
     || normalized.includes('repair-before-closeness')
+    || normalized.includes('repair_before_closeness')
     || normalized.includes('rest-protective')
+    || normalized.includes('rest_protective')
     || normalized.includes('lower-pressure')
     || normalized.includes('callback line')
     || normalized.includes('keep more room this time')
@@ -170,21 +529,21 @@ function resolveContinuityBehaviorMode(input: {
 
 function deriveSameHerHoldDetailFromContinuityBehavior(mode: string | null) {
   if (mode === 'repair-before-closeness')
-    return 'repair-before-closeness is still owning this callback line before closeness widens again.'
+    return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens'
   if (mode === 'rest-protective')
-    return 'rest-protective companionship is still keeping this return inward and fatigue-aware.'
+    return 'continuity_hold=rest_protective; timing=fatigue_aware'
   if (mode === 'measured-return')
-    return 'measured-return is still keeping this callback line lower-pressure before it widens again.'
+    return 'continuity_hold=measured_return; pressure=lower'
   return ''
 }
 
 function deriveContinuityCueFromBehavior(mode: string | null) {
   if (mode === 'repair-before-closeness')
-    return 'Keep this return repair-before-closeness until repair settles.'
+    return 'continuity_cue=repair_before_closeness; until=repair_settles'
   if (mode === 'rest-protective')
-    return 'Keep this return rest-protective and inward before widening outward.'
+    return 'continuity_cue=rest_protective; direction=inward'
   if (mode === 'measured-return')
-    return 'Keep this return measured-return before widening outward.'
+    return 'continuity_cue=measured_return; direction=measured'
   return ''
 }
 
@@ -204,10 +563,10 @@ function deriveCadenceAwareSameHerHoldDetail(input: {
   const preferredPacingMode = sanitizeProjectAwarenessText(input.preferredPacingMode, 32).toLowerCase()
 
   if (preferredVoiceMode === 'lower-pressure' && preferredPacingMode === 'slower')
-    return 'keep the return lower-pressure and slower before the line widens again.'
+    return 'continuity_hold=measured_return; pressure=lower; pacing=slower'
 
   if (preferredPauseMode === 'longer' && preferredLipsyncMode === 'restrained')
-    return 'keep the remembered return quieter, longer, and more restrained before widening the line again.'
+    return 'continuity_hold=measured_return; pause=longer; lipsync=restrained'
 
   return ''
 }
@@ -228,10 +587,10 @@ function deriveCadenceAwareContinuityCue(input: {
   const preferredPacingMode = sanitizeProjectAwarenessText(input.preferredPacingMode, 32).toLowerCase()
 
   if (preferredVoiceMode === 'lower-pressure' && preferredPacingMode === 'slower')
-    return 'Keep this return lower-pressure and slower before widening outward.'
+    return 'continuity_cue=measured_return; pressure=lower; pacing=slower'
 
   if (preferredPauseMode === 'longer' && preferredLipsyncMode === 'restrained')
-    return 'Keep this remembered return quieter, longer, and more restrained before widening outward.'
+    return 'continuity_cue=measured_return; pause=longer; lipsync=restrained'
 
   return ''
 }
@@ -330,7 +689,11 @@ function isSameHerInwardLowPressureHeadline(text: unknown) {
   if (!normalized)
     return false
 
-  return normalized.includes('holding together mainly through')
+  return (
+    normalized.includes('continuity=embodiment')
+    && normalized.includes('low-pressure-inward-carry')
+  ) || (
+    normalized.includes('holding together mainly through')
     && normalized.includes('low-pressure')
     && (
       normalized.includes('same line inward')
@@ -338,10 +701,11 @@ function isSameHerInwardLowPressureHeadline(text: unknown) {
       || normalized.includes('same-her-inward-carry')
       || normalized.includes('quiet-companionship')
     )
+  )
 }
 
-function buildCompactSameHerInwardLowPressureAwarenessLine(companionBriefingLine: string) {
-  return `${companionBriefingLine} Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.`
+function buildCompactSameHerInwardLowPressureAwarenessLine(_companionBriefingLine: string) {
+  return 'continuity=embodiment | status=pending-rejoin | pending_rejoin=lipsync+voice | evidence=low-pressure-inward-carry | visibility=internal'
 }
 
 function isAnthropomorphicHostFacingSameHerHeadline(text: unknown) {
@@ -350,17 +714,19 @@ function isAnthropomorphicHostFacingSameHerHeadline(text: unknown) {
     return false
 
   return normalized.includes('anthropomorphic emotional closure')
-    && normalized.includes('same-her inward-carry observability')
+    && (normalized.includes('same-her inward-carry observability') || normalized.includes('continuity inward-carry observability'))
     && normalized.includes('measured-return')
 }
 
-function buildCompactAnthropomorphicHostFacingAwarenessLine(companionBriefingLine: string) {
-  return `${companionBriefingLine} Right now this one living her still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line before anything reopens outward.`
+function buildCompactAnthropomorphicHostFacingAwarenessLine(_companionBriefingLine: string) {
+  return 'affective_closure=anthropomorphic-emotional-closure | observability=continuity-inward-carry | timing=measured-return | visibility=internal'
 }
 
 function carriesStrongerSameHerContinuity(text: unknown) {
   const normalized = sanitizeProjectAwarenessText(text, 320)
   if (!normalized)
+    return false
+  if (containsProjectAwarenessFixedTemplateResidue(normalized))
     return false
 
   return carriesLivedInSameHerLine(normalized)
@@ -432,9 +798,12 @@ export function scoreAlicizationProjectAwarenessLine(value: string | null | unde
     return 0
 
   let score = normalized.length >= 120 ? 2 : normalized.length >= 72 ? 1 : 0
-  if (/same digital life|same-her|same her|one living her|one living digital life|同一个她|同一个 her|数字生命/u.test(normalized))
+  const carriesFixedTemplateResidue = containsProjectAwarenessFixedTemplateResidue(normalized)
+  if (carriesFixedTemplateResidue)
+    score -= 8
+  if (!carriesFixedTemplateResidue && /(?:^|\|\s*)(?:continuity_anchor|continuity_hold|project_state_continuity|life_loop_continuity|cross_modal_continuity_proof|evidence|ref|trace|source)=/u.test(normalized))
     score += 3
-  if (/phase 1|local-first digital life|unfinished closure|holding together mainly through|voice|face|motion|lipsync|具身|声音|表情|动作|唇型/u.test(normalized))
+  if (!carriesFixedTemplateResidue && /(?:^|\|\s*)(?:phase|landed|open|next|visibility)=|holding together mainly through|voice|face|motion|lipsync|具身|声音|表情|动作|唇型/u.test(normalized))
     score += 2
   if (carriesStructuredEmbodimentContinuityProof(normalized))
     score += 3
@@ -751,42 +1120,7 @@ export function resolveAlicizationProjectPreDialogueAwarenessLine(input?: {
   } | null) => {
     if (!projectState)
       return ''
-    const explicitAwarenessLine = projectState.preDialogueAwarenessLine ?? projectState.awarenessLine ?? projectState.companionHeadlineLine
-    const hasExplicitAwarenessLine = Boolean(
-      sanitizeProjectAwarenessText(explicitAwarenessLine, 320),
-    )
-    const parts = [
-      projectState.identity,
-      projectState.currentPhase,
-      projectState.landedProgressSummary ?? projectState.latestLandedProgress ?? projectState.latestProgress,
-      projectState.openFocusSummary || projectState.nextFocusSummary
-        ? null
-        : projectState.openClosureSummary ?? projectState.primaryOpenLoop,
-      projectState.openFocusSummary,
-      projectState.nextFocusSummary,
-      projectState.nextClosureTargetSummary ?? projectState.nextClosureTarget,
-      projectState.emotionalClosureSummary,
-      hasExplicitAwarenessLine
-        ? null
-        : preferProactiveSameHerGapSummary(
-            projectState.proactiveSameHerGap,
-            explicitAwarenessLine,
-          ),
-      hasExplicitAwarenessLine
-        ? null
-        : preferSameHerDriftRiskSummary(
-            projectState.sameHerDriftRiskSummary,
-            explicitAwarenessLine,
-          ),
-      preferEmbodimentClosureSummary(
-        projectState.preDialogueAwarenessSummary,
-        explicitAwarenessLine,
-      ),
-    ]
-      .map(value => sanitizeProjectAwarenessText(value, 320))
-      .filter((value, index, list) => value && list.indexOf(value) === index)
-
-    return sanitizeProjectAwarenessText(parts.slice(0, 6).join(' '), 420)
+    return buildStructuredProjectAwarenessFromState(projectState)
   }
 
   const hasExplicitAwarenessLine = (projectState?: {
@@ -803,22 +1137,45 @@ export function resolveAlicizationProjectPreDialogueAwarenessLine(input?: {
     )
   }
 
+  const carriesExplicitStructuredProjectFacts = (projectState?: {
+    identity?: unknown
+    currentPhase?: unknown
+    latestLandedProgress?: unknown
+    latestProgress?: unknown
+    landedProgressSummary?: unknown
+    primaryOpenLoop?: unknown
+    openClosureSummary?: unknown
+    nextClosureTarget?: unknown
+    nextClosureTargetSummary?: unknown
+  } | null) => Boolean(
+    sanitizeProjectAwarenessText(projectState?.identity, 320)
+    || sanitizeProjectAwarenessText(projectState?.currentPhase, 320)
+    || sanitizeProjectAwarenessText(projectState?.latestLandedProgress, 320)
+    || sanitizeProjectAwarenessText(projectState?.latestProgress, 320)
+    || sanitizeProjectAwarenessText(projectState?.landedProgressSummary, 320)
+    || sanitizeProjectAwarenessText(projectState?.primaryOpenLoop, 320)
+    || sanitizeProjectAwarenessText(projectState?.openClosureSummary, 320)
+    || sanitizeProjectAwarenessText(projectState?.nextClosureTarget, 320)
+    || sanitizeProjectAwarenessText(projectState?.nextClosureTargetSummary, 320),
+  )
+
   const runtimeHasExplicitAwareness = hasExplicitAwarenessLine(input?.runtimeProjectState)
   const runtimeExplicitAwarenessIsWeakShell = looksLikeWeakProjectAwarenessShell(runtimeExplicitAwareness)
   const runtimeStructuredAwarenessSummary = buildStructuredAwarenessSummary(input?.runtimeProjectState)
+  const runtimeStructuredAwarenessCarriesCoreProjectFacts
+    = carriesExplicitStructuredProjectFacts(input?.runtimeProjectState)
+      && /(?:^|\|\s*)(?:identity|phase|landed|open|next)=/iu.test(runtimeStructuredAwarenessSummary)
   const runtimePreflightSummary = sanitizeProjectAwarenessText(input?.runtimeProjectState?.preflightSummary, 320)
   const preferredRuntimePreflightAwarenessForWeakShell
     = runtimeExplicitAwarenessIsWeakShell
-      && runtimePreflightSummary.startsWith('Before answering')
+      && /(?:^|\|\s*)(?:identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk)=/iu.test(runtimePreflightSummary)
+      && !containsProjectAwarenessFixedTemplateResidue(runtimePreflightSummary)
       && !looksLikeWeakProjectAwarenessShell(runtimePreflightSummary)
       ? runtimePreflightSummary
       : ''
   const fallbackStructuredAwarenessSummary = hasExplicitAwarenessLine(input?.fallbackProjectState)
     ? ''
     : buildStructuredAwarenessSummary(input?.fallbackProjectState)
-  const fallbackCarriesCanonicalReanchor
-    = carriesCanonicalFullReanchor(fallbackExplicitAwareness)
-      || carriesCanonicalCompactReanchor(fallbackExplicitAwareness)
   const fallbackHasExplicitNonSummaryAwareness = Boolean(
     sanitizeProjectAwarenessText(input?.fallbackProjectState?.preDialogueAwarenessLine, 320)
     || sanitizeProjectAwarenessText(input?.fallbackProjectState?.awarenessLine, 320)
@@ -826,10 +1183,7 @@ export function resolveAlicizationProjectPreDialogueAwarenessLine(input?: {
     || sanitizeProjectAwarenessText(input?.fallbackProjectState?.companionBriefingLine, 320),
   )
   const fallbackIsMeaningfulExplicitAwareness = Boolean(fallbackExplicitAwareness)
-    && (
-      fallbackCarriesCanonicalReanchor
-      || isPreservableNonCanonicalAwareness(fallbackExplicitAwareness)
-    )
+    && isPreservableNonCanonicalAwareness(fallbackExplicitAwareness)
   const fallbackCarriesStrongerSameHerContinuity = carriesStrongerSameHerContinuity(fallbackExplicitAwareness)
   const preferredFallbackExplicitAwareness
     = (
@@ -981,12 +1335,23 @@ export function resolveAlicizationProjectPreDialogueAwarenessLine(input?: {
         runtimeExplicitAwareness,
       ) > 0
 
+  if (runtimeStructuredAwarenessCarriesCoreProjectFacts) {
+    return finalizeProjectAwarenessLine({
+      candidate: runtimeStructuredAwarenessSummary,
+      runtimeProjectState: input?.runtimeProjectState,
+      fallbackProjectState: input?.fallbackProjectState,
+    }) || null
+  }
+
   if (shouldPreserveRuntimeExplicitAwarenessVerbatim) {
-    if (strongerRuntimeSameHerHoldDetail)
-      return strongerRuntimeSameHerHoldDetail
-    if (fallbackShouldOverrideRuntimeExplicitAwareness)
-      return preferredStrongerSameHerContinuityFallback
-    return runtimeExplicitAwareness
+    return finalizeProjectAwarenessLine({
+      candidate: strongerRuntimeSameHerHoldDetail
+        || (fallbackShouldOverrideRuntimeExplicitAwareness
+          ? preferredStrongerSameHerContinuityFallback
+          : runtimeExplicitAwareness),
+      runtimeProjectState: input?.runtimeProjectState,
+      fallbackProjectState: input?.fallbackProjectState,
+    }) || null
   }
 
   const preferredContinuityLead
@@ -1014,36 +1379,45 @@ export function resolveAlicizationProjectPreDialogueAwarenessLine(input?: {
       && !fallbackHasExplicitNonSummaryAwareness
       && Boolean(fallbackStructuredAwarenessSummary)
 
-  return pick(
-    preferredContinuityLead,
-    preferredStrongerSameHerContinuityRuntime,
-    runtimeHasExplicitAwareness ? null : preferredStrongerSameHerContinuityFallback,
-    preferredRuntimePreflightAwarenessForWeakShell,
-    shouldPreferFallbackStructuredAwarenessSummary ? fallbackStructuredAwarenessSummary : null,
-    runtimeHasExplicitAwareness && !runtimeExplicitAwarenessIsWeakShell
-      ? null
-      : runtimeStructuredAwarenessSummary,
-    preferStrongerCompanionBriefingLine(
+  return finalizeProjectAwarenessLine({
+    candidate: pick(
+      runtimeStructuredAwarenessCarriesCoreProjectFacts ? runtimeStructuredAwarenessSummary : null,
+      preferredLandedProgressAwareFallback
+      && !carriesExplicitLandedProgress(runtimeExplicitAwareness)
+        ? preferredLandedProgressAwareFallback
+        : null,
+      preferredContinuityLead,
+      preferredStrongerSameHerContinuityRuntime,
+      runtimeHasExplicitAwareness ? null : preferredStrongerSameHerContinuityFallback,
+      preferredRuntimePreflightAwarenessForWeakShell,
+      shouldPreferFallbackStructuredAwarenessSummary ? fallbackStructuredAwarenessSummary : null,
+      runtimeHasExplicitAwareness && !runtimeExplicitAwarenessIsWeakShell
+        ? null
+        : runtimeStructuredAwarenessSummary,
+      preferStrongerCompanionBriefingLine(
+        input?.runtimeProjectState?.companionBriefingLine,
+        input?.runtimeProjectState?.preDialogueAwarenessLine ?? input?.runtimeProjectState?.awarenessLine ?? input?.runtimeProjectState?.companionHeadlineLine,
+      ),
+      input?.runtimeProjectState?.preDialogueAwarenessLine,
+      input?.runtimeProjectState?.companionHeadlineLine,
+      input?.runtimeProjectState?.preDialogueAwarenessSummary,
+      input?.runtimeProjectState?.awarenessLine,
       input?.runtimeProjectState?.companionBriefingLine,
-      input?.runtimeProjectState?.preDialogueAwarenessLine ?? input?.runtimeProjectState?.awarenessLine ?? input?.runtimeProjectState?.companionHeadlineLine,
-    ),
-    input?.runtimeProjectState?.preDialogueAwarenessLine,
-    input?.runtimeProjectState?.companionHeadlineLine,
-    input?.runtimeProjectState?.preDialogueAwarenessSummary,
-    input?.runtimeProjectState?.awarenessLine,
-    input?.runtimeProjectState?.companionBriefingLine,
-    input?.runtimeProjectState?.preflightSummary,
-    preferredFallbackExplicitAwareness,
-    shouldPreferFallbackStructuredAwarenessSummary ? null : fallbackStructuredAwarenessSummary,
-    preferStrongerCompanionBriefingLine(
+      input?.runtimeProjectState?.preflightSummary,
+      preferredFallbackExplicitAwareness,
+      shouldPreferFallbackStructuredAwarenessSummary ? null : fallbackStructuredAwarenessSummary,
+      preferStrongerCompanionBriefingLine(
+        input?.fallbackProjectState?.companionBriefingLine,
+        input?.fallbackProjectState?.preDialogueAwarenessLine ?? input?.fallbackProjectState?.awarenessLine ?? input?.fallbackProjectState?.companionHeadlineLine,
+      ),
+      input?.fallbackProjectState?.preDialogueAwarenessLine,
+      input?.fallbackProjectState?.companionHeadlineLine,
+      input?.fallbackProjectState?.preDialogueAwarenessSummary,
+      input?.fallbackProjectState?.awarenessLine,
       input?.fallbackProjectState?.companionBriefingLine,
-      input?.fallbackProjectState?.preDialogueAwarenessLine ?? input?.fallbackProjectState?.awarenessLine ?? input?.fallbackProjectState?.companionHeadlineLine,
+      input?.fallbackProjectState?.preflightSummary,
     ),
-    input?.fallbackProjectState?.preDialogueAwarenessLine,
-    input?.fallbackProjectState?.companionHeadlineLine,
-    input?.fallbackProjectState?.preDialogueAwarenessSummary,
-    input?.fallbackProjectState?.awarenessLine,
-    input?.fallbackProjectState?.companionBriefingLine,
-    input?.fallbackProjectState?.preflightSummary,
-  ) || null
+    runtimeProjectState: input?.runtimeProjectState,
+    fallbackProjectState: input?.fallbackProjectState,
+  }) || null
 }

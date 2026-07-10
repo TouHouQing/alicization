@@ -22,7 +22,11 @@ import type {
 } from './runtime-organic-memory-prompt-types'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
-import { deriveAlicizationRecallLatencyPolicy } from '@proj-alicization/stage-shared'
+import {
+  alicizationFixedTemplateReplacement,
+  deriveAlicizationRecallLatencyPolicy,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
 
 import { buildClaimEvidenceGraphFromMemoryFact } from './learning-claim-evidence-runtime'
 import { buildAlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
@@ -489,25 +493,25 @@ function applyMemoryClosureProjectionToPersonState(input: {
       personalityContinuityState: baseProjection.personalityContinuityState,
       selfContinuityAuthority: {
         ...baseProjection.selfContinuityAuthority,
-        authoritySummary: 'Memory OS execution feedback is carrying the callback return into the next turn context.',
+        authoritySummary: 'memory_os_execution_feedback=callback_return; next_turn_context=carried',
         inwardLine: input.memoryClosureExecution?.carry ?? cadence,
-        relationshipLine: 'Return after execution with lower pressure and room before a proactive reopen.',
+        relationshipLine: 'execution_callback_return=lower_pressure; proactive_reopen=deferred; room=preserve',
         sourceTags: ['memory-os-authority', ...(input.memoryClosureExecution?.reasonTags ?? [])],
       },
       activeClosenessContext: 'execution-callback',
       activeClosenessRung: 'measured-room',
       closenessLadder: [],
       relationshipPosture: 'restrained',
-      openingGuidance: 'Let the execution callback return through the current continuity context before any progress-style reopen.',
+      openingGuidance: 'execution_callback_return=current_continuity_context; progress_style_reopen=deferred',
       preferredProactiveStyle: 'light-nudge',
       manifestationCadenceSummary: cadence,
       preferenceText: '',
       sensitivityText: '',
       repairTriggerText: '',
-      burdenText: 'Lower pressure and leave room before widening the line.',
+      burdenText: 'pressure=lower; room=preserve; widening=deferred',
       routineText: '',
-      trustRationale: 'The callback landed better when it stayed continuous and lower-pressure.',
-      relationshipDoctrine: 'Execution feedback should return through memory, emotion, initiative, and body as one coordinated self-state.',
+      trustRationale: 'callback_result=better_when_continuous_lower_pressure',
+      relationshipDoctrine: 'execution_feedback_return=memory_emotion_initiative_body_coordinated_self_state',
       cautious: true,
       restrained: true,
       summary: `execution-callback memory closure | manifestation=${cadence}`,
@@ -523,7 +527,7 @@ function applyMemoryClosureProjectionToPersonState(input: {
     relationshipPosture: input.projection.relationshipPosture ?? 'restrained',
     openingGuidance: uniquePromptList([
       input.projection.openingGuidance,
-      'Let the execution callback return through the current continuity context before any progress-style reopen.',
+      'execution_callback_return=current_continuity_context; progress_style_reopen=deferred',
     ], 2).join(' | ') || null,
     preferredProactiveStyle: input.projection.preferredProactiveStyle ?? 'light-nudge',
     manifestationCadenceSummary: uniquePromptList([
@@ -532,11 +536,11 @@ function applyMemoryClosureProjectionToPersonState(input: {
     ], 2).join(' | ') || null,
     burdenText: uniquePromptList([
       input.projection.burdenText,
-      'Lower pressure and leave room before widening the line.',
+      'pressure=lower; room=preserve; widening=deferred',
     ], 2).join(' | '),
     relationshipDoctrine: uniquePromptList([
       input.projection.relationshipDoctrine,
-      'Execution feedback should return through memory, emotion, initiative, and body as one same her.',
+      'execution_feedback_return=memory_emotion_initiative_body_continuity_context',
     ], 2).join(' | '),
     cautious: true,
     restrained: true,
@@ -563,17 +567,86 @@ function uniqueMemoryResolutionCandidates(
 }
 
 function sanitizeOrganicProjectStateText(value: unknown, limit: number) {
-  return sanitizeOrganicMemoryText(
+  const normalized = sanitizeOrganicMemoryText(
     typeof value === 'string' ? value : '',
     limit,
-  ) || null
+  )
+  if (!normalized)
+    return null
+
+  if (
+    /phase1_local_digital_life|Alicization is a local-first digital life project|local-first digital life project|Phase 1:\s*Local Digital Life|Same Phase 1 digital life|Before (?:answering|speaking|acting)|same living line|same-her|same her|one living her|one continuous "?her"?|one same still-open closure work/iu.test(normalized)
+  ) {
+    return 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+  }
+
+  const sanitized = sanitizeAlicizationProviderFacingText(normalized, limit)
+  return sanitized && sanitized !== alicizationFixedTemplateReplacement
+    ? sanitized
+    : null
+}
+
+function sanitizeOrganicProjectEmotionText(value: unknown, limit: number) {
+  const normalized = sanitizeOrganicMemoryText(
+    typeof value === 'string' ? value : '',
+    limit,
+  )
+  if (!normalized)
+    return null
+
+  const sanitized = sanitizeAlicizationProviderFacingText(normalized, limit)
+  if (
+    sanitized
+    && sanitized !== alicizationFixedTemplateReplacement
+    && !/same-her|same her|same living line|one living her|one continuous "?her"?|Before (?:answering|speaking|acting)|local-first digital life project/iu.test(sanitized)
+  ) {
+    return sanitized
+  }
+
+  return [
+    'emotional_closure=content_sanitized',
+    /low-pressure|lower-pressure|measured-return/iu.test(normalized) ? 'tone=low_pressure' : null,
+    /repair-before-closeness|repair first|repair-first/iu.test(normalized) ? 'repair=before_closeness' : null,
+    /rest-protective|rest protection|fatigue|休息/u.test(normalized) ? 'rest_protection=true' : null,
+    'visibility=internal-structured',
+  ].filter(Boolean).join('; ')
+}
+
+function sanitizeOrganicMemoryReplayText(value: unknown, limit = 800) {
+  const normalized = sanitizeOrganicMemoryText(
+    typeof value === 'string' ? value : '',
+    limit,
+  )
+  if (!normalized)
+    return ''
+
+  if (
+    /project:\s*Alicization is a local-first digital life project|Alicization is a local-first digital life project|Phase 1:\s*Local Digital Life|Same Phase 1 digital life|Before (?:answering|speaking|acting)|same living line|same-her|same her|one living her|one continuous "?her"?|one same still-open closure work/iu.test(normalized)
+  ) {
+    const prefix = sanitizeAlicizationProviderFacingText(
+      normalized.split(/\s+\|\s+project:/iu)[0] ?? '',
+      180,
+    )
+    return [
+      prefix && prefix !== alicizationFixedTemplateReplacement ? prefix : '',
+      'project:identity=local_desktop_life_loop; visibility=internal-structured',
+      /open=|still needs|unfinished/iu.test(normalized) ? 'open=continuity_pending' : '',
+    ].filter(Boolean).join(' | ')
+  }
+
+  const sanitized = sanitizeAlicizationProviderFacingText(normalized, limit)
+  return sanitized && sanitized !== alicizationFixedTemplateReplacement
+    ? sanitized
+    : ''
 }
 
 function stripRepeatedRecallAnchorPrefix(raw: string | null, prefix: 'project' | 'project-emotion', limit: number) {
-  let normalized = sanitizeOrganicProjectStateText(raw, limit)
+  let normalized = sanitizeOrganicMemoryText(raw ?? '', limit) || null
   while (normalized?.startsWith(`${prefix}:`))
-    normalized = sanitizeOrganicProjectStateText(normalized.slice(prefix.length + 1), limit)
-  return normalized
+    normalized = sanitizeOrganicMemoryText(normalized.slice(prefix.length + 1), limit) || null
+  return prefix === 'project-emotion'
+    ? sanitizeOrganicProjectEmotionText(normalized, limit)
+    : sanitizeOrganicProjectStateText(normalized, limit)
 }
 
 function extractRecallGovernorProjectAnchor(input: {
@@ -592,7 +665,7 @@ function extractRecallGovernorProjectAnchor(input: {
     : 'project-emotion'
 
   for (const entry of recallGovernor.narrative ?? []) {
-    const narrativeEntry = sanitizeOrganicProjectStateText(entry, 420)
+    const narrativeEntry = sanitizeOrganicMemoryText(entry, 420)
     if (!narrativeEntry?.startsWith(narrativePrefix))
       continue
     const stripped = stripRepeatedRecallAnchorPrefix(
@@ -618,20 +691,29 @@ function buildSameHerCarryLineFromProjectAnchor(projectPreflight: string | null)
   const summary = sanitizeOrganicProjectStateText(projectPreflight, 220)
   if (!summary)
     return null
+  if (/content=excluded;\s*reason=continuity-residue/iu.test(summary))
+    return null
 
   const lowered = summary.toLowerCase()
   const carriesProjectIdentity
-    = lowered.includes('same phase 1 digital life')
+    = lowered.includes('local_desktop_life_loop')
+      || lowered.includes('phase1_local_digital_life')
+      || lowered.includes('identity=phase1')
+      || lowered.includes('same phase 1 digital life')
       || lowered.includes('same digital life')
       || lowered.includes('same-her')
       || lowered.includes('same her')
   const carriesLandedProgress
-    = lowered.includes('some closure already landed')
+    = lowered.includes('landed=partial')
+      || lowered.includes('memory_progress=partial')
+      || lowered.includes('some closure already landed')
       || lowered.includes('already landed')
       || lowered.includes('already survives')
       || lowered.includes('has landed')
   const carriesOpenClosure
-    = lowered.includes('unfinished closure still needs the same living line')
+    = lowered.includes('open=continuity_pending')
+      || lowered.includes('memory_unresolved=continuity')
+      || lowered.includes('unfinished closure still needs the same living line')
       || lowered.includes('still-open closure')
       || lowered.includes('same living line')
       || lowered.includes('still needs')
@@ -640,9 +722,9 @@ function buildSameHerCarryLineFromProjectAnchor(projectPreflight: string | null)
     return null
 
   return [
-    carriesProjectIdentity ? 'Current Phase 1 project context.' : '',
-    carriesLandedProgress ? 'Some closure already landed.' : '',
-    carriesOpenClosure ? 'Unfinished closure still needs continuity.' : '',
+    carriesProjectIdentity ? 'runtime_context=local_desktop_life_loop.' : '',
+    carriesLandedProgress ? 'memory_progress=partial.' : '',
+    carriesOpenClosure ? 'memory_unresolved=continuity.' : '',
   ].filter(Boolean).join(' ')
 }
 
@@ -688,6 +770,28 @@ function buildOrganicMemoryProjectStateContextFromRecallGovernor(
   if (!projectPreflight && !projectEmotionalClosure)
     return null
 
+  const excludedResidueLine = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+  const projectPreflightIsExcludedResidue = /content=excluded;\s*reason=continuity-residue/iu.test(projectPreflight ?? '')
+  if (projectPreflightIsExcludedResidue) {
+    return {
+      projectStatePreflightSummary: excludedResidueLine,
+      projectStatePreDialogueAwarenessLine: excludedResidueLine,
+      projectStateContinuity: {
+        identity: null,
+        currentPhase: null,
+        sameHerSummary: excludedResidueLine,
+        landedProgressSummary: null,
+        openClosureSummary: null,
+        proactiveSameHerGap: null,
+        nextClosureTarget: null,
+        preDialogueAwarenessLine: excludedResidueLine,
+        emotionalClosureCue: projectEmotionalClosure,
+        sameHerHoldDetail: null,
+        sameHerDriftRisk: null,
+      },
+    }
+  }
+
   const sameHerCarryLine = buildSameHerCarryLineFromProjectAnchor(projectPreflight)
   const canonicalProjectState = resolveAlicizationProjectStateBrief()
   const shouldPreferNormalizedProjectAwareness = looksLikeThinOrganicProjectPreflightShell(projectPreflight)
@@ -727,14 +831,14 @@ function buildOrganicMemoryProjectStateContextFromRecallGovernor(
       : (sameHerCarryLine ?? normalizedProjectState.sameHerSelfLine),
     220,
   )
-  const resolvedLandedProgressSummary = sameHerCarryLine?.includes('Some closure already landed.')
-    ? 'Some closure already landed.'
+  const resolvedLandedProgressSummary = sameHerCarryLine?.includes('memory_progress=partial.')
+    ? 'memory_progress=partial.'
     : sanitizeOrganicProjectStateText(
         normalizedProjectState.latestLandedProgress ?? normalizedProjectState.latestProgress,
         220,
       )
-  const resolvedOpenClosureSummary = sameHerCarryLine?.includes('Unfinished closure still needs continuity.')
-    ? 'Unfinished closure still needs continuity.'
+  const resolvedOpenClosureSummary = sameHerCarryLine?.includes('memory_unresolved=continuity.')
+    ? 'memory_unresolved=continuity.'
     : sanitizeOrganicProjectStateText(normalizedProjectState.primaryOpenLoop, 220)
   const resolvedPreflightSummary = sanitizeOrganicProjectStateText(
     shouldPreferNormalizedProjectAwareness
@@ -1659,9 +1763,9 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
             tunedRecollectionSpeechPlan.styleNote,
             finalSurfaceKernel.whyWithheld,
             finalSurfaceKernel.memoryControl?.labelUncertainty
-              ? 'Keep uncertainty visible and do not let unsettled recall sound fully settled.'
+              ? 'uncertainty_label=required_when_needed; settled_recall_claim=false'
               : null,
-            'Let room-first and repair-first host boundaries keep recollection inward until present payoff lands.',
+            'recollection_visibility=internal_until_present_payoff_lands; boundary=room_first_repair_first_host_boundary',
           ].filter(Boolean).join(' '),
         }
       : tunedRecollectionSpeechPlan
@@ -1869,7 +1973,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
                 ? {
                     ...derivedFollowUpAffordance,
                     whyNow:
-                      /crowd the host|flatten a self line|world-model detail is still under validation pressure|present task is already being carried|repair or payoff fully lands|low-pressure|reopen from scratch|same-her closure line/u.test(finalSurfaceKernel.whyWithheld)
+                      /crowd the host|flatten a self line|world-model detail is still under validation pressure|present task is already being carried|repair or payoff fully lands|low-pressure|reopen from scratch|same-her closure line|identity continuity closure line/u.test(finalSurfaceKernel.whyWithheld)
                         ? finalSurfaceKernel.whyWithheld
                         : derivedFollowUpAffordance.whyNow,
                   }
@@ -2026,7 +2130,11 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           summary: 'Resolved recall seed, relationship dynamics, host model, and heuristic recollection intent.',
           latencyMs: prelude.stageLatencyMs.prelude,
           budgetClass,
-          inputs: [options?.recallSeed ?? '', options?.turnId ?? '', options?.sessionId ?? ''],
+          inputs: [
+            sanitizeOrganicMemoryReplayText(options?.recallSeed ?? '', 800),
+            options?.turnId ?? '',
+            options?.sessionId ?? '',
+          ],
           outputs: [recallSeed, activeRecollectionIntent?.mode ?? 'none', hostPersonModel?.trustLadder.stage ?? 'no-host-model'],
           diagnostics: [recollectionIntent?.rationale ?? '', activeRecollectionIntent?.rationale ?? '', `recall-action=${initialRecallLatencyPolicy.recallAction}`],
         },

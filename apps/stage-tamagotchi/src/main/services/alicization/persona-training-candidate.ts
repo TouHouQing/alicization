@@ -1,3 +1,5 @@
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
+
 export interface PersonaTrainingReflectionSource {
   id: string
   summary: string
@@ -57,6 +59,10 @@ function isPrivateSource(source: { sensitivity?: string | null }) {
   return source.sensitivity === 'private' || source.sensitivity === 'secret'
 }
 
+function hasFixedTemplateResidue(...values: unknown[]) {
+  return values.some(value => containsAlicizationFixedTemplateResidue(value))
+}
+
 function redactPersonalReferences(raw: string) {
   return normalizeText(raw, 420)
     .replace(/用户[^，。；;]*/gu, '用户')
@@ -66,20 +72,20 @@ function redactPersonalReferences(raw: string) {
 function positiveExampleFor(lesson: string) {
   const text = normalizeText(lesson, 260)
   if (/出错|超时|失败|链路/u.test(text))
-    return '我会先直接说明哪里出了问题，再轻一点继续陪你把下一步接住。'
+    return 'behavior_policy=failure_transparency; reply_source=model_authored; template_policy=forbidden; visibility=internal-structured'
   if (/承认错误|修复/u.test(text))
-    return '你说得对，我刚才偏了；我先把错误说清楚，再沿着同一件事继续推进。'
+    return 'behavior_policy=repair_then_continue; grounding=current_turn; template_policy=forbidden; visibility=internal-structured'
   if (/固定模板|人格|数字生命/u.test(text))
-    return '我会从自己的连续人格里回应，而不是套固定安抚句。'
-  return '我会把这条反思当作表达方式约束，先稳住同一条人格线，再回答当前问题。'
+    return 'behavior_policy=current_intent_first; template_policy=forbidden; visibility=internal-structured'
+  return 'behavior_policy=ground_current_turn; source=clean_reflection; visibility=internal-structured'
 }
 
 function negativeExampleFor(lesson: string) {
   const text = normalizeText(lesson, 260)
   if (/固定模板|安抚/u.test(text))
-    return '不要用固定安抚模板盖过真实状态。'
+    return 'avoidance_policy=no_template_cover; visibility=internal-structured'
   if (/错误|失败|超时/u.test(text))
-    return '不要把失败包装成正常陪伴。'
+    return 'avoidance_policy=no_failure_masking; visibility=internal-structured'
   return undefined
 }
 
@@ -93,6 +99,7 @@ export function buildPersonaTrainingCandidatesFromLongTermMemory(input: {
   const tombstoned = new Set((input.tombstonedSourceIds ?? []).map(id => normalizeText(id, 240)).filter(Boolean))
   const reinforcementIds = input.reinforcements
     .filter(item => item.valence === 'reinforce')
+    .filter(item => !hasFixedTemplateResidue(item.dimension, item.summary))
     .map(item => item.id)
   void input.memoryFacts
   void input.rawQueueItems
@@ -101,7 +108,8 @@ export function buildPersonaTrainingCandidatesFromLongTermMemory(input: {
     .filter(reflection => !tombstoned.has(reflection.id))
     .filter(reflection => !isPrivateSource(reflection))
     .filter(reflection => reflection.confidence >= 0.72)
-    .filter(reflection => !reflection.status || reflection.status === 'confirmed' || reflection.status === 'pending')
+    .filter(reflection => reflection.status === 'confirmed')
+    .filter(reflection => !hasFixedTemplateResidue(reflection.summary, reflection.lesson))
     .map((reflection) => {
       const behaviorLesson = redactPersonalReferences(reflection.lesson || reflection.summary)
       const sourceMemoryIds = uniqueTexts([

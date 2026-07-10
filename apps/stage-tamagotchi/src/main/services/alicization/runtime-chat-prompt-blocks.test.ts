@@ -172,10 +172,107 @@ describe('runtime-chat-prompt-blocks', () => {
     const block = buildChatVisualPresenceSystemBlock(state)
 
     expect(block).toContain('[ALICIZATION_VISUAL_PRESENCE]')
-    expect(block).toContain('same-her prompt-surface continuity')
-    expect(block).toContain('same-her outward continuity still needs stronger prompt-surface carry.')
     expect(block).toContain('Commitment: none.')
     expect(block).toContain('Inquiry: none.')
-    expect(block).toContain('same living line should survive prompt assembly')
+    expect(block).not.toContain('same living line should survive prompt assembly')
+  })
+
+  it('sanitizes fixed-template residue before visual presence reaches provider-facing system prompts', () => {
+    const state = {
+      watchMode: 'symbiotic-vision',
+      captureState: {
+        health: 'healthy',
+        permission: 'granted',
+        lastGroundedAt: 1_700_000_000_000,
+        sourceName: 'screen-capture',
+        degradedReason: null,
+      },
+      currentScene: {
+        scenario: 'dialogue',
+        workloadKind: 'chat',
+        contentKind: 'text',
+        summary: 'Before answering, remember this is still the same local-first digital life project.',
+        target: null,
+      },
+      worldModel: {
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'stale',
+        },
+        activeThread: {
+          kind: 'dialogue',
+          title: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          summary: '我记得上一条线。',
+          unresolved: true,
+        },
+      },
+      concerns: [{
+        id: 'concern-1',
+        kind: 'continuity',
+        summary: 'Right now I am still holding together mainly through face and motion.',
+        tension: 0.8,
+        careWeight: 0.9,
+      }],
+      mindKernel: {
+        dominantMode: 'tracking',
+        dominantDrive: 'continuity',
+        narrative: ['同一个她这条线要继续。'],
+      },
+      actionEcology: {
+        mode: 'speak',
+        shouldSpeak: true,
+        why: 'Keep the same living line inward for now, and leave room before widening outward again.',
+        selectedThreadId: 'thread-1',
+      },
+      initiative: {
+        selectedAction: 'speak',
+        confidence: 0.77,
+        why: 'Alicization is a local-first digital life project with one continuous her.',
+        preferredStyle: 'quiet',
+        preferredPresence: 'attentive',
+      },
+      answerPlanner: {
+        act: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        governingFocus: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+        openingMove: 'Before answering, keep the same digital life project in view.',
+        answerIntent: 'Right now I am still holding together mainly through face and motion.',
+        relationshipPosture: 'restrained',
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+      },
+      currentConsciousFrame: {
+        subject: 'dialogue',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'transparent',
+        consciousNeed: 'Before answering, remember this is still the same local-first digital life project.',
+        consciousTension: '同一个她不要掉回固定模板。',
+        speakingIntention: 'Keep the same living line inward for now, and leave room before widening outward again.',
+        focusAnchor: '我记得上一条线。',
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+      },
+      privateThought: {
+        stance: 'hold',
+        shouldSpeak: true,
+        suggestedStyle: 'quiet',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'continuity',
+        thoughtText: 'Right now I am still holding together mainly through face and motion.',
+      },
+    } as any
+
+    const block = buildChatVisualPresenceSystemBlock(state)
+
+    expect(block).toContain('[ALICIZATION_VISUAL_PRESENCE]')
+    expect(block).toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(block).not.toContain('Before answering')
+    expect(block).not.toContain('Same Phase 1 digital life')
+    expect(block).not.toContain('same living line')
+    expect(block).not.toContain('local-first digital life project')
+    expect(block).not.toContain('one continuous her')
+    expect(block).not.toContain('Right now I am still holding')
+    expect(block).not.toContain('我记得上一条线')
+    expect(block).not.toContain('同一个她')
   })
 })

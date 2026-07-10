@@ -183,17 +183,17 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     if (!hasQuietSameHerCarry)
       return item
 
-    const summary = /quiet same-her continuity/i.test(item.summary)
-      ? item.summary
-      : `${item.summary} This period held as quiet same-her continuity rather than a generic measured-return helper state.`
-    const lesson = item.lesson && /quiet same-her continuity/i.test(item.lesson)
-      ? item.lesson
+    const summary = /quiet (?:same-her )?continuity/i.test(item.summary)
+      ? item.summary.replace(/quiet same-her continuity/gi, 'quiet inward continuity')
+      : `${item.summary} This period held as quiet inward continuity rather than a generic measured-return helper state.`
+    const lesson = item.lesson && /quiet (?:same-her )?continuity/i.test(item.lesson)
+      ? item.lesson.replace(/quiet same-her continuity/gi, 'quiet continuity')
       : item.lesson
-        ? `${item.lesson} Preserve inward lower-pressure continuity as quiet same-her continuity.`
-        : 'Preserve inward lower-pressure continuity as quiet same-her continuity.'
+        ? `${item.lesson} Preserve inward lower-pressure continuity as quiet continuity.`
+        : 'Preserve inward lower-pressure continuity as quiet continuity.'
     const cues = Array.from(new Set([
       ...item.cues,
-      'quiet-same-her-continuity',
+      'quiet-inward-continuity',
     ])).slice(0, 6)
 
     return {

@@ -996,6 +996,69 @@ describe('browser alicization bridge visual presence listeners', () => {
     })
   })
 
+  it('persists browser-local visible reply critic and closure as public summaries only', async () => {
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+
+    await bridge.appendConversationTurn?.({
+      turnId: 'turn-browser-visible-reply-public-summary',
+      sessionId: 'session-browser-visible-reply-public-summary',
+      origin: 'user-turn',
+      userText: '继续',
+      assistantText: '我继续。',
+      visibleReplyCritic: {
+        providerMindRequired: true,
+        semanticLoopClosed: false,
+        reasonCodes: ['semantic-judge:project-state-same-her-missing'],
+        repairReasonCodes: ['second-pass-rewrite-required'],
+        mustPreserve: ['same digital life continuity'],
+        mustDrop: ['fixed closure template'],
+        reasons: ['semantic-judge:project-state-same-her-missing'],
+      },
+      visibleReplyClosure: {
+        status: 'rewritten',
+        reasonCodes: ['project-state-same-her-continuity-required'],
+        repairReasonCodes: ['removed-fixed-template'],
+        initialCritic: {
+          mustPreserve: ['same digital life continuity'],
+          mustDrop: ['fixed closure template'],
+        },
+        finalCritic: {
+          mustPreserve: ['same digital life continuity'],
+          mustDrop: [],
+        },
+      },
+      createdAt: Date.now(),
+    } as any)
+
+    const turns = storageMap.get(buildConversationTurnsKey('default')) as any[]
+    const record = turns.find(turn => turn.turnId === 'turn-browser-visible-reply-public-summary')
+    expect(record.visibleReplyCritic).toEqual(expect.objectContaining({
+      version: 'visible-reply-critic-public-summary-v1',
+      providerMindRequired: true,
+      semanticLoopClosed: false,
+      mustPreserveCount: 1,
+      mustDropCount: 1,
+      reasonCodes: expect.arrayContaining(['semantic-judge:project-state-same-her-missing']),
+      repairReasonCodes: expect.arrayContaining(['second-pass-rewrite-required']),
+    }))
+    expect(record.visibleReplyCritic).not.toHaveProperty('mustPreserve')
+    expect(record.visibleReplyCritic).not.toHaveProperty('mustDrop')
+    expect(record.visibleReplyCritic).not.toHaveProperty('reasons')
+    expect(record.visibleReplyClosure).toEqual(expect.objectContaining({
+      version: 'visible-reply-closure-public-summary-v1',
+      status: 'rewritten',
+      initialCriticMustPreserveCount: 1,
+      initialCriticMustDropCount: 1,
+      finalCriticMustPreserveCount: 1,
+      finalCriticMustDropCount: 0,
+      reasonCodes: expect.arrayContaining(['project-state-same-her-continuity-required']),
+      repairReasonCodes: expect.arrayContaining(['removed-fixed-template']),
+    }))
+    expect(record.visibleReplyClosure).not.toHaveProperty('initialCritic')
+    expect(record.visibleReplyClosure).not.toHaveProperty('finalCritic')
+  })
+
   it('derives the canonical project-state continuity snapshot from hidden failure artifact turns', async () => {
     disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
     const bridge = getAlicizationBridge()

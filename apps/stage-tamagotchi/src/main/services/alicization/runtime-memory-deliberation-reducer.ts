@@ -5,7 +5,9 @@ import type { AlicizationSelfContinuityAuthority } from './self-continuity-autho
 
 import {
   buildDerivedMindStateBundle,
+  containsAlicizationFixedTemplateResidue,
   isAlicizationThinProjectAwarenessLine,
+  sanitizeAlicizationStructuredInternalText,
   scoreAlicizationProjectAwarenessLine,
 } from '@proj-alicization/stage-shared'
 
@@ -53,10 +55,31 @@ function buildSelfAuthoritySpeakingCue(selfContinuityAuthority?: {
     return ''
 
   if (/space|measured|restrain|repair|room|lower-pressure|bounded/u.test(closenessPosture))
-    return `Speak from the same self in a room-giving way: ${lowerFirst(stripTrailingPunctuation(authoritySummary))}.`
+    return `self_authority_speaking=room_giving; authority=${authoritySummary}; visibility=internal-structured`
   if (/close|warm/u.test(closenessPosture))
-    return `Speak from the same self without breaking the bond line: ${lowerFirst(stripTrailingPunctuation(authoritySummary))}.`
-  return `Speak from the same self continuously: ${lowerFirst(stripTrailingPunctuation(authoritySummary))}.`
+    return `self_authority_speaking=bond_preserving; authority=${authoritySummary}; visibility=internal-structured`
+  return `self_authority_speaking=continuous_self; authority=${authoritySummary}; visibility=internal-structured`
+}
+
+function hasFixedTemplateResidue(value: string | null | undefined) {
+  return Boolean(value && containsAlicizationFixedTemplateResidue(value))
+}
+
+function sanitizeInternalContinuityText(value: string | null | undefined, maxChars = 320) {
+  if (!value)
+    return null
+  const sanitized = sanitizeAlicizationStructuredInternalText(value, maxChars, '')
+  return sanitized || null
+}
+
+function isStructuredGuidanceLine(value: string | null | undefined) {
+  const text = sanitizeGuidanceText(value, 320)
+  return Boolean(text && /=/.test(text))
+}
+
+function keepStructuredGuidanceLine(value: string | null | undefined) {
+  const text = sanitizeGuidanceText(value, 320)
+  return text && isStructuredGuidanceLine(text) ? text : null
 }
 
 function buildProjectStateGrounding(input?: {
@@ -168,12 +191,13 @@ function scoreProjectAwarenessLine(line: string | null | undefined) {
   if (!normalized)
     return 0
 
+  if (hasFixedTemplateResidue(normalized))
+    return 0
+
   let score = scoreAlicizationProjectAwarenessLine(normalized)
   if (/holding together mainly through|full cross-modal closure|lipsync|voice|face|motion/u.test(normalized))
     score += 7
-  if (/same living line|one living her|one continuous her|same-her|same her/u.test(normalized))
-    score += 6
-  if (/phase 1 digital life still needs|still needs .* closure|without splitting her continuity/u.test(normalized))
+  if (/local_desktop_life_loop|project_state_continuity|continuity_anchor=|open_loop=|memory_dialogue_embodiment_closure|embedding_recall_reindex/u.test(normalized))
     score += 5
   if (isCanonicalProjectReminderAwarenessLine(normalized))
     score -= 8
@@ -290,9 +314,7 @@ function deriveDeliberationRelationshipCarry(input: {
   const projectStateContinuity = input.context.projectStateContinuity ?? null
   const relationshipCandidates = [
     ...(Array.isArray(input.deliberation.selectedRelationshipLines) ? input.deliberation.selectedRelationshipLines : []),
-    projectStateContinuity?.sameHerSelfLine ?? null,
     projectStateContinuity?.nextClosureTarget ?? null,
-    projectStateContinuity?.preDialogueAwarenessLine ?? null,
     input.context.personStateProjection?.selfContinuityAuthority?.relationshipLine ?? null,
     input.context.personStateProjection?.openingGuidance ?? null,
     input.deliberation.selectedChains?.[0]?.answerPosture ?? null,
@@ -300,10 +322,10 @@ function deriveDeliberationRelationshipCarry(input: {
     input.deliberation.followUpAffordance?.whyNow ?? null,
   ]
     .map(value => sanitizeGuidanceText(value, 220))
-    .filter(Boolean)
+    .filter((value): value is string => Boolean(value && !hasFixedTemplateResidue(value)))
 
   return relationshipCandidates.find(candidate =>
-    /same thread|same line|same living line|same her|same-her|one living her|callback|leave room|lower-pressure|measured-return|repair-before-closeness|initiative|embodiment|resident presence|phase 1/u.test(candidate),
+    /same thread|continuity_(?:line|thread|identity)|local_desktop_life_loop|callback|leave room|lower-pressure|measured-return|repair-before-closeness|initiative|embodiment|resident presence|open_loop=|memory_dialogue_embodiment_closure/u.test(candidate),
   ) ?? null
 }
 
@@ -567,11 +589,11 @@ function deriveMemoryDeliberationContinuityCue(input: {
     = /vulnerable-care|care-before-analysis|care before analysis/u.test(combined)
       && /analysis-heavy|analysis heavy|lighter|quieter|inward|rest-protective/u.test(combined)
   if (vulnerableCareRestProtective) {
-    return 'Keep this return rest-protective so vulnerable-care stays care-before-analysis, lighter, and inward before older analysis-heavy pressure widens back in.'
+    return 'memory_cadence=rest_protective; care_before_analysis=true; direction=inward; analysis_pressure=deferred; visibility=internal-structured'
   }
 
   if (worriedContinuityCarefulRepair && modalityRiskSettling) {
-    return 'Carry worried continuity carefully so the same-person line stays lower-pressure, and keep the body steadier so modality risk does not outrun the repair.'
+    return 'memory_cadence=worried_continuity_repair; pressure=lower; body=steadier; modality_risk_outruns_repair=false; visibility=internal-structured'
   }
 
   if (
@@ -579,13 +601,13 @@ function deriveMemoryDeliberationContinuityCue(input: {
     && /corrected same-person continuity|same-person continuity|same person continuity|同一个她|持续的人/u.test(combined)
   ) {
     return sanitizeGuidanceText(
-      `Carry corrected same-person continuity forward as a ${residentMeasuredReturn ? 'measured-return resident hold' : 'resident hold'}${residentObserveFocus ? ' with observe-focus' : ''} before widening outward.`,
+      `memory_cadence=corrected_same_person_continuity; resident_hold=${residentMeasuredReturn ? 'measured_return' : 'generic'}; observe_focus=${residentObserveFocus ? 'true' : 'false'}; widening=deferred; visibility=internal-structured`,
       220,
     )
   }
 
   if (correctedSamePersonSettling && quieterEmbodimentSettling) {
-    return 'Carry corrected same-person continuity forward while the newer meaning is still settling, and let the body settle more quietly before widening outward.'
+    return 'memory_cadence=corrected_same_person_continuity; newer_meaning=settling; body=quiet_settle; widening=deferred; visibility=internal-structured'
   }
 
   const mergedSameThreadContinuity
@@ -593,7 +615,7 @@ function deriveMemoryDeliberationContinuityCue(input: {
   const fadedTemporaryNoise
     = /forget low-salience temporary noise|temporary noise|stale emotional wobble|temporary wobble|faded noise|older-emotional-spike|older emotional spike|旧的情绪噪声|短暂噪声|情绪波动/u.test(combined)
   if (mergedSameThreadContinuity && fadedTemporaryNoise) {
-    return 'Carry the stronger merged same-thread continuity forward and keep faded temporary noise in the background so the return does not split back into thinner echoes.'
+    return 'memory_cadence=merged_same_thread_continuity; faded_noise=background; split_echoes=blocked; visibility=internal-structured'
   }
 
   const correctedSamePersonContinuity = directCueCandidates.find(candidate =>
@@ -603,14 +625,14 @@ function deriveMemoryDeliberationContinuityCue(input: {
     correctedSamePersonContinuity
     && /progress pressure|status recap|progress recap|task-shell continuity/u.test(combined)
   ) {
-    return 'Carry corrected same-person continuity forward before any status recap.'
+    return 'memory_cadence=corrected_same_person_continuity; status_recap=after_continuity; visibility=internal-structured'
   }
 
   const rememberedSeamMoreRoom
     = /remembered seam|same remembered seam|relationship seam/u.test(combined)
       && /more room this time|too eagerly before|before leaning in again|reopened too eagerly/u.test(combined)
   if (rememberedSeamMoreRoom)
-    return 'Recognize the same remembered seam, but keep more room this time before leaning in again.'
+    return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal-structured'
 
   return null
 }
@@ -620,15 +642,13 @@ function deriveSameHerProjectCarryRule(input: {
 }) {
   const projectStateContinuity = input.context.projectStateContinuity ?? null
   const corpus = [
-    projectStateContinuity?.sameHerSelfLine,
     projectStateContinuity?.nextClosureTarget,
-    projectStateContinuity?.preDialogueAwarenessLine,
     projectStateContinuity?.openClosureSummary,
     input.context.personStateProjection?.selfContinuityAuthority?.selfLine ?? null,
     input.context.personStateProjection?.selfContinuityAuthority?.relationshipLine ?? null,
   ]
     .map(value => sanitizeGuidanceText(value, 260))
-    .filter(Boolean)
+    .filter((value): value is string => Boolean(value && !hasFixedTemplateResidue(value)))
     .join(' ')
     .toLowerCase()
 
@@ -636,12 +656,12 @@ function deriveSameHerProjectCarryRule(input: {
     return null
 
   const hasSameHerProjectLine
-    = /same phase 1 digital life|same living line|same digital life|same-her|same her|one continuous her|同一个她|同一个数字生命/u.test(corpus)
+    = /local_desktop_life_loop|project_state_continuity|continuity_(?:line|identity|thread)|continuity_anchor=|cross_modal_continuity_proof/u.test(corpus)
   const hasStillOpenClosure
-    = /still-open closure|open loop|initiative|embodiment|dialogue|memory|phase 1|未闭环|没闭环|还差|still needs|still remains/u.test(corpus)
+    = /still-open closure|open loop|open_loop=|initiative|embodiment|dialogue|memory|未闭环|没闭环|还差|still needs|still remains/u.test(corpus)
 
   if (hasSameHerProjectLine && hasStillOpenClosure)
-    return 'Keep the same project-aware self line alive through the answer.'
+    return 'project_self_line=active; continuity=project_aware; open_closure=present; visibility=internal-structured'
 
   return null
 }
@@ -747,25 +767,25 @@ export function applyMemoryDeliberationToGovernance(input: {
   }
   const inwardThought = mergeGuidanceLine([
     baseMindTurnFrame.self.thought ?? null,
-    selectedChainSummary ? `The experience chain shaping the answer is ${selectedChainSummary}.` : null,
-    selectedBundleSummary ? `The linked recollection bundle shaping the answer is ${selectedBundleSummary}.` : null,
-    selectedPeriodSummary ? `The period currently shaping the answer is ${selectedPeriodSummary}.` : null,
-    selectedEraSummary ? `The remembered era currently shaping the answer is ${selectedEraSummary}.` : null,
-    selectedProcedureSummary ? `The remembered way of doing this is ${selectedProcedureSummary}.` : null,
-    selectedRelationshipSummary ? `The remembered relationship line is ${selectedRelationshipSummary}.` : null,
-    memoryControlSummary ? `Memory latent controls: ${memoryControlSummary}.` : null,
-    !memoryControlSummary && speechLatentSummary ? `Recollection latent controls: ${speechLatentSummary}.` : null,
+    selectedChainSummary ? `experience_chain_summary=${selectedChainSummary}` : null,
+    selectedBundleSummary ? `recollection_bundle_summary=${selectedBundleSummary}` : null,
+    selectedPeriodSummary ? `recalled_period_summary=${selectedPeriodSummary}` : null,
+    selectedEraSummary ? `recalled_era_summary=${selectedEraSummary}` : null,
+    selectedProcedureSummary ? `recalled_procedure_summary=${selectedProcedureSummary}` : null,
+    selectedRelationshipSummary ? `recalled_relationship_summary=${selectedRelationshipSummary}` : null,
+    memoryControlSummary ? `memory_latent_controls=${memoryControlSummary}` : null,
+    !memoryControlSummary && speechLatentSummary ? `recollection_latent_controls=${speechLatentSummary}` : null,
     speechControls
-      ? `Let recollection stay ${speechControls.visibility} with ${speechControls.continuityRole} discipline and ${speechControls.certainty} certainty.`
+      ? `recollection_visibility=${speechControls.visibility}; continuity_role=${speechControls.continuityRole}; certainty=${speechControls.certainty}`
       : null,
   ])
   const inwardWhyNow = mergeGuidanceLine([
     baseMindTurnFrame.obligation.whyNow ?? null,
     rationale
-      ? `An active recollection is shaping the answer from the inside because ${rationale.charAt(0).toLowerCase()}${rationale.slice(1)}`
+      ? `active_recollection_reason=${rationale}`
       : null,
-    memoryControl ? `Memory latent controls: ${memoryControlSummary}.` : null,
-    selectedChainStance ? `Current stance carried from remembered experience: ${selectedChainStance}.` : null,
+    memoryControl ? `memory_latent_controls=${memoryControlSummary}` : null,
+    selectedChainStance ? `experience_chain_stance=${selectedChainStance}` : null,
   ])
   const inwardAnswerIntent = mergeGuidanceLine([
     baseMindTurnFrame.obligation.answerIntent ?? governance.answerIntent ?? null,
@@ -1226,51 +1246,53 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
   const speakingIntention = mergeGuidanceLine([
     surface.dialogue.currentConsciousFrame?.speakingIntention ?? null,
     repairFirstProjectClosureAuthority
-      ? `Keep the same living line emotionally continuous: ${lowerFirst(stripTrailingPunctuation(repairFirstProjectClosureAuthority))}.`
+      ? `continuity_emotional=${lowerFirst(stripTrailingPunctuation(repairFirstProjectClosureAuthority))}`
       : null,
     projectStateGrounding.primaryOpenLoop
-      ? `Stay with the same digital life and do not let the answer lose the still-open closure work around ${projectStateGrounding.primaryOpenLoop}.`
+      ? `identity_continuity_open_loop=${projectStateGrounding.primaryOpenLoop}`
       : null,
     projectStateGrounding.nextClosureTarget
-      ? `Keep the next closure step pointed at ${projectStateGrounding.nextClosureTarget}.`
+      ? `next_closure=${projectStateGrounding.nextClosureTarget}`
       : null,
     shouldStayInward
-      ? 'Let remembered continuity shape the answer before any explicit memory mention.'
-      : `Let remembered continuity guide the answer through ${resolvedSurfacePolicy}.`,
-    `Memory latent controls: ${memoryControlSummary}.`,
+      ? 'memory_surface_policy=inward_before_explicit_mention'
+      : `memory_surface_policy=${resolvedSurfacePolicy}`,
+    `memory_latent_controls=${memoryControlSummary}`,
   ])
   const consciousNeed = mergeGuidanceLine([
-    surface.dialogue.currentConsciousFrame?.consciousNeed ?? null,
+    keepStructuredGuidanceLine(surface.dialogue.currentConsciousFrame?.consciousNeed),
     repairFirstProjectClosureAuthority
-      ? `Keep the emotional closure seam low-pressure: ${lowerFirst(stripTrailingPunctuation(repairFirstProjectClosureAuthority))}.`
+      ? `emotional_closure_pressure=low; authority=${stripTrailingPunctuation(repairFirstProjectClosureAuthority)}`
       : null,
     projectStateGrounding.identity
-      ? `This turn still belongs to ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.identity))}.`
+      ? `project_identity=${stripTrailingPunctuation(projectStateGrounding.identity)}`
       : null,
     projectStateGrounding.currentPhase
-      ? `I am still working inside ${projectStateGrounding.currentPhase}.`
+      ? `project_phase=${stripTrailingPunctuation(projectStateGrounding.currentPhase)}`
       : null,
     projectStateGrounding.latestProgress
-      ? `What has already become real enough to build from is ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.latestProgress))}.`
+      ? `project_landed_progress=${stripTrailingPunctuation(projectStateGrounding.latestProgress)}`
       : null,
-    selectedChainSummary ? `The recollection chain now shaping the answer is ${selectedChainSummary}.` : null,
-    selectedBundleSummary ? `The recollection bundle now shaping the answer is ${selectedBundleSummary}.` : null,
-    selectedPeriodSummary ? `The remembered period now shaping the answer is ${selectedPeriodSummary}.` : null,
-    selectedEraSummary ? `The remembered era now shaping the answer is ${selectedEraSummary}.` : null,
-    selectedProcedureSummary ? `The remembered procedure pressing forward is ${selectedProcedureSummary}.` : null,
+    selectedChainSummary ? `recollection_chain_summary=${selectedChainSummary}` : null,
+    selectedBundleSummary ? `recollection_bundle_summary=${selectedBundleSummary}` : null,
+    selectedPeriodSummary ? `recalled_period_summary=${selectedPeriodSummary}` : null,
+    selectedEraSummary ? `recalled_era_summary=${selectedEraSummary}` : null,
+    selectedProcedureSummary ? `recalled_procedure_summary=${selectedProcedureSummary}` : null,
     memoryControlSummary,
   ])
   const consciousTension = mergeGuidanceLine([
     surface.dialogue.currentConsciousFrame?.consciousTension ?? null,
-    selectedRelationshipSummary ? `What is relationally live inside the recollection is ${selectedRelationshipSummary}.` : null,
-    selectedChainStance ? `The remembered stance pulling on this answer is ${selectedChainStance}.` : null,
+    selectedRelationshipSummary ? `recollection_relationship_live=${selectedRelationshipSummary}` : null,
+    selectedChainStance ? `recollection_stance=${selectedChainStance}` : null,
   ])
   const replyWhyNow = mergeGuidanceLine([
-    surface.dialogue.replyDeliberation?.whyThisReplyNow ?? null,
-    followUpAffordance?.whyNow ?? null,
+    keepStructuredGuidanceLine(surface.dialogue.replyDeliberation?.whyThisReplyNow),
+    followUpAffordance?.preferredTiming ? `memory_follow_up_timing=${followUpAffordance.preferredTiming}` : null,
+    followUpAffordance?.intrusionRisk ? `memory_follow_up_intrusion_risk=${followUpAffordance.intrusionRisk}` : null,
+    followUpAffordance?.payoffDependency ? `memory_follow_up_payoff_dependency=${followUpAffordance.payoffDependency}` : null,
     whyNow,
     projectStateGrounding.sameHerDriftRisk
-      ? `Keep the answer from drifting into ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.sameHerDriftRisk))}.`
+      ? `project_state_drift_risk=${stripTrailingPunctuation(projectStateGrounding.sameHerDriftRisk)}`
       : null,
   ])
   const answerIntent = mergeGuidanceLine([
@@ -1355,12 +1377,21 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     currentPhase: (existingCurrentPhase ?? projectStateGrounding.currentPhase) || null,
     latestProgress: projectStateGrounding.latestProgress || null,
     latestLandedProgress: (preferredExistingLatestLandedProgress ?? projectStateGrounding.latestLandedProgress) || null,
-    primaryOpenLoop: (preferredExistingPrimaryOpenLoop ?? projectStateGrounding.primaryOpenLoop) || null,
-    sameHerSelfLine: (existingSameHerSelfLine ?? projectStateGrounding.sameHerSelfLine) || null,
-    sameHerDriftRisk: (existingSameHerDriftRisk ?? projectStateGrounding.sameHerDriftRisk) || null,
+    primaryOpenLoop: (
+      existingDialoguePrimaryOpenLoopLooksThin
+        ? (
+            existingRawRuntimeDigestPrimaryOpenLoop
+            ?? existingCognitionRuntimeDigestPrimaryOpenLoop
+            ?? projectStateGrounding.primaryOpenLoop
+            ?? existingPrimaryOpenLoop
+          )
+        : (preferredExistingPrimaryOpenLoop ?? projectStateGrounding.primaryOpenLoop)
+    ) || null,
+    sameHerSelfLine: sanitizeInternalContinuityText(existingSameHerSelfLine ?? projectStateGrounding.sameHerSelfLine, 320),
+    sameHerDriftRisk: sanitizeInternalContinuityText(existingSameHerDriftRisk ?? projectStateGrounding.sameHerDriftRisk, 320),
     emotionalClosureCue: emotionalClosureCue || null,
     emotionalClosureSummary: richerEmotionalClosureSummary || null,
-    sameHerHoldDetail: richerSameHerHoldDetail || null,
+    sameHerHoldDetail: sanitizeInternalContinuityText(richerSameHerHoldDetail, 220),
     continuityCue: resolvedContinuityCue,
     continuityPreferredTiming:
       existingProjectState?.continuityPreferredTiming
@@ -1383,20 +1414,28 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     preferredPacingMode: existingProjectState?.preferredPacingMode ?? continuityEmbodimentPreferences.preferredPacingMode ?? null,
     nextClosureTarget: resolvedNextClosureTarget,
   }
+  if (existingDialoguePrimaryOpenLoopLooksThin) {
+    const strongerPrimaryOpenLoop = existingRawRuntimeDigestPrimaryOpenLoop
+      ?? existingCognitionRuntimeDigestPrimaryOpenLoop
+      ?? projectStateGrounding.primaryOpenLoop
+      ?? null
+    if (strongerPrimaryOpenLoop)
+      nextMergedProjectState.primaryOpenLoop = strongerPrimaryOpenLoop
+  }
   const nextCurrentConsciousFrame: NonNullable<AlicizationDigitalLifeRuntimeSurface['dialogue']['currentConsciousFrame']> = {
     subject: surface.dialogue.currentConsciousFrame?.subject ?? governance.answerSubject ?? 'general',
     centerOfGravity: surface.dialogue.currentConsciousFrame?.centerOfGravity ?? mapAnswerActToReplyMotive(governance.answerAct),
     truthDiscipline: surface.dialogue.currentConsciousFrame?.truthDiscipline === 'dialogue-first' ? 'dialogue-first' : 'memory-labeled',
-    consciousNeed: consciousNeed || surface.dialogue.currentConsciousFrame?.consciousNeed || memoryControlSummary || whyNow || '',
-    consciousTension: consciousTension || surface.dialogue.currentConsciousFrame?.consciousTension || whyNow || '',
+    consciousNeed: consciousNeed || keepStructuredGuidanceLine(surface.dialogue.currentConsciousFrame?.consciousNeed) || memoryControlSummary || whyNow || '',
+    consciousTension: consciousTension || keepStructuredGuidanceLine(surface.dialogue.currentConsciousFrame?.consciousTension) || whyNow || '',
     speakingIntention: mergeGuidanceLine([
-      speakingIntention || surface.dialogue.currentConsciousFrame?.speakingIntention || `Memory latent controls: ${memoryControlSummary}.` || whyNow || '',
+      speakingIntention || keepStructuredGuidanceLine(surface.dialogue.currentConsciousFrame?.speakingIntention) || `memory_latent_controls=${memoryControlSummary}` || whyNow || '',
       selfAuthoritySpeakingCue,
     ]) ?? '',
     focusAnchor: surface.dialogue.currentConsciousFrame?.focusAnchor ?? governance.focusAnchor ?? null,
     withheldImpulse: surface.dialogue.currentConsciousFrame?.withheldImpulse ?? (shouldStayInward
-      ? 'Do not flatten remembered continuity into a narrated memory dump.'
-      : 'Do not let recollection outrun the live payoff.'),
+      ? 'withhold=memory_dump_flattening'
+      : 'withhold=recollection_outruns_live_payoff'),
     shouldWithholdSpecificity: surface.dialogue.currentConsciousFrame?.shouldWithholdSpecificity ?? (memoryControl.unsafeDetails.length > 0 || memoryControl.conflictBurden !== 'none'),
     shouldSelfRevise: surface.dialogue.currentConsciousFrame?.shouldSelfRevise ?? shouldStayInward,
     confidence: Math.max(surface.dialogue.currentConsciousFrame?.confidence ?? 0, deliberation.confidence),
@@ -1426,25 +1465,25 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
       shouldStayInward,
       surfacePolicy: resolvedSurfacePolicy,
     }),
-    openingBeat: openingMove || surface.dialogue.replyDeliberation?.openingBeat || whyNow || '',
-    whyThisReplyNow: replyWhyNow || surface.dialogue.replyDeliberation?.whyThisReplyNow || whyNow || '',
+    openingBeat: openingMove || keepStructuredGuidanceLine(surface.dialogue.replyDeliberation?.openingBeat) || whyNow || '',
+    whyThisReplyNow: replyWhyNow || keepStructuredGuidanceLine(surface.dialogue.replyDeliberation?.whyThisReplyNow) || whyNow || '',
     whyNotOtherCandidates: surface.dialogue.replyDeliberation?.whyNotOtherCandidates ?? [],
     withheldImpulses: mergeUniqueRules([
       ...(surface.dialogue.replyDeliberation?.withheldImpulses ?? []),
       followUpAffordance?.intrusionRisk === 'high'
-        ? 'Do not force the remembered follow-up forward before the host has room for it.'
+        ? 'withhold=remembered_follow_up_until_host_room'
         : null,
       shouldStayInward
-        ? 'Do not narrate the active recollection unless the live payoff truly needs it.'
-        : 'Do not let recollection replace the live answer.',
+        ? 'withhold=active_recollection_narration_unless_needed'
+        : 'withhold=recollection_replaces_live_answer',
       memoryControl.conflictBurden !== 'none'
-        ? 'Do not overstate remembered detail while this recollection still carries conflict pressure.'
+        ? 'withhold=overstated_remembered_detail_under_conflict'
         : null,
       memoryControl.dominantProvenance === 'dreamt'
-        ? 'Do not present dream residue as lived remembered fact.'
+        ? 'provenance_boundary=dreamt_not_lived_fact'
         : null,
       memoryControl.dominantProvenance === 'inferred'
-        ? 'Do not present inferred continuity as settled remembered fact.'
+        ? 'provenance_boundary=inferred_not_settled_fact'
         : null,
     ], 8),
     candidateMotives: surface.dialogue.replyDeliberation?.candidateMotives ?? [],
@@ -1453,14 +1492,16 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
       ...(surface.dialogue.replyDeliberation?.mustInclude ?? []),
       `memory_latent_controls=${memoryControlSummary}`,
       continuityCadence ? `memory_continuity_cadence=${continuityCadence}` : null,
-      followUpAffordance?.summary ? `memory_follow_up_affordance=${followUpAffordance.summary}` : null,
+      followUpAffordance?.preferredTiming ? `memory_follow_up_timing=${followUpAffordance.preferredTiming}` : null,
+      followUpAffordance?.intrusionRisk ? `memory_follow_up_intrusion_risk=${followUpAffordance.intrusionRisk}` : null,
+      followUpAffordance?.payoffDependency ? `memory_follow_up_payoff_dependency=${followUpAffordance.payoffDependency}` : null,
     ], 8),
     mustAvoid: mergeUniqueRules([
       ...(surface.dialogue.replyDeliberation?.mustAvoid ?? []),
       buildMemoryLatentBoundaryTag(memoryControl),
-      memoryControl.dominantProvenance === 'dreamt' ? 'Do not present dream residue as lived remembered fact.' : null,
-      memoryControl.dominantProvenance === 'inferred' ? 'Do not present inferred continuity as settled remembered fact.' : null,
-      ...memoryControl.unsafeDetails.map(item => `Do not state this remembered detail as settled fact: ${item}`),
+      memoryControl.dominantProvenance === 'dreamt' ? 'provenance_boundary=dreamt_not_lived_fact' : null,
+      memoryControl.dominantProvenance === 'inferred' ? 'provenance_boundary=inferred_not_settled_fact' : null,
+      ...memoryControl.unsafeDetails.map(item => `unsafe_remembered_detail=${item}; settled_fact=false`),
     ], 8),
     confidence: Math.max(surface.dialogue.replyDeliberation?.confidence ?? 0, deliberation.confidence),
     narrative: mergeUniqueRules([
@@ -1477,17 +1518,17 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     evidenceMode: surface.dialogue.answerPlanner?.evidenceMode ?? governance.evidenceMode ?? 'continuity-carry',
     confidence: Math.max(surface.dialogue.answerPlanner?.confidence ?? 0, deliberation.confidence),
     governingFocus: mergeGuidanceLine([
-      surface.dialogue.answerPlanner?.governingFocus ?? null,
-      selectedChainSummary,
-      selectedBundleSummary,
-      selectedEraSummary,
-      selectedPeriodSummary,
-      selectedProcedureSummary,
-      selectedRelationshipSummary,
+      keepStructuredGuidanceLine(surface.dialogue.answerPlanner?.governingFocus),
+      selectedChainSummary ? `selected_chain_summary=${selectedChainSummary}` : null,
+      selectedBundleSummary ? `selected_bundle_summary=${selectedBundleSummary}` : null,
+      selectedEraSummary ? `selected_era_summary=${selectedEraSummary}` : null,
+      selectedPeriodSummary ? `selected_period_summary=${selectedPeriodSummary}` : null,
+      selectedProcedureSummary ? `selected_procedure_summary=${selectedProcedureSummary}` : null,
+      selectedRelationshipSummary ? `selected_relationship_summary=${selectedRelationshipSummary}` : null,
       memoryControlSummary,
     ], 220) || memoryControlSummary || whyNow || '',
-    openingMove: openingMove || surface.dialogue.answerPlanner?.openingMove || whyNow || '',
-    answerIntent: answerIntent || surface.dialogue.answerPlanner?.answerIntent || whyNow || '',
+    openingMove: openingMove || keepStructuredGuidanceLine(surface.dialogue.answerPlanner?.openingMove) || whyNow || '',
+    answerIntent: answerIntent || keepStructuredGuidanceLine(surface.dialogue.answerPlanner?.answerIntent) || whyNow || '',
     relationshipPosture: surface.dialogue.answerPlanner?.relationshipPosture ?? governance.relationshipPosture ?? 'warm',
     shouldAskForGrounding: surface.dialogue.answerPlanner?.shouldAskForGrounding ?? governance.shouldAskForGrounding,
     shouldAcknowledgeRepair: surface.dialogue.answerPlanner?.shouldAcknowledgeRepair ?? governance.shouldAcknowledgeRepair,
@@ -1504,9 +1545,9 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
       ...(surface.dialogue.answerPlanner?.mustDo ?? []),
       `memory_latent_controls=${memoryControlSummary}`,
       continuityCadence ? `memory_continuity_cadence=${continuityCadence}` : null,
-      memoryControl.dominantProvenance === 'dreamt' ? 'If the recollection becomes explicit, frame it as dream residue rather than lived fact.' : null,
-      memoryControl.dominantProvenance === 'inferred' ? 'If the recollection becomes explicit, frame it as inference or likely continuity rather than settled memory.' : null,
-      memoryControl.dominantProvenance === 'reconstructed' ? 'If the recollection becomes explicit, keep it approximate and centered on the stable core.' : null,
+      memoryControl.dominantProvenance === 'dreamt' ? 'explicit_recollection_frame=dream_residue' : null,
+      memoryControl.dominantProvenance === 'inferred' ? 'explicit_recollection_frame=inference_not_settled_memory' : null,
+      memoryControl.dominantProvenance === 'reconstructed' ? 'explicit_recollection_frame=approximate_stable_core' : null,
     ], 10),
     mustNotDo: mergeUniqueRules([
       ...(surface.dialogue.answerPlanner?.mustNotDo ?? []),
@@ -1538,7 +1579,7 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
             ? 'guidance'
             : 'unclear'
     ),
-    activeProject: surface.dialogue.dialogueActKernel?.activeProject ?? selectedProcedureSummary ?? selectedPeriodSummary ?? null,
+    activeProject: keepStructuredGuidanceLine(surface.dialogue.dialogueActKernel?.activeProject) ?? selectedProcedureSummary ?? selectedPeriodSummary ?? null,
     truthMode: surface.dialogue.dialogueActKernel?.truthMode ?? (
       shouldStayInward || resolvedSurfacePolicy === 'relationship-continuity'
         ? 'memory-only'
@@ -1563,9 +1604,9 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
         || '',
       confidence: deliberation.confidence,
     }],
-    openingClaim: surface.dialogue.dialogueActKernel?.openingClaim ?? selectedEraSummary ?? selectedPeriodSummary ?? selectedChainSummary ?? selectedBundleSummary ?? selectedProcedureSummary ?? selectedRelationshipSummary ?? whyNow ?? '',
-    openingMove: openingMove || surface.dialogue.dialogueActKernel?.openingMove || whyNow || '',
-    whyNow: replyWhyNow || surface.dialogue.dialogueActKernel?.whyNow || whyNow || '',
+    openingClaim: keepStructuredGuidanceLine(surface.dialogue.dialogueActKernel?.openingClaim) ?? selectedEraSummary ?? selectedPeriodSummary ?? selectedChainSummary ?? selectedBundleSummary ?? selectedProcedureSummary ?? selectedRelationshipSummary ?? whyNow ?? '',
+    openingMove: openingMove || keepStructuredGuidanceLine(surface.dialogue.dialogueActKernel?.openingMove) || whyNow || '',
+    whyNow: replyWhyNow || keepStructuredGuidanceLine(surface.dialogue.dialogueActKernel?.whyNow) || whyNow || '',
     mustSay: mergeUniqueRules([
       ...(surface.dialogue.dialogueActKernel?.mustSay ?? []),
       answerIntent,

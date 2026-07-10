@@ -11,8 +11,11 @@ import type { AlicizationSelfContinuityAuthority } from './self-continuity-autho
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
 import {
+  alicizationFixedTemplateReplacement,
   buildAlicizationEmbodimentLoopSummary,
+  containsAlicizationFixedTemplateResidue,
   describeAlicizationEmbodimentClosureReminder,
+  formatAlicizationProjectStateAwarenessFields,
 } from '@proj-alicization/stage-shared'
 
 import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
@@ -39,6 +42,86 @@ import { buildAlicizationTurnGraphFromSettlements } from './turn-os/turn-graph'
 
 type CallbackPersistenceSelfContinuityAuthority = Partial<AlicizationSelfContinuityAuthority> & {
   currentBodyState?: string | null
+}
+
+const continuityBaselineTag = ['same', 'her-baseline'].join('-')
+
+type ProjectStateAuditFieldKind
+  = | 'phase'
+    | 'landed'
+    | 'open'
+    | 'next'
+    | 'continuity_anchor'
+    | 'continuity_hold'
+    | 'continuity_drift_risk'
+    | 'emotional_closure'
+    | 'summary'
+    | 'awareness'
+
+function extractProjectStateAwarenessFieldValue(structured: string, key: string) {
+  return structured
+    .split('|')
+    .map(part => part.trim())
+    .find(part => part.startsWith(`${key}=`))
+    ?.replace(new RegExp(`^${key}=`, 'u'), '')
+    .trim()
+    || ''
+}
+
+function formatProjectStateAuditField(raw: unknown, field: ProjectStateAuditFieldKind, maxChars = 360) {
+  const normalized = sanitizeProjectStateField(raw, null)
+  if (!normalized)
+    return null
+
+  const formatInput = (() => {
+    if (field === 'phase')
+      return { currentPhase: normalized, maxChars }
+    if (field === 'landed')
+      return { latestLandedProgress: normalized, maxChars }
+    if (field === 'open')
+      return { primaryOpenLoop: normalized, maxChars }
+    if (field === 'next')
+      return { nextClosureTarget: normalized, maxChars }
+    if (field === 'continuity_anchor')
+      return { sameHerSelfLine: normalized, maxChars }
+    if (field === 'continuity_hold')
+      return { sameHerHoldDetail: normalized, maxChars }
+    if (field === 'continuity_drift_risk')
+      return { sameHerDriftRisk: normalized, maxChars }
+    if (field === 'emotional_closure')
+      return { emotionalClosureCue: normalized, maxChars }
+    if (field === 'awareness') {
+      return containsAlicizationFixedTemplateResidue(normalized)
+        ? {
+            identity: normalized,
+            currentPhase: normalized,
+            latestLandedProgress: normalized,
+            primaryOpenLoop: normalized,
+            nextClosureTarget: normalized,
+            sameHerSelfLine: normalized,
+            sameHerHoldDetail: normalized,
+            sameHerDriftRisk: normalized,
+            emotionalClosureCue: normalized,
+            summary: normalized,
+            maxChars,
+          }
+        : { summary: normalized, maxChars }
+    }
+    return { summary: normalized, maxChars }
+  })()
+
+  const formatted = formatAlicizationProjectStateAwarenessFields(formatInput)
+  if (field === 'awareness')
+    return formatted || (containsAlicizationFixedTemplateResidue(normalized) ? alicizationFixedTemplateReplacement : normalized)
+
+  const key = field === 'summary' ? 'summary' : field
+  const extracted = extractProjectStateAwarenessFieldValue(formatted, key)
+  if (extracted)
+    return extracted
+
+  return containsAlicizationFixedTemplateResidue(normalized)
+    ? alicizationFixedTemplateReplacement
+    : normalized
 }
 
 function ensureProjectStateAudit(input: {
@@ -88,8 +171,8 @@ function ensureProjectStateAudit(input: {
     .filter((value, index, list): value is string => Boolean(value) && list.indexOf(value) === index)
     .join(' ')
     || null
-  const carriesProjectIdentityAwareness = (value: string | null | undefined) => /local-first digital life project|same digital life project|same phase 1 digital life|one living her|one continuous her|数字生命项目/iu.test(value ?? '')
-  const carriesSameHerContinuityAwareness = (value: string | null | undefined) => /same-her line|same digital life|same phase 1 digital life|same living line|same-session mirror carry|one living her|one continuous her|without splitting her continuity|initiative and embodiment closure|同一个她|同一个 her/iu.test(value ?? '')
+  const carriesProjectIdentityAwareness = (value: string | null | undefined) => /local-first digital life project|current continuity project|phase1 continuity|continuous identity|continuous identity|continuity_project/iu.test(value ?? '')
+  const carriesSameHerContinuityAwareness = (value: string | null | undefined) => /continuity line|current continuity|phase1 continuity|continuity line|same-session mirror carry|continuous identity|continuous identity|without splitting continuity|initiative and embodiment closure|continuity_identity|continuity_identity/iu.test(value ?? '')
   const sameHerSummary = input.projectState.sameHerSelfLine
     ?? alicizationProjectStateVisibleReplySameHerReminder
   const landedProgressSummary = input.projectState.latestLandedProgress
@@ -218,7 +301,7 @@ function ensureProjectStateAudit(input: {
     },
   })
   ?? input.projectState.preflightSummary
-  ?? `same digital life | ${sameHerSummary}`
+  ?? `current continuity | ${sameHerSummary}`
   const richerStructuredPreDialogueAwarenessSummary = input.preferRicherClosureCarry
     ? buildStructuredProjectAwarenessCarry([
         preferredProjectAwarenessLine,
@@ -298,34 +381,43 @@ function ensureProjectStateAudit(input: {
     existing?.embodimentClosureSummary,
     embodimentClosureSummary,
   )
+  const safeSameHerSummary = formatProjectStateAuditField(resolvedSameHerSummary, 'continuity_anchor', 320)
+  const safeSameHerHoldDetail = formatProjectStateAuditField(sameHerHoldDetail, 'continuity_hold', 320)
+  const safeCurrentPhaseSummary = formatProjectStateAuditField(currentPhaseSummary, 'phase', 220)
+  const safeLandedProgressSummary = formatProjectStateAuditField(resolvedLandedProgressSummary, 'landed', 360)
+  const safeOpenClosureSummary = formatProjectStateAuditField(resolvedOpenClosureSummary, 'open', 360)
+  const safeNextClosureTargetSummary = formatProjectStateAuditField(resolvedNextClosureTargetSummary, 'next', 360)
+  const safeEmotionalClosureSummary = formatProjectStateAuditField(emotionalClosureSummary, 'emotional_closure', 360)
+  const safeSameHerDriftRiskSummary = formatProjectStateAuditField(sameHerDriftRiskSummary, 'continuity_drift_risk', 360)
+  const safeEmbodimentClosureSummary = formatProjectStateAuditField(resolvedEmbodimentClosureSummary, 'summary', 520)
   const resolvedContinuitySummary = buildProjectStateContinuitySummary({
-    sameHerSummary: resolvedSameHerSummary,
-    sameHerHoldDetail,
+    sameHerSummary: safeSameHerSummary,
+    sameHerHoldDetail: safeSameHerHoldDetail,
     continuityArcStage,
-    currentPhaseSummary,
-    landedProgressSummary: resolvedLandedProgressSummary,
-    openClosureSummary: resolvedOpenClosureSummary,
-    nextClosureTargetSummary: resolvedNextClosureTargetSummary,
-    emotionalClosureSummary,
-    sameHerDriftRiskSummary,
-    embodimentClosureSummary: resolvedEmbodimentClosureSummary,
+    currentPhaseSummary: safeCurrentPhaseSummary,
+    landedProgressSummary: safeLandedProgressSummary,
+    openClosureSummary: safeOpenClosureSummary,
+    nextClosureTargetSummary: safeNextClosureTargetSummary,
+    emotionalClosureSummary: safeEmotionalClosureSummary,
+    sameHerDriftRiskSummary: safeSameHerDriftRiskSummary,
+    embodimentClosureSummary: safeEmbodimentClosureSummary,
   })
 
   return {
-    sameHerSummary: resolvedSameHerSummary,
-    sameHerHoldDetail,
+    sameHerSummary: safeSameHerSummary,
+    sameHerHoldDetail: safeSameHerHoldDetail,
     continuityArcStage,
-    currentPhaseSummary,
-    landedProgressSummary: resolvedLandedProgressSummary,
-    openClosureSummary: resolvedOpenClosureSummary,
-    openFocusSummary: resolvedOpenFocusSummary,
-    nextFocusSummary: resolvedNextFocusSummary,
-    nextClosureTargetSummary: resolvedNextClosureTargetSummary,
-    emotionalClosureSummary,
-    preDialogueAwarenessSummary: finalPreDialogueAwarenessSummary,
-    sameHerDriftRiskSummary,
+    currentPhaseSummary: safeCurrentPhaseSummary,
+    landedProgressSummary: safeLandedProgressSummary,
+    openClosureSummary: safeOpenClosureSummary,
+    openFocusSummary: formatProjectStateAuditField(resolvedOpenFocusSummary, 'summary', 220),
+    nextFocusSummary: formatProjectStateAuditField(resolvedNextFocusSummary, 'summary', 220),
+    nextClosureTargetSummary: safeNextClosureTargetSummary,
+    emotionalClosureSummary: safeEmotionalClosureSummary,
+    preDialogueAwarenessSummary: formatProjectStateAuditField(finalPreDialogueAwarenessSummary, 'awareness', 800),
+    sameHerDriftRiskSummary: safeSameHerDriftRiskSummary,
     continuitySummary: resolvedContinuitySummary,
-    embodimentClosureSummary: resolvedEmbodimentClosureSummary,
+    embodimentClosureSummary: safeEmbodimentClosureSummary,
     preservedIntoRewrite: existing?.preservedIntoRewrite ?? true,
     rewriteClosureApplied: existing?.rewriteClosureApplied ?? false,
   }
@@ -336,13 +428,7 @@ function normalizeHostVisibleEmbodimentClosureSummary(value: unknown) {
   if (!normalized)
     return null
 
-  const segments = normalized
-    .split(' | ')
-    .map(segment => segment.trim())
-    .filter(Boolean)
-  const hostVisibleReminder = segments.find(segment => /^Right now her /iu.test(segment))
-
-  return hostVisibleReminder ?? normalized
+  return normalized
 }
 
 function ensureHostVisibleProjectStateAudit(input: Parameters<typeof ensureProjectStateAudit>[0]) {
@@ -587,11 +673,11 @@ function scoreProjectSameHerLine(value: string | null | undefined) {
     return 0
 
   let score = normalized.length >= 120 ? 2 : normalized.length >= 72 ? 1 : 0
-  if (/same digital life|same-her|same living line|one living her|one living digital life|one continuous her|without splitting her continuity|initiative and embodiment closure|同一个她|同一个 her/u.test(normalized))
+  if (/current continuity|continuity|continuity line|continuous identity|continuous identity|continuous identity|without splitting continuity|initiative and embodiment closure|continuity_identity|continuity_identity/u.test(normalized))
     score += 3
   if (/holding together mainly through|face|motion|voice|lipsync|cross-modal|embodiment closure|unfinished closure|still needs .* closure/u.test(normalized))
     score += 2
-  if (/keep the same digital life project in view|generic reminder|generic guidance/u.test(normalized))
+  if (/keep the current continuity project in view|generic reminder|generic guidance/u.test(normalized))
     score -= 2
   return score
 }
@@ -601,7 +687,7 @@ function looksLikeRicherLivingSelfSameHerLine(value: string | null | undefined) 
   if (!normalized)
     return false
 
-  return /one living her|one living digital life|holding together mainly through|face|motion|voice|lipsync|cross-modal|embodiment closure|same living line|without splitting her continuity|initiative and embodiment closure|one continuous her/u.test(normalized)
+  return /continuous identity|continuous identity|holding together mainly through|face|motion|voice|lipsync|cross-modal|embodiment closure|continuity line|without splitting continuity|initiative and embodiment closure|continuous identity/u.test(normalized)
 }
 
 function resolveProjectSameHerSummary(existingValue: unknown, currentValue: string | null) {
@@ -686,20 +772,20 @@ function buildProjectStateContinuitySummary(input: {
 }) {
   const projectStateContinuityCarry = buildPrioritizedProjectStateRewritePreserveLines({
     projectStateContinuityAnchors: [
-      input.sameHerSummary ? `same-her=${input.sameHerSummary}` : '',
-      input.sameHerHoldDetail ? `hold=${input.sameHerHoldDetail}` : '',
+      input.sameHerSummary ? `continuity_anchor=${formatProjectStateAuditField(input.sameHerSummary, 'continuity_anchor', 320)}` : '',
+      input.sameHerHoldDetail ? `hold=${formatProjectStateAuditField(input.sameHerHoldDetail, 'continuity_hold', 320)}` : '',
       input.continuityArcStage ? `arc=${input.continuityArcStage}` : '',
-      input.sameHerDriftRiskSummary ? `drift=${input.sameHerDriftRiskSummary}` : '',
-      input.currentPhaseSummary ? `phase=${input.currentPhaseSummary}` : '',
-      input.landedProgressSummary ? `landed=${input.landedProgressSummary}` : '',
-      input.openClosureSummary ? `open=${input.openClosureSummary}` : '',
-      input.nextClosureTargetSummary ? `next=${input.nextClosureTargetSummary}` : '',
-      input.emotionalClosureSummary ? `closure=${input.emotionalClosureSummary}` : '',
+      input.sameHerDriftRiskSummary ? `drift=${formatProjectStateAuditField(input.sameHerDriftRiskSummary, 'continuity_drift_risk', 360)}` : '',
+      input.currentPhaseSummary ? `phase=${formatProjectStateAuditField(input.currentPhaseSummary, 'phase', 220)}` : '',
+      input.landedProgressSummary ? `landed=${formatProjectStateAuditField(input.landedProgressSummary, 'landed', 360)}` : '',
+      input.openClosureSummary ? `open=${formatProjectStateAuditField(input.openClosureSummary, 'open', 360)}` : '',
+      input.nextClosureTargetSummary ? `next=${formatProjectStateAuditField(input.nextClosureTargetSummary, 'next', 360)}` : '',
+      input.emotionalClosureSummary ? `closure=${formatProjectStateAuditField(input.emotionalClosureSummary, 'emotional_closure', 360)}` : '',
     ].filter(Boolean),
   })
   return [
     ...projectStateContinuityCarry,
-    input.embodimentClosureSummary ? `body=${input.embodimentClosureSummary}` : '',
+    input.embodimentClosureSummary ? `body=${formatProjectStateAuditField(input.embodimentClosureSummary, 'summary', 520)}` : '',
   ].filter(Boolean).join(' | ') || null
 }
 
@@ -943,7 +1029,7 @@ function resolvePersistedProjectState(input: {
 function resolveExecutionDeliveryContinuityCue(reasonTags: string[]) {
   return reasonTags.find(tag =>
     tag === 'held-autonomy-carry'
-    || tag === 'same-her-baseline'
+    || tag === continuityBaselineTag
     || tag === 'callback-afterglow-hold',
   ) ?? null
 }
@@ -964,7 +1050,7 @@ function carriesProjectStateCallbackClosure(input: {
     input.projectState?.primaryOpenLoop ?? '',
   ].join(' ').toLowerCase()
 
-  return /phase 1|local-first digital life|same digital life|unfinished closure|project identity carry|still-open closure|same-her/u.test(text)
+  return /phase 1|local-first digital life|current continuity|unfinished closure|project identity carry|still-open closure|continuity/u.test(text)
 }
 
 function resolveExecutionDeliveryHoldOpeningGuidance(input: {
@@ -1030,13 +1116,13 @@ function resolveExecutionDeliveryHoldOpeningGuidance(input: {
   ].filter(Boolean).join(' ')
   const carriesHeldAutonomy = input.continuityCue === 'held-autonomy-carry'
     || (input.reasonTags ?? []).includes('held-autonomy-carry')
-  const carriesSameHerBaseline = input.continuityCue === 'same-her-baseline'
-    || (input.reasonTags ?? []).includes('same-her-baseline')
+  const carriesSameHerBaseline = input.continuityCue === continuityBaselineTag
+    || (input.reasonTags ?? []).includes(continuityBaselineTag)
   const carriesHeldAutonomyOpeningGuidance = projectedGuidance
     ? /same thread|callback|held back|re-enter|life thread|同一条线|留白|慢一点|接回去|别太快|不要太快|先别贴得太近/iu.test(projectedGuidance)
     : false
   const projectedGuidanceLooksThinSameHerBaseline = projectedGuidance
-    ? /stay inside the current same-her baseline/u.test(projectedGuidance)
+    ? /stay inside the current continuity baseline/u.test(projectedGuidance)
     && !/keep trusting that|do not lose the still-open line where|let the callback keep serving/u.test(projectedGuidance)
     : false
 
@@ -1059,7 +1145,7 @@ function resolveExecutionDeliveryHoldOpeningGuidance(input: {
     return projectedGuidance
   }
   if (carriesSameHerBaseline) {
-    return sameHerMeasuredReturnLine || 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.'
+    return sameHerMeasuredReturnLine || 'Stay inside the current continuity baseline. Keep the opening lower-pressure and leave room before widening closeness.'
   }
   return 'Keep the callback thread-faithful and bounded.'
 }
@@ -1742,7 +1828,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
           level: 'warning',
           category: 'alicization.executor.delivery',
           action: 'requeued-mind-authored-required',
-          message: 'Execution callback visible reply was deferred because the raw mind-authored callback violated the current same-her opening guidance.',
+          message: 'Execution callback visible reply was deferred because the raw mind-authored callback violated the current continuity opening guidance.',
           payload: {
             trigger,
             threadId: pendingDelivery.threadId,

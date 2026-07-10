@@ -62,14 +62,14 @@ function resolveSurvivingVisibleLane(detail: string) {
 
   if (
     detail.includes('lane=face+lipsync-only')
-    || detail.includes('当前只有 face 和 lipsync 这条 same-her 生命线')
+    || detail.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
   ) {
     return 'face+lipsync-only' as const
   }
 
   if (
     detail.includes('lane=motion+lipsync-only')
-    || detail.includes('当前只有 motion 和 lipsync 这条 same-her 生命线')
+    || detail.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
   ) {
     return 'motion+lipsync-only' as const
   }
@@ -163,13 +163,13 @@ function resolveBodyContinuityFirstCheck(params: {
 
   if (params.bodyContinuityPhase === 'renderer-rejoin-without-body') {
     if (params.survivingVisibleLane === 'face+lipsync+voice-only')
-      return 'quieter face+lipsync+voice same-her line still visible -> body motion pending rejoin -> body-loss audit'
+      return 'quieter face+lipsync+voice identity-continuity line still visible -> body motion pending rejoin -> body-loss audit'
     if (params.survivingVisibleLane === 'motion+lipsync+voice-only')
-      return 'quieter motion+lipsync+voice same-her line still visible -> body face pending rejoin -> body-loss audit'
+      return 'quieter motion+lipsync+voice identity-continuity line still visible -> body face pending rejoin -> body-loss audit'
     if (params.survivingVisibleLane === 'face+lipsync-only')
-      return 'quieter face+lipsync same-her line still visible -> body motion voice pending rejoin -> body-loss audit'
+      return 'quieter face+lipsync identity-continuity line still visible -> body motion voice pending rejoin -> body-loss audit'
     if (params.survivingVisibleLane === 'motion+lipsync-only')
-      return 'quieter motion+lipsync same-her line still visible -> body face voice pending rejoin -> body-loss audit'
+      return 'quieter motion+lipsync identity-continuity line still visible -> body face voice pending rejoin -> body-loss audit'
     return params.rendererSurfaceToken
       ? `${params.rendererSurfaceToken} renderer rejoin without body carry -> playback cue binding -> body-loss audit`
       : 'renderer rejoin without body carry -> playback cue binding -> body-loss audit'
@@ -194,13 +194,13 @@ function resolveBodyContinuityRepairPath(params: {
 
   if (params.bodyContinuityPhase === 'renderer-rejoin-without-body') {
     if (params.survivingVisibleLane === 'face+lipsync+voice-only')
-      return 'continuity governance quieter-face-lipsync-voice-same-her-line -> body motion pending rejoin -> cue bridge body-loss audit'
+      return 'continuity governance quieter-face-lipsync-voice-identity-continuity-line -> body motion pending rejoin -> cue bridge body-loss audit'
     if (params.survivingVisibleLane === 'motion+lipsync+voice-only')
-      return 'continuity governance quieter-motion-lipsync-voice-same-her-line -> body face pending rejoin -> cue bridge body-loss audit'
+      return 'continuity governance quieter-motion-lipsync-voice-identity-continuity-line -> body face pending rejoin -> cue bridge body-loss audit'
     if (params.survivingVisibleLane === 'face+lipsync-only')
-      return 'continuity governance quieter-face-lipsync-same-her-line -> body motion voice pending rejoin -> cue bridge body-loss audit'
+      return 'continuity governance quieter-face-lipsync-identity-continuity-line -> body motion voice pending rejoin -> cue bridge body-loss audit'
     if (params.survivingVisibleLane === 'motion+lipsync-only')
-      return 'continuity governance quieter-motion-lipsync-same-her-line -> body face voice pending rejoin -> cue bridge body-loss audit'
+      return 'continuity governance quieter-motion-lipsync-identity-continuity-line -> body face voice pending rejoin -> cue bridge body-loss audit'
     return params.rendererSurfaceToken
       ? `continuity governance renderer-rejoin-without-body -> ${params.rendererSurfaceToken} rejoin without body carry -> cue bridge body-loss audit`
       : 'continuity governance renderer-rejoin-without-body -> renderer rejoin without body carry -> cue bridge body-loss audit'
@@ -264,7 +264,7 @@ export function buildSelfEvolutionTriageView(
         id: 'repair-owner',
         label: '修复归属',
         layer: 'continuity',
-        detail: 'same-her continuity governance',
+        detail: 'identity-continuity continuity governance',
       },
       {
         id: 'first-check',
@@ -276,7 +276,7 @@ export function buildSelfEvolutionTriageView(
         id: 'repair-path',
         label: '修复路径',
         layer: null,
-        detail: 'continuity governance remembered-familiarity-memory-first -> candidate trajectory same-her room -> identity boundary bounded-growth',
+        detail: 'continuity governance remembered-familiarity-memory-first -> candidate trajectory identity-continuity room -> identity boundary bounded-growth',
       },
     )
   }

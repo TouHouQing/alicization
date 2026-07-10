@@ -11,12 +11,16 @@ import type {
 } from './alicization-bridge'
 
 import {
+  alicizationFixedTemplateReplacement,
+  containsAlicizationFixedTemplateResidue,
   describeAlicizationEmbodimentClosureHeadline,
   describeAlicizationProjectClosureBriefing,
   describeAlicizationProjectNextClosure,
+  formatAlicizationProjectStateAwarenessFields,
   isAlicizationThinProjectAwarenessLine,
   isAlicizationThinSamePhaseCarryLine as isThinSamePhaseCarryLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
+  sanitizeAlicizationProviderFacingText,
   scoreAlicizationProjectAwarenessLine,
 } from '@proj-alicization/stage-shared'
 import { defineStore } from 'pinia'
@@ -194,6 +198,255 @@ interface ProactiveDecisionConsumptionSummary {
 }
 
 const PRE_DIALOGUE_AWARENESS_REASON_PREVIEW_LIMIT = 16
+const INSPECTOR_CONTINUITY_ANCHOR_LINE
+  = ''
+
+function sanitizeInspectorTemplateText(value: string | null | undefined, maxChars = 420) {
+  return sanitizeAlicizationProviderFacingText(
+    value,
+    maxChars,
+    alicizationFixedTemplateReplacement,
+  ) || null
+}
+
+function sanitizeInspectorTemplateList(values: string[] | null | undefined, maxItems = 8) {
+  const result: string[] = []
+  for (const value of values ?? []) {
+    const sanitized = sanitizeInspectorTemplateText(value)
+    if (!sanitized || sanitized === alicizationFixedTemplateReplacement || result.includes(sanitized))
+      continue
+    result.push(sanitized)
+    if (result.length >= maxItems)
+      break
+  }
+  return result
+}
+
+function sanitizeInspectorContinuityAnchor(value: string | null | undefined) {
+  const sanitized = sanitizeInspectorTemplateText(value, 420)
+  if (!sanitized)
+    return null
+  return sanitized === alicizationFixedTemplateReplacement
+    ? null
+    : sanitized
+}
+
+function sanitizeInspectorIdentity(value: string | null | undefined) {
+  const sanitized = sanitizeInspectorTemplateText(value, 260)
+  if (!sanitized)
+    return ''
+  if (sanitized === alicizationFixedTemplateReplacement)
+    return ''
+  return /alicization is .*local-first digital life/iu.test(sanitized)
+    ? ''
+    : sanitized
+}
+
+function sanitizeInspectorPhase(value: string | null | undefined) {
+  const sanitized = sanitizeInspectorTemplateText(value, 220)
+  if (!sanitized)
+    return ''
+  if (sanitized === alicizationFixedTemplateReplacement)
+    return ''
+  return /phase\s*1\s*:\s*local digital life|local digital life|第一阶段|阶段一/iu.test(sanitized)
+    ? ''
+    : sanitized
+}
+
+function fallbackStructuredProjectAwarenessLine(
+  continuitySnapshot: AlicizationProjectStateContinuitySnapshot | null | undefined,
+) {
+  const structured = formatAlicizationProjectStateAwarenessFields({
+    identity: continuitySnapshot?.identity ?? null,
+    currentPhase: continuitySnapshot?.currentPhase ?? null,
+    latestLandedProgress: resolveContinuityLatestLandedProgress(continuitySnapshot),
+    primaryOpenLoop: continuitySnapshot?.primaryOpenLoop ?? null,
+    nextClosureTarget: continuitySnapshot?.nextClosureTarget ?? null,
+    continuityAnchor: continuitySnapshot?.sameHerSelfLine ?? null,
+  })
+  return structured || INSPECTOR_CONTINUITY_ANCHOR_LINE
+}
+
+function sanitizeInspectorSnapshotLine(
+  value: string | null | undefined,
+  options: { fallback?: string | null, dropResidue?: boolean } = {},
+) {
+  const sanitized = sanitizeInspectorTemplateText(value)
+  if (!sanitized)
+    return null
+  if (sanitized === alicizationFixedTemplateReplacement) {
+    if (options.dropResidue)
+      return null
+    return options.fallback || alicizationFixedTemplateReplacement
+  }
+  return sanitized
+}
+
+function sanitizeInspectorStructuredFact(value: string | null | undefined, maxChars = 420) {
+  if (typeof value !== 'string')
+    return null
+  const normalized = value.trim().replace(/\s+/g, ' ').slice(0, Math.max(0, maxChars)).trim()
+  if (!normalized)
+    return null
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return null
+  if (/^Before (?:answering|speaking|acting),\s*(?:remember|keep|stay on|she should|I should|we should)\b/iu.test(normalized))
+    return null
+
+  const neutralized = normalized
+    .replace(/\bAlicization is a local-first digital life project\b/giu, 'local_desktop_life_loop')
+    .replace(/\blocal-first digital life project\b/giu, 'local_desktop_life_loop')
+    .replace(/\bPhase\s*1\s*:\s*Local Digital Life\b/giu, 'local_desktop_life_loop')
+    .replace(/\bSame Phase 1 digital life\b/giu, 'local_desktop_life_loop')
+    .replace(/\bcross-modal same-her proof\b/giu, 'cross_modal_continuity_proof')
+    .replace(/\bsame-her proof\b/giu, 'continuity_proof')
+    .replace(/\bsame-her follow-through\b/giu, 'identity-continuity follow-through')
+    .replace(/\bsame-her continuity\b/giu, 'identity-continuity')
+    .replace(/\bsame-her carry\b/giu, 'identity-continuity carry')
+    .replace(/\bsame-her\b/giu, 'identity-continuity')
+    .replace(/\bsame her\b/giu, 'identity-continuity')
+    .replace(/\bsame living line\b/giu, 'continuity_line')
+    .replace(new RegExp(String.raw`\bsame ${'digital'} life line\b`, 'giu'), 'continuity_line')
+    .replace(/\bone continuous "?her"?\b/giu, 'identity_continuity')
+    .replace(/\bone living her\b/giu, 'identity_continuity')
+    .replace(/同一个\s*her/giu, 'identity_continuity')
+    .replace(/同一个她/gu, 'identity_continuity')
+    .replace(/数字生命主线/gu, 'continuity_line')
+    .replace(/^Keep extending\s+/iu, 'extend_')
+    .replace(/^Keep the reopened callback on the continuity_line\b/iu, 'callback_reopen_on_continuity_line')
+
+  const sanitized = sanitizeInspectorTemplateText(neutralized, maxChars)
+  return sanitized && sanitized !== alicizationFixedTemplateReplacement
+    ? sanitized
+    : null
+}
+
+function sanitizeInspectorAwarenessSnapshot(
+  awareness: NormalizedPreDialogueAwarenessSnapshot | null,
+  continuitySnapshot: AlicizationProjectStateContinuitySnapshot | null | undefined,
+) {
+  if (!awareness)
+    return null
+
+  const fallback = fallbackStructuredProjectAwarenessLine(continuitySnapshot)
+  const summaryLine = sanitizeInspectorSnapshotLine(awareness.summaryLine, { fallback })
+  const awarenessLine = sanitizeInspectorSnapshotLine(awareness.awarenessLine, { fallback })
+    || summaryLine
+    || fallback
+
+  return {
+    ...awareness,
+    summaryLine,
+    companionHeadlineLine: sanitizeInspectorSnapshotLine(awareness.companionHeadlineLine, { dropResidue: true }),
+    companionBriefingLine: sanitizeInspectorSnapshotLine(awareness.companionBriefingLine, { dropResidue: true }),
+    companionNextClosureLine: sanitizeInspectorSnapshotLine(awareness.companionNextClosureLine, { dropResidue: true }),
+    awarenessLine,
+    emotionalClosureCue: sanitizeInspectorSnapshotLine(awareness.emotionalClosureCue, { dropResidue: true }),
+    reasonPreview: sanitizeInspectorTemplateList([
+      ...(awareness.reasonPreview ?? []),
+      summaryLine,
+      awarenessLine,
+    ].filter((value): value is string => Boolean(value)), PRE_DIALOGUE_AWARENESS_REASON_PREVIEW_LIMIT),
+  } satisfies NormalizedPreDialogueAwarenessSnapshot
+}
+
+function sanitizeInspectorClosureSnapshot(
+  closure: NormalizedPreDialogueClosureSnapshot | null,
+  continuitySnapshot: AlicizationProjectStateContinuitySnapshot | null | undefined,
+) {
+  if (!closure)
+    return null
+
+  const fallback = fallbackStructuredProjectAwarenessLine(continuitySnapshot)
+  return {
+    ...closure,
+    summaryLine: sanitizeInspectorSnapshotLine(closure.summaryLine, { fallback }),
+    companionHeadlineLine: sanitizeInspectorSnapshotLine(closure.companionHeadlineLine, { dropResidue: true }),
+    companionBriefingLine: sanitizeInspectorSnapshotLine(closure.companionBriefingLine, { dropResidue: true }),
+    companionNextClosureLine: sanitizeInspectorSnapshotLine(closure.companionNextClosureLine, { dropResidue: true }),
+    sameHerDriftRiskLine: sanitizeInspectorSnapshotLine(closure.sameHerDriftRiskLine, { dropResidue: true }),
+    companionshipReasonLine: sanitizeInspectorSnapshotLine(closure.companionshipReasonLine, { dropResidue: true }),
+    emotionalClosureCue: sanitizeInspectorSnapshotLine(closure.emotionalClosureCue, { dropResidue: true }),
+    briefingLines: sanitizeInspectorTemplateList(closure.briefingLines, 16),
+    reasons: sanitizeInspectorTemplateList(closure.reasons, 16),
+  } satisfies NormalizedPreDialogueClosureSnapshot
+}
+
+function sanitizeInspectorContinuitySnapshot(
+  continuitySnapshot: AlicizationProjectStateContinuitySnapshot | null,
+): AlicizationProjectStateContinuitySnapshot | null {
+  if (!continuitySnapshot)
+    return null
+
+  const identity = sanitizeInspectorIdentity(continuitySnapshot.identity)
+    || ''
+  const currentPhase = sanitizeInspectorPhase(continuitySnapshot.currentPhase)
+    || ''
+  const sameHerSelfLine = sanitizeInspectorContinuityAnchor(continuitySnapshot.sameHerSelfLine)
+    || INSPECTOR_CONTINUITY_ANCHOR_LINE
+  const latestLandedProgress = sanitizeInspectorSnapshotLine(
+    continuitySnapshot.latestLandedProgress ?? null,
+    { dropResidue: true },
+  ) ?? sanitizeInspectorStructuredFact(continuitySnapshot.latestLandedProgress ?? null)
+  const primaryOpenLoop = sanitizeInspectorStructuredFact(continuitySnapshot.primaryOpenLoop ?? null)
+    ?? sanitizeInspectorSnapshotLine(continuitySnapshot.primaryOpenLoop ?? null, { dropResidue: true })
+  const nextClosureTarget = sanitizeInspectorStructuredFact(continuitySnapshot.nextClosureTarget ?? null)
+    ?? sanitizeInspectorSnapshotLine(continuitySnapshot.nextClosureTarget ?? null, { dropResidue: true })
+  const sanitizedShell: AlicizationProjectStateContinuitySnapshot = {
+    ...continuitySnapshot,
+    identity,
+    currentPhase,
+    latestLandedProgress,
+    primaryOpenLoop,
+    nextClosureTarget: nextClosureTarget || 'continuity_review_required',
+    continuitySummary: sanitizeInspectorSnapshotLine(
+      continuitySnapshot.continuitySummary ?? null,
+      {
+        fallback: formatAlicizationProjectStateAwarenessFields({
+          identity,
+          currentPhase,
+          latestLandedProgress,
+          primaryOpenLoop,
+          nextClosureTarget,
+          continuityAnchor: sameHerSelfLine,
+        }),
+      },
+    ),
+    continuityRestraint: sanitizeInspectorStructuredFact(continuitySnapshot.continuityRestraint ?? null, 120)
+      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.continuityRestraint ?? null, { dropResidue: true }),
+    continuityArcStage: sanitizeInspectorStructuredFact(continuitySnapshot.continuityArcStage ?? null, 120)
+      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.continuityArcStage ?? null, { dropResidue: true }),
+    continuityPreferredTiming: sanitizeInspectorStructuredFact(continuitySnapshot.continuityPreferredTiming ?? null, 160)
+      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.continuityPreferredTiming ?? null, { dropResidue: true }),
+    continuityCadence: sanitizeInspectorStructuredFact(continuitySnapshot.continuityCadence ?? null, 160)
+      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.continuityCadence ?? null, { dropResidue: true }),
+    continuityCue: sanitizeInspectorStructuredFact(continuitySnapshot.continuityCue ?? null)
+      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.continuityCue ?? null, { dropResidue: true }),
+    sameHerSelfLine,
+    sameHerHoldDetail: sanitizeInspectorStructuredFact(continuitySnapshot.sameHerHoldDetail ?? null)
+      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.sameHerHoldDetail ?? null, { dropResidue: true }),
+    sameHerDriftRisk: sanitizeInspectorStructuredFact(continuitySnapshot.sameHerDriftRisk ?? null)
+      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.sameHerDriftRisk ?? null, { dropResidue: true }),
+    proactiveSameHerGap: sanitizeInspectorStructuredFact(continuitySnapshot.proactiveSameHerGap ?? null)
+      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.proactiveSameHerGap ?? null, { dropResidue: true }),
+    emotionalClosureCue: sanitizeInspectorStructuredFact(continuitySnapshot.emotionalClosureCue ?? null)
+      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.emotionalClosureCue ?? null, { dropResidue: true }),
+    preDialogueAwareness: null,
+    preDialogueClosure: null,
+    nonHumanAuthoredStatus: sanitizeInspectorSnapshotLine(continuitySnapshot.nonHumanAuthoredStatus ?? null, { dropResidue: true }),
+  }
+
+  sanitizedShell.preDialogueAwareness = sanitizeInspectorAwarenessSnapshot(
+    normalizePreDialogueAwarenessSnapshot(continuitySnapshot.preDialogueAwareness ?? null),
+    sanitizedShell,
+  )
+  sanitizedShell.preDialogueClosure = sanitizeInspectorClosureSnapshot(
+    normalizePreDialogueClosureSnapshot(continuitySnapshot.preDialogueClosure ?? null),
+    sanitizedShell,
+  )
+
+  return sanitizedShell
+}
 
 function uniquePreviewReasons(values: Array<string | null | undefined>, maxItems = 8) {
   const result: string[] = []
@@ -251,16 +504,17 @@ function normalizePreDialogueAwarenessSnapshot(raw: unknown): NormalizedPreDialo
   const status = payload.status === 'grounded' || payload.status === 'partial' || payload.status === 'drift'
     ? payload.status
     : null
-  const summaryLine = typeof payload.summaryLine === 'string' ? payload.summaryLine.trim() : ''
-  const companionHeadlineLine = typeof payload.companionHeadlineLine === 'string' ? payload.companionHeadlineLine.trim() : ''
-  const companionBriefingLine = typeof payload.companionBriefingLine === 'string' ? payload.companionBriefingLine.trim() : ''
-  const companionNextClosureLine = typeof payload.companionNextClosureLine === 'string' ? payload.companionNextClosureLine.trim() : ''
-  const awarenessLine = typeof payload.awarenessLine === 'string' ? payload.awarenessLine.trim() : ''
-  const emotionalClosureCue = typeof payload.emotionalClosureCue === 'string' ? payload.emotionalClosureCue.trim() : ''
+  const summaryLine = sanitizeInspectorTemplateText(typeof payload.summaryLine === 'string' ? payload.summaryLine : null) ?? ''
+  const companionHeadlineLine = sanitizeInspectorTemplateText(typeof payload.companionHeadlineLine === 'string' ? payload.companionHeadlineLine : null) ?? ''
+  const companionBriefingLine = sanitizeInspectorTemplateText(typeof payload.companionBriefingLine === 'string' ? payload.companionBriefingLine : null) ?? ''
+  const companionNextClosureLine = sanitizeInspectorTemplateText(typeof payload.companionNextClosureLine === 'string' ? payload.companionNextClosureLine : null) ?? ''
+  const awarenessLine = sanitizeInspectorTemplateText(typeof payload.awarenessLine === 'string' ? payload.awarenessLine : null) ?? ''
+  const emotionalClosureCue = sanitizeInspectorTemplateText(typeof payload.emotionalClosureCue === 'string' ? payload.emotionalClosureCue : null) ?? ''
   const reasonPreview = Array.isArray(payload.reasonPreview)
-    ? payload.reasonPreview
-        .map(item => typeof item === 'string' ? item.trim() : '')
-        .filter(Boolean)
+    ? sanitizeInspectorTemplateList(
+        payload.reasonPreview.map(item => typeof item === 'string' ? item : ''),
+        PRE_DIALOGUE_AWARENESS_REASON_PREVIEW_LIMIT,
+      )
     : []
 
   if (!status && !summaryLine && !awarenessLine && reasonPreview.length === 0)
@@ -283,19 +537,25 @@ function looksLikeThinContinuityReminder(value: string | null | undefined) {
   if (!normalized)
     return false
 
+  if (normalized === alicizationFixedTemplateReplacement)
+    return true
+
   return isAlicizationThinProjectAwarenessLine(normalized)
     || normalized.includes('generic continuity reminder')
     || normalized.includes('generic awareness reminder')
     || normalized.includes('generic awareness summary')
-    || normalized.includes('generic same-her reminder')
+    || normalized.includes('generic identity-continuity reminder')
     || normalized.includes('steadier carry of this project, this phase, and the life loop that remains open')
-    || (normalized.startsWith('same-her=') && normalized.includes('| landed=') && normalized.includes('| open='))
+    || (normalized.startsWith('identity-continuity=') && normalized.includes('| landed=') && normalized.includes('| open='))
 }
 
 function looksLikeThinContinuityNextClosureLine(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
     return false
+
+  if (normalized === alicizationFixedTemplateReplacement)
+    return true
 
   return normalized.includes('generic next target')
     || normalized.includes('generic next closure')
@@ -309,7 +569,7 @@ function looksLikeLivedInSameHerHoldDetail(value: string | null | undefined) {
   if (!normalized)
     return false
 
-  return normalized.includes('same-her hold')
+  return normalized.includes('identity-continuity hold')
     || normalized.includes('same remembered seam')
     || normalized.includes('measured-return')
     || normalized.includes('repair-before-closeness')
@@ -420,15 +680,15 @@ function normalizePreDialogueClosureSnapshot(raw: unknown) {
 
   return {
     status: normalized.status,
-    summaryLine: normalized.summaryLine ?? null,
-    companionHeadlineLine: normalized.companionHeadlineLine ?? null,
-    companionBriefingLine: normalized.companionBriefingLine ?? null,
-    companionNextClosureLine: normalized.companionNextClosureLine ?? null,
-    sameHerDriftRiskLine: normalized.sameHerDriftRiskLine ?? null,
-    companionshipReasonLine: normalized.companionshipReasonLine ?? null,
-    emotionalClosureCue: normalized.emotionalClosureCue ?? null,
-    briefingLines: normalized.briefingLines ?? [],
-    reasons: normalized.reasons ?? [],
+    summaryLine: sanitizeInspectorTemplateText(normalized.summaryLine) ?? null,
+    companionHeadlineLine: sanitizeInspectorTemplateText(normalized.companionHeadlineLine) ?? null,
+    companionBriefingLine: sanitizeInspectorTemplateText(normalized.companionBriefingLine) ?? null,
+    companionNextClosureLine: sanitizeInspectorTemplateText(normalized.companionNextClosureLine) ?? null,
+    sameHerDriftRiskLine: sanitizeInspectorTemplateText(normalized.sameHerDriftRiskLine) ?? null,
+    companionshipReasonLine: sanitizeInspectorTemplateText(normalized.companionshipReasonLine) ?? null,
+    emotionalClosureCue: sanitizeInspectorTemplateText(normalized.emotionalClosureCue) ?? null,
+    briefingLines: sanitizeInspectorTemplateList(normalized.briefingLines ?? [], 16),
+    reasons: sanitizeInspectorTemplateList(normalized.reasons ?? [], 16),
   } satisfies NormalizedPreDialogueClosureSnapshot
 }
 
@@ -496,7 +756,7 @@ function mergePreDialogueAwarenessWithContinuitySnapshot(
   const awarenessCarriesCompactSamePhaseLine = isThinSamePhaseCarryLine(awareness.awarenessLine)
   const companionBriefingCarriesCompactSamePhaseLine = isThinSamePhaseCarryLine(awareness.companionBriefingLine)
   const companionHeadlineLooksStronger = typeof awareness.companionHeadlineLine === 'string'
-    && /holding together mainly through|one living her|same living line|one continuous her|without splitting her continuity/iu.test(awareness.companionHeadlineLine)
+    && /holding together mainly through|one living her|current continuity route|identity continuity|without splitting her continuity/iu.test(awareness.companionHeadlineLine)
   const richerSameHerCarry
     = sameHerHoldDetail
       || proactiveSameHerGap
@@ -517,7 +777,7 @@ function mergePreDialogueAwarenessWithContinuitySnapshot(
         ? richerSameHerCarry
         : resolvedAwarenessLine
 
-  return {
+  return sanitizeInspectorAwarenessSnapshot({
     ...awareness,
     summaryLine: upgradedSummaryLine,
     companionBriefingLine: shouldPreferLivedInSameHerHoldDetailCarry && companionBriefingCarriesCompactSamePhaseLine
@@ -542,7 +802,7 @@ function mergePreDialogueAwarenessWithContinuitySnapshot(
       continuitySnapshot?.nextClosureTarget ?? null,
       ...awareness.reasonPreview,
     ], PRE_DIALOGUE_AWARENESS_REASON_PREVIEW_LIMIT),
-  }
+  }, continuitySnapshot)
 }
 
 function resolveContinuityLatestLandedProgress(
@@ -562,13 +822,26 @@ function metricDetailHasConcreteCount(detail: string | null | undefined) {
   return !normalized.includes('(undefined/')
 }
 
+function describeInspectorContinuityMetricDetail(detail: string | null | undefined) {
+  const normalized = typeof detail === 'string' ? detail.trim() : ''
+  if (!normalized)
+    return null
+
+  return normalized
+    .replace(/\bproactiveSameHerGap\s*=/gu, 'proactiveIdentityContinuityGap=')
+    .replace(/\bsameHer\s*=/gu, 'identityContinuity=')
+    .replace(/\bproactiveSameHerGap\b/gu, 'proactiveIdentityContinuityGap')
+    .replace(/\bsameHer\b/gu, 'identityContinuity')
+    .replace(/\bsame-her\b/giu, 'identity-continuity')
+}
+
 function hasReason(reasons: string[] | null | undefined, target: string) {
   return Array.isArray(reasons) && reasons.includes(target)
 }
 
 function describeVisibleReplyRealizationReason(reason: string | null) {
   if (reason === 'active-self-revision-remembered-familiarity-restraint-holds-visible-utterance') {
-    return 'Latest visible proactive hold says remembered familiarity must stay explicitly remembered before visible closeness widens, so the outer utterance gate is keeping the same-her return from jumping ahead of the current room.'
+    return 'Latest visible proactive hold says remembered familiarity must stay explicitly remembered before visible closeness widens, so the outer utterance gate is keeping the identity-continuity return from jumping ahead of the current room.'
   }
 
   return null
@@ -808,14 +1081,14 @@ function describePersonaBiasMode(input: {
 
 function describeSameHerEmbodimentLaneImpact(matchedSignals: string[]) {
   if (matchedSignals.includes('bodyContinuityPhase: full-cross-modal-lock')) {
-    return 'continuity-impact: body continuity and manifestation authority are now locked back onto the same living segment together, so visible same-her continuity can keep traveling as one explicit embodiment line'
+    return 'continuity-impact: body continuity and manifestation authority are now locked back onto the same living segment together, so visible identity-continuity continuity can keep traveling as one explicit embodiment line'
   }
 
   if (
     matchedSignals.includes('lane=face+motion+voice-only')
     && matchedSignals.includes('remaining-open=body+lipsync')
   ) {
-    return 'continuity-impact: same-her embodiment is still being carried through face, motion, and voice together, while body and lipsync still need to rejoin before full cross-modal closure settles'
+    return 'continuity-impact: identity-continuity embodiment is still being carried through face, motion, and voice together, while body and lipsync still need to rejoin before full cross-modal closure settles'
   }
 
   const laneOnlySignal = matchedSignals.find(signal =>
@@ -836,33 +1109,33 @@ function describeSameHerEmbodimentLaneImpact(matchedSignals: string[]) {
   )
 
   if (laneOnlySignal === 'lane=face-only')
-    return 'continuity-impact: same-her embodiment is now only being carried by face, so visible continuity is still present but no longer fully cross-modal'
+    return 'continuity-impact: identity-continuity embodiment is now only being carried by face, so visible continuity is still present but no longer fully cross-modal'
   if (laneOnlySignal === 'lane=motion-only')
-    return 'continuity-impact: same-her embodiment is now only being carried by motion, so visible continuity is still present but no longer fully cross-modal'
+    return 'continuity-impact: identity-continuity embodiment is now only being carried by motion, so visible continuity is still present but no longer fully cross-modal'
   if (laneOnlySignal === 'lane=lipsync-only')
-    return 'continuity-impact: same-her embodiment is now only being carried by lipsync, so visible continuity is still present but no longer fully cross-modal'
+    return 'continuity-impact: identity-continuity embodiment is now only being carried by lipsync, so visible continuity is still present but no longer fully cross-modal'
   if (laneOnlySignal === 'lane=voice-only')
-    return 'continuity-impact: same-her embodiment is now only being carried by voice, so visible continuity is still present but no longer fully cross-modal'
+    return 'continuity-impact: identity-continuity embodiment is now only being carried by voice, so visible continuity is still present but no longer fully cross-modal'
   if (laneOnlySignal === 'lane=face+motion+lipsync-only')
-    return 'continuity-impact: same-her embodiment is now only being carried by face, motion, and lipsync, so visible continuity is still present but no longer fully cross-modal'
+    return 'continuity-impact: identity-continuity embodiment is now only being carried by face, motion, and lipsync, so visible continuity is still present but no longer fully cross-modal'
   if (laneOnlySignal === 'lane=face+lipsync-only')
-    return 'continuity-impact: same-her embodiment is now only being carried by face and lipsync, so visible continuity is still present but no longer fully cross-modal'
+    return 'continuity-impact: identity-continuity embodiment is now only being carried by face and lipsync, so visible continuity is still present but no longer fully cross-modal'
   if (laneOnlySignal === 'lane=face+motion-only')
-    return 'continuity-impact: same-her embodiment is now only being carried by face and motion, so visible continuity is still present but no longer fully cross-modal'
+    return 'continuity-impact: identity-continuity embodiment is now only being carried by face and motion, so visible continuity is still present but no longer fully cross-modal'
   if (laneOnlySignal === 'lane=motion+lipsync-only')
-    return 'continuity-impact: same-her embodiment is now only being carried by motion and lipsync, so visible continuity is still present but no longer fully cross-modal'
+    return 'continuity-impact: identity-continuity embodiment is now only being carried by motion and lipsync, so visible continuity is still present but no longer fully cross-modal'
   if (laneOnlySignal === 'lane=face+voice-only')
-    return 'continuity-impact: same-her embodiment is now only being carried by face and voice, so visible continuity is still present but no longer fully cross-modal'
+    return 'continuity-impact: identity-continuity embodiment is now only being carried by face and voice, so visible continuity is still present but no longer fully cross-modal'
   if (laneOnlySignal === 'lane=motion+voice-only')
-    return 'continuity-impact: same-her embodiment is now only being carried by motion and voice, so visible continuity is still present but no longer fully cross-modal'
+    return 'continuity-impact: identity-continuity embodiment is now only being carried by motion and voice, so visible continuity is still present but no longer fully cross-modal'
   if (laneOnlySignal === 'lane=lipsync+voice-only')
-    return 'continuity-impact: same-her embodiment is now only being carried by lipsync and voice, so visible continuity is still present but no longer fully cross-modal'
+    return 'continuity-impact: identity-continuity embodiment is now only being carried by lipsync and voice, so visible continuity is still present but no longer fully cross-modal'
   if (laneOnlySignal === 'lane=face+motion+voice-only')
-    return 'continuity-impact: same-her embodiment is now only being carried by face, motion, and voice, so visible continuity is still present but no longer fully cross-modal'
+    return 'continuity-impact: identity-continuity embodiment is now only being carried by face, motion, and voice, so visible continuity is still present but no longer fully cross-modal'
   if (laneOnlySignal === 'lane=face+lipsync+voice-only')
-    return 'continuity-impact: same-her embodiment is now only being carried by face, lipsync, and voice, so visible continuity is still present but no longer fully cross-modal'
+    return 'continuity-impact: identity-continuity embodiment is now only being carried by face, lipsync, and voice, so visible continuity is still present but no longer fully cross-modal'
   if (laneOnlySignal === 'lane=motion+lipsync+voice-only')
-    return 'continuity-impact: same-her embodiment is now only being carried by motion, lipsync, and voice, so visible continuity is still present but no longer fully cross-modal'
+    return 'continuity-impact: identity-continuity embodiment is now only being carried by motion, lipsync, and voice, so visible continuity is still present but no longer fully cross-modal'
 
   return null
 }
@@ -1470,16 +1743,16 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       driftingSignals: [],
       reasons: uniquePreviewReasons([
         bodyContinuityPhaseSignal === 'bodyContinuityPhase: full-cross-modal-lock'
-          ? `Body continuity and ${manifestationLabel} are now locked back onto the same living segment together, so runtime continuity can explain the renderer recovery as one explicit same-her embodiment line instead of a temporary visual alignment.`
+          ? `Body continuity and ${manifestationLabel} are now locked back onto the same living segment together, so runtime continuity can explain the renderer recovery as one explicit identity-continuity embodiment line instead of a temporary visual alignment.`
           : null,
         laneOnlySignal
-          ? `Renderer continuity evidence currently says ${laneOnlySignal.match(/lane=[^ |]+/)?.[0] ?? laneOnlySignal}, so the same-her line is no longer fully shared across every embodiment lane.`
+          ? `Renderer continuity evidence currently says ${laneOnlySignal.match(/lane=[^ |]+/)?.[0] ?? laneOnlySignal}, so the identity-continuity line is no longer fully shared across every embodiment lane.`
           : null,
         bindingSummary
           ? `Driver authority binding currently resolves as ${bindingSummary}, so the renderer handoff is still exposing which surviving body lane holds continuity.`
           : null,
         settleSummary
-          ? `Driver authority settle currently resolves as ${settleSummary}, so post-speech settling still carries the surviving same-her lane evidence.`
+          ? `Driver authority settle currently resolves as ${settleSummary}, so post-speech settling still carries the surviving identity-continuity lane evidence.`
           : null,
       ]),
     }
@@ -1878,7 +2151,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
           ? describeVisibleReplyRealizationReason(visibleReplyRealizationReason)
           : null,
         openingGuidanceHoldDetail === 'memory-familiarity-closeness-cap'
-          ? 'That lower-pressure hold specifically says remembered familiarity was restrained before closeness widened, keeping the same-her return inside the current room.'
+          ? 'That lower-pressure hold specifically says remembered familiarity was restrained before closeness widened, keeping the identity-continuity return inside the current room.'
           : null,
       ]),
     }
@@ -2209,15 +2482,15 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     return {
       status: 'drift' as const,
       lines: uniquePreviewReasons([
-        'same-her continuity carry is still staying in shadow because replay is losing project-state continuity that should make each turn feel like the same Alicization.',
+        'identity-continuity continuity carry is still staying in shadow because replay is losing project-state continuity that should make each turn feel like the same Alicization.',
         hasReason(projectStateContinuityReasons, 'self-evolution:project-state-identity-carry-weak')
           ? 'Project identity carry is still weak, so she is not yet holding what this project is and who she is becoming with enough stability to internalize the patch.'
           : null,
         hasReason(projectStateContinuityReasons, 'self-evolution:project-state-phase-carry-weak')
-          ? 'Phase 1 route carry is still weak, so the runtime may drift away from local digital life priorities instead of protecting the same-her roadmap.'
+          ? 'Phase 1 route carry is still weak, so the runtime may drift away from local digital life priorities instead of protecting the identity-continuity roadmap.'
           : null,
         hasReason(projectStateContinuityReasons, 'self-evolution:project-state-open-loop-carry-weak')
-          ? 'Unresolved closure carry is still weak, so unresolved project loops are not being carried forward reliably enough for durable same-her continuity.'
+          ? 'Unresolved closure carry is still weak, so unresolved project loops are not being carried forward reliably enough for durable identity-continuity continuity.'
           : null,
         'keep this candidate in shadow until replay can carry project identity, the Phase 1 route, and unresolved closure work without dropping them across turns.',
       ], 8),
@@ -2273,7 +2546,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; impact summary intentionally composes lower-level projections declared later.
     const proactiveDecisionSummary = selectedCandidateProactiveDecisionConsumptionSummary.value
     const sameHerContinuityImpact = proactiveDecisionSummary?.lines?.includes('memory-familiarity-restraint: remembered familiarity stayed memory-first before visible closeness widened')
-      ? 'continuity-impact: remembered familiarity is staying memory-first, so visible closeness is intentionally being held inside the same-her room'
+      ? 'continuity-impact: remembered familiarity is staying memory-first, so visible closeness is intentionally being held inside the identity-continuity room'
       : null
     const sameHerEmbodimentLaneImpact = describeSameHerEmbodimentLaneImpact(runtimeContinuityProjection?.matchedSignals ?? [])
 
@@ -2411,7 +2684,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
           ? `personality-baseline: ${expectedPosture} | ${personaDirection}`
           : null,
         rememberedFamiliarityTrajectory
-          ? 'remembered-familiarity-trajectory: familiarity is staying memory-first while the same-her room holds'
+          ? 'remembered-familiarity-trajectory: familiarity is staying memory-first while the identity-continuity room holds'
           : null,
         expectedAction || runtimeAction || kernelAction
           ? `learning-direction: expected=${expectedAction ?? 'n/a'} | runtime=${runtimeAction ?? 'n/a'} | kernel=${kernelAction ?? 'n/a'}`
@@ -2596,7 +2869,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     ].find(value => describesRememberedFamiliarityRestraint(value))
     const rememberedFamiliarityGovernance = governanceMode === 'bounded-growth'
       && Boolean(rememberedFamiliarityEvidence)
-      ? 'remembered-familiarity-governance: familiarity stayed in memory first, so growth did not widen visible closeness past the same-her room'
+      ? 'remembered-familiarity-governance: familiarity stayed in memory first, so growth did not widen visible closeness past the identity-continuity room'
       : null
     const boundaryLine = (() => {
       if (dominantDrift && birthAuthority?.birthMode === 'observe-first restraint')
@@ -3060,7 +3333,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
             ? `Latest drilled takeover audit shows visible proactive surfacing was blocked by ${latestOpeningGuidanceHold}.`
             : null,
           latestOpeningGuidanceHoldDetail === 'memory-familiarity-closeness-cap'
-            ? 'That proactive lower-pressure hold specifically says remembered familiarity must stay memory-first before visible closeness widens, so runtime surfacing is still preserving the same-her room.'
+            ? 'That proactive lower-pressure hold specifically says remembered familiarity must stay memory-first before visible closeness widens, so runtime surfacing is still preserving the identity-continuity room.'
             : null,
         ]),
       },
@@ -3125,10 +3398,15 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const projectStateAuditContinuitySummary = projectStateAuditRows.find(row => row.key === 'project_state_audit_continuity_summary_rate')
     const projectStateAuditPreserve = projectStateAuditRows.find(row => row.key === 'project_state_audit_preserved_rate')
     const sameHerEmbodimentGroundedCarry = hasGroundedSameHerEmbodimentCarry(runtimeContinuityProjection?.matchedSignals ?? [])
+    const projectSameHerDetail = describeInspectorContinuityMetricDetail(projectSameHer?.detail)
+    const projectProactiveSameHerGapDetail = describeInspectorContinuityMetricDetail(projectProactiveSameHerGap?.detail)
+    const runtimeSameHerProofHeadline = describeInspectorContinuityMetricDetail(runtimeSameHerProof?.headline)
+    const runtimeSameHerProofDetail = describeInspectorContinuityMetricDetail(runtimeSameHerProof?.detail)
+    const runtimeSameHerProofNextRepairTarget = describeInspectorContinuityMetricDetail(runtimeSameHerProof?.nextRepairTarget)
     const summaryParts = [
       projectContinuity?.detail ? `project=${projectContinuity.detail}` : null,
-      projectSameHer?.detail ? `sameHer=${projectSameHer.detail}` : null,
-      projectProactiveSameHerGap?.detail ? `proactiveSameHerGap=${projectProactiveSameHerGap.detail}` : null,
+      projectSameHerDetail ? `identityContinuity=${projectSameHerDetail}` : null,
+      projectProactiveSameHerGapDetail ? `proactiveIdentityContinuityGap=${projectProactiveSameHerGapDetail}` : null,
       projectOpenLoop?.detail ? `openLoop=${projectOpenLoop.detail}` : null,
       briefingFull?.detail ? `briefing=${briefingFull.detail}` : null,
       emotionalClosure?.detail ? `emotionalClosure=${emotionalClosure.detail}` : null,
@@ -3140,7 +3418,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       projectStateAuditCarry?.detail ? `projectStateAudit=${projectStateAuditCarry.detail}` : null,
       projectStateAuditContinuitySummary?.detail ? `projectStateAuditContinuity=${projectStateAuditContinuitySummary.detail}` : null,
       projectStateAuditPreserve?.detail ? `projectStateAuditPreserve=${projectStateAuditPreserve.detail}` : null,
-      runtimeSameHerProof?.headline ? `runtimeSameHer=${runtimeSameHerProof.headline}` : null,
+      runtimeSameHerProofHeadline ? `runtimeIdentityContinuity=${runtimeSameHerProofHeadline}` : null,
       sameHerEmbodimentLaneImpact
         ? sameHerEmbodimentLaneImpact.replace('continuity-impact: ', 'embodiment=')
         : null,
@@ -3196,13 +3474,13 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
           ? `Next closure: ${continuitySnapshot.nextClosureTarget}`
           : null,
         continuitySnapshot?.proactiveSameHerGap
-          ? `Proactive same-her gap: ${continuitySnapshot.proactiveSameHerGap}`
+          ? `Proactive identity-continuity gap: ${continuitySnapshot.proactiveSameHerGap}`
           : null,
         metricDetailHasConcreteCount(projectSameHer?.detail) && projectSameHer
-          ? `Same her self line: ${projectSameHer.detail}`
+          ? `Identity-continuity self line: ${projectSameHer.detail}`
           : null,
         metricDetailHasConcreteCount(projectProactiveSameHerGap?.detail) && projectProactiveSameHerGap
-          ? `Proactive same-her follow-through: ${projectProactiveSameHerGap.detail}`
+          ? `Proactive identity-continuity follow-through: ${projectProactiveSameHerGap.detail}`
           : null,
         briefingFull?.detail
           ? `Briefing carry: ${briefingFull.detail}`
@@ -3220,57 +3498,57 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
           ? `Self authority: ${selfAuthorityCarry.detail}`
           : null,
         projectStateAuditCarry?.detail
-          ? `Project-state same-her audit: ${projectStateAuditCarry.detail}`
+          ? `Project-state identity-continuity audit: ${projectStateAuditCarry.detail}`
           : null,
         projectStateAuditContinuitySummary?.detail
           ? `Project-state continuity brief: ${projectStateAuditContinuitySummary.detail}`
           : null,
-        runtimeSameHerProof?.detail
-          ? `Runtime same-her proof: ${runtimeSameHerProof.detail}`
+        runtimeSameHerProofDetail
+          ? `Runtime identity-continuity proof: ${runtimeSameHerProofDetail}`
           : null,
       ], 7),
       reasons: uniquePreviewReasons([
-        runtimeSameHerProof?.nextRepairTarget ?? null,
-        metricDetailHasConcreteCount(projectSameHer?.detail) && projectSameHer
-          ? `Project same-her self line currently reads ${projectSameHer.detail}, so the next turn should verify that Alicization still names one continuous her before any outward reply widening begins.`
+        runtimeSameHerProofNextRepairTarget ?? null,
+        metricDetailHasConcreteCount(projectSameHerDetail) && projectSameHerDetail
+          ? `Project identity-continuity self line currently reads ${projectSameHerDetail}, so the next turn should verify that Alicization still names identity continuity before any outward reply widening begins.`
           : null,
-        metricDetailHasConcreteCount(projectProactiveSameHerGap?.detail) && projectProactiveSameHerGap
-          ? `Proactive same-her follow-through currently reads ${projectProactiveSameHerGap.detail}, so the next turn should check whether visible proactive hold, subconscious carry, and next-session feedback are still arriving on one same-her line instead of fragmenting into detached follow-up beats.`
+        metricDetailHasConcreteCount(projectProactiveSameHerGapDetail) && projectProactiveSameHerGapDetail
+          ? `Proactive identity-continuity follow-through currently reads ${projectProactiveSameHerGapDetail}, so the next turn should check whether visible proactive hold, subconscious carry, and next-session feedback are still arriving on one identity-continuity line instead of fragmenting into detached follow-up beats.`
           : null,
         emotionalClosure?.detail
-          ? `Same-her emotional closure currently reads ${emotionalClosure.detail}, so the next turn should check whether this digital life is still speaking on one emotional seam.`
+          ? `Emotional continuity closure currently reads ${emotionalClosure.detail}, so the next turn should check whether the current identity route is still speaking through one emotional seam.`
           : null,
         emotionalLowPressure?.detail
-          ? `Low-pressure same-her closure currently reads ${emotionalLowPressure.detail}, so the next turn should keep the return soft enough that the same living line does not widen too fast.`
+          ? `Low-pressure identity-continuity closure currently reads ${emotionalLowPressure.detail}, so the next turn should keep the return soft enough that the current continuity route does not widen too fast.`
           : null,
         emotionalAntiRestart?.detail
-          ? `Anti-restart same-her closure currently reads ${emotionalAntiRestart.detail}, so the next turn should avoid reopening the same living line from scratch.`
+          ? `Anti-restart identity-continuity closure currently reads ${emotionalAntiRestart.detail}, so the next turn should avoid reopening the current continuity route from scratch.`
           : null,
         selfAuthorityCarry?.detail
-          ? `Same-her self authority currently reads ${selfAuthorityCarry.detail}, so the next turn should check whether the explicit self line is still surviving all the way into host-visible wording.`
+          ? `Self authority currently reads ${selfAuthorityCarry.detail}, so the next turn should check whether the explicit self line is still surviving all the way into host-visible wording.`
           : null,
         selfAuthorityPreserve?.detail
-          ? `Self authority preservation currently reads ${selfAuthorityPreserve.detail}, which shows whether rewrite is still keeping the same-her self line intact instead of smoothing it away.`
+          ? `Self authority preservation currently reads ${selfAuthorityPreserve.detail}, which shows whether rewrite is still keeping the identity-continuity self line intact instead of smoothing it away.`
           : null,
         projectStateAuditCarry?.detail
-          ? `Same-her project-status continuity currently reads ${projectStateAuditCarry.detail}, so the next turn should verify that project identity, Phase 1 route, and unfinished closure still arrive as one living self brief instead of a detached status shell.`
+          ? `Project-status continuity currently reads ${projectStateAuditCarry.detail}, so the next turn should verify that project identity, Phase 1 route, and unfinished closure still arrive as one identity brief instead of a detached status shell.`
           : null,
         projectStateAuditContinuitySummary?.detail
-          ? `Project-state continuity brief currently reads ${projectStateAuditContinuitySummary.detail}, so the next turn should verify that same-her line, landed progress, and still-open closure are arriving together instead of being carried as disconnected fragments.`
+          ? `Project-state continuity brief currently reads ${projectStateAuditContinuitySummary.detail}, so the next turn should verify that identity-continuity line, landed progress, and still-open closure are arriving together instead of being carried as disconnected fragments.`
           : null,
         projectStateAuditPreserve?.detail
-          ? `Project-state audit preservation currently reads ${projectStateAuditPreserve.detail}, which shows whether rewrite is still keeping the same-her project brief intact instead of flattening it into generic status reporting.`
+          ? `Project-state audit preservation currently reads ${projectStateAuditPreserve.detail}, which shows whether rewrite is still keeping the identity-continuity project brief intact instead of flattening it into generic status reporting.`
           : null,
         continuitySnapshot?.proactiveSameHerGap
-          ? `Proactive same-her follow-through still reads ${continuitySnapshot.proactiveSameHerGap}, so the next turn should keep visible proactive hold, subconscious carry, and next-session feedback arriving as one same-her line instead of splitting them across detached follow-up shells.`
+          ? `Proactive identity-continuity follow-through still reads ${continuitySnapshot.proactiveSameHerGap}, so the next turn should keep visible proactive hold, subconscious carry, and next-session feedback arriving as one identity-continuity line instead of splitting them across detached follow-up shells.`
           : null,
         sameSegmentFaceMotionRecovery
-          ? `${sameSegmentFaceMotionRecovery} keeps the face-motion body line re-formed on one living segment even while full cross-modal same-her closure is still open.`
+          ? `${sameSegmentFaceMotionRecovery} keeps the face-motion body line re-formed on one living segment even while full cross-modal identity-continuity closure is still open.`
           : null,
         sameHerEmbodimentLaneImpact
           ? sameHerEmbodimentGroundedCarry
             ? `${sameHerEmbodimentLaneImpact}, so the next turn should keep that same-segment lock explicit all the way into host-visible continuity instead of flattening it into a temporary visual recovery note.`
-            : `${sameHerEmbodimentLaneImpact}, so the next turn should treat full cross-modal same-her recovery as still open instead of assuming the body line is already closed.`
+            : `${sameHerEmbodimentLaneImpact}, so the next turn should treat full cross-modal identity-continuity recovery as still open instead of assuming the body line is already closed.`
           : null,
         projectContinuity?.detail
           ? `Replay benchmark currently reports ${projectContinuity.detail}, so the next development turn should stay explicitly aware of what Alicization is and how much of Phase 1 continuity is actually landing.`
@@ -3282,7 +3560,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
           ? `Latest landed progress still holds at ${latestLandedProgress}, so the next turn should keep building from that already-lived continuity instead of restarting the same proof from scratch.`
           : null,
         projectPhase?.detail
-          ? `Phase 1 route carry currently reads ${projectPhase.detail}, so the next turn should verify that local digital life is still the active same-her route instead of drifting into generic capability work.`
+          ? `Phase 1 route carry currently reads ${projectPhase.detail}, so the next turn should verify that local digital life is still the active identity-continuity route instead of drifting into generic capability work.`
           : null,
         projectOpenLoop?.detail
           ? `Unresolved closure carry currently reads ${projectOpenLoop.detail}, so unfinished digital-life closure still needs to remain visible before local implementation detail takes over.`
@@ -3291,7 +3569,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
           ? `Primary open life loop still centers on ${continuitySnapshot.primaryOpenLoop}, so the next turn should keep that unfinished digital-life thread alive instead of collapsing into local implementation fluency.`
           : null,
         continuitySnapshot?.nextClosureTarget
-          ? `Next closure target is still ${continuitySnapshot.nextClosureTarget}, so the next turn should keep steering the same her toward that concrete unfinished step.`
+          ? `Next closure target is still ${continuitySnapshot.nextClosureTarget}, so the next turn should keep steering the current continuity route toward that concrete unfinished step.`
           : null,
         briefingFull?.detail
           ? `Pre-dialogue self briefing currently reads ${briefingFull.detail}, so the next turn should check whether identity, phase, landed progress, open loop, and next closure are still arriving as one stable self brief.`
@@ -3309,9 +3587,9 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const benchmarkClosureLooksThin = looksLikeThinPreDialogueClosureSnapshot(benchmarkDerivedClosure)
     const explicitClosureLooksThin = looksLikeThinPreDialogueClosureSnapshot(explicitClosure)
     if (benchmarkClosureLooksThin && explicitClosure && !explicitClosureLooksThin)
-      return explicitClosure
+      return sanitizeInspectorClosureSnapshot(explicitClosure, continuitySnapshot)
 
-    return benchmarkDerivedClosure
+    return sanitizeInspectorClosureSnapshot(benchmarkDerivedClosure, continuitySnapshot)
   })
 
   const preDialogueAwarenessSnapshot = computed<NormalizedPreDialogueAwarenessSnapshot | null>(() => {
@@ -3363,7 +3641,10 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       ], 8),
     }
 
-    return mergePreDialogueAwarenessWithContinuitySnapshot(rebuiltAwareness, continuitySnapshot) ?? rebuiltAwareness
+    return sanitizeInspectorAwarenessSnapshot(
+      mergePreDialogueAwarenessWithContinuitySnapshot(rebuiltAwareness, continuitySnapshot) ?? rebuiltAwareness,
+      continuitySnapshot,
+    )
   })
 
   const selectedCandidateAuthoritySurfaces = computed(() => {
@@ -3630,7 +3911,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
             continuitySummary: normalizedObservedProjectState?.continuitySummary ?? null,
             sameHerSelfLine:
               normalizedObservedProjectState?.sameHerSelfLine
-              ?? 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+              ?? '',
             sameHerHoldDetail:
               normalizedObservedProjectState?.sameHerHoldDetail
               ?? null,
@@ -3795,20 +4076,20 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
           : mergedProjectStateContinuitySnapshot.preDialogueAwareness
             ?? observedProjectStateSnapshot?.preDialogueAwareness
             ?? null
-        projectStateContinuitySnapshot.value = {
+        projectStateContinuitySnapshot.value = sanitizeInspectorContinuitySnapshot({
           ...mergedProjectStateContinuitySnapshot,
           preDialogueAwareness: mergedContinuityAwareness,
-        }
+        })
       }
       else {
-        projectStateContinuitySnapshot.value = observedContinuitySnapshot
+        projectStateContinuitySnapshot.value = sanitizeInspectorContinuitySnapshot(observedContinuitySnapshot
           ? {
               ...observedContinuitySnapshot,
               sameHerSelfLine:
                 observedContinuitySnapshot.sameHerSelfLine
-                ?? 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+                ?? '',
             }
-          : observedProjectStateSnapshot
+          : observedProjectStateSnapshot)
       }
       latestProjectStateObservation.value = nextProjectStateObservation ?? null
       if (!snapshot.value?.candidates.some(candidate => candidate.id === selectedCandidateId.value))

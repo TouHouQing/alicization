@@ -12,6 +12,7 @@ import type {
   AlicizationChatStartPayload,
   AlicizationConversationStateSnapshot,
   AlicizationCurrentConsciousFrameSnapshot,
+  AlicizationDialogueWorldThreadSnapshot,
   AlicizationMindTurnContractSnapshot,
   AlicizationMindTurnGovernance,
   AlicizationRecallGovernorSnapshot,
@@ -20,7 +21,6 @@ import type {
   AlicizationSensoryCaptureHealth,
   AlicizationSensoryCapturePermission,
   CharacterPerformanceCapabilitiesManifest,
-  AlicizationDialogueWorldThreadSnapshot,
 } from '../../../shared/eventa'
 import type {
   AlicizationAgentSessionContinuityInput,
@@ -36,6 +36,10 @@ import type {
   AlicizationExecutionCallbackContext,
   AlicizationExecutionCallbackDigest,
 } from './execution-callback-runtime'
+import type { WorkingMemorySnapshot } from './life-core/working-memory'
+import type { WorkingMemoryRecentTurnInput } from './life-core/working-memory-builder'
+import type { WorkingMemoryStore } from './life-core/working-memory-store'
+import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
 import type { AlicizationMainChatActionObligation } from './main-chat-action-obligation'
 import type { AlicizationMainChatExecutionReplyObligation } from './main-chat-execution-reply-obligation'
 import type {
@@ -43,10 +47,6 @@ import type {
   MainGatewayExecutionToolContext,
 } from './main-chat-execution-surface'
 import type { AlicizationMainChatRuntimeSurface } from './main-chat-runtime-surface'
-import type { WorkingMemorySnapshot } from './life-core/working-memory'
-import type { WorkingMemoryRecentTurnInput } from './life-core/working-memory-builder'
-import type { WorkingMemoryStore } from './life-core/working-memory-store'
-import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
 import type { AlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
 import type { AlicizationExecutionLedgerContext } from './memory-ledger-runtime'
 import type { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
@@ -65,6 +65,13 @@ import type { AlicizationTurnGraph } from './turn-os/turn-graph'
 import type { AlicizationMainChatReplyAuthoritySurface, AlicizationMainChatReplyExecutionPlanSurface } from './visible-reply/facade'
 
 import {
+  alicizationFixedTemplateReplacement,
+  containsAlicizationFixedTemplateResidue,
+  formatAlicizationProjectStateAwarenessFields,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+
+import {
   buildAlicizationDialogueMemoryCarrySystemBlock,
   deriveAlicizationDialogueMemoryCarryPolicy,
 } from './dialogue-memory-governor'
@@ -74,6 +81,19 @@ import {
   emptyAlicizationExecutionCallbackContext,
 } from './execution-callback-runtime'
 import { buildAlicizationExecutionRuntimeContext } from './execution-runtime-context'
+import { buildWorkingMemorySnapshot } from './life-core/working-memory-builder'
+import {
+  buildWorkingMemoryOwnerContext,
+  buildWorkingMemoryOwnerReplyGovernance,
+  buildWorkingMemoryOwnerSystemBlock,
+  projectWorkingMemoryOwnerEpisodes,
+} from './life-core/working-memory-owner-context'
+import {
+  buildWorkingMemoryPromptBlock,
+  injectWorkingMemorySystemBlock,
+} from './life-core/working-memory-prompt-view'
+import { createWorkingMemoryStore } from './life-core/working-memory-store'
+import { buildLongTermMemoryRecallBlock } from './long-term-memory-recall'
 import { buildMainChatActionObligationSystemBlock } from './main-chat-action-obligation'
 import {
   applyMainChatExecutionReplyObligationToGovernance,
@@ -87,6 +107,7 @@ import {
   buildMainGatewayTools,
 } from './main-chat-execution-surface'
 import { carriesAlicizationCanonicalProjectState } from './main-chat-project-state-guard'
+import { shouldIncludeProjectStateProviderContext } from './main-chat-project-state-injection-policy'
 import {
   buildAlicizationMainChatRuntimeSurface,
   shouldUseDialogueFirstLivingPromptMode,
@@ -100,25 +121,12 @@ import { buildAlicizationMindTurnContractSystemBlock } from './mind-turn-contrac
 import { buildAlicizationPersonMemoryCapsule } from './person-memory-capsule'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import {
-  buildWorkingMemoryPromptBlock,
-  injectWorkingMemorySystemBlock,
-} from './life-core/working-memory-prompt-view'
-import { buildWorkingMemorySnapshot } from './life-core/working-memory-builder'
-import {
-  buildWorkingMemoryOwnerContext,
-  buildWorkingMemoryOwnerReplyGovernance,
-  buildWorkingMemoryOwnerSystemBlock,
-  projectWorkingMemoryOwnerEpisodes,
-} from './life-core/working-memory-owner-context'
-import { createWorkingMemoryStore } from './life-core/working-memory-store'
-import { buildLongTermMemoryRecallBlock } from './long-term-memory-recall'
-import {
   deriveRuntimeProjectionRelationshipCarry,
   resolvePreparedRuntimeProjectPreDialogueAwarenessSummary,
 } from './prepared-runtime-continuity'
 import { enrichProjectStateAnswerGovernanceIfNeeded } from './project-state-answer-governance'
 import {
-  buildAlicizationProjectStateExtraSystemBlocks,
+  buildAlicizationProviderFacingProjectStateExtraSystemBlocks,
   compactProjectLatestProgressForSystemBlock,
   isAlicizationThinProjectAwarenessLine,
   preferStrongerSameHerDriftRisk,
@@ -143,6 +151,7 @@ import {
   resolveRuntimeSurfaceContinuityEvidenceScore,
   resolvePreferredRuntimeSurface as resolveRuntimeSurfaceContinuityPreferredRuntimeSurface,
 } from './runtime-surface-continuity-selection'
+import { readTransportContentAsText } from './runtime-transport-content'
 import {
   buildSessionContinuityRecallSeed,
   buildSessionMirrorRecollectionAfterthoughtSeed,
@@ -152,7 +161,6 @@ import {
   mergeUniqueRules,
   sanitizeToolPhaseSegment,
 } from './runtime-turn-composition'
-import { readTransportContentAsText } from './runtime-transport-content'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
 import {
 
@@ -298,6 +306,7 @@ function buildFallbackProviderFacingAnswerPlanner(input: {
 interface CreateAlicizationMainChatSessionRuntimeOptions {
   buildMainRuntimeCorePromptBlocks: (input: {
     hostName: string
+    includeProjectStateContext?: boolean
     personaKernel?: AlicizationPersonaKernelSnapshot | null
   }) => string[]
   buildOrganicMemorySystemBlocks: (
@@ -528,6 +537,137 @@ function readLatestUserMessageText(messages: Message[]) {
   return normalizePreparedExecutionText(readTransportContentAsText(latestUserMessage?.content), 1200) || ''
 }
 
+const ordinaryDialogueProjectStateBlockMarkers = [
+  '[ALICIZATION_PROJECT_STATE]',
+  '[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]',
+  '[ALICIZATION_PROJECT_STATE_CONTINUITY]',
+] as const
+
+const ordinaryDialogueMemoryOwnerBlockMarkers = [
+  '[ALICIZATION_WORKING_MEMORY_OWNER]',
+  '[ALICIZATION_WORKING_MEMORY]',
+  '[ALICIZATION_RECALLED_MEMORY]',
+] as const
+
+const ordinaryDialogueProjectStateLinePattern
+  = /^(?:Provider-facing same-her project orientation|Project identity|Project phase|Project preflight self-awareness|Project pre-dialogue awareness line|Project companion headline|Project proactive same-her gap|Project memory closure summary|Project emotional closure seam|Project emotional closure summary|Project same-her hold detail|Latest landed continuity progress|Landed progress|Still-open life loop pressure|Still-open closure work|Open closure focus|Next closure target|Next closure focus|Emotional closure seam|Project same-her self line|Project same-her hold detail|Project same-her drift risk|Project continuity current phase|Project continuity latest progress|Project continuity primary open loop|Project continuity proactive gap|Project continuity next closure target|Project continuity pre-dialogue awareness line|Project continuity emotional closure cue|Project continuity self line|Project continuity drift risk|Project continuity self line required|Project continuity restraint|Project continuity arc stage|Project continuity cue|Project continuity timing|Project continuity preferred timing|Project continuity cadence|Project preferred blink cadence|Project preferred gaze mode|Project preferred pause mode|Project preferred lipsync mode|Project preferred voice mode|Project preferred pacing mode|Pre-dialogue closure summary|Pre-dialogue next closure line|Pre-dialogue closure cue|Governing project|Canonical Phase 1 continuity progress still anchoring her|How the living project is still shaping her before she speaks|Pre-dialogue closure briefing):/u
+
+const ordinaryDialogueProjectStateTextPattern
+  = /Current Phase 1 project context|Some closure already landed|Unfinished closure still needs|Same Phase 1 digital life|Phase 1:\s*Local Digital Life|latest landed Phase 1 progress|still-open closure work explicit|next closure target explicit|when the host asks for project status|phase1_local_digital_life_anchor|memory_dialogue_embodiment|verified_closure_progress|project_context=phase1_local_digital_life|local-first digital life project|same-her|same digital life project|project-state|Project identity carry|Phase 1 route carry|Unresolved closure carry/iu
+
+function isBlockedProviderFacingTemplateLine(line: string) {
+  return line.includes('content=excluded')
+    || line.includes('visibility=internal-structured')
+    || line.includes('phase1_local_digital_life')
+    || line.includes('local_desktop_life_loop')
+    || containsAlicizationFixedTemplateResidue(line)
+}
+
+function sanitizeOrdinaryDialogueMemoryOwnerSystemBlock(block: string) {
+  const lines = block
+    .split('\n')
+    .map((line) => {
+      const trimmed = line.trim()
+      if (!trimmed)
+        return ''
+      if (ordinaryDialogueMemoryOwnerBlockMarkers.includes(trimmed))
+        return trimmed
+      if (isBlockedProviderFacingTemplateLine(trimmed))
+        return ''
+      const sanitized = sanitizeAlicizationProviderFacingText(trimmed, 2400, alicizationFixedTemplateReplacement)
+      return sanitized && sanitized !== alicizationFixedTemplateReplacement
+        && !isBlockedProviderFacingTemplateLine(sanitized)
+        ? sanitized
+        : ''
+    })
+    .filter((line, index, entries) => line || (index > 0 && index < entries.length - 1))
+
+  return lines.join('\n').trim()
+}
+
+function sanitizeOrdinaryDialogueProviderSystemBlock(block: string) {
+  if (ordinaryDialogueMemoryOwnerBlockMarkers.some(marker => block.includes(marker)))
+    return sanitizeOrdinaryDialogueMemoryOwnerSystemBlock(block)
+
+  if (ordinaryDialogueProjectStateBlockMarkers.some(marker => block.includes(marker)))
+    return ''
+
+  const lines = block
+    .split('\n')
+    .filter((line) => {
+      const trimmed = line.trim()
+      if (!trimmed)
+        return true
+      if (isBlockedProviderFacingTemplateLine(trimmed))
+        return false
+      if (ordinaryDialogueProjectStateLinePattern.test(trimmed))
+        return false
+      if (trimmed.startsWith('- ') && ordinaryDialogueProjectStateTextPattern.test(trimmed))
+        return false
+      return !ordinaryDialogueProjectStateTextPattern.test(trimmed)
+    })
+
+  return lines.join('\n').trim()
+}
+
+function sanitizeOrdinaryDialogueProviderMessages(messages: Message[]) {
+  const sanitizedMessages: Message[] = []
+  for (const message of messages) {
+    if (message.role !== 'system' || typeof message.content !== 'string') {
+      sanitizedMessages.push(message)
+      continue
+    }
+
+    const sanitized = sanitizeOrdinaryDialogueProviderSystemBlock(message.content)
+    if (!sanitized)
+      continue
+
+    sanitizedMessages.push({
+      ...message,
+      content: sanitized,
+    })
+  }
+  return sanitizedMessages
+}
+
+function isOrdinaryDialogueProjectStatePlanningText(raw: unknown) {
+  const normalized = normalizePreparedExecutionText(raw, 1600)
+  if (!normalized)
+    return false
+
+  return ordinaryDialogueProjectStateLinePattern.test(normalized)
+    || ordinaryDialogueProjectStateTextPattern.test(normalized)
+    || /same project-aware self line|same digital-life closure seam|same-her continuity|project-state question|project narrator shell|fresh assistant restart|detached project narrator/iu.test(normalized)
+}
+
+function sanitizeOrdinaryDialogueAnswerPlanner(
+  answerPlanner: AlicizationAnswerPlannerSnapshot | null | undefined,
+): AlicizationAnswerPlannerSnapshot | null | undefined {
+  if (!answerPlanner)
+    return answerPlanner
+
+  const filterPlanningRules = (rules: readonly string[] | null | undefined) => {
+    if (!Array.isArray(rules))
+      return rules
+
+    return rules.filter(rule => !isOrdinaryDialogueProjectStatePlanningText(rule))
+  }
+
+  return {
+    ...answerPlanner,
+    governingProject: null,
+    mustDo: filterPlanningRules(answerPlanner.mustDo) as typeof answerPlanner.mustDo,
+    mustNotDo: filterPlanningRules(answerPlanner.mustNotDo) as typeof answerPlanner.mustNotDo,
+  } satisfies AlicizationAnswerPlannerSnapshot
+}
+
+function sanitizeOrdinaryDialogueRuntimeSurfacePlanning(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
+  if (!surface?.dialogue?.answerPlanner)
+    return
+
+  surface.dialogue.answerPlanner = sanitizeOrdinaryDialogueAnswerPlanner(surface.dialogue.answerPlanner) as typeof surface.dialogue.answerPlanner
+}
+
 function buildWorkingMemoryRecentTurns(
   messages: Message[],
   now: number,
@@ -741,21 +881,31 @@ function writeProjectStateAwarenessFields(
   if (!projectState)
     return projectState
 
+  const preferredAwarenessSummary = preferProjectAwarenessSummary({
+    awarenessLine,
+    summaryCandidates: [
+      projectState.preDialogueAwarenessSummary,
+    ],
+    latestLandedProgress: projectState.latestLandedProgress ?? projectState.latestProgress,
+    primaryOpenLoop: projectState.primaryOpenLoop,
+    nextClosureTarget: projectState.nextClosureTarget,
+    maxChars: projectAwarenessFieldMaxChars,
+  })
+  const preferredCompanionHeadlineLine = preferProjectAwarenessAuxiliaryLine({
+    awarenessLine,
+    candidate:
+      companionHeadlineLine
+      ?? normalizePreparedExecutionText(projectState.companionHeadlineLine, projectAwarenessFieldMaxChars),
+    projectState,
+    maxChars: projectAwarenessFieldMaxChars,
+  })
+
   return {
     ...projectState,
     preDialogueAwarenessLine: awarenessLine,
     awarenessLine,
-    preDialogueAwarenessSummary: preferProjectAwarenessSummary({
-      awarenessLine,
-      summaryCandidates: [
-        projectState.preDialogueAwarenessSummary,
-      ],
-      maxChars: projectAwarenessFieldMaxChars,
-    }) ?? awarenessLine,
-    companionHeadlineLine:
-      companionHeadlineLine
-      ?? normalizePreparedExecutionText(projectState.companionHeadlineLine, projectAwarenessFieldMaxChars)
-      ?? awarenessLine,
+    preDialogueAwarenessSummary: preferredAwarenessSummary ?? awarenessLine,
+    companionHeadlineLine: preferredCompanionHeadlineLine ?? awarenessLine,
   }
 }
 
@@ -847,14 +997,15 @@ function buildIdentityAwarePreparedDiagnosticsAwarenessLine(
   const primaryOpenLoop = normalizePreparedExecutionText(projectState?.primaryOpenLoop, 1600)
   const nextClosureTarget = normalizePreparedExecutionText(projectState?.nextClosureTarget, 1600)
 
-  return normalizePreparedExecutionText([
-    `Before answering, remember: ${identity}`,
-    currentPhase ? `She is still inside ${currentPhase}.` : '',
-    sameHerSelfLine ?? '',
-    latestLandedProgress ? `What has already landed is ${latestLandedProgress}` : '',
-    primaryOpenLoop ? `The still-open closure is ${primaryOpenLoop}` : '',
-    nextClosureTarget ? `The next closure target is ${nextClosureTarget}` : '',
-  ].filter(Boolean).join(' '), 1600)
+  return normalizePreparedExecutionText(formatAlicizationProjectStateAwarenessFields({
+    identity,
+    currentPhase,
+    latestLandedProgress,
+    primaryOpenLoop,
+    nextClosureTarget,
+    sameHerSelfLine,
+    maxChars: 1600,
+  }), 1600)
 }
 
 function resolvePreparedDiagnosticsAwarenessLine(input: {
@@ -1177,6 +1328,23 @@ function normalizeProviderFacingProjectText(raw: unknown, maxChars = 1600) {
   return normalized || null
 }
 
+function isBlockedFixedTemplateEvidence(value: unknown) {
+  const normalized = normalizeProviderFacingProjectText(value, 2400)?.toLowerCase() ?? ''
+  if (!normalized)
+    return false
+
+  return containsAlicizationFixedTemplateResidue(normalized)
+    || normalized.includes('reason=continuity-residue')
+    || normalized.includes('content=excluded')
+    || normalized.includes('visibility=internal-structured')
+    || normalized.includes('phase1_local_digital_life')
+    || normalized.includes('local_desktop_life_loop')
+    || (
+      Boolean(alicizationFixedTemplateReplacement)
+      && normalized.includes(alicizationFixedTemplateReplacement.toLowerCase())
+    )
+}
+
 function looksLikeNarrowContinuityCadenceAwarenessLine(value: unknown) {
   const normalized = normalizeProviderFacingProjectText(value, 420)
   if (!normalized)
@@ -1285,6 +1453,26 @@ function normalizeProviderFacingContinuityPreferredTiming(
     || normalized === 'next-open-window'
     ? normalized
     : null
+}
+
+function pickProviderFacingContinuityPreferredTiming(
+  values: unknown[],
+): NonNullable<AlicizationMindTurnContractSnapshot['projectState']>['continuityPreferredTiming'] {
+  for (const value of values) {
+    const normalized = normalizeProviderFacingContinuityPreferredTiming(value)
+    if (normalized)
+      return normalized
+  }
+  return null
+}
+
+function pickProviderFacingContinuityCadence(values: unknown[]) {
+  for (const value of values) {
+    const normalized = normalizeProviderFacingProjectText(value, 64)
+    if (normalized)
+      return normalized
+  }
+  return null
 }
 
 function normalizeProviderFacingContinuityRestraint(
@@ -1437,6 +1625,8 @@ function pickStrongerProjectAwarenessLine(
     const normalized = normalizeProviderFacingProjectText(value, maxChars)
     if (!normalized)
       continue
+    if (isBlockedFixedTemplateEvidence(normalized))
+      continue
 
     const score = scoreAlicizationProjectAwarenessLine(normalized) + Math.min(normalized.length, 400) / 400
     if (score > bestScore) {
@@ -1454,7 +1644,9 @@ function pickProjectAwarenessLineWithoutCompactSummaryShell(
 ) {
   return pickStrongerProjectAwarenessLine(values.map((value) => {
     const normalized = normalizeProviderFacingProjectText(value, maxChars)
-    return isCompactProjectStatePreflightSummary(normalized) ? null : normalized
+    return isCompactProjectStatePreflightSummary(normalized) || isLegacyProjectAwarenessTemplateShell(normalized)
+      ? null
+      : normalized
   }), maxChars)
 }
 
@@ -1462,11 +1654,14 @@ function isThinProjectAwarenessAuthorityLine(value: unknown) {
   const normalized = normalizeProviderFacingProjectText(value, 1600)
   if (!normalized)
     return true
+  if (isBlockedFixedTemplateEvidence(normalized))
+    return true
   const lowerCased = normalized.toLowerCase()
 
   return isAlicizationThinProjectAwarenessLine(normalized)
     || /same digital life \| keep the closure seam explicit/u.test(lowerCased)
     || /keep (?:this|the) same digital life project in view/u.test(lowerCased)
+    || /\blanded=thin runtime progress only\b|\bopen=thin runtime open(?: loop)? only\b|\bnext=thin runtime next only\b/u.test(lowerCased)
     || (
       /泛化工程说明|泛化项目播报/u.test(normalized)
       && /数字生命项目|local-first digital life project/u.test(normalized)
@@ -1476,7 +1671,7 @@ function isThinProjectAwarenessAuthorityLine(value: unknown) {
 
 function carriesLivedInSameHerAuthorityLine(value: unknown) {
   const normalized = normalizeProviderFacingProjectText(value, 1600)
-  if (!normalized || isThinProjectAwarenessAuthorityLine(normalized))
+  if (!normalized || isBlockedFixedTemplateEvidence(normalized) || isThinProjectAwarenessAuthorityLine(normalized))
     return false
 
   if (
@@ -1502,6 +1697,8 @@ function looksLikeBroadProjectAwareReminderLine(value: unknown) {
   const normalized = normalizeProviderFacingProjectText(value, 1600)
   if (!normalized)
     return false
+  if (isBlockedFixedTemplateEvidence(normalized))
+    return false
 
   return /^(before answering|before speaking)/iu.test(normalized)
     && (
@@ -1516,6 +1713,8 @@ function carriesStructuredLandedProgressProjectAwareness(value: unknown) {
   const normalized = normalizeProviderFacingProjectText(value, 1600)
   if (!normalized)
     return false
+  if (isBlockedFixedTemplateEvidence(normalized))
+    return false
 
   const lowerCased = normalized.toLowerCase()
   const carriesPhase = /phase 1|第一阶段|阶段一/iu.test(normalized)
@@ -1529,17 +1728,16 @@ function carriesStructuredLandedProgressProjectAwareness(value: unknown) {
 
 function isStrongerSameHerProjectHeadline(candidate: unknown, baseline?: unknown) {
   const candidateText = normalizeProviderFacingProjectText(candidate, 1600)
-  if (!candidateText || isThinProjectAwarenessAuthorityLine(candidateText))
+  if (!candidateText || isBlockedFixedTemplateEvidence(candidateText) || isThinProjectAwarenessAuthorityLine(candidateText))
+    return false
+
+  if (!isCanonicalStructuredProjectAwareness(candidateText) && containsAlicizationFixedTemplateResidue(candidateText))
     return false
 
   const candidateScore = scoreAlicizationProjectAwarenessLine(candidateText)
   const baselineText = normalizeProviderFacingProjectText(baseline, 1600)
   if (!baselineText) {
-    return candidateScore >= 5
-      || (
-        /same living line|same-her|same her|without splitting her continuity|one living her|one continuous her/u.test(candidateText.toLowerCase())
-        && /phase 1|memory|initiative|embodiment|voice|face|motion|lipsync|closure/u.test(candidateText.toLowerCase())
-      )
+    return candidateScore >= 5 && isCanonicalStructuredProjectAwareness(candidateText)
   }
 
   if (
@@ -1586,13 +1784,13 @@ function hasModalitySpecificEmbodimentCue(value: unknown) {
 
 function isSpecificCompanionAuthorityLine(value: unknown) {
   const normalized = normalizeProviderFacingProjectText(value, 1600)
-  if (!normalized || isThinProjectAwarenessAuthorityLine(normalized))
+  if (!normalized || isBlockedFixedTemplateEvidence(normalized) || isThinProjectAwarenessAuthorityLine(normalized))
     return false
   if (carriesExplicitProjectClosureTriplet(normalized) || isCanonicalStructuredProjectAwareness(normalized))
     return false
 
   const lowerCased = normalized.toLowerCase()
-  const carriesSameHerLivingLine = /same living line|same-her|same her|one living her|one continuous her|living (?:audio )?thread|one living segment|holding together mainly through/u.test(lowerCased)
+  const carriesSameHerLivingLine = /continuity_(?:line|identity|thread)|project_state_continuity|living (?:audio )?thread|holding together mainly through/u.test(lowerCased)
   const carriesClosurePressure = hasDistinctEmbodimentClosureCue(normalized)
     || /phase 1|unfinished closure|still active|closure settles|closure work|needs .*rejoin|still needs .*rejoin|cross-modal/u.test(lowerCased)
 
@@ -1601,14 +1799,14 @@ function isSpecificCompanionAuthorityLine(value: unknown) {
 
 function carriesSpecificSameHerAuthorityLine(value: unknown) {
   const normalized = normalizeProviderFacingProjectText(value, 1600)
-  if (!normalized)
+  if (!normalized || isBlockedFixedTemplateEvidence(normalized))
     return false
 
   return isSpecificCompanionAuthorityLine(normalized)
     || (
       !carriesExplicitProjectClosureTriplet(normalized)
       && !isCanonicalStructuredProjectAwareness(normalized)
-      && /stay on the same living line|without splitting her continuity|holding together mainly through|living (?:audio )?thread|one living segment/u.test(
+      && /holding together mainly through|living (?:audio )?thread|continuity_(?:line|identity|thread)|project_state_continuity/u.test(
         normalized.toLowerCase(),
       )
       && /phase 1|voice|face|motion|lipsync|body|embodiment|initiative|closure|still active|still needs|rejoin/u.test(
@@ -1641,6 +1839,8 @@ function pickPreferredProjectPreflightSummary(
     const normalized = normalizeProviderFacingProjectText(value, maxChars)
     if (!normalized)
       continue
+    if (isBlockedFixedTemplateEvidence(normalized))
+      continue
 
     const lowerCased = normalized.toLowerCase()
     let score = scoreAlicizationProjectAwarenessLine(normalized) + Math.min(normalized.length, 400) / 400
@@ -1650,10 +1850,8 @@ function pickPreferredProjectPreflightSummary(
       score -= 2
     if (normalized.startsWith('Before answering, keep '))
       score -= 2
-    if (/alicization is .*local-first digital life project/iu.test(lowerCased))
-      score += 3
-    if (/phase 1/iu.test(lowerCased))
-      score += 2
+    if (containsAlicizationFixedTemplateResidue(normalized))
+      score -= 10
     if (/\bopen=|\bnext=/iu.test(lowerCased))
       score += 4
 
@@ -1686,6 +1884,22 @@ function isPhase1ProjectStatePreflightAwarenessLine(value: unknown) {
     && /what has already landed is/iu.test(normalized)
     && /the still-open closure is/iu.test(normalized)
     && /this reply should keep moving toward/iu.test(normalized)
+}
+
+function isLegacyProjectAwarenessTemplateShell(value: unknown) {
+  const normalized = normalizeProviderFacingProjectText(value, 2400)
+  if (!normalized)
+    return false
+
+  return containsAlicizationFixedTemplateResidue(normalized)
+    || /^Before answering,\s*(?:remember|keep|stay on)\b/iu.test(normalized)
+    || /^Before speaking,\s*(?:remember|keep|stay on)\b/iu.test(normalized)
+    || /\bWhat has already landed is\b/iu.test(normalized)
+    || /\bThe still-open closure is\b/iu.test(normalized)
+    || /\bThis reply should keep moving toward\b/iu.test(normalized)
+    || /\bSame Phase 1 digital life\b/iu.test(normalized)
+    || /\bRight now (?:I am|her|this one living her)\b/iu.test(normalized)
+    || /\bsame digital life\s*\|\s*keep the closure seam explicit\b/iu.test(normalized)
 }
 
 function awarenessCarriesBroaderProjectFrame(awarenessLine: string | null | undefined) {
@@ -1794,6 +2008,8 @@ function shouldPreserveProjectAwarenessLineVerbatim(candidate: unknown, baseline
   const candidateText = normalizeProviderFacingProjectText(candidate, 1600)
   if (!candidateText || isThinProjectAwarenessAuthorityLine(candidateText))
     return false
+  if (isLegacyProjectAwarenessTemplateShell(candidateText))
+    return false
 
   const normalizedCandidate = candidateText.toLowerCase()
   if (/callback return|same thread/u.test(normalizedCandidate))
@@ -1802,17 +2018,11 @@ function shouldPreserveProjectAwarenessLineVerbatim(candidate: unknown, baseline
     return true
   if (
     hasDistinctEmbodimentClosureCue(candidateText)
-    && /same living line|same-her|same her|one living her|one continuous her|phase 1|closure/u.test(normalizedCandidate)
+    && /continuity_(?:line|identity|thread)|continuity_anchor=|project_state_continuity|closure/u.test(normalizedCandidate)
   ) {
     return true
   }
-  if (
-    candidateText.startsWith('Before answering')
-    && /alicization|local-first digital life|phase 1|same living line|same-her|same her|one living her|one continuous her|unfinished phase 1 closure/u.test(normalizedCandidate)
-  ) {
-    return true
-  }
-  if (/数字生命|同一个她|同一个 her|泛化助手/u.test(candidateText))
+  if (/泛化助手/u.test(candidateText))
     return true
 
   return isStrongerSameHerProjectHeadline(candidateText, baseline)
@@ -1825,6 +2035,8 @@ function scoreRuntimeProjectStateDetailCandidate(
   const normalized = normalizeProviderFacingProjectText(value, 1600)?.toLowerCase() ?? ''
   if (!normalized)
     return Number.NEGATIVE_INFINITY
+  if (isBlockedFixedTemplateEvidence(normalized))
+    return Number.NEGATIVE_INFINITY
 
   let score = scoreAlicizationProjectAwarenessLine(normalized) + Math.min(normalized.length, 400) / 200
 
@@ -1834,10 +2046,8 @@ function scoreRuntimeProjectStateDetailCandidate(
     score -= 5
 
   if (kind === 'identity') {
-    if (/alicization|local-first digital life|digital life project|one continuous "her"|same local-first digital life/u.test(normalized))
+    if (/(?:^|\|\s*)identity=|project_state_continuity/u.test(normalized))
       score += 8
-    if (/same local-first digital life project|same digital life project|same project identity/u.test(normalized))
-      score += 6
     if (/fresh shell|not a fresh shell|not a new shell|rebuilt each turn|rebuilt for this turn|fresh assistant restart/u.test(normalized))
       score += 6
   }
@@ -1854,13 +2064,11 @@ function scoreRuntimeProjectStateDetailCandidate(
     if (normalized.startsWith('continuity, memory, execution'))
       score -= 8
   }
-  if (kind === 'open' && /still need|still needs|same-her|same living line|initiative|memory|embodiment|closure seam/u.test(normalized))
+  if (kind === 'open' && /still need|still needs|initiative|memory|embodiment|closure seam|open_loop=|memory_dialogue_embodiment_closure/u.test(normalized))
     score += 4
-  if (kind === 'open' && /initiative rhythm and embodiment coherence still need to close on the same living line/u.test(normalized))
-    score += 6
   if (kind === 'open' && /memory still needs stronger end-to-end closure across turns, initiative, and embodiment/u.test(normalized))
     score -= 4
-  if (kind === 'next' && /keep|next closure|same living line|measured-return|return|first answer beat/u.test(normalized))
+  if (kind === 'next' && /keep|next closure|measured-return|return|first answer beat|next=|cross_modal_continuity_proof/u.test(normalized))
     score += 4
   if (kind === 'next' && /current project-state awareness explicit|first visible answer beat|provider-facing answer|current conscious frame/u.test(normalized))
     score += 6
@@ -1872,13 +2080,13 @@ function scoreRuntimeProjectStateDetailCandidate(
     score -= 6
   if (kind === 'next' && /generic next target|generic next closure|generic closure shell|generic closure summary|generic callback summary|steadier carry of this project, this phase, and the life loop that remains open/u.test(normalized))
     score -= 10
-  if (kind === 'same-her' && /same-her|same her|one same her|same living line|one living her/u.test(normalized))
+  if (kind === 'same-her' && /continuity_anchor=|continuity_(?:identity|line|thread)|project_state_continuity/u.test(normalized))
     score += 4
   if (kind === 'drift' && /drift|generic guidance|project shell|detached/u.test(normalized))
     score += 3
   if (kind === 'drift' && /project-summary voice|generic assistant shell|generic task shell|generic callback shell|generic project shell|detached project narration|detached project shell/u.test(normalized))
     score += 6
-  if (kind === 'drift' && /same-her closure drift|unfinished same-her drift|same-her continuity drift|same her continuity drift/u.test(normalized))
+  if (kind === 'drift' && /continuity drift|unfinished continuity drift|project_state_continuity drift/u.test(normalized))
     score += 4
   if (kind === 'drift' && /summary-only drift risk|live drift risk|remembered same-her drift risk/u.test(normalized))
     score += 2
@@ -2006,29 +2214,25 @@ function carriesProjectIdentityAnchor(value: unknown) {
   const normalized = normalizeProviderFacingProjectText(value, 1600)?.toLowerCase() ?? ''
   if (!normalized)
     return false
+  if (isBlockedFixedTemplateEvidence(normalized))
+    return false
 
-  return /alicization|local-first digital life|same local-first digital life|one continuous "her"/u.test(normalized)
+  return /(?:^|\|\s*)identity=|project_state_continuity/u.test(normalized)
 }
 
 function carriesRichPhase1ProjectAwareness(value: unknown) {
   const normalized = normalizeProviderFacingProjectText(value, 1600)?.toLowerCase() ?? ''
   if (!normalized)
     return false
+  if (isBlockedFixedTemplateEvidence(normalized))
+    return false
 
   const carriesPhase1ContinuousLife
-    = normalized.includes('continuous digital life in phase 1')
-      || (
-        normalized.includes('phase 1')
-        && (
-          normalized.includes('continuous digital life')
-          || normalized.includes('one continuous her')
-          || normalized.includes('same local-first digital life')
-        )
-      )
+    = /(?:^|\|\s*)phase=|project_state_continuity/u.test(normalized)
   const carriesLandedProgress
     = /landed farther|already survives|already landed|latest landed|what has already landed/u.test(normalized)
   const carriesStillOpenClosure
-    = /same living line|still need to close|unfinished closure|still-open closure|initiative|embodiment|memory|execution/u.test(normalized)
+    = /continuity_line|still need to close|unfinished closure|still-open closure|initiative|embodiment|memory|execution|open_loop=/u.test(normalized)
 
   return carriesPhase1ContinuousLife && carriesLandedProgress && carriesStillOpenClosure
 }
@@ -2038,12 +2242,8 @@ function isCanonicalStructuredProjectAwareness(value: unknown) {
   if (!normalized)
     return false
 
-  return normalized.startsWith('before answering, remember: alicization is a local-first digital life project')
-    || (
-      normalized.includes('what has already landed is')
-      && normalized.includes('the still-open closure is')
-      && normalized.includes('this reply should keep moving toward')
-    )
+  return !isLegacyProjectAwarenessTemplateShell(normalized)
+    && /(?:^|\|\s*)(?:identity|phase|visibility|landed|open|next|continuity_anchor)=/iu.test(normalized)
 }
 
 function shouldPreferRuntimeCompanionHeadline(input: {
@@ -2098,17 +2298,6 @@ function shouldPreferAnchoredRuntimeProjectAwarenessLine(input: {
     return false
   if (/callback return|same thread/iu.test(awarenessLine))
     return false
-  if (
-    awarenessLine.startsWith('Before answering')
-    && !isThinProjectAwarenessAuthorityLine(awarenessLine)
-    && !isCanonicalStructuredProjectAwareness(awarenessLine)
-    && !carriesExplicitProjectClosureTriplet(awarenessLine)
-    && /same digital life project|phase 1|same living line|same-her|same her|one living her|one continuous her|one life loop|数字生命/u.test(
-      awarenessLine.toLowerCase(),
-    )
-  ) {
-    return false
-  }
   if (hasModalitySpecificEmbodimentCue(awarenessLine))
     return false
   if (carriesProjectIdentityAnchor(awarenessLine))
@@ -2169,10 +2358,12 @@ function awarenessLineMissesRuntimeCarry(input: {
   const awarenessLine = normalizeProviderFacingProjectText(input.awarenessLine, 1600)
   if (!awarenessLine)
     return true
+  if (isBlockedFixedTemplateEvidence(awarenessLine))
+    return true
 
   const normalizedAwarenessLine = awarenessLine.toLowerCase()
   const alreadyCarriesPhase1ClosureSummary
-    = /phase 1|one continuous digital life|one continuous her|same digital life|same living line|same-her|same her/u.test(normalizedAwarenessLine)
+    = /(?:^|\|\s*)phase=|local_desktop_life_loop|project_state_continuity|continuity_line/u.test(normalizedAwarenessLine)
       && /landed|already survive|already landed|have landed farther|landed farther/u.test(normalizedAwarenessLine)
       && /still need|still needs|still-open|need to close|needs to close|unfinished closure/u.test(normalizedAwarenessLine)
       && /initiative|embodiment|memory|execution|closure/u.test(normalizedAwarenessLine)
@@ -2195,9 +2386,11 @@ function scoreProjectContinuitySummary(value: unknown) {
   const normalized = normalizeProviderFacingProjectText(value, 4000)?.toLowerCase() ?? ''
   if (!normalized)
     return Number.NEGATIVE_INFINITY
+  if (isBlockedFixedTemplateEvidence(normalized))
+    return Number.NEGATIVE_INFINITY
 
   let score = normalized.length >= 320 ? 2 : normalized.length >= 180 ? 1 : 0
-  for (const marker of ['project_preflight=', 'same_her=', 'landed=', 'open=', 'next=', 'drift_risk=', 'phase=', 'preflight=', 'unresolved=', 'project=']) {
+  for (const marker of ['project_preflight=', 'landed=', 'open=', 'next=', 'drift_risk=', 'phase=', 'preflight=', 'unresolved=', 'project=']) {
     if (normalized.includes(marker))
       score += 2
   }
@@ -2205,11 +2398,9 @@ function scoreProjectContinuitySummary(value: unknown) {
     if (normalized.includes(marker))
       score += 2
   }
-  if (/same local-first digital life project(?: in)? phase 1|same digital life project(?: in)? phase 1/u.test(normalized))
-    score += 6
   if (
     /memory, initiative, and embodiment/u.test(normalized)
-    && /one living loop|same living loop|one living her|same living line/u.test(normalized)
+    && /continuity_line|open_loop|life_loop_continuity/u.test(normalized)
   ) {
     score += 3
   }
@@ -2225,6 +2416,9 @@ function preferProjectAwarenessSummary(input: {
   awarenessLine?: unknown
   summaryCandidates?: Array<unknown>
   fallbackSummary?: unknown
+  latestLandedProgress?: unknown
+  primaryOpenLoop?: unknown
+  nextClosureTarget?: unknown
   maxChars?: number
 }) {
   const maxChars = input.maxChars ?? 4000
@@ -2243,9 +2437,79 @@ function preferProjectAwarenessSummary(input: {
   if (isThinProjectAwarenessAuthorityLine(preferredSummary))
     return awarenessLine
 
+  if (projectAwarenessAuxiliaryFieldMissesRuntimeCarry({
+    candidate: preferredSummary,
+    latestLandedProgress: input.latestLandedProgress,
+    primaryOpenLoop: input.primaryOpenLoop,
+    nextClosureTarget: input.nextClosureTarget,
+  })) {
+    return awarenessLine
+  }
+
   return scoreProjectContinuitySummary(preferredSummary) >= scoreProjectContinuitySummary(awarenessLine)
     ? preferredSummary
     : awarenessLine
+}
+
+function projectAwarenessAuxiliaryFieldMissesRuntimeCarry(input: {
+  candidate?: unknown
+  projectState?: Record<string, unknown> | null
+  latestLandedProgress?: unknown
+  primaryOpenLoop?: unknown
+  nextClosureTarget?: unknown
+}) {
+  const candidate = normalizeProviderFacingProjectText(input.candidate, 1600)
+  if (!candidate)
+    return false
+
+  const latestLandedProgress = input.latestLandedProgress
+    ?? input.projectState?.latestLandedProgress
+    ?? input.projectState?.latestProgress
+  const primaryOpenLoop = input.primaryOpenLoop ?? input.projectState?.primaryOpenLoop
+  const nextClosureTarget = input.nextClosureTarget ?? input.projectState?.nextClosureTarget
+
+  if (
+    !normalizeProviderFacingProjectText(latestLandedProgress, 1600)
+    && !normalizeProviderFacingProjectText(primaryOpenLoop, 1600)
+    && !normalizeProviderFacingProjectText(nextClosureTarget, 1600)
+  ) {
+    return false
+  }
+
+  const looksLikeProjectStateAwarenessField
+    = /\b(?:identity|phase|visibility|landed|open|next|continuity_anchor|continuity_hold|status)=/u.test(candidate)
+      || carriesExplicitProjectClosureTriplet(candidate)
+  if (!looksLikeProjectStateAwarenessField)
+    return false
+
+  return awarenessLineMissesRuntimeCarry({
+    awarenessLine: candidate,
+    latestLandedProgress: normalizeProviderFacingProjectText(latestLandedProgress, 1600),
+    primaryOpenLoop: normalizeProviderFacingProjectText(primaryOpenLoop, 1600),
+    nextClosureTarget: normalizeProviderFacingProjectText(nextClosureTarget, 1600),
+  })
+}
+
+function preferProjectAwarenessAuxiliaryLine(input: {
+  awarenessLine?: unknown
+  candidate?: unknown
+  projectState?: Record<string, unknown> | null
+  maxChars?: number
+}) {
+  const maxChars = input.maxChars ?? 1600
+  const awarenessLine = normalizeProviderFacingProjectText(input.awarenessLine, maxChars)
+  const candidate = normalizeProviderFacingProjectText(input.candidate, maxChars)
+  if (!candidate)
+    return awarenessLine
+  if (!awarenessLine)
+    return candidate
+
+  return projectAwarenessAuxiliaryFieldMissesRuntimeCarry({
+    candidate,
+    projectState: input.projectState,
+  })
+    ? awarenessLine
+    : candidate
 }
 
 function appendMissingContinuitySummaryMarkers(input: {
@@ -2347,8 +2611,8 @@ function readProjectStateFallbackFromSessionMirror(
   const continuityArcSummary = normalizeProviderFacingProjectText(mirror?.continuityArcSummary, 4000)
   const continuityProjectSummary = normalizeProviderFacingProjectText(mirror?.continuityProjectSummary, 4000)
   const preflightSummary
-    = readContinuitySummaryMarker(continuityArcSummary, ['project_preflight'], 1600)
-      ?? readContinuitySummaryMarker(continuityProjectSummary, ['project_preflight', 'preflight'], 1600)
+    = readContinuitySummaryMarker(continuityArcSummary, ['preflight_summary', 'awareness_summary', 'project_preflight'], 1600)
+      ?? readContinuitySummaryMarker(continuityProjectSummary, ['preflight_summary', 'awareness_summary', 'project_preflight', 'preflight'], 1600)
   const currentPhase
     = readContinuitySummaryMarker(continuityProjectSummary, ['phase'], 1600)
       ?? readContinuitySummaryMarker(continuityArcSummary, ['phase'], 1600)
@@ -2362,11 +2626,11 @@ function readProjectStateFallbackFromSessionMirror(
     = readContinuitySummaryMarker(continuityArcSummary, ['next'], 1600)
       ?? readContinuitySummaryMarker(continuityProjectSummary, ['next'], 1600)
   const sameHerSelfLine
-    = readContinuitySummaryMarker(continuityArcSummary, ['same_her', 'same-her'], 1600)
-      ?? readContinuitySummaryMarker(continuityProjectSummary, ['same_her', 'same-her'], 1600)
+    = readContinuitySummaryMarker(continuityArcSummary, ['continuity_anchor', 'same_her', 'same-her'], 1600)
+      ?? readContinuitySummaryMarker(continuityProjectSummary, ['continuity_anchor', 'same_her', 'same-her'], 1600)
   const sameHerDriftRisk
-    = readContinuitySummaryMarker(continuityArcSummary, ['drift_risk', 'same_her_drift_risk'], 1600)
-      ?? readContinuitySummaryMarker(continuityProjectSummary, ['drift_risk', 'same_her_drift_risk'], 1600)
+    = readContinuitySummaryMarker(continuityArcSummary, ['continuity_drift_risk', 'drift_risk', 'same_her_drift_risk'], 1600)
+      ?? readContinuitySummaryMarker(continuityProjectSummary, ['continuity_drift_risk', 'drift_risk', 'same_her_drift_risk'], 1600)
   const rebuiltPreDialogueAwarenessLine = (
     latestLandedProgress
     && primaryOpenLoop
@@ -2378,20 +2642,25 @@ function readProjectStateFallbackFromSessionMirror(
         && !isThinProjectAwarenessAuthorityLine(preflightSummary)
         && !isCompactProjectStatePreflightSummary(preflightSummary)
       )
-        ? normalizeProviderFacingProjectText([
-            preflightSummary,
-            `What has already landed is ${latestLandedProgress}`,
-            `The still-open closure is ${primaryOpenLoop}`,
-            `This reply should keep moving toward ${nextClosureTarget}`,
-          ].join(' '), 1600)
-        : normalizeProviderFacingProjectText([
-            `Before answering, remember: ${brief.identity}`,
-            currentPhase ? `She is still inside ${currentPhase}` : brief.currentPhase ? `She is still inside ${brief.currentPhase}` : '',
-            sameHerSelfLine ?? '',
-            `What has already landed is ${latestLandedProgress}`,
-            `The still-open closure is ${primaryOpenLoop}`,
-            `This reply should keep moving toward ${nextClosureTarget}`,
-          ].filter(Boolean).join('. '), 1600)
+        ? normalizeProviderFacingProjectText(formatAlicizationProjectStateAwarenessFields({
+            identity: brief.identity,
+            currentPhase: currentPhase ?? brief.currentPhase,
+            latestLandedProgress,
+            primaryOpenLoop,
+            nextClosureTarget,
+            sameHerSelfLine,
+            summary: preflightSummary,
+            maxChars: 1600,
+          }), 1600)
+        : normalizeProviderFacingProjectText(formatAlicizationProjectStateAwarenessFields({
+            identity: brief.identity,
+            currentPhase: currentPhase ?? brief.currentPhase,
+            latestLandedProgress,
+            primaryOpenLoop,
+            nextClosureTarget,
+            sameHerSelfLine,
+            maxChars: 1600,
+          }), 1600)
     : preflightSummary
 
   return {
@@ -2558,14 +2827,15 @@ function buildProviderFacingProjectAwarenessLine(input: {
     )
   }
 
-  return normalizeProviderFacingProjectText([
-    `Before answering, remember: ${preferredIdentity}`,
-    input.currentPhase ? `She is still inside ${input.currentPhase}.` : '',
-    preferredSameHerSelfLine,
-    preferredLatestLandedProgress ? `What has already landed is ${preferredLatestLandedProgress}` : '',
-    preferredPrimaryOpenLoop ? `The still-open closure is ${preferredPrimaryOpenLoop}` : '',
-    preferredNextClosureTarget ? `This reply should keep moving toward ${preferredNextClosureTarget}` : '',
-  ].filter(Boolean).join(' '), 1600)
+  return normalizeProviderFacingProjectText(formatAlicizationProjectStateAwarenessFields({
+    identity: preferredIdentity,
+    currentPhase: input.currentPhase,
+    latestLandedProgress: preferredLatestLandedProgress,
+    primaryOpenLoop: preferredPrimaryOpenLoop,
+    nextClosureTarget: preferredNextClosureTarget,
+    sameHerSelfLine: preferredSameHerSelfLine,
+    maxChars: 1600,
+  }), 1600)
 }
 
 function readRuntimeProjectStateFromSurface(
@@ -3004,13 +3274,15 @@ function readRuntimeProjectStateFromSurface(
   ?? companionHeadlineLine
   const shouldPreferContinuityPreflightOverStructuredDirectAwareness = Boolean(
     continuityAwarenessLine
-    && continuityAwarenessLine.startsWith('Before answering')
+    && !containsAlicizationFixedTemplateResidue(continuityAwarenessLine)
+    && !isLegacyProjectAwarenessTemplateShell(continuityAwarenessLine)
     && directAwarenessLine
-    && !directAwarenessLine.startsWith('Before answering')
+    && !containsAlicizationFixedTemplateResidue(directAwarenessLine)
+    && !isLegacyProjectAwarenessTemplateShell(directAwarenessLine)
     && awarenessCarriesBroaderProjectFrame(directAwarenessLine)
     && (
       !directAwarenessCandidate
-      || !directAwarenessCandidate.startsWith('Before answering')
+      || !isLegacyProjectAwarenessTemplateShell(directAwarenessCandidate)
       || isThinProjectAwarenessAuthorityLine(directAwarenessCandidate)
       || isCompactProjectStatePreflightSummary(directAwarenessCandidate)
     ),
@@ -3074,16 +3346,44 @@ function readRuntimeProjectStateFromSurface(
   const effectiveRuntimeAwarenessLine = looksLikeNarrowContinuityCadenceAwarenessLine(effectiveRuntimeAwarenessLineCandidate)
     ? anchoredRuntimeAwarenessLine ?? canonicalAwarenessLine
     : effectiveRuntimeAwarenessLineCandidate
+  const providerSafeExplicitCompanionHeadlineLine = (() => {
+    if (!explicitCompanionHeadlineLine)
+      return null
+    if (!isLegacyProjectAwarenessTemplateShell(explicitCompanionHeadlineLine))
+      return explicitCompanionHeadlineLine
+
+    return normalizeProviderFacingProjectText(resolveAlicizationProjectPreDialogueAwarenessLine({
+      runtimeProjectState: {
+        identity,
+        currentPhase,
+        preDialogueAwarenessLine: effectiveRuntimeAwarenessLine,
+        awarenessLine: effectiveRuntimeAwarenessLine,
+        companionHeadlineLine: explicitCompanionHeadlineLine,
+        latestLandedProgress,
+        primaryOpenLoop,
+        nextClosureTarget,
+        sameHerSelfLine,
+      },
+      fallbackProjectState: {
+        identity,
+        currentPhase,
+        latestLandedProgress,
+        primaryOpenLoop,
+        nextClosureTarget,
+        sameHerSelfLine,
+      },
+    }), 1600) ?? anchoredRuntimeAwarenessLine ?? null
+  })()
   const runtimeCompanionWouldOverNarrowAwareness = embodimentHeadlineWouldOverNarrowProjectAwareness({
-    headlineLine: explicitCompanionHeadlineLine,
+    headlineLine: providerSafeExplicitCompanionHeadlineLine,
     awarenessLine: effectiveRuntimeAwarenessLine,
   })
   const preDialogueAwarenessLine = shouldPreferRuntimeCompanionHeadline({
     awarenessLine: effectiveRuntimeAwarenessLine,
-    companionHeadlineLine: explicitCompanionHeadlineLine,
+    companionHeadlineLine: providerSafeExplicitCompanionHeadlineLine,
   })
   && !runtimeCompanionWouldOverNarrowAwareness
-    ? explicitCompanionHeadlineLine
+    ? providerSafeExplicitCompanionHeadlineLine
     : shouldPreferAnchoredRuntimeProjectAwarenessLine({
       awarenessLine: effectiveRuntimeAwarenessLine,
       anchoredAwarenessLine: anchoredRuntimeAwarenessLine,
@@ -3137,8 +3437,52 @@ function readRuntimeProjectStateFromSurface(
       mergedProjectState.preDialogueAwarenessSummary,
       sessionMirrorProjectState.preDialogueAwarenessSummary,
     ],
+    latestLandedProgress,
+    primaryOpenLoop,
+    nextClosureTarget,
     maxChars: 1600,
   })
+  const providerSafeCompanionHeadlineLine = (() => {
+    const candidate = providerSafeExplicitCompanionHeadlineLine
+      ?? thinDirectCompanionHeadlineFallback
+      ?? companionHeadlineLine
+      ?? preDialogueAwarenessLine
+    if (!candidate || isLegacyProjectAwarenessTemplateShell(candidate))
+      return preDialogueAwarenessLine
+    return preferProjectAwarenessAuxiliaryLine({
+      awarenessLine: preDialogueAwarenessLine,
+      candidate,
+      projectState: {
+        latestLandedProgress,
+        primaryOpenLoop,
+        nextClosureTarget,
+      },
+      maxChars: 1600,
+    })
+  })()
+  const providerSafeSameHerSelfLine = (() => {
+    const normalized = normalizeProviderFacingProjectText(sameHerSelfLine, 1600)
+    if (!normalized || !isLegacyProjectAwarenessTemplateShell(normalized))
+      return normalized ?? sameHerSelfLine
+
+    return normalizeProviderFacingProjectText(resolveAlicizationProjectPreDialogueAwarenessLine({
+      runtimeProjectState: {
+        identity,
+        currentPhase,
+        latestLandedProgress,
+        primaryOpenLoop,
+        nextClosureTarget,
+        sameHerSelfLine: normalized,
+      },
+      fallbackProjectState: {
+        identity,
+        currentPhase,
+        latestLandedProgress,
+        primaryOpenLoop,
+        nextClosureTarget,
+      },
+    }), 1600) ?? anchoredRuntimeAwarenessLine ?? normalized
+  })()
   const emotionalClosureSummary = pickPreferredRuntimeProjectStateDetail([
     consciousProjectState?.emotionalClosureSummary,
     dialogueRuntimeDigestProjectState?.emotionalClosureSummary,
@@ -3170,11 +3514,7 @@ function readRuntimeProjectStateFromSurface(
     preDialogueAwarenessLine,
     awarenessLine: preDialogueAwarenessLine,
     preDialogueAwarenessSummary: preDialogueAwarenessSummary ?? preDialogueAwarenessLine,
-    companionHeadlineLine:
-      directCompanionHeadlineSource
-      ?? thinDirectCompanionHeadlineFallback
-      ?? companionHeadlineLine
-      ?? preDialogueAwarenessLine,
+    companionHeadlineLine: providerSafeCompanionHeadlineLine,
     companionBriefingLine,
     latestLandedProgress,
     latestProgress: latestLandedProgress,
@@ -3183,7 +3523,7 @@ function readRuntimeProjectStateFromSurface(
     openClosureSummary: primaryOpenLoop,
     nextClosureTarget,
     nextClosureTargetSummary: nextClosureTarget,
-    sameHerSelfLine,
+    sameHerSelfLine: providerSafeSameHerSelfLine,
     sameHerDriftRisk,
     sameHerDriftRiskSummary: sameHerDriftRisk,
     sameHerHoldDetail,
@@ -3192,28 +3532,24 @@ function readRuntimeProjectStateFromSurface(
     continuityRestraint,
     continuityArcStage,
     continuityCue,
-    continuityPreferredTiming: normalizeProviderFacingContinuityPreferredTiming(
-      consciousProjectState?.continuityPreferredTiming
-      ?? dialogueRuntimeDigestProjectState?.continuityPreferredTiming
-      ?? runtimeStateProjectState?.continuityPreferredTiming
-      ?? cognitionProjectState?.continuityPreferredTiming
-      ?? runtimeDigestProjectState?.continuityPreferredTiming
-      ?? mergedProjectState.continuityPreferredTiming,
-    ) ?? normalizeProviderFacingContinuityPreferredTiming(
+    continuityPreferredTiming: pickProviderFacingContinuityPreferredTiming([
+      consciousProjectState?.continuityPreferredTiming,
+      dialogueRuntimeDigestProjectState?.continuityPreferredTiming,
+      runtimeStateProjectState?.continuityPreferredTiming,
+      cognitionProjectState?.continuityPreferredTiming,
+      runtimeDigestProjectState?.continuityPreferredTiming,
+      mergedProjectState.continuityPreferredTiming,
       sessionMirrorProjectState.continuityPreferredTiming,
-    ),
-    continuityCadence: normalizeProviderFacingProjectText(
-      consciousProjectState?.continuityCadence
-      ?? dialogueRuntimeDigestProjectState?.continuityCadence
-      ?? runtimeStateProjectState?.continuityCadence
-      ?? cognitionProjectState?.continuityCadence
-      ?? runtimeDigestProjectState?.continuityCadence
-      ?? mergedProjectState.continuityCadence,
-      64,
-    ) ?? normalizeProviderFacingProjectText(
+    ]),
+    continuityCadence: pickProviderFacingContinuityCadence([
+      consciousProjectState?.continuityCadence,
+      dialogueRuntimeDigestProjectState?.continuityCadence,
+      runtimeStateProjectState?.continuityCadence,
+      cognitionProjectState?.continuityCadence,
+      runtimeDigestProjectState?.continuityCadence,
+      mergedProjectState.continuityCadence,
       sessionMirrorProjectState.continuityCadence,
-      64,
-    ),
+    ]),
     preferredBlinkCadence: normalizeProviderFacingBlinkCadence(
       consciousProjectState?.preferredBlinkCadence
       ?? dialogueRuntimeDigestProjectState?.preferredBlinkCadence
@@ -4284,14 +4620,16 @@ function seedPreparedRuntimeProjectAwareness(input: {
       ?? currentProjectState.continuityRestraint
       ?? null,
     continuityPreferredTiming:
-      normalizeProviderFacingContinuityPreferredTiming(currentProjectState.continuityPreferredTiming)
-      ?? normalizeProviderFacingContinuityPreferredTiming(resolvedSurfaceProjectState.continuityPreferredTiming)
-      ?? currentProjectState.continuityPreferredTiming
+      pickProviderFacingContinuityPreferredTiming([
+        currentProjectState.continuityPreferredTiming,
+        resolvedSurfaceProjectState.continuityPreferredTiming,
+      ])
       ?? null,
     continuityCadence:
-      normalizeProviderFacingProjectText(currentProjectState.continuityCadence, 64)
-      ?? normalizeProviderFacingProjectText(resolvedSurfaceProjectState.continuityCadence, 64)
-      ?? currentProjectState.continuityCadence,
+      pickProviderFacingContinuityCadence([
+        currentProjectState.continuityCadence,
+        resolvedSurfaceProjectState.continuityCadence,
+      ]),
     preferredBlinkCadence:
       normalizeProviderFacingBlinkCadence(currentProjectState.preferredBlinkCadence)
       ?? normalizeProviderFacingBlinkCadence(resolvedSurfaceProjectState.preferredBlinkCadence)
@@ -4725,25 +5063,35 @@ function alignPreparedRuntimeSurfaceProjectStateCarry(
     currentProjectState.companionHeadlineLine,
     1600,
   )
+  const providerSafeCurrentCompanionHeadlineLine = currentCompanionHeadlineLine
+    && isLegacyProjectAwarenessTemplateShell(currentCompanionHeadlineLine)
+    ? normalizeProviderFacingProjectText(resolveAlicizationProjectPreDialogueAwarenessLine({
+      runtimeProjectState: {
+        ...currentProjectState,
+        companionHeadlineLine: currentCompanionHeadlineLine,
+      },
+      fallbackProjectState: resolvedProjectState,
+    }), 1600) ?? normalizeProviderFacingProjectText(resolvedProjectState.companionHeadlineLine, 1600)
+    : currentCompanionHeadlineLine
   const shouldPromoteCurrentCompanionHeadline = Boolean(
-    currentCompanionHeadlineLine
-    && carriesSpecificSameHerAuthorityLine(currentCompanionHeadlineLine)
+    providerSafeCurrentCompanionHeadlineLine
+    && carriesSpecificSameHerAuthorityLine(providerSafeCurrentCompanionHeadlineLine)
     && (
       !currentDirectAwarenessLine
       || isThinProjectAwarenessAuthorityLine(currentDirectAwarenessLine)
       || isCanonicalStructuredProjectAwareness(currentDirectAwarenessLine)
       || shouldPreserveProjectAwarenessLineVerbatim(
-        currentCompanionHeadlineLine,
+        providerSafeCurrentCompanionHeadlineLine,
         currentDirectAwarenessLine,
       )
       || isStrongerSameHerProjectHeadline(
-        currentCompanionHeadlineLine,
+        providerSafeCurrentCompanionHeadlineLine,
         currentDirectAwarenessLine,
       )
     ),
   )
   const preferredCurrentAwarenessLine = shouldPromoteCurrentCompanionHeadline
-    ? currentCompanionHeadlineLine
+    ? providerSafeCurrentCompanionHeadlineLine
     : currentDirectAwarenessLine
   const preferProjectDetail = (
     currentValue: unknown,
@@ -4774,15 +5122,18 @@ function alignPreparedRuntimeSurfaceProjectStateCarry(
     ...currentProjectState,
     preDialogueAwarenessLine:
       preferredCurrentAwarenessLine
+      ?? resolvedProjectState.preDialogueAwarenessLine
       ?? currentProjectState.preDialogueAwarenessLine,
     awarenessLine:
       preferredCurrentAwarenessLine
+      ?? resolvedProjectState.awarenessLine
       ?? currentProjectState.awarenessLine,
     preDialogueAwarenessSummary:
       preferredCurrentAwarenessLine
+      ?? resolvedProjectState.preDialogueAwarenessSummary
       ?? currentProjectState.preDialogueAwarenessSummary,
     companionHeadlineLine:
-      currentCompanionHeadlineLine
+      providerSafeCurrentCompanionHeadlineLine
       ?? normalizeProviderFacingProjectText(resolvedProjectState.companionHeadlineLine, 1600)
       ?? currentProjectState.companionHeadlineLine,
     identity:
@@ -4819,8 +5170,8 @@ function alignPreparedRuntimeSurfaceProjectStateCarry(
     ) as RuntimeSurfaceProjectState['nextClosureTarget'],
     sameHerSelfLine:
       pickPreferredRuntimeProjectStateDetail([
-        currentProjectState.sameHerSelfLine,
         resolvedProjectState.sameHerSelfLine,
+        currentProjectState.sameHerSelfLine,
       ], 'same-her', 1600)
       ?? currentProjectState.sameHerSelfLine,
     sameHerDriftRisk:
@@ -4858,13 +5209,15 @@ function alignPreparedRuntimeSurfaceProjectStateCarry(
       ], 'awareness', 1600)
       ?? currentProjectState.continuityCue,
     continuityPreferredTiming:
-      normalizeProviderFacingContinuityPreferredTiming(currentProjectState.continuityPreferredTiming)
-      ?? normalizeProviderFacingContinuityPreferredTiming(resolvedProjectState.continuityPreferredTiming)
-      ?? currentProjectState.continuityPreferredTiming,
+      pickProviderFacingContinuityPreferredTiming([
+        currentProjectState.continuityPreferredTiming,
+        resolvedProjectState.continuityPreferredTiming,
+      ]),
     continuityCadence:
-      normalizeProviderFacingProjectText(currentProjectState.continuityCadence, 64)
-      ?? normalizeProviderFacingProjectText(resolvedProjectState.continuityCadence, 64)
-      ?? currentProjectState.continuityCadence,
+      pickProviderFacingContinuityCadence([
+        currentProjectState.continuityCadence,
+        resolvedProjectState.continuityCadence,
+      ]),
     preferredBlinkCadence:
       normalizeProviderFacingBlinkCadence(currentProjectState.preferredBlinkCadence)
       ?? normalizeProviderFacingBlinkCadence(resolvedProjectState.preferredBlinkCadence)
@@ -5046,7 +5399,7 @@ export function buildPreparedRuntimeSurfaceChain(input: {
   consciousFrameReducedRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null
   answerPlannerReducedRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null
 } {
-  const effectiveDigitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = restorePreparedRuntimeRelationshipCarry(
+  const effectiveDigitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = alignPreparedRuntimeSurfaceProjectStateCarry(restorePreparedRuntimeRelationshipCarry(
     stripProjectStateContinuityTiming(applyMemoryDeliberationToDigitalLifeRuntimeSurface({
       surface: input.baseDigitalLifeRuntimeSurface,
       governance: input.governance,
@@ -5054,8 +5407,8 @@ export function buildPreparedRuntimeSurfaceChain(input: {
       now: input.now,
     })) as AlicizationDigitalLifeRuntimeSurface | null,
     input.context,
-  )
-  const sociallyShapedDigitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = restorePreparedRuntimeRelationshipCarry(
+  ))
+  const sociallyShapedDigitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = alignPreparedRuntimeSurfaceProjectStateCarry(restorePreparedRuntimeRelationshipCarry(
     stripProjectStateContinuityTiming(applyHostPersonModelToDigitalLifeRuntimeSurface({
       surface: effectiveDigitalLifeRuntimeSurface,
       governance: input.governance,
@@ -5063,8 +5416,8 @@ export function buildPreparedRuntimeSurfaceChain(input: {
       now: input.now,
     })) as AlicizationDigitalLifeRuntimeSurface | null,
     input.context,
-  )
-  const executionCallbackCarryRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = restorePreparedRuntimeRelationshipCarry(
+  ))
+  const executionCallbackCarryRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = alignPreparedRuntimeSurfaceProjectStateCarry(restorePreparedRuntimeRelationshipCarry(
     applyExecutionCallbackCarryToDigitalLifeRuntimeSurface({
       surface: sociallyShapedDigitalLifeRuntimeSurface,
       governance: input.governance,
@@ -5072,17 +5425,17 @@ export function buildPreparedRuntimeSurfaceChain(input: {
       now: input.now,
     }) as AlicizationDigitalLifeRuntimeSurface | null,
     input.context,
-  )
-  const consciousFrameReducedRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = reduceRuntimeConsciousFrame({
+  ))
+  const consciousFrameReducedRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = alignPreparedRuntimeSurfaceProjectStateCarry(reduceRuntimeConsciousFrame({
     surface: executionCallbackCarryRuntimeSurface,
     governance: input.governance,
     now: input.now,
-  }) as AlicizationDigitalLifeRuntimeSurface | null
-  const answerPlannerReducedRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = reduceRuntimeAnswerPlanner({
+  }) as AlicizationDigitalLifeRuntimeSurface | null)
+  const answerPlannerReducedRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = alignPreparedRuntimeSurfaceProjectStateCarry(reduceRuntimeAnswerPlanner({
     surface: consciousFrameReducedRuntimeSurface,
     governance: input.governance,
     now: input.now,
-  }) as AlicizationDigitalLifeRuntimeSurface | null
+  }) as AlicizationDigitalLifeRuntimeSurface | null)
 
   return {
     effectiveDigitalLifeRuntimeSurface,
@@ -5434,8 +5787,18 @@ export function rebuildProviderFacingMindTurnContract(input: {
             ?? null,
           companionNextClosureLine: nextClosureTarget,
           briefingLines: mergeUniqueRules([
-            ...(baseContract.preDialogueClosure?.briefingLines ?? []).filter(line => !String(line).startsWith('Next closure target:')),
-            `Next closure target: ${nextClosureTarget}`,
+            ...(baseContract.preDialogueClosure?.briefingLines ?? []).filter(line =>
+              !/^(?:Project identity|Current phase|Landed continuity progress|Still-open closure gap|Next closure target):/u.test(String(line)),
+            ),
+            buildStructuredPreDialogueClosureBriefingLine({
+              identity: projectState?.identity,
+              currentPhase: projectState?.currentPhase,
+              latestLandedProgress: projectState?.latestLandedProgress ?? projectState?.latestProgress,
+              primaryOpenLoop: projectState?.primaryOpenLoop,
+              nextClosureTarget,
+              emotionalClosureCue: projectState?.emotionalClosureCue ?? projectState?.emotionalClosureSummary,
+              sameHerSelfLine: projectState?.sameHerSelfLine,
+            }) ?? '',
           ]),
           reasons: mergeUniqueRules([
             ...(baseContract.preDialogueClosure?.reasons ?? []).filter(reason => reason !== nextClosureTarget),
@@ -5992,12 +6355,13 @@ export function normalizeProviderFacingMindTurnContract(
     .map(value => normalizeProviderFacingProjectText(value, 1600))
     .find(value =>
       value
-      && value.startsWith('Before answering')
+      && !containsAlicizationFixedTemplateResidue(value)
+      && !isLegacyProjectAwarenessTemplateShell(value)
       && !isThinProjectAwarenessAuthorityLine(value)
       && !isCompactProjectStatePreflightSummary(value)
       && (
         shouldPreserveProjectAwarenessLineVerbatim(value, rescuedFinalAwarenessLine)
-        || /same digital life project|local-first digital life project|phase 1/iu.test(value)
+        || /(?:^|\|\s*)(identity|phase|landed|open|next|continuity_anchor)=|phase1_local_digital_life|project_state_continuity|life_loop_continuity/iu.test(value)
       ),
     )
     ?? null
@@ -6006,13 +6370,13 @@ export function normalizeProviderFacingMindTurnContract(
     && !payloadProjectState.hasDirectPayloadProjectAwarenessLine
     && !payloadProjectState.hasDirectPayloadProjectHeadline
     && rescuedFinalAwarenessLine
-    && !rescuedFinalAwarenessLine.startsWith('Before answering')
+    && !isLegacyProjectAwarenessTemplateShell(rescuedFinalAwarenessLine)
     && awarenessCarriesBroaderProjectFrame(rescuedFinalAwarenessLine)
     && (
       !currentAwarenessLine
       || isThinProjectAwarenessAuthorityLine(currentAwarenessLine)
       || isCompactProjectStatePreflightSummary(currentAwarenessLine)
-      || !currentAwarenessLine.startsWith('Before answering, remember:')
+      || isLegacyProjectAwarenessTemplateShell(currentAwarenessLine)
     )
     && shouldPreserveProjectAwarenessLineVerbatim(
       preparedRuntimePreflightAwarenessLine,
@@ -6231,12 +6595,66 @@ export function normalizeProviderFacingMindTurnContract(
     : null
   const finalProjectStateAwarenessLine = phase1ProjectStatePreflightRescueAwarenessLine
     ?? effectiveFinalAwarenessLine
+  const providerSafeFinalProjectStateAwarenessLine = isLegacyProjectAwarenessTemplateShell(finalProjectStateAwarenessLine)
+    ? buildProviderFacingProjectAwarenessLine({
+        identity: liveRuntimeProjectState.identity,
+        currentPhase: liveRuntimeProjectState.currentPhase,
+        sameHerSelfLine: liveRuntimeProjectState.sameHerSelfLine,
+        latestLandedProgress: preferredRebuiltLatestLandedProgress ?? liveRuntimeProjectState.latestLandedProgress,
+        primaryOpenLoop: preferredRebuiltPrimaryOpenLoop ?? liveRuntimeProjectState.primaryOpenLoop,
+        nextClosureTarget: preferredRebuiltNextClosureTarget ?? liveRuntimeProjectState.nextClosureTarget,
+      })
+    : finalProjectStateAwarenessLine
+  const providerSafeFinalCompanionHeadlineLine = isLegacyProjectAwarenessTemplateShell(finalCompanionHeadlineLine)
+    ? providerSafeFinalProjectStateAwarenessLine
+    : finalCompanionHeadlineLine
+  const providerSafeFinalProjectStateAwarenessSummary = (() => {
+    const existingSummary = normalizeProviderFacingProjectText(
+      (contract.projectState as Record<string, unknown> | null)?.preDialogueAwarenessSummary,
+      1600,
+    )
+    if (
+      existingSummary
+      && !isLegacyProjectAwarenessTemplateShell(existingSummary)
+      && !isThinProjectAwarenessAuthorityLine(existingSummary)
+      && !isCompactProjectStatePreflightSummary(existingSummary)
+      && (!/callback return|same thread/iu.test(existingSummary)
+        || carriesExplicitProjectClosureTriplet(existingSummary))
+    ) {
+      return existingSummary
+    }
+
+    const awarenessLineIsOpeningOnly = Boolean(
+      providerSafeFinalProjectStateAwarenessLine
+      && /callback return|same thread/iu.test(providerSafeFinalProjectStateAwarenessLine)
+      && !carriesExplicitProjectClosureTriplet(providerSafeFinalProjectStateAwarenessLine),
+    )
+    if (!awarenessLineIsOpeningOnly)
+      return providerSafeFinalProjectStateAwarenessLine
+
+    return buildProviderFacingProjectAwarenessLine({
+      identity: liveRuntimeProjectState.identity,
+      currentPhase: liveRuntimeProjectState.currentPhase,
+      sameHerSelfLine: liveRuntimeProjectState.sameHerSelfLine,
+      latestLandedProgress: preferredRebuiltLatestLandedProgress ?? liveRuntimeProjectState.latestLandedProgress,
+      primaryOpenLoop: preferredRebuiltPrimaryOpenLoop ?? liveRuntimeProjectState.primaryOpenLoop,
+      nextClosureTarget: preferredRebuiltNextClosureTarget ?? liveRuntimeProjectState.nextClosureTarget,
+    }) ?? providerSafeFinalProjectStateAwarenessLine
+  })()
   const incomingContractAwarenessShell = normalizeProviderFacingProjectText(
     (contract.projectState as Record<string, unknown> | null)?.preDialogueAwarenessLine
     ?? (contract.projectState as Record<string, unknown> | null)?.awarenessLine,
     1600,
   )
-  const normalizedAnswerGovernance = shouldCarryPhase1ProjectStateAnswerGovernance
+  const contractAnswerSubject = normalizeProviderFacingProjectText(
+    (contract as { answerSubject?: unknown }).answerSubject,
+    64,
+  )
+  const shouldEnrichNormalizedProjectStateGovernance = Boolean(
+    shouldCarryPhase1ProjectStateAnswerGovernance
+    || contractAnswerSubject === 'project-state',
+  )
+  const normalizedAnswerGovernance = shouldEnrichNormalizedProjectStateGovernance
     ? enrichProjectStateAnswerGovernanceIfNeeded({
         answerSubject: 'project-state',
         answerIntent: contract.answerIntent ?? null,
@@ -6263,7 +6681,7 @@ export function normalizeProviderFacingMindTurnContract(
   )
     ? mergeUniqueRules([
         ...(normalizedAnswerGovernance?.mustNotDo ?? contract.mustNotDo ?? []),
-        'Do not let same-her continuity collapse into a detached project narrator shell.',
+        'Do not let continuity collapse into a detached project narrator shell.',
       ])
     : normalizedAnswerGovernance?.mustNotDo ?? contract.mustNotDo
   const preferredNormalizedLatestLandedProgress = pickPreferredRuntimeProjectStateDetail([
@@ -6362,10 +6780,10 @@ export function normalizeProviderFacingMindTurnContract(
         ...contract.projectState,
         ...liveRuntimeProjectState,
         preflightSummary: finalPreflightSummary ?? null,
-        preDialogueAwarenessLine: finalProjectStateAwarenessLine ?? null,
-        awarenessLine: finalProjectStateAwarenessLine ?? null,
-        preDialogueAwarenessSummary: finalProjectStateAwarenessLine ?? null,
-        companionHeadlineLine: finalCompanionHeadlineLine ?? finalProjectStateAwarenessLine ?? null,
+        preDialogueAwarenessLine: providerSafeFinalProjectStateAwarenessLine ?? null,
+        awarenessLine: providerSafeFinalProjectStateAwarenessLine ?? null,
+        preDialogueAwarenessSummary: providerSafeFinalProjectStateAwarenessSummary ?? null,
+        companionHeadlineLine: providerSafeFinalCompanionHeadlineLine ?? providerSafeFinalProjectStateAwarenessLine ?? null,
         companionBriefingLine:
           normalizeProviderFacingProjectText(
             (contract.projectState as Record<string, unknown> | null)?.companionBriefingLine,
@@ -6399,23 +6817,19 @@ export function normalizeProviderFacingMindTurnContract(
         continuityArcStage: preferredNormalizedContinuityArcStage,
         continuityCue: preferredNormalizedContinuityCue ?? null,
         continuityPreferredTiming:
-          normalizeProviderFacingProjectText(
+          pickProviderFacingContinuityPreferredTiming([
             (contract.projectState as Record<string, unknown> | null)?.continuityPreferredTiming,
-            64,
-          )
-          ?? liveRuntimeProjectState.continuityPreferredTiming
-          ?? spineRuntimeProjectState.continuityPreferredTiming
-          ?? preparedRuntimeProjectState.continuityPreferredTiming
-          ?? null,
+            liveRuntimeProjectState.continuityPreferredTiming,
+            spineRuntimeProjectState.continuityPreferredTiming,
+            preparedRuntimeProjectState.continuityPreferredTiming,
+          ]),
         continuityCadence:
-          normalizeProviderFacingProjectText(
+          pickProviderFacingContinuityCadence([
             (contract.projectState as Record<string, unknown> | null)?.continuityCadence,
-            64,
-          )
-          ?? liveRuntimeProjectState.continuityCadence
-          ?? spineRuntimeProjectState.continuityCadence
-          ?? preparedRuntimeProjectState.continuityCadence
-          ?? null,
+            liveRuntimeProjectState.continuityCadence,
+            spineRuntimeProjectState.continuityCadence,
+            preparedRuntimeProjectState.continuityCadence,
+          ]),
         preferredBlinkCadence:
           normalizeProviderFacingProjectText(
             (contract.projectState as Record<string, unknown> | null)?.preferredBlinkCadence,
@@ -6634,6 +7048,82 @@ function preferPreparedRuntimeSpecificMindTurnContractAwareness(input: {
   const preferredAwarenessLine = shouldPreferPreparedCanonicalAwarenessRescue
     ? preparedAwarenessLine
     : rebuiltAwarenessLine
+  const providerSafePreferredAwarenessLine = isLegacyProjectAwarenessTemplateShell(preferredAwarenessLine)
+    ? buildProviderFacingProjectAwarenessLine({
+        identity: normalizeProviderFacingProjectText(
+          (input.normalizedContract.projectState as Record<string, unknown> | null)?.identity
+          ?? (input.rebuiltContract.projectState as Record<string, unknown> | null)?.identity
+          ?? input.preparedProjectState?.identity,
+          1600,
+        ) ?? '',
+        currentPhase: normalizeProviderFacingProjectText(
+          (input.normalizedContract.projectState as Record<string, unknown> | null)?.currentPhase
+          ?? (input.rebuiltContract.projectState as Record<string, unknown> | null)?.currentPhase
+          ?? input.preparedProjectState?.currentPhase,
+          1600,
+        ) ?? '',
+        sameHerSelfLine: normalizeProviderFacingProjectText(
+          (input.normalizedContract.projectState as Record<string, unknown> | null)?.sameHerSelfLine
+          ?? (input.rebuiltContract.projectState as Record<string, unknown> | null)?.sameHerSelfLine
+          ?? input.preparedProjectState?.sameHerSelfLine,
+          1600,
+        ),
+        latestLandedProgress: preferredLatestLandedProgress ?? normalizedLatestLandedProgress,
+        primaryOpenLoop: preferredPrimaryOpenLoop ?? normalizedPrimaryOpenLoop,
+        nextClosureTarget: preferredNextClosureTarget ?? normalizedNextClosureTarget,
+      })
+    : preferredAwarenessLine
+  const providerSafePreferredCompanionHeadlineLine = isLegacyProjectAwarenessTemplateShell(preferredCompanionHeadlineLine)
+    ? providerSafePreferredAwarenessLine
+    : preferredCompanionHeadlineLine
+  const providerSafePreferredAwarenessSummary = (() => {
+    const normalizedSummary = normalizeProviderFacingProjectText(
+      (input.normalizedContract.projectState as Record<string, unknown> | null)?.preDialogueAwarenessSummary,
+      1600,
+    )
+    if (
+      normalizedSummary
+      && !isLegacyProjectAwarenessTemplateShell(normalizedSummary)
+      && !isThinProjectAwarenessAuthorityLine(normalizedSummary)
+      && !isCompactProjectStatePreflightSummary(normalizedSummary)
+      && (!/callback return|same thread/iu.test(normalizedSummary)
+        || carriesExplicitProjectClosureTriplet(normalizedSummary))
+    ) {
+      return normalizedSummary
+    }
+
+    const preferredLineIsOpeningOnly = Boolean(
+      providerSafePreferredAwarenessLine
+      && /callback return|same thread/iu.test(providerSafePreferredAwarenessLine)
+      && !carriesExplicitProjectClosureTriplet(providerSafePreferredAwarenessLine),
+    )
+    if (!preferredLineIsOpeningOnly)
+      return providerSafePreferredAwarenessLine
+
+    return buildProviderFacingProjectAwarenessLine({
+      identity: normalizeProviderFacingProjectText(
+        (input.normalizedContract.projectState as Record<string, unknown> | null)?.identity
+        ?? (input.rebuiltContract.projectState as Record<string, unknown> | null)?.identity
+        ?? input.preparedProjectState?.identity,
+        1600,
+      ) ?? '',
+      currentPhase: normalizeProviderFacingProjectText(
+        (input.normalizedContract.projectState as Record<string, unknown> | null)?.currentPhase
+        ?? (input.rebuiltContract.projectState as Record<string, unknown> | null)?.currentPhase
+        ?? input.preparedProjectState?.currentPhase,
+        1600,
+      ) ?? '',
+      sameHerSelfLine: normalizeProviderFacingProjectText(
+        (input.normalizedContract.projectState as Record<string, unknown> | null)?.sameHerSelfLine
+        ?? (input.rebuiltContract.projectState as Record<string, unknown> | null)?.sameHerSelfLine
+        ?? input.preparedProjectState?.sameHerSelfLine,
+        1600,
+      ),
+      latestLandedProgress: preferredLatestLandedProgress ?? normalizedLatestLandedProgress,
+      primaryOpenLoop: preferredPrimaryOpenLoop ?? normalizedPrimaryOpenLoop,
+      nextClosureTarget: preferredNextClosureTarget ?? normalizedNextClosureTarget,
+    }) ?? providerSafePreferredAwarenessLine
+  })()
 
   return overrideMindTurnContractNextClosureTarget({
     contract: {
@@ -6641,10 +7131,10 @@ function preferPreparedRuntimeSpecificMindTurnContractAwareness(input: {
       projectState: input.normalizedContract.projectState
         ? {
             ...(input.normalizedContract.projectState as Record<string, unknown>),
-            preDialogueAwarenessLine: preferredAwarenessLine,
-            awarenessLine: preferredAwarenessLine,
-            preDialogueAwarenessSummary: preferredAwarenessLine,
-            companionHeadlineLine: preferredCompanionHeadlineLine,
+            preDialogueAwarenessLine: providerSafePreferredAwarenessLine,
+            awarenessLine: providerSafePreferredAwarenessLine,
+            preDialogueAwarenessSummary: providerSafePreferredAwarenessSummary,
+            companionHeadlineLine: providerSafePreferredCompanionHeadlineLine,
           } as AlicizationMindTurnContractSnapshot['projectState'] & Record<string, unknown>
         : input.normalizedContract.projectState,
     } satisfies AlicizationMindTurnContractSnapshot,
@@ -6659,7 +7149,12 @@ function preferPreparedRuntimeSpecificMindTurnContractAwareness(input: {
 function readProviderFacingPayloadProjectState(
   rawPayload: AlicizationChatStartPayload | null | undefined,
 ) {
-  const payload = rawPayload ? resolveAlicizationChatStartPayloadPreDialogueSendIdentity(rawPayload) : null
+  const directPayloadIdentity
+    = (rawPayload as { preDialogueSendIdentity?: Record<string, unknown> | null } | null | undefined)?.preDialogueSendIdentity
+      ?? null
+  const payload = rawPayload && directPayloadIdentity
+    ? resolveAlicizationChatStartPayloadPreDialogueSendIdentity(rawPayload)
+    : null
   const readSameHerDriftRiskPayloadFromReason = (value: unknown) => {
     const normalized = normalizeProviderFacingProjectAwarenessPayloadText(value, 1600)
     if (!normalized)
@@ -6689,9 +7184,6 @@ function readProviderFacingPayloadProjectState(
 
     return preferred
   }
-  const directPayloadIdentity
-    = (rawPayload as { preDialogueSendIdentity?: Record<string, unknown> | null } | null | undefined)?.preDialogueSendIdentity
-      ?? null
   const resolvedPayloadIdentity
     = (payload?.preDialogueSendIdentity as Record<string, unknown> | null | undefined)
       ?? null
@@ -6963,39 +7455,101 @@ function readProviderFacingPayloadProjectState(
   const directPayloadProjectPreflightSummary
     = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.preflightSummary, 1600)
       ?? normalizeProviderFacingProjectAwarenessPayloadText(directPayloadIdentity?.summaryLine, 1600)
+  const canonicalProjectStateBrief = resolveAlicizationProjectStateBrief()
+  const payloadProjectStructuredIdentity = normalizeProviderFacingProjectAwarenessPayloadText(
+    directPayloadProjectState?.identity
+    ?? payloadProjectState?.identity
+    ?? normalizedPayloadIdentity?.identity
+    ?? (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.identity
+    ?? canonicalProjectStateBrief.identity,
+    1600,
+  ) ?? ''
+  const payloadProjectStructuredPhase = normalizeProviderFacingProjectAwarenessPayloadText(
+    directPayloadProjectState?.currentPhase
+    ?? payloadProjectState?.currentPhase
+    ?? normalizedPayloadIdentity?.currentPhase
+    ?? (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.currentPhase
+    ?? canonicalProjectStateBrief.currentPhase,
+    1600,
+  ) ?? ''
+  const payloadProjectStructuredLanded = normalizeProviderFacingProjectAwarenessPayloadText(
+    directPayloadProjectState?.latestLandedProgress
+    ?? directPayloadProjectState?.latestProgress
+    ?? payloadProjectState?.latestLandedProgress
+    ?? payloadProjectState?.latestProgress
+    ?? (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.latestLandedProgress
+    ?? (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.latestProgress,
+    1600,
+  )
+  const payloadProjectStructuredOpen = normalizeProviderFacingProjectAwarenessPayloadText(
+    directPayloadProjectState?.primaryOpenLoop
+    ?? directPayloadProjectState?.openLoop
+    ?? payloadProjectState?.primaryOpenLoop
+    ?? payloadProjectState?.openLoop
+    ?? (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.primaryOpenLoop
+    ?? (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.openLoop,
+    1600,
+  )
+  const payloadProjectStructuredNext = normalizeProviderFacingProjectAwarenessPayloadText(
+    directPayloadProjectState?.nextClosureTarget
+    ?? directPayloadIdentity?.companionNextClosureLine
+    ?? payloadProjectState?.nextClosureTarget
+    ?? normalizedPayloadIdentity?.companionNextClosureLine
+    ?? (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.nextClosureTarget
+    ?? resolvedPayloadIdentity?.companionNextClosureLine,
+    1600,
+  )
+  const makePayloadProjectAwarenessLineProviderSafe = (value: unknown) => {
+    const normalized = normalizeProviderFacingProjectAwarenessPayloadText(value, 1600)
+    if (!normalized)
+      return null
+    if (!isLegacyProjectAwarenessTemplateShell(normalized))
+      return normalized
+
+    return buildProviderFacingProjectAwarenessLine({
+      identity: payloadProjectStructuredIdentity,
+      currentPhase: payloadProjectStructuredPhase,
+      sameHerSelfLine: directPayloadProjectSameHerSelfLine,
+      latestLandedProgress: payloadProjectStructuredLanded,
+      primaryOpenLoop: payloadProjectStructuredOpen,
+      nextClosureTarget: payloadProjectStructuredNext,
+    })
+  }
+  const providerSafeDirectPayloadProjectAwarenessLine = makePayloadProjectAwarenessLineProviderSafe(
+    preferredDirectPayloadProjectAwarenessLine,
+  )
+  const providerSafeRepairedPayloadProjectAwarenessLine = makePayloadProjectAwarenessLineProviderSafe(
+    repairedPayloadProjectAwarenessLine,
+  )
 
   return {
     explicitPayloadProjectHeadline:
-      directPayloadProjectHeadline
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(payloadProjectState?.companionHeadlineLine, 1600)
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(normalizedPayloadIdentity?.companionHeadlineLine, 1600)
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(
+      makePayloadProjectAwarenessLineProviderSafe(directPayloadProjectHeadline)
+      ?? makePayloadProjectAwarenessLineProviderSafe(payloadProjectState?.companionHeadlineLine)
+      ?? makePayloadProjectAwarenessLineProviderSafe(normalizedPayloadIdentity?.companionHeadlineLine)
+      ?? makePayloadProjectAwarenessLineProviderSafe(
         (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.companionHeadlineLine,
-        1600,
       )
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(resolvedPayloadIdentity?.companionHeadlineLine, 1600),
+      ?? makePayloadProjectAwarenessLineProviderSafe(resolvedPayloadIdentity?.companionHeadlineLine),
     explicitPayloadProjectAwarenessLine:
-      preferredDirectPayloadProjectAwarenessLine
-      ?? directPayloadProjectBaseAwarenessLine
-      ?? directPayloadProjectAwarenessSummary
-      ?? directPayloadProjectCompanionBriefingLine
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(normalizedPayloadIdentity?.awarenessLine, 1600)
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(normalizedPayloadIdentity?.companionBriefingLine, 1600)
-      ?? repairedPayloadProjectAwarenessLine
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(
+      providerSafeDirectPayloadProjectAwarenessLine
+      ?? makePayloadProjectAwarenessLineProviderSafe(directPayloadProjectBaseAwarenessLine)
+      ?? makePayloadProjectAwarenessLineProviderSafe(directPayloadProjectAwarenessSummary)
+      ?? makePayloadProjectAwarenessLineProviderSafe(directPayloadProjectCompanionBriefingLine)
+      ?? makePayloadProjectAwarenessLineProviderSafe(normalizedPayloadIdentity?.awarenessLine)
+      ?? makePayloadProjectAwarenessLineProviderSafe(normalizedPayloadIdentity?.companionBriefingLine)
+      ?? providerSafeRepairedPayloadProjectAwarenessLine
+      ?? makePayloadProjectAwarenessLineProviderSafe(
         (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.preDialogueAwarenessLine,
-        1600,
       )
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(
+      ?? makePayloadProjectAwarenessLineProviderSafe(
         (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.awarenessLine,
-        1600,
       )
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(
+      ?? makePayloadProjectAwarenessLineProviderSafe(
         (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.preDialogueAwarenessSummary,
-        1600,
       )
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(resolvedPayloadIdentity?.awarenessLine, 1600)
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(resolvedPayloadIdentity?.companionBriefingLine, 1600),
+      ?? makePayloadProjectAwarenessLineProviderSafe(resolvedPayloadIdentity?.awarenessLine)
+      ?? makePayloadProjectAwarenessLineProviderSafe(resolvedPayloadIdentity?.companionBriefingLine),
     explicitPayloadProjectPreflightSummary: preferResolvedPayloadPreflightSummaryTruth({
       direct:
         directPayloadProjectState?.preflightSummary
@@ -7099,6 +7653,20 @@ function applyProviderFacingProjectStateToRuntimeSurface(input: {
     }
     if (key === 'continuityRestraint') {
       return pickPreferredContinuityRestraint([
+        existingProjectState?.[key],
+        fallbackProjectState?.[key],
+        incomingProjectState?.[key],
+      ]) ?? incomingProjectState?.[key] ?? existingProjectState?.[key] ?? fallbackProjectState?.[key]
+    }
+    if (key === 'continuityPreferredTiming') {
+      return pickProviderFacingContinuityPreferredTiming([
+        existingProjectState?.[key],
+        fallbackProjectState?.[key],
+        incomingProjectState?.[key],
+      ]) ?? incomingProjectState?.[key] ?? existingProjectState?.[key] ?? fallbackProjectState?.[key]
+    }
+    if (key === 'continuityCadence') {
+      return pickProviderFacingContinuityCadence([
         existingProjectState?.[key],
         fallbackProjectState?.[key],
         incomingProjectState?.[key],
@@ -7273,11 +7841,14 @@ function applyProviderFacingProjectStateToRuntimeSurface(input: {
 
 function injectProviderFacingMindTurnContractSystemMessage(input: {
   contract: AlicizationMindTurnContractSnapshot | null
+  includeProjectStateFacts?: boolean
   messages: Message[]
 }) {
   if (!input.contract)
     return input.messages
-  const systemBlock = buildAlicizationMindTurnContractSystemBlock(input.contract)
+  const systemBlock = buildAlicizationMindTurnContractSystemBlock(input.contract, {
+    includeProjectStateFacts: input.includeProjectStateFacts,
+  })
   if (!systemBlock)
     return input.messages
   if (input.messages.some(message =>
@@ -7327,6 +7898,28 @@ function buildProviderFacingAwarenessResolutionDiagnostics(input: {
   }
 }
 
+function buildStructuredPreDialogueClosureBriefingLine(input: {
+  identity?: unknown
+  currentPhase?: unknown
+  latestLandedProgress?: unknown
+  primaryOpenLoop?: unknown
+  nextClosureTarget?: unknown
+  emotionalClosureCue?: unknown
+  sameHerSelfLine?: unknown
+}) {
+  return normalizeProviderFacingProjectText(formatAlicizationProjectStateAwarenessFields({
+    identity: input.identity,
+    currentPhase: input.currentPhase,
+    latestLandedProgress: input.latestLandedProgress,
+    primaryOpenLoop: input.primaryOpenLoop,
+    nextClosureTarget: input.nextClosureTarget,
+    continuityAnchor: input.sameHerSelfLine,
+    emotionalClosureCue: input.emotionalClosureCue,
+    visibility: 'internal-structured',
+    maxChars: 1600,
+  }), 1600)
+}
+
 function overrideMindTurnContractNextClosureTarget(input: {
   contract: AlicizationMindTurnContractSnapshot | null
   nextClosureTarget: string | null | undefined
@@ -7371,19 +7964,21 @@ function overrideMindTurnContractNextClosureTarget(input: {
   const currentAwareness = currentAwarenessLine ?? ''
   const refreshedAwarenessLine = shouldRefreshAwarenessLine
     ? normalizeProviderFacingProjectText(
-        shouldAppendNextClosureTarget
-          ? `${currentAwareness} Next closure target: ${nextClosureTarget}.`
-          : currentAwareness.includes('This reply should keep moving toward')
-            ? currentAwareness.replace(
-                /This reply should keep moving toward[^.。!?！？]*[.。!?！？]?/iu,
-                `This reply should keep moving toward ${nextClosureTarget}.`,
-              )
-            : currentAwareness.includes('The next closure target is')
-              ? currentAwareness.replace(
-                  /The next closure target is[^.。!?！？]*[.。!?！？]?/iu,
-                  `The next closure target is ${nextClosureTarget}.`,
-                )
-              : `${currentAwareness} This reply should keep moving toward ${nextClosureTarget}.`,
+        formatAlicizationProjectStateAwarenessFields({
+          identity: projectState?.identity,
+          currentPhase: projectState?.currentPhase,
+          latestLandedProgress: projectState?.latestLandedProgress ?? projectState?.latestProgress,
+          primaryOpenLoop: projectState?.primaryOpenLoop,
+          nextClosureTarget,
+          continuityAnchor: projectState?.sameHerSelfLine,
+          sameHerHoldDetail: projectState?.sameHerHoldDetail,
+          continuityDriftRisk: projectState?.sameHerDriftRisk,
+          proactiveSameHerGap: projectState?.proactiveSameHerGap,
+          emotionalClosureCue: projectState?.emotionalClosureCue ?? projectState?.emotionalClosureSummary,
+          status: shouldAppendNextClosureTarget ? currentAwareness : null,
+          visibility: 'internal-structured',
+          maxChars: 1600,
+        }),
         1600,
       )
     : null
@@ -7419,15 +8014,17 @@ function overrideMindTurnContractNextClosureTarget(input: {
           briefingLines: mergeUniqueRules([
             ...input.contract.preDialogueClosure.briefingLines.filter((line) => {
               const normalized = String(line)
-              return !normalized.startsWith('Project identity:')
-                && !normalized.startsWith('Current phase:')
-                && !normalized.startsWith('Still-open closure gap:')
-                && !normalized.startsWith('Next closure target:')
+              return !/^(?:Project identity|Current phase|Landed continuity progress|Still-open closure gap|Next closure target):/u.test(normalized)
             }),
-            input.contract.projectState?.identity ? `Project identity: ${input.contract.projectState.identity}` : '',
-            input.contract.projectState?.currentPhase ? `Current phase: ${input.contract.projectState.currentPhase}` : '',
-            input.contract.projectState?.primaryOpenLoop ? `Still-open closure gap: ${input.contract.projectState.primaryOpenLoop}` : '',
-            `Next closure target: ${nextClosureTarget}`,
+            buildStructuredPreDialogueClosureBriefingLine({
+              identity: input.contract.projectState?.identity,
+              currentPhase: input.contract.projectState?.currentPhase,
+              latestLandedProgress: input.contract.projectState?.latestLandedProgress ?? input.contract.projectState?.latestProgress,
+              primaryOpenLoop: input.contract.projectState?.primaryOpenLoop,
+              nextClosureTarget,
+              emotionalClosureCue: input.contract.projectState?.emotionalClosureCue ?? input.contract.projectState?.emotionalClosureSummary,
+              sameHerSelfLine: input.contract.projectState?.sameHerSelfLine,
+            }) ?? '',
           ].filter(Boolean)),
           reasons: mergeUniqueRules([
             ...input.contract.preDialogueClosure.reasons.filter(reason => reason !== nextClosureTarget),
@@ -7435,6 +8032,52 @@ function overrideMindTurnContractNextClosureTarget(input: {
           ]),
         }
       : input.contract.preDialogueClosure,
+  } satisfies AlicizationMindTurnContractSnapshot
+}
+
+function backfillMindTurnContractProjectRhythmFromRuntime(
+  contract: AlicizationMindTurnContractSnapshot | null,
+  runtimeProjectState: Record<string, unknown> | null | undefined,
+) {
+  if (!contract?.projectState || !runtimeProjectState)
+    return contract
+
+  const projectState = contract.projectState as Record<string, unknown>
+  return {
+    ...contract,
+    projectState: {
+      ...projectState,
+      continuityPreferredTiming: projectState.continuityPreferredTiming ?? null,
+      continuityCadence:
+        pickProviderFacingContinuityCadence([
+          projectState.continuityCadence,
+          runtimeProjectState.continuityCadence,
+        ]),
+      preferredBlinkCadence:
+        normalizeProviderFacingBlinkCadence(projectState.preferredBlinkCadence)
+        ?? normalizeProviderFacingBlinkCadence(runtimeProjectState.preferredBlinkCadence)
+        ?? null,
+      preferredGazeMode:
+        normalizeProviderFacingGazeMode(projectState.preferredGazeMode)
+        ?? normalizeProviderFacingGazeMode(runtimeProjectState.preferredGazeMode)
+        ?? null,
+      preferredPauseMode:
+        normalizeProviderFacingPauseMode(projectState.preferredPauseMode)
+        ?? normalizeProviderFacingPauseMode(runtimeProjectState.preferredPauseMode)
+        ?? null,
+      preferredLipsyncMode:
+        normalizeProviderFacingLipsyncMode(projectState.preferredLipsyncMode)
+        ?? normalizeProviderFacingLipsyncMode(runtimeProjectState.preferredLipsyncMode)
+        ?? null,
+      preferredVoiceMode:
+        normalizeProviderFacingVoiceMode(projectState.preferredVoiceMode)
+        ?? normalizeProviderFacingVoiceMode(runtimeProjectState.preferredVoiceMode)
+        ?? null,
+      preferredPacingMode:
+        normalizeProviderFacingPacingMode(projectState.preferredPacingMode)
+        ?? normalizeProviderFacingPacingMode(runtimeProjectState.preferredPacingMode)
+        ?? null,
+    } as AlicizationMindTurnContractSnapshot['projectState'] & Record<string, unknown>,
   } satisfies AlicizationMindTurnContractSnapshot
 }
 
@@ -7486,28 +8129,38 @@ function rescueReturnedProviderFacingProjectAwareness(input: {
       projectState.companionHeadlineLine,
       1600,
     )
+    const rescuedStructuredAwarenessLine = normalizePreparedExecutionText(resolveAlicizationProjectPreDialogueAwarenessLine({
+      runtimeProjectState: {
+        ...projectState,
+        preDialogueAwarenessLine: directPreludeAwarenessLine,
+        awarenessLine: directPreludeAwarenessLine,
+        preDialogueAwarenessSummary: currentAwarenessSummary,
+      },
+      fallbackProjectState: projectState,
+    }), 1600) ?? directPreludeAwarenessLine
     const rescuedAwarenessSummary = preferProjectAwarenessSummary({
-      awarenessLine: directPreludeAwarenessLine,
+      awarenessLine: rescuedStructuredAwarenessLine,
       summaryCandidates: [
         currentAwarenessSummary,
         projectState.preflightSummary,
+        directPreludeAwarenessLine,
       ],
       maxChars: 1600,
-    }) ?? directPreludeAwarenessLine
+    }) ?? rescuedStructuredAwarenessLine
 
     return overrideMindTurnContractNextClosureTarget({
       contract: {
         ...contract,
         projectState: {
           ...projectState,
-          preDialogueAwarenessLine: directPreludeAwarenessLine,
-          awarenessLine: directPreludeAwarenessLine,
+          preDialogueAwarenessLine: rescuedStructuredAwarenessLine,
+          awarenessLine: rescuedStructuredAwarenessLine,
           preDialogueAwarenessSummary: rescuedAwarenessSummary,
           companionHeadlineLine:
             !currentCompanionHeadlineLine
             || currentCompanionHeadlineLine === currentAwarenessLine
             || isCanonicalStructuredProjectAwareness(currentCompanionHeadlineLine)
-              ? directPreludeAwarenessLine
+              ? rescuedStructuredAwarenessLine
               : projectState.companionHeadlineLine,
         } as AlicizationMindTurnContractSnapshot['projectState'] & Record<string, unknown>,
         preDialogueClosure: contract.preDialogueClosure
@@ -7628,8 +8281,10 @@ function rescueReturnedProviderFacingProjectAwareness(input: {
 export const __alicizationTestOnly = {
   applyProviderFacingProjectStateToRuntimeSurface,
   enrichExecutionProjectBriefingWithPersonMemoryCapsule,
+  isBlockedFixedTemplateEvidence,
   isStrongerSameHerProjectHeadline,
   isThinProjectAwarenessAuthorityLine,
+  scoreRuntimeProjectStateDetailCandidate,
   overrideMindTurnContractNextClosureTarget,
   preferIncomingDialogueSessionMirror,
   readProjectStateFallbackFromSessionMirror,
@@ -7637,6 +8292,8 @@ export const __alicizationTestOnly = {
   readProviderFacingPayloadProjectState,
   rescueReturnedProviderFacingProjectAwareness,
   resolvePreferredRuntimeSurface,
+  sanitizeOrdinaryDialogueProviderSystemBlock,
+  sanitizeOrdinaryDialogueProviderMessages,
 }
 
 async function readLightweightPerformanceManifest(
@@ -7681,6 +8338,8 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       ?? prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame?.projectState?.awarenessLine,
       1600,
     )
+    const originalPreludeProjectRhythmState
+      = readRuntimeProjectStateFromSurface(prelude.perceptionAugmentation.digitalLifeRuntimeSurface) as Record<string, unknown>
     const now = getNow()
     const activeSelfEvolutionSnapshot = await options.getActiveSelfEvolutionSnapshot?.().catch(() => null) ?? null
     const turnContext = turnRuntime.beginTurn({
@@ -7935,6 +8594,15 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const freshExecutionReplyCallback = executionReplyObligation?.source === 'fresh-callback'
       ? [...executionCallbackContext.callbacks].sort((left, right) => right.createdAt - left.createdAt)[0] ?? null
       : null
+    const shouldIncludeProviderProjectStateContext = shouldIncludeProjectStateProviderContext({
+      actionKind: prelude.actionObligation.kind,
+      answerSubject: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.answerSubject ?? null,
+      executionCapabilityInquiry: prelude.executionCapabilityInquiry,
+      executionReplyObligation,
+      executionRoutingIntent: effectiveExecutionRoutingIntent,
+      latestUserText: readLatestUserMessageText(messages),
+      messages,
+    })
     const {
       effectiveMindTurnGovernanceWithRecollection,
       llmMindAuthorityGovernance,
@@ -8501,6 +9169,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
 
     const runtimeCorePromptBlocks = options.buildMainRuntimeCorePromptBlocks({
       hostName,
+      includeProjectStateContext: shouldIncludeProviderProjectStateContext,
       personaKernel,
     })
     const hasVisualGrounding = provisionalHasVisualGrounding
@@ -8632,15 +9301,17 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         perceptionPromptSystemBlocks: prelude.perceptionAugmentation.promptSystemBlocks,
         perceptionSystemBlocks: prelude.perceptionAugmentation.systemBlocks,
         digitalLifeRuntimeSurface: runtimeSurfaceForBuilder,
-        executionCapabilitySystemBlocks: buildExecutionCapabilitySystemBlocks(
-          executionCapabilities,
-          options.executionCapabilityChannels,
-          {
-            allowTools,
-            inquiry: prelude.executionCapabilityInquiry,
-            runtimeContext: executionCapabilityRuntimeContext,
-          },
-        ),
+        executionCapabilitySystemBlocks: shouldIncludeProviderProjectStateContext
+          ? buildExecutionCapabilitySystemBlocks(
+              executionCapabilities,
+              options.executionCapabilityChannels,
+              {
+                allowTools,
+                inquiry: prelude.executionCapabilityInquiry,
+                runtimeContext: executionCapabilityRuntimeContext,
+              },
+            )
+          : [],
         executionRoutingEnforcementSystemBlock: effectiveExecutionRoutingIntent
           ? buildExecutionRoutingEnforcementSystemBlock(effectiveExecutionRoutingIntent)
           : undefined,
@@ -8656,7 +9327,9 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         agentRuntimeSystemBlocks: [
           memoryCarrySystemBlock,
           sessionMirrorSystemBlock,
-          agentTurn.buildSessionSystemBlock(),
+          shouldIncludeProviderProjectStateContext
+            ? agentTurn.buildSessionSystemBlock()
+            : '',
         ],
         organicMemorySystemBlocks: buildOrganicMemorySystemBlocks(organicPromptContext, memoryTurnArtifact),
         performanceManifestSystemBlocks: buildPerformanceManifestSystemBlocks(performanceManifest),
@@ -8695,6 +9368,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         ? ['visible-reply-authority-settled']
         : ['visible-reply-authority-missing'],
     })
+    const providerPlanningMessages = sanitizeOrdinaryDialogueProviderMessages(runtimeSurface.messages)
     const workingMemorySessionId = agentTurn.conversationSessionId ?? payload.turnId
     const workingMemoryPrompt = buildWorkingMemoryPromptBlockFromRuntime({
       cardId: payload.cardId,
@@ -8703,7 +9377,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       dialogueWorldThread: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.dialogueWorldThread ?? null,
       executionCallbackRecallText: executionCallbackContext.recallText,
       executionLedgerRecallText: executionLedgerContext.recallText,
-      messages: runtimeSurface.messages,
+      messages: providerPlanningMessages,
       now,
       previousSnapshot: workingMemoryStore.get(payload.cardId, workingMemorySessionId),
       sessionId: workingMemorySessionId,
@@ -8713,7 +9387,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       ? buildLongTermMemoryRecallBlock({
           bundle: await options.retrieveLongTermMemoryEvidence({
             cardId: payload.cardId,
-            currentUserText: readLatestUserMessageText(runtimeSurface.messages),
+            currentUserText: readLatestUserMessageText(providerPlanningMessages),
             workingMemoryQueryHints: workingMemoryPrompt.ownerContext.queryHints,
             currentThreadTitle: workingMemoryPrompt.ownerContext.current.threadTitle,
             activeTask: workingMemoryPrompt.ownerContext.current.activeTask,
@@ -9055,34 +9729,36 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       preludeSpineRuntimeProjectState.sameHerDriftRisk,
       fresherRuntimeProjectState.sameHerDriftRisk,
     ], 'drift', 1600)
-    const preferredSeedContinuityPreferredTiming = normalizeProviderFacingContinuityPreferredTiming(
-      fresherDialogueProjectState?.continuityPreferredTiming
-      ?? preludeDialogueProjectState?.continuityPreferredTiming
-      ?? preludeSpineDialogueProjectState?.continuityPreferredTiming
-      ?? preludeSpineRuntimeProjectState.continuityPreferredTiming
-      ?? fresherRuntimeProjectState.continuityPreferredTiming,
-    )
-    const preferredSeedContinuityCadence = normalizeProviderFacingProjectText(
-      fresherDialogueProjectState?.continuityCadence
-      ?? preludeDialogueProjectState?.continuityCadence
-      ?? preludeSpineDialogueProjectState?.continuityCadence
-      ?? preludeSpineRuntimeProjectState.continuityCadence
-      ?? fresherRuntimeProjectState.continuityCadence,
-      64,
-    )
+    const preferredSeedContinuityPreferredTiming = pickProviderFacingContinuityPreferredTiming([
+      fresherDialogueProjectState?.continuityPreferredTiming,
+      preludeDialogueProjectState?.continuityPreferredTiming,
+      preludeSpineDialogueProjectState?.continuityPreferredTiming,
+      preludeSpineRuntimeProjectState.continuityPreferredTiming,
+      fresherRuntimeProjectState.continuityPreferredTiming,
+    ])
+    const preferredSeedContinuityCadence = pickProviderFacingContinuityCadence([
+      fresherDialogueProjectState?.continuityCadence,
+      preludeDialogueProjectState?.continuityCadence,
+      preludeSpineDialogueProjectState?.continuityCadence,
+      preludeSpineRuntimeProjectState.continuityCadence,
+      fresherRuntimeProjectState.continuityCadence,
+      originalPreludeProjectRhythmState.continuityCadence,
+    ])
     const preferredSeedBlinkCadence = normalizeProviderFacingBlinkCadence(
       fresherDialogueProjectState?.preferredBlinkCadence
       ?? preludeDialogueProjectState?.preferredBlinkCadence
       ?? preludeSpineDialogueProjectState?.preferredBlinkCadence
       ?? preludeSpineRuntimeProjectState.preferredBlinkCadence
-      ?? fresherRuntimeProjectState.preferredBlinkCadence,
+      ?? fresherRuntimeProjectState.preferredBlinkCadence
+      ?? originalPreludeProjectRhythmState.preferredBlinkCadence,
     )
     const preferredSeedGazeMode = normalizeProviderFacingGazeMode(
       fresherDialogueProjectState?.preferredGazeMode
       ?? preludeDialogueProjectState?.preferredGazeMode
       ?? preludeSpineDialogueProjectState?.preferredGazeMode
       ?? preludeSpineRuntimeProjectState.preferredGazeMode
-      ?? fresherRuntimeProjectState.preferredGazeMode,
+      ?? fresherRuntimeProjectState.preferredGazeMode
+      ?? originalPreludeProjectRhythmState.preferredGazeMode,
     )
     const preferredSeedPauseMode = normalizeProviderFacingPauseMode(
       fresherDialogueProjectState?.preferredPauseMode
@@ -9256,7 +9932,16 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       ),
     )
     if (shouldPreferMirrorContinuityPreflightOverStructuredSeedAwareness) {
-      preferredSeedAwarenessLine = preferredSeedMirrorPreflightAwarenessLine
+      preferredSeedAwarenessLine = isLegacyProjectAwarenessTemplateShell(preferredSeedMirrorPreflightAwarenessLine)
+        ? buildProviderFacingProjectAwarenessLine({
+            identity: fresherRuntimeProjectState.identity,
+            currentPhase: fresherRuntimeProjectState.currentPhase,
+            sameHerSelfLine: preferredSeedSameHerSelfLine ?? fresherRuntimeProjectState.sameHerSelfLine,
+            latestLandedProgress: preferredSeedLatestLandedProgress ?? fresherRuntimeProjectState.latestLandedProgress,
+            primaryOpenLoop: preferredSeedPrimaryOpenLoop ?? fresherRuntimeProjectState.primaryOpenLoop,
+            nextClosureTarget: preferredSeedNextClosureTarget ?? fresherRuntimeProjectState.nextClosureTarget,
+          })
+        : preferredSeedMirrorPreflightAwarenessLine
     }
     const preferredSeedPayloadAwarenessLine = preferredSeedPayloadProjectState.hasDirectPayloadProjectAwarenessLine
       ? resolvePreferredPayloadAwarenessLine({
@@ -9591,18 +10276,35 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       ? cloneRuntimeSurfaceForDiagnostics(builderSurfaceSource)
       : null
     const finalPreferredSeedAwarenessLine = (() => {
+      const providerSafeSeedAwarenessLine = (value: string | null | undefined) => {
+        return isLegacyProjectAwarenessTemplateShell(value)
+          ? buildProviderFacingProjectAwarenessLine({
+              identity: fresherRuntimeProjectState.identity,
+              currentPhase: fresherRuntimeProjectState.currentPhase,
+              sameHerSelfLine: preferredSeedSameHerSelfLine ?? fresherRuntimeProjectState.sameHerSelfLine,
+              latestLandedProgress: preferredSeedLatestLandedProgress ?? fresherRuntimeProjectState.latestLandedProgress,
+              primaryOpenLoop: preferredSeedPrimaryOpenLoop ?? fresherRuntimeProjectState.primaryOpenLoop,
+              nextClosureTarget: preferredSeedNextClosureTarget ?? fresherRuntimeProjectState.nextClosureTarget,
+            })
+          : value ?? null
+      }
+
       if (!looksLikeNarrowContinuityCadenceAwarenessLine(preferredSeedAwarenessLine))
-        return preferredSeedAwarenessLine
+        return providerSafeSeedAwarenessLine(preferredSeedAwarenessLine)
 
       const preferredSeedHasRuntimeSpecificSameHer = Boolean(
         preferredSeedSameHerSelfLine
         && canonicalSameHerSelfLine
         && preferredSeedSameHerSelfLine !== canonicalSameHerSelfLine,
       )
-      return preferredSeedHasRuntimeSpecificSameHer
+      const preferred = preferredSeedHasRuntimeSpecificSameHer
         ? preferredSeedAnchoredAwarenessLine ?? canonicalPreDialogueAwarenessLine
         : canonicalPreDialogueAwarenessLine ?? preferredSeedAnchoredAwarenessLine ?? preferredSeedAwarenessLine
+      return providerSafeSeedAwarenessLine(preferred)
     })()
+    const finalPreferredSeedCompanionHeadlineLine = isLegacyProjectAwarenessTemplateShell(preferredSeedCompanionHeadlineLine)
+      ? finalPreferredSeedAwarenessLine
+      : preferredSeedCompanionHeadlineLine
     applyProviderFacingProjectStateToRuntimeSurface({
       runtimeSurface,
       projectState: {
@@ -9611,7 +10313,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         preDialogueAwarenessLine: finalPreferredSeedAwarenessLine,
         awarenessLine: finalPreferredSeedAwarenessLine,
         preDialogueAwarenessSummary: finalPreferredSeedAwarenessLine,
-        companionHeadlineLine: preferredSeedCompanionHeadlineLine,
+        companionHeadlineLine: finalPreferredSeedCompanionHeadlineLine,
         nextClosureTarget: preferredSeedNextClosureTarget,
         latestLandedProgress: preferredSeedLatestLandedProgress,
         primaryOpenLoop: preferredSeedPrimaryOpenLoop,
@@ -9640,17 +10342,37 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       }),
     }
     const rebuiltMindTurnContract = rebuiltMindTurnContractInput.contract
-    const normalizedMindTurnContract = preferPreparedRuntimeSpecificMindTurnContractAwareness({
-      normalizedContract: normalizeProviderFacingMindTurnContract(
-        rebuiltMindTurnContract,
+    const runtimeProjectRhythmState
+      = (() => {
+        const runtimeRhythmState = readRuntimeProjectStateFromSurface(runtimeSurface.digitalLifeRuntimeSurface) as Record<string, unknown>
+        return {
+          ...runtimeRhythmState,
+          continuityPreferredTiming: runtimeRhythmState.continuityPreferredTiming,
+          continuityCadence: pickProviderFacingContinuityCadence([
+            runtimeRhythmState.continuityCadence,
+            originalPreludeProjectRhythmState.continuityCadence,
+          ]),
+          preferredBlinkCadence:
+              normalizeProviderFacingBlinkCadence(runtimeRhythmState.preferredBlinkCadence)
+              ?? normalizeProviderFacingBlinkCadence(originalPreludeProjectRhythmState.preferredBlinkCadence),
+          preferredGazeMode:
+              normalizeProviderFacingGazeMode(runtimeRhythmState.preferredGazeMode)
+              ?? normalizeProviderFacingGazeMode(originalPreludeProjectRhythmState.preferredGazeMode),
+        } as Record<string, unknown>
+      })()
+    const normalizedMindTurnContract = backfillMindTurnContractProjectRhythmFromRuntime(
+      preferPreparedRuntimeSpecificMindTurnContractAwareness({
+        normalizedContract: normalizeProviderFacingMindTurnContract(
+          rebuiltMindTurnContract,
+          rawPayload,
+          runtimeSurface,
+        ),
+        rebuiltContract: rebuiltMindTurnContract,
+        preparedProjectState: runtimeProjectRhythmState,
         rawPayload,
-        runtimeSurface,
-      ),
-      rebuiltContract: rebuiltMindTurnContract,
-      preparedProjectState:
-        runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState as Record<string, unknown> | null | undefined,
-      rawPayload,
-    })
+      }),
+      runtimeProjectRhythmState,
+    )
     const finalizedReturnedMindTurnContract = rescueReturnedProviderFacingProjectAwareness({
       contract: (() => {
         if (!normalizedMindTurnContract)
@@ -9867,11 +10589,14 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       runtimeSurface,
       projectState: finalizedReturnedMindTurnContract?.projectState ?? null,
     })
-    const finalGoverningProject
-      = buildProviderFacingProjectGovernanceSummary(finalReturnedRuntimeSurfaceProjectState)
-        ?? buildProviderFacingProjectGovernanceSummary(
-          normalizedMindTurnContract?.projectState as Record<string, unknown> | null | undefined,
+    const finalGoverningProject = shouldIncludeProviderProjectStateContext
+      ? (
+          buildProviderFacingProjectGovernanceSummary(finalReturnedRuntimeSurfaceProjectState)
+          ?? buildProviderFacingProjectGovernanceSummary(
+            normalizedMindTurnContract?.projectState as Record<string, unknown> | null | undefined,
+          )
         )
+      : null
     const providerFacingRuntimeSurface = runtimeSurface.digitalLifeRuntimeSurface
     const providerFacingAnswerPlannerSeed: AlicizationAnswerPlannerSnapshot | null
       = providerFacingRuntimeSurface?.dialogue?.answerPlanner
@@ -9906,17 +10631,23 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     }
     messages = injectProviderFacingMindTurnContractSystemMessage({
       contract: finalizedReturnedMindTurnContract,
+      includeProjectStateFacts: shouldIncludeProviderProjectStateContext,
       messages: runtimeSurface.messages,
     })
-    if (!carriesAlicizationCanonicalProjectState(messages)) {
+    if (shouldIncludeProviderProjectStateContext && !carriesAlicizationCanonicalProjectState(messages)) {
       messages = [
-        ...buildAlicizationProjectStateExtraSystemBlocks().map(content => ({ role: 'system', content }) as Message),
+        ...buildAlicizationProviderFacingProjectStateExtraSystemBlocks().map(content => ({ role: 'system', content }) as Message),
         ...messages,
       ]
     }
     messages = injectWorkingMemorySystemBlock(messages, workingMemoryPrompt.ownerBlock)
     messages = injectWorkingMemorySystemBlock(messages, workingMemoryPrompt.block)
     messages = injectWorkingMemorySystemBlock(messages, longTermMemoryRecallBlock)
+    messages = sanitizeOrdinaryDialogueProviderMessages(messages)
+    if (!shouldIncludeProviderProjectStateContext) {
+      sanitizeOrdinaryDialogueRuntimeSurfacePlanning(runtimeSurface.digitalLifeRuntimeSurface)
+      sanitizeOrdinaryDialogueRuntimeSurfacePlanning(runtimeSurface.digitalLifeSpine?.runtimeSurface ?? null)
+    }
     runtimeSurface.messages = messages
 
     if (options.onPreparedExecutionDiagnostics) {
@@ -10543,12 +11274,10 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         ...(normalizedMindTurnContract?.mustDo ?? []),
       ])
       if (!providerFacingAnswerPlannerMustDo.some(item =>
-        item.includes('same digital-life closure seam')
-        || item.includes('same project-aware self line')
-        || item.includes('same-her continuity'),
+        item.includes('continuity_policy=project_state_required'),
       )) {
         providerFacingAnswerPlannerMustDo.push(
-          'Carry this same digital-life closure seam through the answer so the same-her continuity stays explicit.',
+          'continuity_policy=project_state_required | owner=ProjectStateGovernance | visibility=internal-structured',
         )
       }
       if (!String(existingAnswerPlanner.governingProject ?? '').trim()) {

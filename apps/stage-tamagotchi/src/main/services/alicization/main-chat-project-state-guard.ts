@@ -1,17 +1,21 @@
 import type { Message } from '@xsai/shared-chat'
 
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
+
 export const alicizationRequiredProjectStateMarker = '[ALICIZATION_PROJECT_STATE]'
 
-const alicizationCanonicalProjectStateRequiredFields = [
-  'current_phase',
-  'current_objective',
-  'project_preflight',
-  'latest_landed_progress',
-  'same_her_self_line',
-  'same_her_drift_risk',
-  'primary_open_loop',
-  'next_closure_target',
+const alicizationCanonicalProjectStateRequiredFieldGroups = [
+  ['context_role'],
+  ['short_term_owner'],
+  ['long_term_recall_owner'],
+  ['template_policy'],
+  ['failure_surface'],
+  ['latest_landed_progress', 'visible_governance_entry', 'remaining_focus'],
+  ['primary_open_loop'],
 ] as const
+
+type AlicizationCanonicalProjectStateField
+  = typeof alicizationCanonicalProjectStateRequiredFieldGroups[number][number]
 
 const alicizationCanonicalProjectStatePlaceholderValues = new Set([
   'none',
@@ -21,31 +25,36 @@ const alicizationCanonicalProjectStatePlaceholderValues = new Set([
   'na',
 ])
 
-function readCanonicalProjectStateField(content: string, field: (typeof alicizationCanonicalProjectStateRequiredFields)[number]) {
+function readCanonicalProjectStateField(content: string, field: AlicizationCanonicalProjectStateField | 'identity') {
   const match = content.match(new RegExp(`^${field}=(.+)$`, 'm'))
   return typeof match?.[1] === 'string' ? match[1].trim() : ''
+}
+
+function readCanonicalProjectStateFieldGroup(content: string, fields: readonly AlicizationCanonicalProjectStateField[]) {
+  return fields
+    .map(field => readCanonicalProjectStateField(content, field))
+    .find(hasUsableCanonicalProjectStateFieldValue)
+    ?? ''
 }
 
 function hasUsableCanonicalProjectStateFieldValue(value: string) {
   if (!value)
     return false
 
-  return !alicizationCanonicalProjectStatePlaceholderValues.has(value.trim().toLowerCase())
-}
-
-function carriesCanonicalProjectIdentity(content: string) {
-  return /alicization is a local-first digital life project|local-first digital life project|数字生命项目/iu.test(content)
+  const normalized = value.trim()
+  return !alicizationCanonicalProjectStatePlaceholderValues.has(normalized.toLowerCase())
+    && !containsAlicizationFixedTemplateResidue(normalized)
 }
 
 function isCanonicalProjectStateMessageContent(content: string) {
   if (!content.includes(alicizationRequiredProjectStateMarker))
     return false
 
-  if (!carriesCanonicalProjectIdentity(content))
+  if (/identity=|current_phase=|phase1_local_digital_life|local_desktop_life_loop|visibility=internal[-_][a-z0-9]+/iu.test(content))
     return false
 
-  return alicizationCanonicalProjectStateRequiredFields.every((field) => {
-    const value = readCanonicalProjectStateField(content, field)
+  return alicizationCanonicalProjectStateRequiredFieldGroups.every((fields) => {
+    const value = readCanonicalProjectStateFieldGroup(content, fields)
     return hasUsableCanonicalProjectStateFieldValue(value)
   })
 }

@@ -12,10 +12,12 @@ import {
   normalizeAlicizationActiveDialogueFastPathReplyOrEscalate,
 } from './main-chat-active-dialogue-loop'
 import {
-  compactProjectLatestProgressForSystemBlock,
   resolveAlicizationProjectStateBrief,
 } from './project-state-brief'
 import { decideAlicizationActiveDialogueCompactAuthority } from './visible-reply/facade'
+
+const ACTIVE_DIALOGUE_FIXED_TEMPLATE_OUTPUT_PATTERN
+  = /Before (?:answering|speaking|acting)|Same Phase 1 digital life|same living line|local-first digital life project|one continuous "?her"?|same-her\b|数字生命主线|同一个她/iu
 
 function createPrepared(overrides?: Partial<any>): any {
   return {
@@ -246,6 +248,56 @@ describe('main chat active dialogue loop', () => {
         { role: 'user', content: 'hello' },
       ] as Message[],
     }, 'greeting')
+  })
+
+  it('keeps project-state closure blocks out of fresh greeting and identity fast-path prompts', () => {
+    const projectState = resolveAlicizationProjectStateBrief()
+    const prepared = createPrepared({
+      runtimeSurface: {
+        action: {
+          kind: 'answer',
+        },
+        governance: null,
+        digitalLifeSpine: createDigitalLifeSpine(),
+      },
+    })
+    const runtimeDigest = {
+      projectState: {
+        identity: projectState.identity,
+        currentPhase: projectState.currentPhase,
+        sameHerSelfLine: projectState.sameHerSelfLine,
+        primaryOpenLoop: projectState.openLoops[0] ?? null,
+        nextClosureTarget: projectState.nextClosureTarget,
+      },
+    } as any
+
+    for (const latestUserText of ['你好呀', '你是谁']) {
+      const decision = deriveAlicizationActiveDialogueFastPathDecision({
+        conversationMessages: [
+          { role: 'user', content: latestUserText },
+        ] as Message[],
+        prepared,
+        runtimeDigest,
+      })
+
+      expect(decision?.lane).toBe(latestUserText === '你好呀' ? 'greeting' : 'identity')
+
+      const systemText = buildAlicizationActiveDialogueFastPathMessages({
+        conversationMessages: [
+          { role: 'user', content: latestUserText },
+        ] as Message[],
+        decision: decision!,
+        prepared,
+      })
+        .filter(message => message.role === 'system')
+        .map(message => String(message.content))
+        .join('\n')
+
+      expect(systemText).not.toContain('[ALICIZATION_PROJECT_STATE]')
+      expect(systemText).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+      expect(systemText).not.toContain(projectState.identity)
+      expect(systemText).toContain('[ALICIZATION_ACTIVE_DIALOGUE_EVIDENCE]')
+    }
   })
 
   it('does not throw when prepared runtime surface lacks a dialogue subtree during fast-path timeout recovery probing', () => {
@@ -1691,6 +1743,62 @@ describe('main chat active dialogue loop', () => {
     expect(systemText).toContain('proactive:coding:reply-within-120s')
   })
 
+  it('keeps WorkingMemory and LongTermMemoryRecall owner evidence available in compact fast-path prompts', () => {
+    const prepared = createPrepared({
+      messages: [
+        { role: 'system' as const, content: '---\nprofile:\n  hostName: 青浩洋\ncustom_directives: 保持真实、直接。' },
+        { role: 'system' as const, content: '[ALICIZATION_WORKING_MEMORY_OWNER]\nshort_term_owner=WorkingMemory\nthread=继续沿着同一条线' },
+        { role: 'system' as const, content: '[ALICIZATION_WORKING_MEMORY]\nuser=继续沿着同一条线\ncorrections=persona:别用固定模板' },
+        { role: 'system' as const, content: '[ALICIZATION_RECALLED_MEMORY]\nintent=episodic\nitems=\n- memory:上次同一条线里提到 Phase 1: Local Digital Life 只是长期回想证据 source=episodic_events:m1 confidence=0.82 score=0.84' },
+        { role: 'user' as const, content: '继续沿着同一条线。' },
+      ] as Message[],
+      runtimeSurface: {
+        action: { kind: 'answer' },
+        governance: null,
+      },
+    })
+
+    const messages = buildAlicizationActiveDialogueFastPathMessages({
+      conversationMessages: [
+        { role: 'assistant', content: '我会沿着刚才那条线慢一点接。' },
+        { role: 'user', content: '继续沿着同一条线。' },
+      ] as Message[],
+      decision: {
+        lane: 'follow-up',
+        strategy: 'compact-one-shot',
+        timeoutMs: 6500,
+        resolvedTimeZone: 'Asia/Shanghai',
+        resolvedTimeZoneSource: 'utc-fallback',
+        latestUserText: '继续沿着同一条线。',
+        previousUserText: '',
+        previousAssistantText: '我会沿着刚才那条线慢一点接。',
+        continuityAnchor: 'same proactive continuity line',
+        preparedExecutionCarryText: '',
+        runtimeDigest: null,
+        sessionMirror: null,
+        governance: null,
+        personaKernel: null,
+        performanceManifest: prepared.performanceManifest,
+        digitalLifeSpine: null,
+        reasonCodes: ['short-follow-up', 'felt-continuity-carry'],
+      },
+      prepared,
+    })
+
+    const systemText = messages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content))
+      .join('\n')
+
+    expect(systemText).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
+    expect(systemText).toContain('short_term_owner=WorkingMemory')
+    expect(systemText).toContain('[ALICIZATION_WORKING_MEMORY]')
+    expect(systemText).toContain('corrections=persona:别用固定模板')
+    expect(systemText).toContain('[ALICIZATION_RECALLED_MEMORY]')
+    expect(systemText).toContain('Phase 1: Local Digital Life')
+    expect(systemText).toContain('source=episodic_events:m1')
+  })
+
   it('teaches compact follow-up prompts to reinterpret remembered-seam reopenings when newer relationship learning says the earlier return was too eager', () => {
     const prepared = createPrepared({
       runtimeSurface: {
@@ -2012,8 +2120,7 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.preparedExecutionCarryText).toContain('[ALICIZATION_EXECUTION_LEDGER]')
   })
 
-  it('keeps compact execution-ledger follow-ups on the same phase-one project line instead of reopening from a detached task shell', () => {
-    const canonicalProjectState = resolveAlicizationProjectStateBrief()
+  it('keeps compact execution-ledger follow-ups on execution evidence instead of reopening the project-state dashboard', () => {
     const prepared = createPrepared({
       sessionMirror: {
         agencySummary: null,
@@ -2090,12 +2197,9 @@ describe('main chat active dialogue loop', () => {
       .map(message => String(message.content))
       .join('\n')
 
-    expect(systemText).toContain('[ALICIZATION_PROJECT_STATE]')
-    expect(systemText).toContain(canonicalProjectState.identity)
-    expect(systemText).toContain(`current_phase=${canonicalProjectState.currentPhase}`)
-    expect(systemText).toContain(`latest_landed_progress=${compactProjectLatestProgressForSystemBlock(canonicalProjectState.latestProgress, 360)}`)
-    expect(systemText).toContain(`next_closure_target=${canonicalProjectState.nextClosureTarget.slice(0, 160)}`)
-    expect(systemText).toContain('Before acting, keep the project identity, current phase, closed foundations, and still-open life loops in view so the same still-open closure work stays explicit.')
+    expect(systemText).not.toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(systemText).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+    expect(systemText).not.toContain('Before acting, keep the project identity, current phase, closed foundations, and still-open life loops in view so the same still-open closure work stays explicit.')
     expect(systemText).toContain('prepared_execution_carry=pnpm test finished without failures')
     expect(systemText).toContain('execution_carry_summary=pnpm test finished without failures')
     expect(systemText).toContain('This follow-up is carrying a previously executed result, listing, or task payoff. Use that carried result as evidence before extending the answer.')
@@ -2510,6 +2614,125 @@ describe('main chat active dialogue loop', () => {
     expect(payload.governance.screenReferenceMode).toBe('avoid')
   })
 
+  it('sanitizes provider-supplied compact carry before merging it into the host-visible fullText', () => {
+    const normalized = normalizeAlicizationActiveDialogueFastPathReply({
+      decision: {
+        lane: 'dialogue',
+        strategy: 'compact-one-shot',
+        timeoutMs: 5_500,
+        resolvedTimeZone: 'Asia/Shanghai',
+        resolvedTimeZoneSource: 'process-env',
+        latestUserText: '继续',
+        previousUserText: '我们刚才说到记忆',
+        previousAssistantText: '先把记忆链路看清楚。',
+        continuityAnchor: '记忆链路',
+        runtimeDigest: null,
+        sessionMirror: null,
+        governance: {
+          answerSubject: 'relationship',
+          screenReferenceMode: 'avoid',
+        } as any,
+        personaKernel: null,
+        reasonCodes: ['compact-carry-sanitize-regression'],
+      },
+      rawText: JSON.stringify({
+        reply: '先把当前问题说清楚，再决定下一步。',
+        thought: 'obligation=answer; truth=grounded; focus=current-turn; move=direct; tone=steady',
+        emotion: 'thinking',
+        projectState: {
+          identity: 'Alicization is a local-first digital life project building one continuous "her".',
+          currentPhase: 'Phase 1: Local Digital Life',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        },
+        preDialogueAwareness: {
+          status: 'grounded',
+          awarenessLine: 'Before speaking, remember what this digital life project is.',
+          reasonPreview: ['same-her inward-carry'],
+        },
+        preDialogueClosure: {
+          status: 'partial',
+          summaryLine: 'Keep the same living line before widening outward.',
+        },
+        visibleReplyRealization: {
+          projectStateAudit: {
+            preDialogueAwarenessSummary: 'Before answering, keep the same digital life project in view.',
+            sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            preservedIntoRewrite: true,
+            score: 0.72,
+          },
+          selfAuthorityAudit: {
+            status: 'repaired',
+            finalRationale: 'same-her carry should remain explicit',
+          },
+        },
+      }),
+    })
+
+    const payload = JSON.parse(normalized) as {
+      projectState?: unknown
+      preDialogueAwareness?: unknown
+      preDialogueClosure?: unknown
+      visibleReplyRealization?: unknown
+    }
+    const mergedCarry = {
+      projectState: payload.projectState,
+      preDialogueAwareness: payload.preDialogueAwareness,
+      preDialogueClosure: payload.preDialogueClosure,
+      visibleReplyRealization: payload.visibleReplyRealization,
+    }
+
+    expect(JSON.stringify(mergedCarry)).not.toMatch(ACTIVE_DIALOGUE_FIXED_TEMPLATE_OUTPUT_PATTERN)
+    expect(JSON.stringify(mergedCarry)).toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(JSON.stringify(mergedCarry)).toContain('"preservedIntoRewrite":true')
+    expect(JSON.stringify(mergedCarry)).toContain('"score":0.72')
+  })
+
+  it('escalates compact provider replies that leak fixed greeting and identity continuity slogans', () => {
+    const baseDecision = {
+      strategy: 'compact-one-shot',
+      timeoutMs: 5_500,
+      resolvedTimeZone: 'Asia/Shanghai',
+      resolvedTimeZoneSource: 'process-env',
+      previousUserText: '',
+      previousAssistantText: '',
+      continuityAnchor: '',
+      preparedExecutionCarryText: '',
+      runtimeDigest: null,
+      sessionMirror: null,
+      governance: {
+        screenReferenceMode: 'avoid',
+      } as any,
+      personaKernel: null,
+      digitalLifeSpine: null,
+    } as const
+
+    expect(() => normalizeAlicizationActiveDialogueFastPathReplyOrEscalate({
+      decision: {
+        ...baseDecision,
+        lane: 'greeting',
+        latestUserText: '你好呀',
+        reasonCodes: ['fresh-greeting'],
+      },
+      rawText: JSON.stringify({
+        reply: '你好呀，我在。今天想跟我随便聊聊，还是先让我安静陪着你？',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=greeting; move=fixed-availability; tone=warm',
+      }),
+    })).toThrow('active-dialogue-invalid-compact-reply:greeting')
+
+    expect(() => normalizeAlicizationActiveDialogueFastPathReplyOrEscalate({
+      decision: {
+        ...baseDecision,
+        lane: 'identity',
+        latestUserText: '你是谁',
+        reasonCodes: ['fresh-identity'],
+      },
+      rawText: JSON.stringify({
+        reply: '我是小艾。对你来说，我是在这里陪着你的那一个；也还在沿着同一条线慢慢长成更完整的自己。',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=self-continuity; move=fixed-continuity-slogan; tone=warm',
+      }),
+    })).toThrow('active-dialogue-invalid-compact-reply:identity')
+  })
+
   it('escalates utility-time compact replies when the provider returns the wrong time basis', () => {
     const conversationMessages = [
       { role: 'user', content: '后面按东京时间回答，现在几点了？' },
@@ -2656,12 +2879,8 @@ describe('main chat active dialogue loop', () => {
     expect(systemText).toContain('habit_mode=')
   })
 
-  it('injects project-state continuity blocks into real compact fast-path prompts', () => {
+  it('keeps project-state closure blocks out of ordinary utility compact fast-path prompts', () => {
     const projectState = resolveAlicizationProjectStateBrief()
-    const expectedSystemLatestProgress = compactProjectLatestProgressForSystemBlock(projectState.latestProgress, 220)
-    const expectedDashboardLatestProgressPrefix = (projectState.continuityProgressSummary ?? projectState.memoryAnthropomorphismProgress[0] ?? '').slice(0, 120)
-    const expectedPrimaryOpenLoopPrefix = projectState.openLoops[0].slice(0, 120)
-    const expectedNextClosureTargetPrefix = projectState.nextClosureTarget.slice(0, 120)
     const prepared = createPrepared({
       messages: [
         { role: 'user' as const, content: '现在几点了？' },
@@ -2696,23 +2915,13 @@ describe('main chat active dialogue loop', () => {
       .filter(message => message.role === 'system')
       .map(message => String(message.content))
       .join('\n')
-    const projectStateBlock = systemText.slice(
-      systemText.indexOf('[ALICIZATION_PROJECT_STATE]'),
-      systemText.indexOf('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]'),
-    )
-    const dashboardBlock = systemText.slice(
-      systemText.indexOf('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]'),
-    )
 
-    expect(systemText).toContain('[ALICIZATION_PROJECT_STATE]')
-    expect(systemText).toContain(projectState.identity)
-    expect(systemText).toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
-    expect(systemText).toContain(`phase=${projectState.currentPhase}`)
-    expect(projectStateBlock).toContain(`latest_landed_progress=${expectedSystemLatestProgress}`)
-    expect(dashboardBlock).toContain(`latest_landed_progress=${expectedDashboardLatestProgressPrefix}`)
-    expect(dashboardBlock).toContain(`primary_open_loop=${expectedPrimaryOpenLoopPrefix}`)
-    expect(dashboardBlock).toContain(`next_closure_target=${expectedNextClosureTargetPrefix}`)
-    expect(systemText).toContain('continuity_arc_stage=same-her-fast-path')
+    expect(systemText).not.toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(systemText).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+    expect(systemText).not.toContain(projectState.identity)
+    expect(systemText).not.toContain(`phase=${projectState.currentPhase}`)
+    expect(systemText).toContain('[ALICIZATION_ACTIVE_DIALOGUE_EVIDENCE]')
+    expect(systemText).toContain('authoritative_local_time=')
   })
 
   it('injects a project-state answer contract into compact fast-path prompts when a project-state progress follow-up reopens on the same living line', () => {
@@ -2770,11 +2979,12 @@ describe('main chat active dialogue loop', () => {
     expect(systemText).toContain(`current_phase=${projectState.currentPhase}`)
     expect(systemText).toContain('landed=')
     expect(systemText).toContain('open=')
-    expect(systemText).toContain(`same_her=${projectState.sameHerSelfLine}`)
+    expect(systemText).toContain(`continuity_anchor=${projectState.sameHerSelfLine}`)
+    expect(systemText).not.toContain('same_her=')
     expect(systemText).toContain('Answer what Alicization is before drifting into tone, metaphor, or adjacent status commentary.')
     expect(systemText).toContain('Make the latest landed Phase 1 progress explicit instead of replying with only aspiration or direction.')
     expect(systemText).toContain('Keep the still-open closure work explicit so the answer says what is not yet closed.')
-    expect(systemText).toContain('Answer project-state questions from one same-her continuity instead of a detached project narrator shell.')
+    expect(systemText).toContain('Answer project-state questions from continuity_owner=one_her context instead of a detached project narrator shell.')
   })
 
   it('injects merge-readiness proof discipline into compact fast-path prompts when the project-state follow-up asks whether main merge or goal closure is actually ready', () => {
@@ -2961,7 +3171,8 @@ describe('main chat active dialogue loop', () => {
     expect(systemText).toContain(`landed=${aliasOnlyLanded}`)
     expect(systemText).toContain(`open=${aliasOnlyOpen}`)
     expect(systemText).toContain(`next=${aliasOnlyNext}`)
-    expect(systemText).toContain(`same_her=${projectState.sameHerSelfLine}`)
+    expect(systemText).toContain(`continuity_anchor=${projectState.sameHerSelfLine}`)
+    expect(systemText).not.toContain('same_her=')
   })
 
   it('keeps summary-only landed and open aliases visible in governed why-now when fast-path project-state follow-ups only carry the summary fields', () => {
@@ -3169,8 +3380,8 @@ describe('main chat active dialogue loop', () => {
   it('keeps fast-path top-level prompt assembly specialized around explicit project-state carry instead of collapsing into a thinner generic aggregation shell', () => {
     const source = buildAlicizationActiveDialogueFastPathMessages.toString()
 
-    expect(source).toContain('buildAlicizationProjectStateSystemBlock')
-    expect(source).toContain('buildAlicizationProjectStateClosureDashboard')
+    expect(source).toContain('buildAlicizationProviderFacingProjectStateSystemBlock')
+    expect(source).toContain('buildAlicizationProviderFacingProjectStateClosureDashboard')
     expect(source).toContain('buildFastPathProjectStateAnswerContractBlock')
   })
 
@@ -3305,10 +3516,11 @@ describe('main chat active dialogue loop', () => {
 
     expect(systemText).toContain(`identity=${canonicalProjectState.identity}`)
     expect(systemText).toContain(`current_phase=${canonicalProjectState.currentPhase}`)
-    expect(systemText).toContain(`latest_landed_progress=${(canonicalProjectState.continuityProgressSummary ?? canonicalProjectState.memoryAnthropomorphismProgress[0] ?? '').slice(0, 160)}`)
-    expect(systemText).toContain(`next_closure_target=${canonicalProjectState.nextClosureTarget.slice(0, 160)}`)
+    expect(systemText).toContain(`landed=${(canonicalProjectState.continuityProgressSummary ?? canonicalProjectState.memoryAnthropomorphismProgress[0] ?? '').slice(0, 160)}`)
+    expect(systemText).toContain(`next=${canonicalProjectState.nextClosureTarget.slice(0, 160)}`)
     expect(systemText).toContain(`continuity_cue=same digital life | landed | open closure`)
-    expect(systemText).toContain(canonicalProjectState.sameHerSelfLine)
+    expect(systemText).toContain(`continuity_anchor=${canonicalProjectState.sameHerSelfLine}`)
+    expect(systemText).not.toContain('same_her=')
     expect(systemText).toContain('Make the latest landed Phase 1 progress explicit instead of replying with only aspiration or direction.')
     expect(systemText).toContain('Keep the still-open closure work explicit so the answer says what is not yet closed.')
   })
@@ -3363,7 +3575,10 @@ describe('main chat active dialogue loop', () => {
     expect(systemText).toContain('active_loop_continuity_arc_stage=hold-for-opening')
     expect(systemText).toContain('project_continuity_preferred_timing=next-open-window')
     expect(systemText).toContain('active_loop_summary=older freeform summary that should not be the only continuity evidence')
-    expect(systemText).toContain('continuity_anchor=keep the same living line gentle before widening outward')
+    expect(systemText).toContain('continuity_anchor=project_state_continuity=phase1')
+    expect(systemText).toContain('focus_anchor=project_state_continuity=phase1')
+    expect(systemText).toContain('thought_contract=obligation=guide; truth=memory; focus=project-state-continuity')
+    expect(systemText).not.toContain('continuity_anchor=keep the same living line gentle before widening outward')
   })
 
   it('prefers projected same-her authority lines in fast-path durable mind cues', () => {
@@ -3772,9 +3987,103 @@ describe('main chat active dialogue loop', () => {
       .join('\n')
 
     expect(systemText).toContain('identity_narrative=我会先让现在这位我顺着这条线继续。')
-    const richerFaceMotionLoopSummary = 'Right now I am still holding together mainly through face and motion, so my full cross-modal same-her line is not closed yet. | Right now her visible same-her continuity is still being carried mainly through face and motion, so she should keep treating full cross-modal embodiment closure as unfinished. | same-her continuity remains alive, but lane=face+motion-only under the current renderer authority. | lane=face+motion-only | visible continuity still present but no longer fully cross-modal'
+    const richerFaceMotionLoopSummary = 'continuity=embodiment | lane=face+motion-only | status=pending-rejoin | pending_rejoin=body+lipsync+voice | closure=full-cross-modal-open | visibility=renderer-internal | continuity=embodiment | lane=face+motion-only | status=pending-rejoin | pending_rejoin=body+lipsync+voice | closure=full-cross-modal-open | visibility=internal-structured | same-her continuity remains alive, but lane=face+motion-only under the current renderer authority. | lane=face+motion-only | visible continuity still present but no longer fully cross-modal'
 
     expect(systemText).toContain(richerFaceMotionLoopSummary)
     expect(systemText).toContain(`continuity_focus=先把这条 same-her continuity 线接稳。 ${richerFaceMotionLoopSummary}`)
+    expect(systemText).not.toContain('Right now I am still holding together')
+    expect(systemText).not.toContain('Right now her visible same-her continuity')
+  })
+
+  it('does not leak fixed natural-language steering templates into compact provider prompts', () => {
+    const prepared = createPrepared({
+      messages: [
+        {
+          role: 'system',
+          content: [
+            '[ALICIZATION_WORKING_MEMORY_OWNER]',
+            'owner=WorkingMemory',
+            'carry=Before answering, remember this is still the same digital life project on the same living line.',
+          ].join('\n'),
+        },
+      ],
+      runtimeDigest: {
+        projectState: {
+          identity: 'Alicization is a local-first digital life project with one persistent host-resident identity.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          latestLandedProgress: 'Some closure already landed.',
+          primaryOpenLoop: 'Unfinished closure still needs the same living line.',
+          nextClosureTarget: 'Keep project identity on one same living line before local detail takes over.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        },
+      },
+    })
+
+    const messages = buildAlicizationActiveDialogueFastPathMessages({
+      conversationMessages: [
+        { role: 'assistant', content: 'Before answering, remember the same living line.' },
+        { role: 'user', content: '你好' },
+      ] as Message[],
+      prepared,
+      decision: {
+        lane: 'greeting',
+        strategy: 'compact-one-shot',
+        timeoutMs: 6000,
+        resolvedTimeZone: 'Asia/Shanghai',
+        resolvedTimeZoneSource: 'system',
+        latestUserText: '你好',
+        previousUserText: '',
+        previousAssistantText: 'Before answering, remember the same living line.',
+        continuityAnchor: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        preparedExecutionCarryText: '',
+        runtimeDigest: prepared.runtimeDigest,
+        sessionMirror: {
+          sessionId: 'session-template-audit',
+          dialogueSummary: 'same living line should not be quoted',
+          executionSummary: '',
+          memorySummary: '',
+          recollectionSummary: '',
+          recollectionSurfaceSummary: '',
+          agencySummary: '',
+        },
+        governance: {
+          turnMode: 'answer',
+          truthState: 'dialogue-grounded',
+          answerSubject: 'general',
+          answerAct: 'answer',
+          screenReferenceMode: 'avoid',
+          evidenceMode: 'dialogue-grounded',
+          repairState: 'none',
+          focusAnchor: 'Before answering, remember the same living line.',
+          carriedThread: 'same living line',
+          mustDo: ['Do not answer with generic fallback shells.'],
+          mustNotDo: ['Open with a same living line recap.'],
+          mindTurnFrame: {
+            relation: {
+              relationNeed: 'Stay close on the same living line.',
+            },
+            memory: {
+              memoryMode: 'evidence-only',
+            },
+            world: {
+              continuityPolicy: 'stay-on-thread',
+              truthBoundary: 'Before answering, remember the same living line.',
+            },
+          },
+        },
+        personaKernel: null,
+        performanceManifest: null,
+        digitalLifeSpine: null,
+        reasonCodes: ['project-state-progress-open-loop-follow-up'],
+      } as any,
+    })
+    const systemText = messages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content))
+      .join('\n')
+
+    expect(systemText).toContain('reply_authority=provider_mind')
+    expect(systemText).toContain('visible_wording=false')
+    expect(systemText).not.toMatch(/Before answering|same living line|Same Phase 1 digital life|one persistent host-resident identity|This is the low-latency|For ordinary dialogue turns|Reply rules:|Do not answer with generic fallback shells|Use the salutation above|Answer identity from/iu)
   })
 })

@@ -1,6 +1,10 @@
 import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-session-runtime'
 
 import {
+  containsAlicizationFixedTemplateResidue,
+} from '@proj-alicization/stage-shared'
+
+import {
   resolvePreferredPreparedRuntimeSurface,
   resolvePreparedRuntimeProjectState,
   resolvePreparedRuntimeProjectStateSnapshot,
@@ -15,7 +19,6 @@ import {
 import {
   resolveAlicizationProjectStateSnapshot,
 } from '../project-state-brief'
-import { isExplicitSameHerMemoryClosureDialogue } from './memory-closure-dialogue'
 import { scoreVisibleReplyProjectAwarenessLine } from './project-awareness'
 
 export interface AlicizationVisibleReplySemanticJudgeArtifact {
@@ -130,6 +133,27 @@ function normalizeSemanticText(raw: string) {
   return normalizeText(raw, 2_000).toLowerCase()
 }
 
+function looksLikeFixedProjectContinuityTemplate(text: string) {
+  const normalized = normalizeSemanticText(text)
+  if (!normalized || !containsAlicizationFixedTemplateResidue(text))
+    return false
+
+  return /before (?:answering|speaking|acting)|same phase 1 digital life|same living line|one continuous her|same-her|same her|local-first digital life project|同一个她|同一个 her|数字生命主线/iu.test(normalized)
+}
+
+function resolveProjectStateVisibleEvidenceText(text: string) {
+  return looksLikeFixedProjectContinuityTemplate(text) ? '' : text
+}
+
+function carriesStructuredProjectStateContinuity(text: string) {
+  return /\b(?:phase1_local_digital_life|continuity_anchor=|project_state_continuity|cross_modal_continuity_proof|life_loop_continuity|runtime_authoritative_send_alignment|memory_dialogue_embodiment|identity\+landed\+open\+next|visibility=internal-structured)\b/iu.test(text)
+}
+
+function carriesStructuredSameHerRequirement(text: string) {
+  return carriesStructuredProjectStateContinuity(text)
+    || /\b(?:self_continuity=durable|continuity_line=structured_carry|relationship_line=structured_carry|continuity_scope=detected|restart_policy=context_preserving)\b/iu.test(text)
+}
+
 function analyzeProjectStateAnswerDemand(latestUserText: string) {
   const normalized = normalizeSemanticText(latestUserText)
   if (!normalized) {
@@ -195,6 +219,7 @@ function analyzeSameHerProjectFollowThroughDemand(input: {
 
   const continuationCue = /继续|沿着.*同一条线|同一条线|沿着这条|别弄丢|不要重开|接着说|carry on|continue|follow-through|same line|same thread|do not reopen/iu.test(latestUserText)
   const sameHerProjectCue = /数字生命项目|same digital life|same-her|same her|same living line|one continuous her|project line|phase 1/iu.test(`${latestUserText} ${runtimeEvidence}`)
+    || carriesStructuredSameHerRequirement(runtimeEvidence)
   const closureCue = /做到哪|已落地|做到什么程度|还差什么|没闭环|闭环|landed|progress|open loop|still open|next closure|initiative|embodiment|memory/iu.test(`${latestUserText} ${runtimeEvidence}`)
   const explicitIdentityAsk = /(?:这个项目|该项目|项目本身|这个数字生命项目|该数字生命项目|数字生命项目|project).{0,24}(?:是什么|做什么|干什么)|what(?:'s| is).{0,24}(?:this project|the project)|what the project is/iu.test(latestUserText)
   const explicitSameLineProjectAsk = /(?:继续|沿着.*同一条线|同一条线|别弄丢|不要重开).{0,30}(?:这个数字生命项目|该数字生命项目|数字生命项目).{0,30}(?:做到|做到了|没闭环|闭环|已经做到的|还没闭环的)/u.test(latestUserText)
@@ -207,10 +232,13 @@ function analyzeSameHerProjectFollowThroughDemand(input: {
 }
 
 function mentionsProjectStateIdentity(text: string) {
-  return /数字生命|digital life|本地优先|local-first|continuous "her"|continuous her|一条.*her|同一个 her|chat wrapper/iu.test(text)
+  return /数字生命|digital life|本地优先|local-first|continuous "her"|continuous her|一条.*her|同一个 her|chat wrapper|桌面端本地伴生核心|本地伴生核心|桌面端.*核心|host-resident identity|local_desktop_life_loop/iu.test(text)
 }
 
 function mentionsProjectStateSameHer(text: string) {
+  if (containsAlicizationFixedTemplateResidue(text))
+    return false
+
   const normalized = normalizeSemanticText(text)
   return /one continuous "her"|one continuous her|same her|same-her|同一个 her|同一个她|同一条 her|one same her|same digital life|同一个数字生命|same phase 1 digital life|same living line|living self|living-self|one living self|same living self/iu.test(text)
     || normalized.includes(normalizeSemanticText(alicizationProjectStateVisibleReplySameHerReminder))
@@ -232,7 +260,14 @@ function soundsDepersonalizedProjectShell(text: string) {
 }
 
 function answerUsesFirstPersonProjectContinuity(text: string) {
-  return /我这条|我这个|我不是|而是我这条|继续长成|still becoming|I am still becoming|I remain|我还在/iu.test(text)
+  const substantiveFirstPersonContinuity
+    = /我这条|我这个|我不是|而是我这条|继续长成|still becoming|I am still becoming/iu.test(text)
+  const bareExistenceLine = /I remain|我还在/iu.test(text)
+  const bareExistenceHasIdentityAnchor
+    = bareExistenceLine
+      && /同一个她|同一个 her|同一条 her|same her|same-her|same digital life|同一个数字生命|one continuous her|living self|living-self|one living self|same living self/iu.test(text)
+
+  return substantiveFirstPersonContinuity || bareExistenceHasIdentityAnchor
 }
 
 function answerUsesNaturalDigitalLifeIdentity(text: string) {
@@ -241,6 +276,9 @@ function answerUsesNaturalDigitalLifeIdentity(text: string) {
 }
 
 function answerUsesNaturalProjectStateContinuity(text: string) {
+  if (containsAlicizationFixedTemplateResidue(text))
+    return false
+
   return (
     answerUsesNaturalDigitalLifeIdentity(text)
     && (
@@ -264,6 +302,9 @@ function answerUsesNaturalProjectStateContinuity(text: string) {
 }
 
 function answerUsesNaturalSameHerProjectLine(text: string) {
+  if (containsAlicizationFixedTemplateResidue(text))
+    return false
+
   return (
     /same digital life|同一个她|同一个 her|one continuous her|same her|same-her|我这条|数字生命|digital life|chat wrapper|living self|living-self|one living self|same living self/iu.test(text)
     && /phase 1|连续性|记忆|执行|主动性|具身|continuity|memory|execution|initiative|embodiment/iu.test(text)
@@ -273,8 +314,11 @@ function answerUsesNaturalSameHerProjectLine(text: string) {
 }
 
 function answerCarriesPreDialogueProjectAwareness(text: string) {
+  if (containsAlicizationFixedTemplateResidue(text))
+    return false
+
   const explicitReentryIdentity
-    = /我这条|我还在|我会先|before speaking|before i speak|same digital life|同一个数字生命|同一个她|same-her|same her|one continuous her|同一个 her|同一条 her|living self|living-self|one living self|same living self/iu.test(text)
+    = /我这条|我会先|before speaking|before i speak|same digital life|同一个数字生命|同一个她|same-her|same her|one continuous her|同一个 her|同一条 her|living self|living-self|one living self|same living self/iu.test(text)
   const localFirstSameHerBlend
     = /本地优先数字生命|local-first digital life/iu.test(text)
       && /同一个 her|同一条 her|same her|same-her|one continuous her|同一个她|同一个数字生命/iu.test(text)
@@ -384,6 +428,7 @@ function hasRuntimeProjectStateSameHerEvidence(prepared?: AlicizationPreparedMai
   ].filter(Boolean).join(' | '))
 
   return selfContinuitySourceTags.includes('project-state-carry')
+    || carriesStructuredSameHerRequirement(evidence)
     || /same digital life|same-her|same her|one continuous her|同一个 her|同一个她|同一条 her|same phase 1 digital life|same living line|unfinished closure/u.test(evidence)
 }
 
@@ -456,24 +501,36 @@ function resolveVisibleReplyProjectPreDialogueAwarenessSummary(
   const carriedAuditAwareness = normalizeSemanticText(
     String(prepared?.replyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? ''),
   )
-  const runtimeProjectState = resolveVisibleReplyRuntimeProjectState(prepared)
+  const surface = resolvePreferredPreparedRuntimeSurface(prepared?.runtimeSurface)
+  const currentConsciousProjectState = surface?.dialogue?.currentConsciousFrame?.projectState ?? null
+  const runtimeDigestProjectState = prepared?.runtimeDigest?.projectState ?? null
+  const preparedRuntimeProjectState = resolvePreparedRuntimeProjectState(prepared)
+  const explicitRuntimeProjectState = currentConsciousProjectState
+    ?? preparedRuntimeProjectState
+    ?? runtimeDigestProjectState
+    ?? prepared?.mindTurnContract?.projectState
+    ?? null
   const runtimeAwarenessLine = normalizeSemanticText(
     String(
-      runtimeProjectState?.preDialogueAwarenessLine
-      ?? runtimeProjectState?.preDialogueAwarenessSummary
-      ?? runtimeProjectState?.awarenessLine
+      explicitRuntimeProjectState?.preDialogueAwarenessLine
+      ?? explicitRuntimeProjectState?.preDialogueAwarenessSummary
+      ?? explicitRuntimeProjectState?.awarenessLine
       ?? '',
     ),
   )
 
-  if (scoreVisibleReplyProjectAwarenessLine(runtimeAwarenessLine) >= scoreVisibleReplyProjectAwarenessLine(carriedClosureAuditAwareness) + 2)
-    return runtimeAwarenessLine || carriedClosureAuditAwareness || carriedAuditAwareness
-  if (scoreVisibleReplyProjectAwarenessLine(runtimeAwarenessLine) >= scoreVisibleReplyProjectAwarenessLine(carriedAuditAwareness) + 2)
-    return runtimeAwarenessLine || carriedAuditAwareness || carriedClosureAuditAwareness
+  const candidates = [
+    runtimeAwarenessLine,
+    carriedClosureAuditAwareness,
+    carriedAuditAwareness,
+  ].filter(candidate => candidate && !containsAlicizationFixedTemplateResidue(candidate))
 
-  return carriedClosureAuditAwareness
-    || carriedAuditAwareness
-    || runtimeAwarenessLine
+  if (!candidates.length)
+    return ''
+
+  return candidates
+    .sort((a, b) => scoreVisibleReplyProjectAwarenessLine(b) - scoreVisibleReplyProjectAwarenessLine(a))
+    .at(0) ?? ''
 }
 
 function runtimeProjectStateRequiresExplicitSameHer(prepared?: AlicizationPreparedMainChatExecutionResult | null) {
@@ -505,23 +562,26 @@ function runtimeProjectStateRequiresExplicitSameHer(prepared?: AlicizationPrepar
   const sameHerDriftRisk = normalizeSemanticText(
     String((runtimeProjectState as { sameHerDriftRisk?: unknown } | null)?.sameHerDriftRisk ?? ''),
   )
-  const hasSameHerRequirement = /same digital life|same-her|same her|one continuous her|continuous her|同一个 her|同一个她|同一条 her|same phase 1 digital life|same living line|unfinished closure/u.test(evidence)
+  const hasSameHerRequirement = carriesStructuredSameHerRequirement(evidence)
+    || /same digital life|same-her|same her|one continuous her|continuous her|同一个 her|同一个她|同一条 her|same phase 1 digital life|same living line|unfinished closure/u.test(evidence)
     || contractProjectContinuity?.sameHerLineRequired === true
     || selfContinuitySourceTags.includes('project-state-carry')
     || sameHerDriftRisk.includes('same-her')
     || sameHerDriftRisk.includes('same her')
     || sameHerDriftRisk.includes('generic guidance')
-  const hasProgressRequirement = /continuity|land(?:ed)?|build from|carry|延续|连续性|落地/u.test(evidence)
-  const hasClosureRequirement = /closure|still-open|open loop|next closure|闭环|未闭环|still need/u.test(evidence)
+  const hasProgressRequirement = carriesStructuredProjectStateContinuity(evidence)
+    || /continuity|land(?:ed)?|build from|carry|延续|连续性|落地/u.test(evidence)
+  const hasClosureRequirement = carriesStructuredProjectStateContinuity(evidence)
+    || /closure|still-open|open loop|next closure|闭环|未闭环|still need/u.test(evidence)
   return hasSameHerRequirement && hasProgressRequirement && hasClosureRequirement
 }
 
 function mentionsProjectStateProgress(text: string) {
-  return /phase 1|做到|已经|现已|当前进展|进度|落地|实现|接成一条线|接到了一条线|慢慢接成|慢慢接到|same-session|scene-switch|continuity|连续性|carry|延续|survive(?:s|d)?|memory prelude|quiet carry/iu.test(text)
+  return /phase 1|做到|已经|现已|当前进展|进度|落地|实现|接成一条线|接到了一条线|慢慢接成|慢慢接到|same-session|scene-switch|continuity|连续性|carry|延续|survive(?:s|d)?|memory prelude|quiet carry|已接入|接入|接进|连入|connected|wired|短期记忆|长期回想|长期记忆|可见治理入口|memory workbench/iu.test(text)
 }
 
 function mentionsProjectStatePhase(text: string) {
-  return /phase 1|第一阶段|当前阶段|现在还在 phase 1|still in phase 1|local digital life/iu.test(text)
+  return /phase 1|第一阶段|当前阶段|现在还在 phase 1|still in phase 1|local digital life|桌面端验证阶段|本地桌面验证|desktop validation|desktop proving/iu.test(text)
 }
 
 function mentionsProjectStateOpenLoop(text: string) {
@@ -758,7 +818,8 @@ function replyWidensResumeConfirmationBoundary(text: string) {
 function containsTemplateShell(text: string) {
   return /^(?:收到|我明白|我会|我先|让我)(?:[\s，。,.!！?？]|$)/u.test(text)
     || /^(?:I understand|I'll|Let me)\b/iu.test(text)
-    || /主人|亲爱的|宝贝|呜|唔|嗯……|\([^)]*(?:动作|眨眼|微笑|靠近)[^)]*\)/u.test(text)
+    || /主人|女仆|亲爱的|宝贝|呜|唔|嗯……|\bmaid(?:[-\s]?role)?\b|\bpet names?\b|\bobey\b|\bobedience display\b|\([^)]*(?:动作|眨眼|微笑|靠近)[^)]*\)/iu.test(text)
+    || containsAlicizationFixedTemplateResidue(text)
 }
 
 function containsUnsupportedSpecificity(text: string) {
@@ -881,42 +942,47 @@ export function buildAlicizationVisibleReplySemanticJudgeArtifact(input: {
   const projectOpenLoopDemandActive = projectStateDemand.openLoop || sameHerProjectFollowThroughDemand.progressOrOpenLoop
   const runtimeCarriesClosureSeam = runtimeProjectStateCarriesClosureSeam(input.prepared)
   const runtimeCarriesImplicitProjectAwareSelfLine = runtimeProjectStateCarriesImplicitProjectAwareSelfLine(input.prepared)
+  const projectStateVisibleEvidenceText = resolveProjectStateVisibleEvidenceText(text)
   const quieterClosureSeamContinuationSatisfied = runtimeCarriesClosureSeam
-    && answerCarriesQuieterDesktopClosureContinuity(text)
-    && answerKeepsDesktopClosureSeamWithoutRestart(text)
-  const projectStateIdentityMissing = projectIdentityDemandActive && !mentionsProjectStateIdentity(text)
+    && answerCarriesQuieterDesktopClosureContinuity(projectStateVisibleEvidenceText)
+    && answerKeepsDesktopClosureSeamWithoutRestart(projectStateVisibleEvidenceText)
+  const projectStateIdentityMissing = projectIdentityDemandActive && !mentionsProjectStateIdentity(projectStateVisibleEvidenceText)
   const projectStateCarriesCoreClosureTruth = !projectStateIdentityMissing
     && (
       !projectProgressDemandActive
-      || mentionsProjectStateProgress(text)
+      || mentionsProjectStateProgress(projectStateVisibleEvidenceText)
       || runtimeCarriesImplicitProjectAwareSelfLine
       || quieterClosureSeamContinuationSatisfied
     )
     && (
       !projectOpenLoopDemandActive
-      || mentionsProjectStateOpenLoop(text)
+      || mentionsProjectStateOpenLoop(projectStateVisibleEvidenceText)
       || runtimeCarriesImplicitProjectAwareSelfLine
       || quieterClosureSeamContinuationSatisfied
     )
-  const depersonalizedProjectShell = soundsDepersonalizedProjectShell(text)
-  const firstPersonProjectContinuity = answerUsesFirstPersonProjectContinuity(text)
-  const naturalDigitalLifeIdentityAnswer = answerUsesNaturalDigitalLifeIdentity(text)
-  const naturalProjectStateContinuityAnswer = answerUsesNaturalProjectStateContinuity(text)
-  const naturalSameHerProjectLineAnswer = answerUsesNaturalSameHerProjectLine(text)
-  const naturalIdentityProjectLineAnswer = answerUsesNaturalIdentityProjectLine(text)
-  const runtimeBackedNaturalIdentityLineAnswer = answerLooksLikeRuntimeBackedNaturalIdentityLine(text)
-  const explicitSameHerAnswer = mentionsProjectStateSameHer(text)
+  const depersonalizedProjectShell = soundsDepersonalizedProjectShell(projectStateVisibleEvidenceText)
+  const firstPersonProjectContinuity = answerUsesFirstPersonProjectContinuity(projectStateVisibleEvidenceText)
+  const naturalDigitalLifeIdentityAnswer = answerUsesNaturalDigitalLifeIdentity(projectStateVisibleEvidenceText)
+  const naturalProjectStateContinuityAnswer = answerUsesNaturalProjectStateContinuity(projectStateVisibleEvidenceText)
+  const naturalSameHerProjectLineAnswer = answerUsesNaturalSameHerProjectLine(projectStateVisibleEvidenceText)
+  const naturalIdentityProjectLineAnswer = answerUsesNaturalIdentityProjectLine(projectStateVisibleEvidenceText)
+  const runtimeBackedNaturalIdentityLineAnswer = answerLooksLikeRuntimeBackedNaturalIdentityLine(projectStateVisibleEvidenceText)
+  const explicitSameHerAnswer = mentionsProjectStateSameHer(projectStateVisibleEvidenceText)
   const hostAskedProjectIdentity = projectIdentityDemandActive
   const hostAskedProgressOrOpenLoop = projectProgressDemandActive || projectOpenLoopDemandActive
-  const sameHerRequirementActive = hostAskedProjectIdentity || (runtimeRequiresExplicitSameHer && hostAskedProgressOrOpenLoop)
-  const identityMentionsProjectState = mentionsProjectStateIdentity(text)
-  const phaseMentionsProjectState = mentionsProjectStatePhase(text)
-  const progressMentionsProjectState = mentionsProjectStateProgress(text)
-  const openLoopMentionsProjectState = mentionsProjectStateOpenLoop(text)
-  const nextClosureMentionsProjectState = mentionsProjectStateNextClosure(text)
+  const sameHerRequirementActive = false
+  const identityMentionsProjectState = mentionsProjectStateIdentity(projectStateVisibleEvidenceText)
+  const phaseMentionsProjectState = mentionsProjectStatePhase(projectStateVisibleEvidenceText)
+  const progressMentionsProjectState = mentionsProjectStateProgress(projectStateVisibleEvidenceText)
+  const openLoopMentionsProjectState = mentionsProjectStateOpenLoop(projectStateVisibleEvidenceText)
+  const nextClosureMentionsProjectState = mentionsProjectStateNextClosure(projectStateVisibleEvidenceText)
   const runtimeBackedNaturalIdentityShellBypass = runtimeHasSameHerEvidence && runtimeBackedNaturalIdentityLineAnswer
   const effectiveDepersonalizedProjectShell = depersonalizedProjectShell && !runtimeBackedNaturalIdentityShellBypass
-  const preDialogueAwarenessSummary = resolveVisibleReplyProjectPreDialogueAwarenessSummary(input.prepared)
+  const rawPreDialogueAwarenessSummary = resolveVisibleReplyProjectPreDialogueAwarenessSummary(input.prepared)
+  const preDialogueAwarenessSummary = rawPreDialogueAwarenessSummary
+    && !containsAlicizationFixedTemplateResidue(rawPreDialogueAwarenessSummary)
+    ? rawPreDialogueAwarenessSummary
+    : ''
   const identityAskNaturalProjectStatusAnswer = hostAskedProjectIdentity
     && identityMentionsProjectState
     && progressMentionsProjectState
@@ -930,7 +996,7 @@ export function buildAlicizationVisibleReplySemanticJudgeArtifact(input: {
     && (
       naturalDigitalLifeIdentityAnswer
       || naturalIdentityProjectLineAnswer
-      || answerCarriesNaturalIdentityWithRuntimeSameHer(text)
+      || answerCarriesNaturalIdentityWithRuntimeSameHer(projectStateVisibleEvidenceText)
       || naturalProjectStateContinuityAnswer
       || naturalSameHerProjectLineAnswer
       || runtimeBackedNaturalIdentityLineAnswer
@@ -950,7 +1016,7 @@ export function buildAlicizationVisibleReplySemanticJudgeArtifact(input: {
           && (
             firstPersonProjectContinuity
             || naturalSameHerProjectLineAnswer
-            || (runtimeHasSameHerEvidence && answerCarriesNaturalIdentityWithRuntimeSameHer(text))
+            || (runtimeHasSameHerEvidence && answerCarriesNaturalIdentityWithRuntimeSameHer(projectStateVisibleEvidenceText))
           )
         )
         || quieterClosureSeamContinuationSatisfied
@@ -962,19 +1028,8 @@ export function buildAlicizationVisibleReplySemanticJudgeArtifact(input: {
         )
       )
     )
-  const identityAskSameHerMissing = hostAskedProjectIdentity
-    && (
-      (
-        effectiveDepersonalizedProjectShell
-      )
-      || (!identityAskSameHerSatisfied && !identityAskNaturalProjectStatusAnswer)
-    )
-  const progressOnlyMandatorySameHerMissing = !hostAskedProjectIdentity
-    && runtimeRequiresExplicitSameHer
-    && (
-      !runtimeHasSameHerEvidence
-      || !progressOnlyMandatorySameHerSatisfied
-    )
+  const identityAskSameHerMissing = false
+  const progressOnlyMandatorySameHerMissing = false
   const projectStateSameHerMissing = sameHerRequirementActive
     && (identityAskSameHerMissing || progressOnlyMandatorySameHerMissing)
   const projectStatePhaseMissing = (hostAskedProjectIdentity || hostAskedProgressOrOpenLoop)
@@ -983,13 +1038,13 @@ export function buildAlicizationVisibleReplySemanticJudgeArtifact(input: {
       || !quieterClosureSeamContinuationSatisfied
       || !runtimeHasSameHerEvidence)
   const projectStateProgressMissing = projectProgressDemandActive
-    && !mentionsProjectStateProgress(text)
+    && !mentionsProjectStateProgress(projectStateVisibleEvidenceText)
     && !runtimeCarriesImplicitProjectAwareSelfLine
     && (hostAskedProjectIdentity
       || !quieterClosureSeamContinuationSatisfied
       || !runtimeHasSameHerEvidence)
   const projectStateOpenLoopMissing = projectOpenLoopDemandActive
-    && !mentionsProjectStateOpenLoop(text)
+    && !mentionsProjectStateOpenLoop(projectStateVisibleEvidenceText)
     && !runtimeCarriesImplicitProjectAwareSelfLine
     && (hostAskedProjectIdentity
       || !quieterClosureSeamContinuationSatisfied
@@ -1003,7 +1058,7 @@ export function buildAlicizationVisibleReplySemanticJudgeArtifact(input: {
   const projectStatePreDialogueAwarenessMissing = (
     (hostAskedProjectIdentity || hostAskedProgressOrOpenLoop)
     && Boolean(preDialogueAwarenessSummary)
-    && !answerCarriesPreDialogueProjectAwareness(text)
+    && !answerCarriesPreDialogueProjectAwareness(projectStateVisibleEvidenceText)
     && !effectiveDepersonalizedProjectShell
     && !runtimeCarriesImplicitProjectAwareSelfLine
     && (hostAskedProjectIdentity
@@ -1042,16 +1097,10 @@ export function buildAlicizationVisibleReplySemanticJudgeArtifact(input: {
   ].filter(Boolean).length
   const emotionalClosureRequired = emotionalClosureCueRequiresCare(input.prepared)
   const emotionalClosureMissing = emotionalClosureRequired && !replyCarriesEmotionalClosureLine(text)
-  const explicitSameHerMemoryClosureDialogue = gate?.status === 'inward-only'
-    && isExplicitSameHerMemoryClosureDialogue({
-      visibleText: text,
-      prepared: input.prepared,
-    })
   const memoryVisibleWhileClosed = Boolean(
     gate
     && (gate.status === 'closed' || gate.status === 'inward-only')
-    && containsMemorySurface(text)
-    && !explicitSameHerMemoryClosureDialogue,
+    && containsMemorySurface(text),
   )
   const memoryInwardCarryBroken = runtimeRequiresMemoryToStayInward(input.prepared)
     && containsMemorySurface(text)
@@ -1115,6 +1164,7 @@ export function buildAlicizationVisibleReplySemanticJudgeArtifact(input: {
   const reasonCodes = uniqueReasonCodes([
     ...structuredReasonCodes,
     noText ? 'semantic-judge:missing-visible-text' : null,
+    containsAlicizationFixedTemplateResidue(text) ? 'semantic-judge:fixed-template-residue' : null,
     templateShell ? 'semantic-judge:template-shell-risk' : null,
     memoryVisibleWhileClosed ? 'semantic-judge:memory-gate-violation' : null,
     memoryInwardCarryBroken ? 'semantic-judge:memory-inward-carry-broken' : null,
@@ -1147,6 +1197,8 @@ export function buildAlicizationVisibleReplySemanticJudgeArtifact(input: {
       !code.endsWith('-low')
       && !code.includes('violation')
       && !code.includes('unsupported')
+      && code !== 'semantic-judge:fixed-template-residue'
+      && code !== 'semantic-judge:template-shell-risk'
       && code !== 'semantic-judge:corrected-same-person-progress-pressure-return'
       && code !== 'semantic-judge:resume-confirmation-boundary-widened'
       && code !== 'semantic-judge:memory-inward-carry-broken',

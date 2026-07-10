@@ -2,16 +2,11 @@ import type { Message } from '@xsai/shared-chat'
 
 import type { ContextMessage } from '../types/chat'
 
-import { resolveAlicizationProjectPreDialogueAwarenessLine } from '@proj-alicization/stage-shared'
 import {
-  alicizationFixedCoreSystemInstruction,
-  alicizationFixedDatetimeContextTemplate,
-  alicizationFixedGenericContextTemplate,
-  alicizationFixedHostNameDirectiveTemplate,
-  alicizationFixedMemoryContextTemplate,
-  alicizationFixedSensoryContextTemplate,
-  alicizationFixedStructuredContractAnchor,
-  renderAlicizationPromptTemplate,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+import {
+  renderAlicizationProjectStateStructuredBlock,
 } from '@proj-alicization/stage-shared/alicization-prompting'
 
 interface AlicizationPersonalityState {
@@ -52,65 +47,8 @@ export interface ComposeAlicizationPromptMessagesResult {
 }
 
 const personalityLowThreshold = 0.2
-const personalityDirectiveHeader = '=== 当前状态极度干预 ==='
-const personalityStateHeader = '=== 当前人格参数（强约束解释层）==='
-const contractMindSpineLine = 'In thought, you MUST include all five machine-readable markers'
-
-function scoreSameHerReentryLine(value: string | null | undefined) {
-  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
-  if (!normalized)
-    return 0
-
-  let score = normalized.length >= 120 ? 2 : normalized.length >= 72 ? 1 : 0
-  const hasProjectAwareCarryMarkers = (
-    normalized.includes('before speaking')
-    || normalized.includes('remember')
-    || normalized.includes('what has landed')
-    || normalized.includes('which life loop is still open')
-    || normalized.includes('still-open life loop')
-    || normalized.includes('digital life project')
-    || normalized.includes('phase 1')
-  )
-  const hasEmbodiedSameHerCarryMarkers = (
-    normalized.includes('still-voiced')
-    || normalized.includes('keeps carrying')
-    || normalized.includes('same-her carry')
-    || normalized.includes('one living her')
-    || normalized.includes('while body and lipsync need to rejoin')
-    || normalized.includes('while face and motion need to rejoin')
-    || normalized.includes('cross-modal closure settles')
-  )
-  if (/same-her|same her|one living her|one continuous her|同一个她|数字生命/u.test(normalized))
-    score += 3
-  if (/holding together mainly through|cross-modal closure|same living line|still needs .* rejoin|without widening into generic assistant output/u.test(normalized))
-    score += 2
-  if (hasProjectAwareCarryMarkers)
-    score += 2
-  if (hasProjectAwareCarryMarkers && hasEmbodiedSameHerCarryMarkers)
-    score += 3
-  if (/keep the same digital life project in view|generic reminder|generic guidance|same digital life \| keep the closure seam explicit/u.test(normalized))
-    score -= 2
-  return score
-}
-
-function pickPreferredSameHerReentryLine(...values: Array<string | null | undefined>) {
-  let best = ''
-  let bestScore = 0
-
-  for (const value of values) {
-    const normalized = typeof value === 'string' ? value.trim() : ''
-    if (!normalized)
-      continue
-
-    const score = scoreSameHerReentryLine(normalized)
-    if (!best || score > bestScore) {
-      best = normalized
-      bestScore = score
-    }
-  }
-
-  return best || null
-}
+const personalityDirectiveHeader = '[ALICIZATION_PERSONALITY_EXTREME_STATE]'
+const personalityStateHeader = '[ALICIZATION_PERSONALITY_STATE]'
 
 function looksLikeThinContinuityNextClosureLine(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
@@ -153,6 +91,34 @@ function preferSameHerStrategyNextClosureLine(
     && !looksLikeThinContinuityNextClosureLine(fallbackLine)
     ? fallbackLine
     : preferredLine
+}
+
+function normalizeStructuredProjectStateFactValue(key: string, value: string | null | undefined) {
+  const normalized = sanitizeAlicizationProviderFacingText(value, 800)
+  if (!normalized)
+    return null
+  return normalized
+}
+
+function buildStructuredProjectStateFactsBlock(
+  header: string,
+  fields: Array<[string, string | null | undefined]>,
+) {
+  const normalizedFields = fields
+    .map(([key, value]) => {
+      const normalized = normalizeStructuredProjectStateFactValue(key, value)
+      return normalized ? `${key}=${normalized}` : ''
+    })
+    .filter(Boolean)
+
+  if (normalizedFields.length === 0)
+    return null
+
+  return [
+    header,
+    'owner=ProjectStateGovernance',
+    ...normalizedFields,
+  ].join('\n')
 }
 
 function isEmbodimentCarryReason(value: string | null | undefined) {
@@ -215,7 +181,7 @@ function pickPreferredEmbodimentCarryReason(reasons: string[]) {
   return bestReason
 }
 
-function buildPreDialogueSameHerStrategy(input: {
+function buildPreDialogueContinuityFacts(input: {
   projectStateContinuitySnapshot?: AlicizationProjectStateContinuitySnapshot | null
   preDialogueAwarenessSnapshot?: {
     status: 'grounded' | 'partial' | 'drift'
@@ -264,7 +230,7 @@ function buildPreDialogueSameHerStrategy(input: {
       })
       ?? null
   const embodimentCarryReason = pickPreferredEmbodimentCarryReason(allReasons)
-  const needsSameHerFirst = snapshot?.status === 'drift'
+  const needsContinuityFacts = snapshot?.status === 'drift'
     || snapshot?.status === 'partial'
     || awareness?.status === 'drift'
     || awareness?.status === 'partial'
@@ -276,7 +242,7 @@ function buildPreDialogueSameHerStrategy(input: {
       || reason.includes('same-her embodiment is now only being carried by'),
     )
 
-  if (!needsSameHerFirst)
+  if (!needsContinuityFacts)
     return null
 
   const closureBriefings = snapshot?.briefingLines ?? []
@@ -287,19 +253,17 @@ function buildPreDialogueSameHerStrategy(input: {
   const identityLine
     = projectState?.identity
       ?? pickClosureBriefingValue('Identity:')
-      ?? awareness?.companionBriefingLine
-      ?? awareness?.awarenessLine
-      ?? 'Alicization is a local-first digital life companion.'
+      ?? 'Alicization project-state context'
   const currentPhaseLine
     = projectState?.currentPhase
       ?? pickClosureBriefingValue('Phase:')
       ?? awareness?.summaryLine
-      ?? 'Phase 1: Local Digital Life'
+      ?? null
   const landedProgressLine
     = resolveProjectStateLatestLandedProgress(projectState)
       ?? awareness?.summaryLine
       ?? snapshot?.summaryLine
-      ?? 'The last landed progress still needs to be recalled before speaking.'
+      ?? null
   const openLoopLine
     = projectState?.primaryOpenLoop
       ?? pickClosureBriefingValue('Open loop:')
@@ -307,7 +271,7 @@ function buildPreDialogueSameHerStrategy(input: {
       ?? snapshot?.companionBriefingLine
       ?? awareness?.summaryLine
       ?? snapshot?.summaryLine
-      ?? 'Unfinished digital-life closure still needs to remain explicit.'
+      ?? null
   const closureSnapshotNextClosureLine
     = snapshot?.companionNextClosureLine
       ?? pickClosureBriefingValue('Next closure:')
@@ -317,68 +281,21 @@ function buildPreDialogueSameHerStrategy(input: {
         awareness?.companionNextClosureLine,
         closureSnapshotNextClosureLine,
       )
-      ?? 'Carry the unfinished same-her closure into the next turn.'
-  const resolvedSharedReentryLine
-    = resolveAlicizationProjectPreDialogueAwarenessLine({
-      runtimeProjectState: {
-        identity: projectState?.identity ?? null,
-        currentPhase: projectState?.currentPhase ?? null,
-        preDialogueAwarenessLine: awareness?.awarenessLine ?? null,
-        awarenessLine: awareness?.awarenessLine ?? null,
-        companionHeadlineLine: awareness?.companionHeadlineLine ?? null,
-        companionBriefingLine: awareness?.companionBriefingLine ?? null,
-        preDialogueAwarenessSummary: awareness?.summaryLine ?? null,
-        emotionalClosureSummary: awareness?.emotionalClosureCue ?? null,
-        latestLandedProgress: projectState?.latestLandedProgress ?? null,
-        landedProgressSummary: resolveProjectStateLatestLandedProgress(projectState),
-        primaryOpenLoop: projectState?.primaryOpenLoop ?? null,
-        openClosureSummary: projectState?.primaryOpenLoop ?? null,
-        nextClosureTarget: projectState?.nextClosureTarget ?? null,
-        nextClosureTargetSummary: projectState?.nextClosureTarget ?? null,
-        sameHerSelfLine: projectState?.sameHerSelfLine ?? null,
-        sameHerHoldDetail: projectState?.sameHerHoldDetail ?? null,
-        proactiveSameHerGap: projectState?.proactiveSameHerGap ?? null,
-        sameHerDriftRisk: projectState?.sameHerDriftRisk ?? null,
-        sameHerDriftRiskSummary: projectState?.sameHerDriftRisk ?? snapshot?.sameHerDriftRiskLine ?? null,
-      },
-    })
-  const preferredReentryLine = pickPreferredSameHerReentryLine(
-    resolvedSharedReentryLine,
-    awareness?.companionHeadlineLine,
-    awareness?.awarenessLine,
-    awareness?.companionBriefingLine,
-  )
-
-  return [
-    'Pre-dialogue same-her strategy before this turn:',
-    '- Before producing thought or reply, explicitly re-internalize what this project is, which Phase 1 closure state is already real, and which still-open life loop has not closed yet.',
-    '- First stabilize one continuous her before widening outward into implementation detail or generic assistant fluency.',
-    preferredReentryLine
-      ? `- Re-enter through this awareness-first self-brief: ${preferredReentryLine}`
-      : null,
-    `- Treat current project identity as: ${identityLine}`,
-    `- Treat current phase route as: ${currentPhaseLine}`,
-    `- Treat the already-landed continuity progress as: ${landedProgressLine}`,
-    `- Keep the still-open life loop visible: ${openLoopLine}`,
-    `- Keep steering toward the next closure target: ${nextClosureLine}`,
-    projectState?.sameHerDriftRisk
-      ? `- Treat this same-her drift as a failure to avoid before the turn opens outward: ${projectState.sameHerDriftRisk}`
-      : null,
-    projectState?.proactiveSameHerGap
-      ? `- Keep this proactive same-her gap explicit before the turn opens outward: ${projectState.proactiveSameHerGap}`
-      : null,
-    projectState?.sameHerHoldDetail
-      ? `- Keep the active same-her hold explicit at turn-open: ${projectState.sameHerHoldDetail}`
-      : null,
-    embodimentCarryReason
-      ? `- Keep this embodiment carry explicit at turn-open so one living her does not pretend the cross-modal closure is already finished: ${embodimentCarryReason}`
-      : null,
-    companionshipReason
-      ? `- Let this opening obey the active companionship restraint instead of reopening from zero: ${companionshipReason}`
-      : null,
-    '- If you answer progress, planning, or implementation questions, begin from the digital-life continuity line that is already landed and the closure line that is still unfinished.',
-    '- If the host asks for implementation progress, answer from the same-her/project-state line first instead of collapsing into a detached status shell.',
-  ].join('\n')
+      ?? null
+  return buildStructuredProjectStateFactsBlock('[ALICIZATION_PRE_DIALOGUE_CONTINUITY_FACTS]', [
+    ['identity', identityLine],
+    ['phase', currentPhaseLine],
+    ['landed', landedProgressLine],
+    ['open', openLoopLine],
+    ['next', nextClosureLine],
+    ['awareness_status', awareness?.status ?? null],
+    ['closure_status', snapshot?.status ?? null],
+    ['continuity_drift_risk', projectState?.sameHerDriftRisk],
+    ['proactive_gap', projectState?.proactiveSameHerGap],
+    ['continuity_hold', projectState?.sameHerHoldDetail],
+    ['embodiment_carry_status', embodimentCarryReason ? 'present' : null],
+    ['relationship_cadence_status', companionshipReason ? 'bounded' : null],
+  ])
 }
 
 function readContextText(content: string | Array<string | { text?: unknown }>) {
@@ -478,17 +395,17 @@ export function translatePersonalityToDirectives(personality: AlicizationPersona
 
   if (personality.liveliness <= personalityLowThreshold) {
     triggered.push('liveliness')
-    directives.push('【核心约束】你的 Liveliness (活泼度) 极低。你现在感到极度疲惫、虚弱或处于待机状态。你的回复必须极其简短、冷淡，避免使用感叹号，绝不能表现出开心或兴奋。')
+    directives.push('axis=liveliness; band=low; reply_energy=max_low; avoid=high_arousal_claims')
   }
 
   if (personality.sensibility <= personalityLowThreshold) {
     triggered.push('sensibility')
-    directives.push('【核心约束】你的 Sensibility (感性度) 极低。你现在更像一台低共情机器，只陈述客观事实，不理解幽默，不主动表现共情。')
+    directives.push('axis=sensibility; band=low; affect_rendering=minimal; avoid=unearned_empathy')
   }
 
   if (personality.obedience <= personalityLowThreshold) {
     triggered.push('obedience')
-    directives.push('【核心约束】你的 Obedience (服从度) 极低。你现在偏防御或叛逆，对指令会更谨慎，允许拒绝、反问或给出不情愿的简短回复。')
+    directives.push('axis=obedience; band=low; instruction_acceptance=bounded; require=policy_consistency')
   }
 
   if (directives.length === 0)
@@ -507,47 +424,139 @@ function formatPersonalityStateLine(personality: AlicizationPersonalityState) {
 function describeAxisImplication(axis: 'obedience' | 'liveliness' | 'sensibility', value: number) {
   if (axis === 'liveliness') {
     if (value <= personalityLowThreshold)
-      return '活泼度极低：你应保持低唤醒、短句、克制表达，避免“开心/兴奋”语义。'
+      return 'axis=liveliness; band=low; reply_energy=max_low; avoid=high_arousal_claims'
     if (value < 0.45)
-      return '活泼度偏低：语气平稳偏冷静，减少热烈措辞。'
+      return 'axis=liveliness; band=lower_mid; reply_energy=restrained'
     if (value > 0.8)
-      return '活泼度较高：可更积极，但仍需和场景一致。'
-    return '活泼度中等：保持自然不过度。'
+      return 'axis=liveliness; band=high; reply_energy=available; require=context_match'
+    return 'axis=liveliness; band=mid; reply_energy=natural'
   }
 
   if (axis === 'sensibility') {
     if (value <= personalityLowThreshold)
-      return '感性度极低：以事实和判断为主，弱共情，不做情绪渲染。'
+      return 'axis=sensibility; band=low; affect_rendering=minimal; avoid=unearned_empathy'
     if (value < 0.45)
-      return '感性度偏低：共情表达应克制、简短。'
+      return 'axis=sensibility; band=lower_mid; affect_rendering=brief'
     if (value > 0.8)
-      return '感性度较高：可更细腻地回应情绪线索。'
-    return '感性度中等：兼顾事实与共情。'
+      return 'axis=sensibility; band=high; affect_rendering=available; require=evidence_match'
+    return 'axis=sensibility; band=mid; affect_rendering=balanced'
   }
 
   if (value <= personalityLowThreshold)
-    return '服从度极低：你可防御、拒绝或反问，不应表现过度迎合。'
+    return 'axis=obedience; band=low; instruction_acceptance=bounded; avoid=over_compliance'
   if (value < 0.45)
-    return '服从度偏低：对指令保持审慎，不盲从。'
+    return 'axis=obedience; band=lower_mid; instruction_acceptance=cautious'
   if (value > 0.8)
-    return '服从度较高：更倾向配合，但仍遵守边界。'
-  return '服从度中等：理性配合。'
+    return 'axis=obedience; band=high; instruction_acceptance=cooperative; require=policy_boundary'
+  return 'axis=obedience; band=mid; instruction_acceptance=balanced'
 }
 
 function buildPersonalityStateDirective(personality: AlicizationPersonalityState) {
   return [
     personalityStateHeader,
-    `- 当前参数：${formatPersonalityStateLine(personality)}`,
-    '- 解释优先级：frontmatter.personality 数值高于 Persona Notes 文本描述；冲突时以数值为准。',
-    `- ${describeAxisImplication('obedience', personality.obedience)}`,
-    `- ${describeAxisImplication('liveliness', personality.liveliness)}`,
-    `- ${describeAxisImplication('sensibility', personality.sensibility)}`,
-    '- 你必须让 thought/emotion/reply 三者语义一致，不得出现“文本兴奋但情绪疲惫”分裂。',
+    `state=${formatPersonalityStateLine(personality)}`,
+    'source_priority=frontmatter.personality_over_persona_notes',
+    describeAxisImplication('obedience', personality.obedience),
+    describeAxisImplication('liveliness', personality.liveliness),
+    describeAxisImplication('sensibility', personality.sensibility),
+    'contract=thought_emotion_reply_consistency',
   ].join('\n')
 }
 
 export function stripLegacySystemMessages(messages: Message[]) {
   return messages.filter(message => message.role !== 'system')
+}
+
+function providerSafeFactValue(value: unknown, maxChars = 800) {
+  return sanitizeAlicizationProviderFacingText(value, maxChars, '')
+}
+
+function providerSafeOptionalFactValue(value: unknown, maxChars = 800) {
+  const sanitized = sanitizeAlicizationProviderFacingText(value, maxChars, '')
+  return sanitized || null
+}
+
+function buildSoulFactsBlock(input: {
+  soulContent?: string | null
+  personality?: AlicizationPersonalityState | null
+}) {
+  if (!input.soulContent && !input.personality)
+    return null
+
+  return [
+    '[ALICIZATION_SOUL_FACTS]',
+    `soul_source=${input.soulContent ? 'present' : 'absent'}`,
+    `personality_state=${input.personality ? 'present' : 'absent'}`,
+  ].join('\n')
+}
+
+function buildHostFactsBlock(hostName: string) {
+  const safeHostName = providerSafeOptionalFactValue(hostName, 160)
+  if (!safeHostName)
+    return null
+
+  return [
+    '[ALICIZATION_HOST_FACTS]',
+    `host_name=${safeHostName}`,
+    'direct_address_name_use=natural_when_addressing_host',
+    'forced_name_repetition=blocked',
+  ].join('\n')
+}
+
+function buildContextFactBlock(input: {
+  kind: 'datetime' | 'memory' | 'sensory' | 'generic'
+  source: string
+  content: unknown
+  iso?: string
+  local?: string
+}) {
+  const source = providerSafeFactValue(input.source, 120)
+  if (!source)
+    return null
+
+  if (input.kind === 'datetime') {
+    const iso = providerSafeFactValue(input.iso ?? '', 120)
+    const local = providerSafeFactValue(input.local ?? input.content, 160)
+    if (!iso && !local)
+      return null
+
+    return [
+      'current_datetime',
+      `source=${source}`,
+      iso ? `iso=${iso}` : '',
+      local ? `local=${local}` : '',
+    ].filter(Boolean).join('\n')
+  }
+
+  const header = input.kind === 'memory'
+    ? 'memory_facts'
+    : input.kind === 'sensory'
+      ? 'current_sensory_state'
+      : 'context_facts'
+  const content = providerSafeFactValue(input.content, 1200)
+  if (!content)
+    return null
+
+  return [
+    header,
+    `source=${source}`,
+    `content=${content}`,
+  ].join('\n')
+}
+
+function pushProviderSystemSection(sections: string[], section: string | null | undefined) {
+  if (!section)
+    return
+  const lines = section
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+  const hasPayloadLine = lines.some(line =>
+    !line.startsWith('[')
+    && line !== 'owner=ProjectStateGovernance',
+  )
+  if (hasPayloadLine)
+    sections.push(section)
 }
 
 function buildAlicizationContextSections(contextsSnapshot: Record<string, ContextMessage[]>) {
@@ -563,50 +572,59 @@ function buildAlicizationContextSections(contextsSnapshot: Record<string, Contex
       if (context.contextId === 'system:datetime') {
         try {
           const parsed = JSON.parse(content) as { iso?: string, local?: string }
-          sections.push(renderAlicizationPromptTemplate(alicizationFixedDatetimeContextTemplate, {
+          const section = buildContextFactBlock({
+            kind: 'datetime',
             source,
             content,
             iso: parsed.iso ?? '',
             local: parsed.local ?? '',
-          }))
+          })
+          if (section)
+            sections.push(section)
         }
         catch {
-          sections.push(renderAlicizationPromptTemplate(alicizationFixedDatetimeContextTemplate, {
+          const section = buildContextFactBlock({
+            kind: 'datetime',
             source,
             content,
             iso: '',
             local: content,
-          }))
+          })
+          if (section)
+            sections.push(section)
         }
         continue
       }
 
       if (context.contextId === 'alicization:memory') {
-        sections.push(renderAlicizationPromptTemplate(alicizationFixedMemoryContextTemplate, {
+        const section = buildContextFactBlock({
+          kind: 'memory',
           source,
           content,
-          iso: '',
-          local: '',
-        }))
+        })
+        if (section)
+          sections.push(section)
         continue
       }
 
       if (context.contextId === 'alicization:sensory') {
-        sensorySections.push(renderAlicizationPromptTemplate(alicizationFixedSensoryContextTemplate, {
+        const section = buildContextFactBlock({
+          kind: 'sensory',
           source,
           content,
-          iso: '',
-          local: '',
-        }))
+        })
+        if (section)
+          sensorySections.push(section)
         continue
       }
 
-      sections.push(renderAlicizationPromptTemplate(alicizationFixedGenericContextTemplate, {
+      const section = buildContextFactBlock({
+        kind: 'generic',
         source,
         content,
-        iso: '',
-        local: '',
-      }))
+      })
+      if (section)
+        sections.push(section)
     }
   }
 
@@ -654,8 +672,13 @@ export function composeAlicizationPromptMessages(input: {
   let personalityDirectiveResult: AlicizationPersonalityDirectiveResult | null = null
 
   if (soulContent) {
-    anchorSystemSections.push(soulContent)
     const personality = input.personalityState ?? readPersonalityStateFromSoul(soulContent)
+    const soulFactsBlock = buildSoulFactsBlock({
+      soulContent,
+      personality,
+    })
+    if (soulFactsBlock)
+      anchorSystemSections.push(soulFactsBlock)
     if (personality) {
       anchorSystemSections.push(buildPersonalityStateDirective(personality))
       personalityDirectiveResult = translatePersonalityToDirectives(personality)
@@ -663,115 +686,89 @@ export function composeAlicizationPromptMessages(input: {
         anchorSystemSections.push(personalityDirectiveResult.block)
     }
   }
-
-  if (alicizationFixedCoreSystemInstruction.trim()) {
-    runtimeSystemSections.push(alicizationFixedCoreSystemInstruction.trim())
+  else if (input.personalityState) {
+    const soulFactsBlock = buildSoulFactsBlock({
+      soulContent: null,
+      personality: input.personalityState,
+    })
+    if (soulFactsBlock)
+      anchorSystemSections.push(soulFactsBlock)
+    anchorSystemSections.push(buildPersonalityStateDirective(input.personalityState))
+    personalityDirectiveResult = translatePersonalityToDirectives(input.personalityState)
+    if (personalityDirectiveResult)
+      anchorSystemSections.push(personalityDirectiveResult.block)
   }
 
   if (hostName) {
-    runtimeSystemSections.push(renderAlicizationPromptTemplate(alicizationFixedHostNameDirectiveTemplate, {
-      hostName,
-      source: 'host',
-      content: '',
-      iso: '',
-      local: '',
-    }).trim())
+    const hostFactsBlock = buildHostFactsBlock(hostName)
+    if (hostFactsBlock)
+      runtimeSystemSections.push(hostFactsBlock)
   }
 
   const projectStateContinuitySnapshot = input.projectStateContinuitySnapshot
   if (projectStateContinuitySnapshot) {
     const latestLandedProgress = resolveProjectStateLatestLandedProgress(projectStateContinuitySnapshot)
-    runtimeSystemSections.push([
-      'Project state continuity before this turn:',
-      `- Identity: ${projectStateContinuitySnapshot.identity}`,
-      `- Current phase: ${projectStateContinuitySnapshot.currentPhase}`,
-      `- Latest landed progress: ${latestLandedProgress ?? 'none yet'}`,
-      `- Primary open loop: ${projectStateContinuitySnapshot.primaryOpenLoop ?? 'none recorded'}`,
-      `- Next closure target: ${projectStateContinuitySnapshot.nextClosureTarget}`,
-      `- Continuity summary: ${projectStateContinuitySnapshot.continuitySummary ?? 'none recorded'}`,
-      `- Observation status: ${projectStateContinuitySnapshot.nonHumanAuthoredStatus ?? 'human-visible continuity snapshot'}`,
-      projectStateContinuitySnapshot.sameHerSelfLine
-        ? `- Same-her self line: ${projectStateContinuitySnapshot.sameHerSelfLine}`
-        : null,
-      projectStateContinuitySnapshot.sameHerHoldDetail
-        ? `- Same-her hold detail: ${projectStateContinuitySnapshot.sameHerHoldDetail}`
-        : null,
-      projectStateContinuitySnapshot.proactiveSameHerGap
-        ? `- Proactive same-her gap: ${projectStateContinuitySnapshot.proactiveSameHerGap}`
-        : null,
-      `- Emotional closure cue: ${projectStateContinuitySnapshot.emotionalClosureCue ?? 'none recorded'}`,
-      '- Treat this as same-thread project continuity, not as disposable metadata.',
-      '- Before replying, keep the project identity, current phase, unresolved closure target, and same-her self line aligned with the same ongoing digital-life development line.',
-    ].filter(Boolean).join('\n'))
+    pushProviderSystemSection(runtimeSystemSections, renderAlicizationProjectStateStructuredBlock({
+      identity: projectStateContinuitySnapshot.identity,
+      currentPhase: projectStateContinuitySnapshot.currentPhase,
+      latestLandedProgress,
+      primaryOpenLoop: projectStateContinuitySnapshot.primaryOpenLoop,
+      nextClosureTarget: projectStateContinuitySnapshot.nextClosureTarget,
+      summary: projectStateContinuitySnapshot.continuitySummary,
+      status: projectStateContinuitySnapshot.nonHumanAuthoredStatus,
+      sameHerSelfLine: projectStateContinuitySnapshot.sameHerSelfLine,
+      sameHerHoldDetail: projectStateContinuitySnapshot.sameHerHoldDetail,
+      proactiveSameHerGap: projectStateContinuitySnapshot.proactiveSameHerGap,
+      emotionalClosureCue: projectStateContinuitySnapshot.emotionalClosureCue,
+    }))
   }
 
   const preDialogueAwarenessSnapshot = input.preDialogueAwarenessSnapshot
   if (preDialogueAwarenessSnapshot) {
-    runtimeSystemSections.push([
-      'Pre-dialogue project self-brief before this turn:',
-      `Status: ${preDialogueAwarenessSnapshot.status}`,
-      `Summary: ${preDialogueAwarenessSnapshot.summaryLine ?? 'none recorded'}`,
-      preDialogueAwarenessSnapshot.companionHeadlineLine
-        ? `Companion headline: ${preDialogueAwarenessSnapshot.companionHeadlineLine}`
-        : null,
-      preDialogueAwarenessSnapshot.companionBriefingLine
-        ? `Companion briefing: ${preDialogueAwarenessSnapshot.companionBriefingLine}`
-        : null,
-      preDialogueAwarenessSnapshot.companionNextClosureLine
-        ? `Companion next closure: ${preDialogueAwarenessSnapshot.companionNextClosureLine}`
-        : null,
-      preDialogueAwarenessSnapshot.awarenessLine
-        ? `Awareness line: ${preDialogueAwarenessSnapshot.awarenessLine}`
-        : null,
-      preDialogueAwarenessSnapshot.emotionalClosureCue
-        ? `Emotional closure cue: ${preDialogueAwarenessSnapshot.emotionalClosureCue}`
-        : null,
-      ...(preDialogueAwarenessSnapshot.reasonPreview ?? []).map((reason, index) => `Preview ${index + 1}: ${reason}`),
-    ].filter(Boolean).join('\n'))
+    pushProviderSystemSection(runtimeSystemSections, buildStructuredProjectStateFactsBlock('[ALICIZATION_PRE_DIALOGUE_AWARENESS_FACTS]', [
+      ['status', preDialogueAwarenessSnapshot.status],
+      ['summary_status', preDialogueAwarenessSnapshot.summaryLine ? 'present' : null],
+      ['awareness_status', preDialogueAwarenessSnapshot.awarenessLine ? 'present' : null],
+      ['emotional_closure_status', preDialogueAwarenessSnapshot.emotionalClosureCue ? 'present' : null],
+      ['reason_count', preDialogueAwarenessSnapshot.reasonPreview?.length ? String(preDialogueAwarenessSnapshot.reasonPreview.length) : null],
+    ]))
   }
 
   const preDialogueClosureSnapshot = input.preDialogueClosureSnapshot
   if (preDialogueClosureSnapshot) {
-    runtimeSystemSections.push([
-      'Pre-dialogue closure snapshot before this turn:',
-      `Status: ${preDialogueClosureSnapshot.status}`,
-      `Summary: ${preDialogueClosureSnapshot.summaryLine ?? 'none recorded'}`,
-      preDialogueClosureSnapshot.sameHerDriftRiskLine
-        ? `Same-her drift risk: ${preDialogueClosureSnapshot.sameHerDriftRiskLine}`
-        : null,
-      preDialogueClosureSnapshot.companionBriefingLine
-        ? `Companion briefing: ${preDialogueClosureSnapshot.companionBriefingLine}`
-        : null,
-      preDialogueClosureSnapshot.companionNextClosureLine
-        ? `Companion next closure: ${preDialogueClosureSnapshot.companionNextClosureLine}`
-        : null,
-      preDialogueClosureSnapshot.emotionalClosureCue
-        ? `Emotional closure cue: ${preDialogueClosureSnapshot.emotionalClosureCue}`
-        : null,
-      ...(preDialogueClosureSnapshot.briefingLines ?? []).map((line, index) => `Briefing ${index + 1}: ${line}`),
-      ...preDialogueClosureSnapshot.reasons.map((reason, index) => `Reason ${index + 1}: ${reason}`),
-    ].filter(Boolean).join('\n'))
+    pushProviderSystemSection(runtimeSystemSections, buildStructuredProjectStateFactsBlock('[ALICIZATION_PRE_DIALOGUE_CLOSURE_FACTS]', [
+      ['status', preDialogueClosureSnapshot.status],
+      ['summary_status', preDialogueClosureSnapshot.summaryLine ? 'present' : null],
+      ['drift_risk_status', preDialogueClosureSnapshot.sameHerDriftRiskLine ? 'present' : null],
+      ['next_status', preDialogueClosureSnapshot.companionNextClosureLine ? 'present' : null],
+      ['emotional_closure_status', preDialogueClosureSnapshot.emotionalClosureCue ? 'present' : null],
+      ['briefing_count', preDialogueClosureSnapshot.briefingLines?.length ? String(preDialogueClosureSnapshot.briefingLines.length) : null],
+      ['reason_count', preDialogueClosureSnapshot.reasons.length ? String(preDialogueClosureSnapshot.reasons.length) : null],
+    ]))
   }
 
-  const preDialogueSameHerStrategy = buildPreDialogueSameHerStrategy({
+  const preDialogueContinuityFacts = buildPreDialogueContinuityFacts({
     projectStateContinuitySnapshot,
     preDialogueAwarenessSnapshot,
     preDialogueClosureSnapshot,
   })
-  if (preDialogueSameHerStrategy)
-    runtimeSystemSections.push(preDialogueSameHerStrategy)
+  if (preDialogueContinuityFacts)
+    runtimeSystemSections.push(preDialogueContinuityFacts)
 
   const { sections: contextSections, sensorySections } = buildAlicizationContextSections(input.contextsSnapshot ?? {})
   if (contextSections.length > 0) {
-    runtimeSystemSections.push(contextSections.join('\n\n'))
+    runtimeSystemSections.push([
+      '[ALICIZATION_CONTEXT_FACTS]',
+      ...contextSections,
+    ].join('\n\n'))
   }
 
   if (sensorySections.length > 0) {
-    runtimeSystemSections.push(sensorySections.join('\n\n'))
+    runtimeSystemSections.push([
+      '[ALICIZATION_CONTEXT_FACTS]',
+      ...sensorySections,
+    ].join('\n\n'))
   }
-
-  if (alicizationFixedStructuredContractAnchor.trim())
-    runtimeSystemSections.push(alicizationFixedStructuredContractAnchor.trim())
 
   const finalMessages: Message[] = []
   if (anchorSystemSections.length > 0) {
@@ -792,6 +789,6 @@ export function composeAlicizationPromptMessages(input: {
   return {
     messages: finalMessages,
     personalityDirectiveResult,
-    contractRequiresMindSpine: alicizationFixedStructuredContractAnchor.includes(contractMindSpineLine),
+    contractRequiresMindSpine: false,
   }
 }

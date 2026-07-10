@@ -34,12 +34,12 @@ export const alicizationExecutionPreflightAuditRegistry = [
   {
     relativePath: 'main-chat-session-runtime.ts',
     mode: 'session-bound-execution-bridge',
-    responsibility: 'Session-bound execution bridge must request canonical execution runtime context before main-gateway tools open outward, so execution capability and routing stay attached to one same-her Phase 1 line.',
+    responsibility: 'Session-bound execution bridge must request canonical execution runtime context before main-gateway tools open outward, so execution capability and routing stay attached to the Phase 1 continuity context.',
   },
   {
     relativePath: 'runtime-subconscious-tick.ts',
     mode: 'subconscious-autonomy-execution-bridge',
-    responsibility: 'Subconscious-autonomy execution bridge must request canonical execution runtime context before background auto-dispatch opens outward, so deferred autonomy execution stays on one same-her Phase 1 digital-life line instead of reopening as a generic executor shell.',
+    responsibility: 'Subconscious-autonomy execution bridge must request canonical execution runtime context before background auto-dispatch opens outward, so deferred autonomy execution stays attached to Phase 1 continuity context instead of reopening as a generic executor shell.',
   },
   {
     relativePath: 'executor-runtime.ts',

@@ -10,6 +10,9 @@ import type {
 import type { AlicizationOutcomeClosureResult, buildExecutionProposalFeedbackOutcomeClosure, buildExecutionResultFeedbackOutcomeClosure, deriveExecutionProposalFeedbackKind, deriveExecutionResultFeedbackKind } from './outcome-reinforcement'
 
 import {
+  alicizationFixedTemplateReplacement,
+  containsAlicizationFixedTemplateResidue,
+  formatAlicizationProjectStateAwarenessFields,
   normalizeAlicizationDerivedMindStateBundle,
   normalizeAlicizationExecutionRuntimeContext,
 } from '@proj-alicization/stage-shared'
@@ -121,6 +124,94 @@ function upgradeLegacyExecutionProjectSeamText(text: string) {
     .replace(/(?<![Ee]motion,\s)memory, initiative, and embodiment/g, 'emotion, memory, initiative, and embodiment')
 }
 
+type ExecutionProjectBriefingTextField
+  = | 'identity'
+    | 'phase'
+    | 'landed'
+    | 'open'
+    | 'next'
+    | 'continuity_anchor'
+    | 'continuity_hold'
+    | 'continuity_drift_risk'
+    | 'emotional_closure'
+    | 'awareness'
+    | 'summary'
+
+function extractExecutionProjectAwarenessFieldValue(structured: string, key: string) {
+  return structured
+    .split('|')
+    .map(part => part.trim())
+    .find(part => part.startsWith(`${key}=`))
+    ?.replace(new RegExp(`^${key}=`, 'u'), '')
+    .trim()
+    || ''
+}
+
+function sanitizeExecutionProjectBriefingText(
+  raw: unknown,
+  maxChars: number,
+  field: ExecutionProjectBriefingTextField = 'summary',
+) {
+  if (typeof raw !== 'string')
+    return null
+
+  const text = upgradeLegacyExecutionProjectSeamText(raw.trim().replace(/\s+/g, ' '))
+  if (!text)
+    return null
+
+  const normalized = text.slice(0, maxChars)
+  const formatInput = (() => {
+    if (field === 'identity')
+      return { identity: normalized, maxChars }
+    if (field === 'phase')
+      return { currentPhase: normalized, maxChars }
+    if (field === 'landed')
+      return { latestLandedProgress: normalized, maxChars }
+    if (field === 'open')
+      return { primaryOpenLoop: normalized, maxChars }
+    if (field === 'next')
+      return { nextClosureTarget: normalized, maxChars }
+    if (field === 'continuity_anchor')
+      return { sameHerSelfLine: normalized, maxChars }
+    if (field === 'continuity_hold')
+      return { sameHerHoldDetail: normalized, maxChars }
+    if (field === 'continuity_drift_risk')
+      return { sameHerDriftRisk: normalized, maxChars }
+    if (field === 'emotional_closure')
+      return { emotionalClosureCue: normalized, maxChars }
+    if (field === 'awareness') {
+      return containsAlicizationFixedTemplateResidue(normalized)
+        ? {
+            identity: normalized,
+            currentPhase: normalized,
+            latestLandedProgress: normalized,
+            primaryOpenLoop: normalized,
+            nextClosureTarget: normalized,
+            sameHerSelfLine: normalized,
+            sameHerHoldDetail: normalized,
+            sameHerDriftRisk: normalized,
+            emotionalClosureCue: normalized,
+            summary: normalized,
+            maxChars,
+          }
+        : { summary: normalized, maxChars }
+    }
+    return { summary: normalized, maxChars }
+  })()
+  const formatted = formatAlicizationProjectStateAwarenessFields(formatInput)
+  if (field === 'awareness')
+    return formatted || (containsAlicizationFixedTemplateResidue(normalized) ? alicizationFixedTemplateReplacement : normalized)
+
+  const key = field === 'summary' ? 'summary' : field
+  const extracted = extractExecutionProjectAwarenessFieldValue(formatted, key)
+  if (extracted)
+    return extracted
+
+  return containsAlicizationFixedTemplateResidue(normalized)
+    ? alicizationFixedTemplateReplacement
+    : normalized
+}
+
 function readFabricAffirmationReasonCodes(thread: AlicizationTaskThreadRecord) {
   const fabric = (thread.metadata && typeof thread.metadata === 'object' && !Array.isArray(thread.metadata) && thread.metadata.fabric && typeof thread.metadata.fabric === 'object' && !Array.isArray(thread.metadata.fabric))
     ? thread.metadata.fabric as { affirmationReasonCodes?: unknown }
@@ -132,12 +223,12 @@ function readFabricAffirmationReasonCodes(thread: AlicizationTaskThreadRecord) {
 
 function buildExecutionResultFeedbackHostAttitude(feedback: AlicizationExecutionResultFeedbackKind) {
   if (feedback === 'valued')
-    return '开始更相信 Alicization 的执行回报是有用且接得住当下需要的，不只是机械汇报。'
+    return 'execution_feedback=valued; trust_delta=positive; reply_policy=continue_with_evidence; visibility=structured'
   if (feedback === 'doubted')
-    return '开始怀疑 Alicization 对执行结果说得太满，希望她先核实清楚再继续往下接。'
+    return 'execution_feedback=doubted; trust_delta=verify_required; reply_policy=avoid_overclaim; visibility=structured'
   if (feedback === 'intrusive')
-    return '开始觉得 Alicization 的执行回报靠得太紧，需要更轻一点、更看窗口再进入。'
-  return '暂时不想继续贴着这条执行结果往下走，想让 Alicization 等一个更新鲜的开口。'
+    return 'execution_feedback=intrusive; distance_delta=more_space; reply_policy=lower_pressure; visibility=structured'
+  return 'execution_feedback=interrupted; distance_delta=paused; reply_policy=wait_for_new_user_opening; visibility=structured'
 }
 
 function extractExecutionResultFeedbackExperienceFromClosure(
@@ -214,26 +305,26 @@ function readExecutionResultFeedbackProjectBriefing(thread: AlicizationTaskThrea
   if (!projectBriefing || typeof projectBriefing !== 'object' || Array.isArray(projectBriefing))
     return null
   return {
-    identity: optionsSanitizeProjectText(projectBriefing.identity, 220),
-    currentPhase: optionsSanitizeProjectText(projectBriefing.currentPhase, 220),
-    latestLandedProgress: optionsSanitizeProjectText(projectBriefing.latestLandedProgress, 320),
-    latestProgress: optionsSanitizeProjectText(projectBriefing.latestProgress, 320),
-    landedProgressSummary: optionsSanitizeProjectText(projectBriefing.landedProgressSummary, 320),
-    primaryOpenLoop: optionsSanitizeProjectText(projectBriefing.primaryOpenLoop, 320),
-    openClosureSummary: optionsSanitizeProjectText(projectBriefing.openClosureSummary, 320),
-    proactiveSameHerGap: optionsSanitizeProjectText(projectBriefing.proactiveSameHerGap, 320),
-    nextClosureTarget: optionsSanitizeProjectText(projectBriefing.nextClosureTarget, 320),
-    nextClosureTargetSummary: optionsSanitizeProjectText(projectBriefing.nextClosureTargetSummary, 320),
-    sameHerSelfLine: optionsSanitizeProjectText(projectBriefing.sameHerSelfLine, 220),
-    sameHerHoldDetail: optionsSanitizeProjectText(projectBriefing.sameHerHoldDetail, 220),
-    sameHerDriftRisk: optionsSanitizeProjectText(projectBriefing.sameHerDriftRisk, 320),
-    sameHerDriftRiskSummary: optionsSanitizeProjectText(projectBriefing.sameHerDriftRiskSummary, 320),
-    preflightSummary: optionsSanitizeProjectText(projectBriefing.preflightSummary, 320),
-    preDialogueAwarenessLine: optionsSanitizeProjectText(projectBriefing.preDialogueAwarenessLine, 320),
-    preDialogueAwarenessSummary: optionsSanitizeProjectText(projectBriefing.preDialogueAwarenessSummary, 320),
-    companionBriefingLine: optionsSanitizeProjectText(projectBriefing.companionBriefingLine, 320),
-    emotionalClosureCue: optionsSanitizeProjectText(projectBriefing.emotionalClosureCue, 220),
-    emotionalClosureSummary: optionsSanitizeProjectText(projectBriefing.emotionalClosureSummary, 220),
+    identity: sanitizeExecutionProjectBriefingText(projectBriefing.identity, 220, 'identity'),
+    currentPhase: sanitizeExecutionProjectBriefingText(projectBriefing.currentPhase, 220, 'phase'),
+    latestLandedProgress: sanitizeExecutionProjectBriefingText(projectBriefing.latestLandedProgress, 320, 'landed'),
+    latestProgress: sanitizeExecutionProjectBriefingText(projectBriefing.latestProgress, 320, 'landed'),
+    landedProgressSummary: sanitizeExecutionProjectBriefingText(projectBriefing.landedProgressSummary, 320, 'landed'),
+    primaryOpenLoop: sanitizeExecutionProjectBriefingText(projectBriefing.primaryOpenLoop, 320, 'open'),
+    openClosureSummary: sanitizeExecutionProjectBriefingText(projectBriefing.openClosureSummary, 320, 'open'),
+    proactiveSameHerGap: sanitizeExecutionProjectBriefingText(projectBriefing.proactiveSameHerGap, 320, 'summary'),
+    nextClosureTarget: sanitizeExecutionProjectBriefingText(projectBriefing.nextClosureTarget, 320, 'next'),
+    nextClosureTargetSummary: sanitizeExecutionProjectBriefingText(projectBriefing.nextClosureTargetSummary, 320, 'next'),
+    sameHerSelfLine: sanitizeExecutionProjectBriefingText(projectBriefing.sameHerSelfLine, 220, 'continuity_anchor'),
+    sameHerHoldDetail: sanitizeExecutionProjectBriefingText(projectBriefing.sameHerHoldDetail, 220, 'continuity_hold'),
+    sameHerDriftRisk: sanitizeExecutionProjectBriefingText(projectBriefing.sameHerDriftRisk, 320, 'continuity_drift_risk'),
+    sameHerDriftRiskSummary: sanitizeExecutionProjectBriefingText(projectBriefing.sameHerDriftRiskSummary, 320, 'continuity_drift_risk'),
+    preflightSummary: sanitizeExecutionProjectBriefingText(projectBriefing.preflightSummary, 320, 'awareness'),
+    preDialogueAwarenessLine: sanitizeExecutionProjectBriefingText(projectBriefing.preDialogueAwarenessLine, 320, 'awareness'),
+    preDialogueAwarenessSummary: sanitizeExecutionProjectBriefingText(projectBriefing.preDialogueAwarenessSummary, 320, 'awareness'),
+    companionBriefingLine: sanitizeExecutionProjectBriefingText(projectBriefing.companionBriefingLine, 320, 'awareness'),
+    emotionalClosureCue: sanitizeExecutionProjectBriefingText(projectBriefing.emotionalClosureCue, 220, 'emotional_closure'),
+    emotionalClosureSummary: sanitizeExecutionProjectBriefingText(projectBriefing.emotionalClosureSummary, 220, 'emotional_closure'),
     continuityArcStage: optionsSanitizeProjectText(projectBriefing.continuityArcStage, 120),
     continuityRestraint: optionsSanitizeProjectText(projectBriefing.continuityRestraint, 64),
     continuityCue: optionsSanitizeProjectText(projectBriefing.continuityCue, 220),
@@ -423,6 +514,28 @@ function preferExecutionResultFeedbackSameHerSelfLine(input: {
   })
 
   return candidates[0]?.value ?? null
+}
+
+function sanitizeMergedExecutionResultFeedbackProjectBriefing(
+  projectBriefing: Record<string, unknown>,
+) {
+  return {
+    ...projectBriefing,
+    identity: sanitizeExecutionProjectBriefingText(projectBriefing.identity, 220, 'identity'),
+    currentPhase: sanitizeExecutionProjectBriefingText(projectBriefing.currentPhase, 220, 'phase'),
+    latestLandedProgress: sanitizeExecutionProjectBriefingText(projectBriefing.latestLandedProgress, 320, 'landed'),
+    primaryOpenLoop: sanitizeExecutionProjectBriefingText(projectBriefing.primaryOpenLoop, 320, 'open'),
+    proactiveSameHerGap: sanitizeExecutionProjectBriefingText(projectBriefing.proactiveSameHerGap, 320, 'summary'),
+    nextClosureTarget: sanitizeExecutionProjectBriefingText(projectBriefing.nextClosureTarget, 320, 'next'),
+    sameHerSelfLine: sanitizeExecutionProjectBriefingText(projectBriefing.sameHerSelfLine, 220, 'continuity_anchor'),
+    sameHerDriftRisk: sanitizeExecutionProjectBriefingText(projectBriefing.sameHerDriftRisk, 320, 'continuity_drift_risk'),
+    sameHerHoldDetail: sanitizeExecutionProjectBriefingText(projectBriefing.sameHerHoldDetail, 220, 'continuity_hold'),
+    preflightSummary: sanitizeExecutionProjectBriefingText(projectBriefing.preflightSummary, 320, 'awareness'),
+    preDialogueAwarenessLine: sanitizeExecutionProjectBriefingText(projectBriefing.preDialogueAwarenessLine, 320, 'awareness'),
+    preDialogueAwarenessSummary: sanitizeExecutionProjectBriefingText(projectBriefing.preDialogueAwarenessSummary, 320, 'awareness'),
+    companionBriefingLine: sanitizeExecutionProjectBriefingText(projectBriefing.companionBriefingLine, 320, 'awareness'),
+    emotionalClosureSummary: sanitizeExecutionProjectBriefingText(projectBriefing.emotionalClosureSummary, 220, 'emotional_closure'),
+  }
 }
 
 function mergeExecutionResultFeedbackProjectBriefing(input: {
@@ -649,7 +762,7 @@ function mergeExecutionResultFeedbackProjectBriefing(input: {
     return normalizedProjectState.currentPhase ?? threadProjectBriefing?.currentPhase ?? null
   })()
 
-  return {
+  return sanitizeMergedExecutionResultFeedbackProjectBriefing({
     identity: preferredIdentity,
     currentPhase: preferredCurrentPhase,
     latestLandedProgress:
@@ -774,14 +887,11 @@ function mergeExecutionResultFeedbackProjectBriefing(input: {
       ?? normalizedProjectState.preferredPacingMode
       ?? threadProjectBriefing?.preferredPacingMode
       ?? null,
-  }
+  })
 }
 
 function optionsSanitizeProjectText(raw: unknown, maxChars: number) {
-  if (typeof raw !== 'string')
-    return null
-  const text = upgradeLegacyExecutionProjectSeamText(raw.trim().replace(/\s+/g, ' '))
-  return text ? text.slice(0, maxChars) : null
+  return sanitizeExecutionProjectBriefingText(raw, maxChars, 'summary')
 }
 
 function readExecutionFeedbackPayloadObject(payload: unknown) {

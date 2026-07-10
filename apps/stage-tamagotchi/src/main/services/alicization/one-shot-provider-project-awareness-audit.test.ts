@@ -17,7 +17,7 @@ const proofRows = [
     file: './runtime-main-gateway-one-shot.test.ts',
     snippets: [
       'keeps a fuller project-and-phase awareness line over a narrower embodiment companion headline in one-shot fallback',
-      'Before answering, remember this is still the same Phase 1 local digital life, not a generic assistant shell.',
+      'expectStructuredOneShotAwarenessLine(projectState.preDialogueAwarenessLine)',
       'Same companion line through body, face, and motion. Keep the same living line gentle.',
     ],
   },
@@ -26,7 +26,7 @@ const proofRows = [
     file: './runtime-main-gateway-one-shot.test.ts',
     snippets: [
       'injects project-state identity and closure dashboard into audited screen-semantic one-shot prompts before generation',
-      'Screen semantic interpretation must stay inside the same digital life project line',
+      'screen_semantic_scope=desktop_semantics',
       'Do not let screen semantic interpretation collapse into a generic desktop classifier',
     ],
   },
@@ -44,7 +44,7 @@ const proofRows = [
     file: './runtime-main-gateway-one-shot.test.ts',
     snippets: [
       're-expands a thin runtime project-state shell into canonical same-her Phase 1 answer context before scene-appraisal generation starts',
-      'pre_dialogue_awareness=Before answering, remember:',
+      'continuity_anchor=phase1_local_digital_life_anchor',
       'turns direct project-state one-shot turns into an explicit pre-answer contract for identity, landed progress, open closure, and same-her continuity',
     ],
   },

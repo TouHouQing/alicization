@@ -3,6 +3,88 @@ import { describe, expect, it } from 'vitest'
 import { buildAlicizationMindTurnGovernance } from './chat-mind-governance'
 
 describe('buildAlicizationMindTurnGovernance', () => {
+  it('renders project continuity controls as structured governance instead of fixed persona templates', () => {
+    const result = buildAlicizationMindTurnGovernance({
+      brief: {
+        turnMode: 'answer',
+        liveSurface: 'Memory workbench dialogue loop',
+        carriedThread: null,
+        truthState: 'dialogue-grounded',
+        separateCarryFromSurface: false,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 4,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'memory dialogue loop',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: 'project_context=local_desktop_life_loop; next closure target: make memory recall visible without fixed persona templates',
+        emotionalClosureCue: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: null,
+        mindMode: 'tracking',
+        digitalLifeSummary: 'voice=lower-pressure; pacing=slower',
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      surfaceContract: {
+        openingStyle: 'direct-answer',
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: false,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      mindTurnContract: {
+        intent: 'answer',
+        truthState: 'dialogue-grounded',
+        relationMove: 'guide',
+        answerSubject: 'project-continuity',
+        responseMode: 'answer-naturally',
+        screenReferenceMode: 'avoid',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'backgrounded',
+        maxParagraphs: 2,
+        maxSentences: 4,
+        focusAnchor: 'memory workbench loop',
+        answerIntent: 'explain what memory still needs',
+        liveSurface: 'dialogue loop',
+        emotionalClosureCue: 'memory continuity should stay low-pressure while recall evidence lands',
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: false,
+        mustDo: [],
+        mustNotDo: [],
+        narrative: [],
+        updatedAt: 1,
+      },
+    })
+
+    const joined = result.mustDo.join('\n')
+
+    expect(joined).not.toMatch(/Keep the|Do not lose|same digital-life line|same living line|active governing project seam|active emotional closure seam/iu)
+    expect(result.mustDo.some(item => item.startsWith('project_focus=') && item.includes('continuity_gap=still_open'))).toBe(true)
+    expect(result.mustDo).toContain('project_next_closure_target=make memory recall visible without fixed persona templates')
+    expect(result.mustDo).toContain('voice_pressure=lower; generic_assistant_delivery=blocked')
+    expect(result.mustDo).toContain('pacing=slower; widening=deferred')
+    expect(result.mustDo).toContain('governing_project=active; detached_local_optimization=blocked; project_context=local_desktop_life_loop')
+    expect(result.mustDo).toContain('emotional_closure=active; surface=low_pressure_internal_until_payoff; cue=memory continuity should stay low-pressure while recall evidence lands')
+  })
+
   it('surfaces user-facing anchors and strips internal mind jargon', () => {
     const result = buildAlicizationMindTurnGovernance({
       brief: {
@@ -621,8 +703,8 @@ describe('buildAlicizationMindTurnGovernance', () => {
     })
 
     expect(result.decisionTraceId).toMatch(/^mind:[a-z0-9]+:[a-f0-9]{12}$/u)
-    expect(result.mustDo).toContain('Keep direct observation and any hypothesis in separate clauses.')
-    expect(result.mustNotDo).toContain('Do not introduce file names, class names, enum names, or field changes that this turn has not actually evidenced.')
+    expect(result.mustDo).toContain('direct_observation_clause=separate; hypothesis_clause=separate')
+    expect(result.mustNotDo).toContain('unsupported_specificity=blocked; file_class_enum_field_claims=require_current_evidence')
   })
 
   it('preserves same-seam procedural continuity discipline into final mind-turn governance', () => {
@@ -902,13 +984,12 @@ describe('buildAlicizationMindTurnGovernance', () => {
     })
 
     expect(result.answerIntent).toContain('digital life loop')
-    expect(result.mustDo.some(item => item.includes('Phase 1'))).toBe(true)
-    expect(result.mustDo.some(item => item.includes('still-open life loop'))).toBe(true)
-    expect(result.mustDo.some(item => item.includes('active governing project seam'))).toBe(true)
-    expect(result.mustDo.some(item => item.includes('Some closure has already landed'))).toBe(true)
-    expect(result.mustDo.some(item => item.includes('Unresolved closure carry') || item.includes('still-open'))).toBe(true)
-    expect(result.mustDo.some(item => item.includes('Keep the next project closure target explicit in this turn:'))).toBe(true)
-    expect(result.mustDo.some(item => item.includes('same living thread'))).toBe(true)
+    expect(result.mustDo.some(item => item.includes('local_desktop_life_loop'))).toBe(true)
+    expect(result.mustDo.some(item => item.includes('project_focus=') && item.includes('continuity_gap=still_open'))).toBe(true)
+    expect(result.mustDo.some(item => item.includes('governing_project=active'))).toBe(true)
+    expect(result.mustDo.some(item => item.includes('project_next_closure_target='))).toBe(true)
+    expect(result.mustDo.some(item => item.includes('project_next_closure_target='))).toBe(true)
+    expect(result.mustDo.some(item => item.includes('continuity_thread'))).toBe(true)
   })
 
   it('threads the active emotional closure seam into final governance mustDo constraints', () => {
@@ -990,7 +1071,7 @@ describe('buildAlicizationMindTurnGovernance', () => {
     })
 
     expect(result.mustDo).toContain(
-      'Keep the turn inside the active emotional closure seam: Let the answer sound steady enough to hold the same-her emotional line while easing late-night drain..',
+      'emotional_closure=active; surface=low_pressure_internal_until_payoff; cue=Let the answer sound steady enough to hold the continuity_identity emotional line while easing late-night drain.',
     )
     expect(result.emotionalClosureCue).toBe(
       'Let the answer sound steady enough to hold the same-her emotional line while easing late-night drain.',
@@ -1122,10 +1203,13 @@ describe('buildAlicizationMindTurnGovernance', () => {
       },
     })
 
-    expect(result.mustDo.some(item => item.includes('Phase 1'))).toBe(true)
-    expect(result.mustDo.some(item => item.includes('memory, initiative, and embodiment'))).toBe(true)
+    expect(result.mustDo.some(item => item.includes('local_desktop_life_loop'))).toBe(true)
+    expect(result.mustDo.some((item) => {
+      const lower = item.toLowerCase()
+      return lower.includes('memory') && lower.includes('initiative') && lower.includes('embodiment')
+    })).toBe(true)
     expect(result.mustDo.some(item => item.includes('stronger end-to-end closure') || item.includes('truly closed'))).toBe(true)
-    expect(result.mustDo.some(item => item.includes('Keep the next project closure target explicit in this turn: Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.'))).toBe(true)
+    expect(result.mustDo.some(item => item.includes('project_next_closure_target=') && item.includes('cross_modal_continuity_proof'))).toBe(true)
   })
 
   it('prefers the live conscious-frame project state so this turn keeps the actual next closure target explicit', () => {
@@ -1227,10 +1311,10 @@ describe('buildAlicizationMindTurnGovernance', () => {
       } as any,
     })
 
-    expect(result.mustDo.some(item => item.includes('Phase 1: Local Digital Life. Active proving ground'))).toBe(true)
-    expect(result.mustDo.some(item => item.includes('same still-open closure work across memory, initiative, dialogue, and embodiment'))).toBe(true)
+    expect(result.mustDo.some(item => item.includes('Phase 1: Local Digital Life') && item.includes('runtime carry in stage-tamagotchi'))).toBe(true)
+    expect(result.mustDo.some(item => item.includes('project_next_closure_target='))).toBe(true)
     expect(result.mustDo).toContain(
-      'Keep the next project closure target explicit in this turn: Carry the active next closure target into this turn before any local implementation detail takes over..',
+      'project_next_closure_target=Carry the active next closure target into this turn before any local implementation detail takes over.',
     )
   })
 
@@ -1280,8 +1364,8 @@ describe('buildAlicizationMindTurnGovernance', () => {
       },
     })
 
-    expect(result.mustDo).toContain('Keep the visible answer voice lower-pressure so the same digital-life line does not harden into a generic assistant delivery.')
-    expect(result.mustDo).toContain('Keep the visible answer pacing slower so the same digital-life line has room to stay continuous before widening outward.')
+    expect(result.mustDo).toContain('voice_pressure=lower; generic_assistant_delivery=blocked')
+    expect(result.mustDo).toContain('pacing=slower; widening=deferred')
   })
 
   it('prefers live project-state voice and pacing overrides in final governance mustDo when the current conscious frame carries them', () => {
@@ -1346,9 +1430,9 @@ describe('buildAlicizationMindTurnGovernance', () => {
       } as any,
     })
 
-    expect(result.mustDo).toContain('Keep the visible answer voice even and steady so the same digital-life line does not turn performative or overeager.')
-    expect(result.mustDo).toContain('Keep the visible answer pacing natural and unforced so the same digital-life line can stay coherent without rushing ahead of itself.')
-    expect(result.mustDo).not.toContain('Keep the visible answer voice lower-pressure so the same digital-life line does not harden into a generic assistant delivery.')
-    expect(result.mustDo).not.toContain('Keep the visible answer pacing slower so the same digital-life line has room to stay continuous before widening outward.')
+    expect(result.mustDo).toContain('voice_pressure=even; performative_overeager_delivery=blocked')
+    expect(result.mustDo).toContain('pacing=natural_unforced; rushing_ahead=blocked')
+    expect(result.mustDo).not.toContain('voice_pressure=lower; generic_assistant_delivery=blocked')
+    expect(result.mustDo).not.toContain('pacing=slower; widening=deferred')
   })
 })

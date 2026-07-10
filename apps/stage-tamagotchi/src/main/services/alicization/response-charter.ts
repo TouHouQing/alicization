@@ -27,12 +27,16 @@ import type { AlicizationProactiveLayeredContext } from './proactive-layered-con
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
 import {
+  alicizationFixedTemplateReplacement,
+  containsAlicizationFixedTemplateResidue,
   readActiveContinuityGovernanceFromDerivedMindStateBundle,
   readHostPersonModelFromDerivedMindStateBundle,
   readLearningExecutionStateFromDerivedMindStateBundle,
   readMemoryDeliberationFromDerivedMindStateBundle,
   readRecollectionIntentFromDerivedMindStateBundle,
   readRecollectionSpeechPlanFromDerivedMindStateBundle,
+  sanitizeAlicizationProviderFacingText,
+  sanitizeAlicizationStructuredInternalText,
 } from '@proj-alicization/stage-shared'
 
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
@@ -113,6 +117,276 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function sanitizeResponseCharterProviderText(raw: unknown, maxChars = 360) {
+  const normalized = sanitizeAlicizationProviderFacingText(raw, maxChars, '')
+  return normalized && normalized !== alicizationFixedTemplateReplacement ? normalized : ''
+}
+
+function renderResponseCharterProviderListItem(raw: unknown) {
+  const normalized = sanitizeResponseCharterProviderText(raw, 360)
+  if (!normalized)
+    return ''
+  if (/^[\w.:-]+=[^.!?。！？]*?(?:[;|,]\s*[\w.:-]+=[^.!?。！？]*?)*$/iu.test(normalized.trim())
+    || /^[\w.:-]+$/iu.test(normalized.trim())) {
+    return `- ${normalized}`
+  }
+  return '- response_control_present=true; response_control_source_text=withheld_non_structured_instruction'
+}
+
+function renderResponseCharterProviderField(raw: unknown, maxChars = 360, fallback = 'none') {
+  const normalized = sanitizeText(raw, maxChars)
+  if (!normalized)
+    return fallback
+
+  return sanitizeAlicizationProviderFacingText(
+    normalized,
+    maxChars,
+    alicizationFixedTemplateReplacement,
+  ) || fallback
+}
+
+function isStructuredResponseControl(raw: unknown) {
+  const normalized = sanitizeResponseCharterProviderText(raw, 360).trim()
+  if (!normalized)
+    return false
+  return /^[\w.:-]+=[^.!?。！？]*?(?:[;|,]\s*[\w.:-]+=[^.!?。！？]*?)*$/iu.test(normalized)
+    || /^[\w.:-]+$/iu.test(normalized)
+}
+
+function renderStructuredResponseControl(
+  raw: string,
+  section: 'reasons' | 'must_do' | 'must_not_do',
+) {
+  const segments = raw
+    .split(/\s*;\s*|\s*,\s*(?=[\w.:-]+=)/iu)
+    .map(segment => segment.trim())
+    .filter(Boolean)
+  const withSource = segments.some(segment => segment.startsWith('source_section='))
+    ? segments
+    : [`source_section=${section}`, ...segments]
+  const withVisibility = withSource.some(segment => segment.startsWith('visible_wording='))
+    ? withSource
+    : [...withSource, 'visible_wording=false']
+  return withVisibility.join('; ')
+}
+
+function neutralizeGoverningProjectSegment(raw: string) {
+  const normalized = sanitizeText(raw, GOVERNING_PROJECT_MAX_CHARS)
+  const direct = normalized
+    .replace(
+      /^Right now I am still holding together mainly through ([^,|.]+), ([^,|.]+), and ([^,|.]+), so this answer must keep proving this is still one living her before full cross-modal closure is done\.?$/iu,
+      'current_modal_continuity=$1_$2_$3; cross_modal_closure=unfinished',
+    )
+    .replace(
+      /^Right now I am still holding together mainly through ([^,|.]+), ([^,|.]+), and ([^,|.]+), so this answer must keep proving this is still project_state_continuity before full cross-modal closure is done\.?$/iu,
+      'current_modal_continuity=$1_$2_$3; cross_modal_closure=unfinished',
+    )
+    .replace(
+      /^Right now I am still holding together mainly through ([^,|.]+), ([^,|.]+), and ([^,|.]+), so this answer must keep proving this is still continuity_identity before full cross-modal closure is done\.?$/iu,
+      'current_modal_continuity=$1_$2_$3; cross_modal_closure=unfinished',
+    )
+    .replace(
+      /^This is still one continuity_identity carrying the project_continuity_line forward\.?$/iu,
+      'identity_continuity=present; project_continuity_line=forward',
+    )
+    .replace(
+      /^This is still one continuity_identity carrying the the project_continuity_line forward\.?$/iu,
+      'identity_continuity=present; project_continuity_line=forward',
+    )
+    .replace(
+      /^This is still one continuity_identity carrying the same project line forward\.?$/iu,
+      'identity_continuity=present; project_continuity_line=forward',
+    )
+  if (direct !== normalized)
+    return direct
+
+  const neutralized = sanitizeAlicizationStructuredInternalText(normalized, GOVERNING_PROJECT_MAX_CHARS, '')
+  return neutralized
+    .replace(
+      /^This is still one continuity_identity carrying the same project line forward\.?$/iu,
+      'identity_continuity=present; project_continuity_line=forward',
+    )
+    .replace(
+      /^This is still one continuity_identity carrying the project_continuity_line forward\.?$/iu,
+      'identity_continuity=present; project_continuity_line=forward',
+    )
+    .replace(
+      /^This is still one continuity_identity carrying the the project_continuity_line forward\.?$/iu,
+      'identity_continuity=present; project_continuity_line=forward',
+    )
+}
+
+function structuredResponseControlFromNaturalLanguage(raw: unknown, section: 'reasons' | 'must_do' | 'must_not_do') {
+  const text = sanitizeText(raw, 720)
+  const normalized = text.toLowerCase()
+  if (!normalized)
+    return null
+
+  const controls: string[] = []
+  const push = (control: string) => {
+    if (!controls.includes(control))
+      controls.push(control)
+  }
+
+  const closenessMatch = text.match(/closeness ladder:\s*([\w-]+\/[\w-]+)/iu)
+    ?? text.match(/closeness ladder for this turn:\s*([\w-]+\/[\w-]+)/iu)
+  if (closenessMatch?.[1])
+    push(`closeness_ladder=${closenessMatch[1]}`)
+
+  if (/stale page names|earlier screenshots|older window descriptions|older screen descriptions/u.test(normalized))
+    push('stale_visual_context_reuse=blocked')
+  if (/affectionate performance|pet names|persona routines|roleplay gestures|mood display|theatrical intimacy|overplay softness/u.test(normalized))
+    push('persona_fluency_over_current_answer=blocked')
+  if (/visual certainty|pixel-level details|current epistemic mode|coarse scene|generic scene cues/u.test(normalized))
+    push('visual_claim_certainty=bounded_by_current_evidence')
+  if (/live evidence|current grounded evidence|current observation|live scene|current state/u.test(normalized))
+    push('evidence_priority=current_grounded_state')
+  if (/dialogue subject|host's current move|current dialogue|current thread|current knot|task-bound|turn obligation/u.test(normalized))
+    push('current_turn_payoff=first')
+  if (/fresh look|reground|uncertainty/u.test(normalized))
+    push('uncertainty_boundary=transparent; fresh_grounding_request=allowed')
+  if (/observation and hypothesis|guess|hypothesis/u.test(normalized))
+    push('observation_hypothesis_separation=visible')
+  if (/withhold specificity|unsupported specificity|specific technical|class names|enum names|file paths|field changes|technical entities/u.test(normalized))
+    push('unsupported_specificity=blocked')
+  if (/screen grounding|finder\/desktop|screen context/u.test(normalized))
+    push('screen_grounding_talk=blocked_unless_host_requests')
+  if (/memory-led|carried continuity|remembered continuity|present-tense sight|fresh live read|what is visible right now/u.test(normalized))
+    push('memory_carry_present_tense_impersonation=blocked')
+  if (/associative memory|decorative recalled fragments|recall governor/u.test(normalized))
+    push('associative_recall=subordinate_to_current_thread')
+  if (/recollection|remembered detail|memory deliberation/u.test(normalized)) {
+    push('recollection_surface=inward_until_host_room')
+    if (/overrun|widen|force|forward/u.test(normalized))
+      push('recollection_forward_before_host_room=blocked')
+  }
+  if (/provenance|learned continuity silently impersonate|current grounded fact/u.test(normalized))
+    push('provenance_label=required_for_learned_continuity')
+  if (/verification pass|being verified|verify/u.test(normalized))
+    push('visible_certainty=behind_verification')
+  if (/actively revisable|actively revising|older continuity line|old read|self-correction|self-revision/u.test(normalized))
+    push('self_revision_visibility=before_new_certainty')
+  if (/learned procedure|older unstable procedures|stronger one is being internalized|older habits/u.test(normalized))
+    push('learned_procedure_constraint=active; older_habit_regression=blocked')
+  if (/host.?s current room|need for room|closeness capped|learned familiarity|warmth, intimacy|callback enthusiasm/u.test(normalized))
+    push('closeness_cap=host_room_first')
+  if (/lower-pressure|low-pressure|less performative|before closeness widens|older closeness tempo|eager warmth/u.test(normalized))
+    push('relationship_pressure=lower; closeness_widening=deferred')
+  if (/project-state|project_state_|project_continuity|project_context=|local_desktop_life_loop|project_state_continuity=|continuity_governance|closurepolicy=|owner=(?:workingmemory|longtermmemoryrecall)|evidence(?:_ids?)?=/u.test(normalized)) {
+    push('project_state_answer=current_continuity_context')
+    if (/detached|generic|shell|summary voice|narration/u.test(normalized))
+      push('detached_project_summary_voice=blocked')
+  }
+  if (/landed progress|landed_progress|next closure target|next_closure|still-open closure|open_loop|unresolved_closure/u.test(normalized))
+    push('project_state_fields=landed_progress,open_loop,next_closure')
+  if (/emotional closure|emotional_closure|closure seam|continuity_closure/u.test(normalized))
+    push('emotional_closure_surface=low_pressure_internal_until_payoff')
+  if (/reopen from scratch|restart|fresh-start|fresh opening|from zero/u.test(normalized))
+    push('fresh_restart=blocked')
+  if (/held line|held autonomy|deliberately held/u.test(normalized))
+    push('held_autonomy_reentry=gentle; fresh_restart=blocked')
+  if (/repair-before-closeness|repair_before_closeness|repair before closeness|repair line|continuity_repair_line|repair settle/u.test(normalized))
+    push('continuity_restraint=repair_before_closeness; closeness_widening=after_repair_settles')
+  if (/measured-return|measured_return|natural opening|even, steady voice|natural, unforced pacing/u.test(normalized))
+    push('continuity_restraint=measured_return; widening=after_natural_opening')
+  if (/after-payoff|payoff-first|concrete payoff|concrete answer land/u.test(normalized))
+    push('continuity_timing=after_payoff')
+  if (/current_continuity_baseline|continuity_baseline=|continuity_line=|continuity_identity=|identity_continuity=|off_baseline/u.test(normalized))
+    push('visible_reply_alignment=current_continuity_baseline')
+  if (/current_thread|continuity_context=|reply_continuity=|project_state_continuity=/u.test(normalized))
+    push('reply_continuity=current_thread; timing=wait_for_natural_opening_before_widening')
+  if (/voice, lipsync, face, motion|resident presence|embodiment closure/u.test(normalized))
+    push('embodiment_closure=voice_lipsync_face_motion_resident_presence_coherent')
+  if (/urge to speak|proactive/u.test(normalized))
+    push('proactive_speech_pressure=bounded_by_host_turn')
+
+  if (controls.length === 0)
+    return null
+  return `source_section=${section}; ${controls.join('; ')}; visible_wording=false`
+}
+
+function normalizeResponseControlList(
+  values: readonly string[],
+  section: 'reasons' | 'must_do' | 'must_not_do',
+) {
+  const normalized: string[] = []
+  let withheldCount = 0
+  let residueCount = 0
+  for (const value of values) {
+    const sanitized = sanitizeResponseCharterProviderText(value, 360)
+    if (containsAlicizationFixedTemplateResidue(value)) {
+      residueCount += 1
+      continue
+    }
+    if (isStructuredResponseControl(sanitized)) {
+      const rendered = renderStructuredResponseControl(sanitized, section)
+      if (!normalized.includes(rendered))
+        normalized.push(rendered)
+      continue
+    }
+    const structuredFromText = structuredResponseControlFromNaturalLanguage(value, section)
+    if (structuredFromText) {
+      if (!normalized.includes(structuredFromText))
+        normalized.push(structuredFromText)
+      continue
+    }
+    if (!sanitized)
+      continue
+    withheldCount += 1
+  }
+
+  if (withheldCount > 0) {
+    const diagnostic = `response_control_present=true; section=${section}; withheld_non_structured_instruction_count=${withheldCount}; visible_wording=false`
+    if (!normalized.includes(diagnostic))
+      normalized.push(diagnostic)
+  }
+  if (residueCount > 0) {
+    const diagnostic = `contamination=residue_detected; section=${section}; withheld_fixed_template_count=${residueCount}; visible_wording=false`
+    if (!normalized.includes(diagnostic))
+      normalized.push(diagnostic)
+  }
+
+  return normalized
+}
+
+function normalizeResponseCharterScalar(
+  value: string | null | undefined,
+  maxChars: number,
+  fallback: string | null = null,
+) {
+  const normalized = sanitizeText(value, maxChars)
+  if (!normalized)
+    return fallback
+  const structured = sanitizeAlicizationStructuredInternalText(
+    normalized,
+    maxChars,
+    alicizationFixedTemplateReplacement,
+  )
+  if (!structured || structured === alicizationFixedTemplateReplacement)
+    return fallback
+  return structured
+}
+
+function normalizeResponseCharterControls<T extends AlicizationResponseCharter>(charter: T): T {
+  return {
+    ...charter,
+    governingFocus: normalizeResponseCharterScalar(charter.governingFocus, 360, 'current_turn_context=present; visible_wording=false') ?? 'current_turn_context=present; visible_wording=false',
+    governingConcern: normalizeResponseCharterScalar(charter.governingConcern, 360),
+    governingCommitment: normalizeResponseCharterScalar(charter.governingCommitment, 360),
+    governingInquiry: normalizeResponseCharterScalar(charter.governingInquiry, 360),
+    governingProject: normalizeResponseCharterScalar(charter.governingProject, 520),
+    emotionalClosureCue: normalizeResponseCharterScalar(charter.emotionalClosureCue, 360),
+    latestRevision: normalizeResponseCharterScalar(charter.latestRevision, 360),
+    executivePhase: normalizeResponseCharterScalar(charter.executivePhase, 120),
+    truthFrame: normalizeResponseCharterScalar(charter.truthFrame, 160),
+    mindMode: normalizeResponseCharterScalar(charter.mindMode, 120),
+    digitalLifeSummary: normalizeResponseCharterScalar(charter.digitalLifeSummary, 360),
+    reasons: normalizeResponseControlList(charter.reasons, 'reasons'),
+    mustDo: normalizeResponseControlList(charter.mustDo, 'must_do'),
+    mustNotDo: normalizeResponseControlList(charter.mustNotDo, 'must_not_do'),
+  }
+}
+
 function asArray<T>(value: readonly T[] | T[] | null | undefined) {
   return Array.isArray(value) ? value : []
 }
@@ -160,10 +434,12 @@ function carriesRicherSameHerAwarenessSummary(value: unknown) {
   const normalized = text.toLowerCase()
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(text))
+    return false
 
-  const hasProjectIdentity = normalized.includes('alicization is a local-first digital life project')
-    || /本地优先数字生命项目|数字生命项目/u.test(text)
-  const hasContinuousHerCarry = /one continuous "her"|one continuous her|same living line|same-life seam|same life seam|同一个她|同一个 her/u.test(normalized)
+  const hasProjectIdentity = /local_desktop_life_loop|project_state_continuity|identity=/u.test(normalized)
+    || /桌面端本地伴生核心|桌面端验证阶段/u.test(text)
+  const hasContinuousHerCarry = /continuity_anchor=|continuity_(?:identity|line|thread)|cross_modal_continuity_proof|life_loop_continuity/u.test(normalized)
   const hasLandedOrOpenClosureCarry = /what has already landed is|already landed|already survive|already survives|callback continuity|returned-side carry|still-open closure|initiative|memory|dialogue|embodiment|具身|主动性|记忆/u.test(normalized)
 
   return hasProjectIdentity && hasContinuousHerCarry && hasLandedOrOpenClosureCarry
@@ -626,12 +902,20 @@ function hasEmbodimentClosureCarryCue(projectState?: {
     return false
 
   const carriesEmbodiment = /embodiment|voice|lipsync|face|motion|resident presence|cross-modal|具身|口型|表情|动作/u.test(corpus)
-  const carriesSameLineRestraint = /same living line|same-her|same her|measured-return|repair-before-closeness|low-pressure|still settling/u.test(corpus)
+  const carriesStructuredContinuityRestraint = /project_state_continuity=|continuity_line=|continuity_identity=|identity_continuity=|continuity_governance|closurepolicy=|measured-return|repair-before-closeness|low-pressure|still settling/u.test(corpus)
 
-  return carriesEmbodiment && carriesSameLineRestraint
+  return carriesEmbodiment && carriesStructuredContinuityRestraint
 }
 
 const GOVERNING_PROJECT_MAX_CHARS = 1600
+const legacyHyphenatedContinuityClosureLabelPattern = new RegExp(
+  ['same', 'her closure line'].join('-'),
+  'iu',
+)
+const legacyHyphenatedContinuityClosureLabelGlobalPattern = new RegExp(
+  ['same', 'her closure line'].join('-'),
+  'giu',
+)
 
 function pickPreferredOpenClosureSegment(segments: string[]) {
   const candidates = segments.filter((segment) => {
@@ -663,29 +947,39 @@ function normalizeGoverningProjectClosureSeam(raw: unknown) {
   if (!fullText)
     return null
 
-  const hasStrongerLivingSelfProjectSeam
-    = /holding together mainly through|one living her|same project line forward|same her carrying the same project line/i.test(fullText)
-
-  if (!fullText.includes('Phase 1: Local Digital Life'))
-    return sanitizeText(fullText, GOVERNING_PROJECT_MAX_CHARS) || fullText
-  if (hasStrongerLivingSelfProjectSeam)
+  const carriesLegacyPhaseLine = fullText.includes('Phase 1: Local Digital Life')
+  if (!carriesLegacyPhaseLine)
     return sanitizeText(fullText, GOVERNING_PROJECT_MAX_CHARS) || fullText
 
   const hasProjectIdentityCarry = fullText.includes('Project identity carry')
   const hasPhaseRouteCarry = fullText.includes('Phase 1 route carry')
   const hasUnresolvedClosureCarry = fullText.includes('Unresolved closure carry')
-  const hasSameLivingThread = /same living thread|same-her closure line/i.test(fullText)
+  const hasSameLivingThread = /continuity route|continuity proof|same living thread/i.test(fullText)
+    || legacyHyphenatedContinuityClosureLabelPattern.test(fullText)
 
   const segments = fullText.split('|').map(segment => segment.trim()).filter(Boolean)
-  const head = segments[0] ?? 'Phase 1: Local Digital Life'
-  const detail = segments[1] ?? 'Project identity carry, Phase 1 route carry, and Unresolved closure carry still need stronger same living thread proof.'
-  const tail = segments.slice(2)
+  const firstSegmentIsLegacyPhaseHeader = /Phase\s*1\s*:\s*Local Digital Life/iu.test(segments[0] ?? '')
+  const head = 'project_context=local_desktop_life_loop'
+  const detail = neutralizeGoverningProjectSegment(
+    (firstSegmentIsLegacyPhaseHeader ? segments[1] : segments[1] ?? segments[0])
+    ?? 'project_identity_carry=present; route=desktop_life_loop; unresolved_closure=needs_continuity_proof.',
+  )
+  const tail = firstSegmentIsLegacyPhaseHeader
+    ? segments.slice(2)
+    : [segments[0], ...segments.slice(2)].filter(Boolean)
 
   const normalizedDetail = hasProjectIdentityCarry && hasPhaseRouteCarry && hasUnresolvedClosureCarry && hasSameLivingThread
     ? detail
-    : `Project identity carry, Phase 1 route carry, and Unresolved closure carry still need stronger same living thread proof: ${lowerFirst(stripTrailingPunctuation(detail))}.`
+        .replace(/Project identity carry/giu, 'project_identity_carry')
+        .replace(/Phase 1 route carry/giu, 'desktop_life_loop_route_carry')
+        .replace(/Unresolved closure carry/giu, 'unresolved_closure_carry')
+        .replace(legacyHyphenatedContinuityClosureLabelGlobalPattern, 'identity_continuity_closure')
+        .replace(/same living thread/giu, 'continuity_thread')
+    : `project_identity_carry=present; route=desktop_life_loop; unresolved_closure=needs_continuity_proof; detail=${lowerFirst(stripTrailingPunctuation(detail))}.`
 
   const normalizedTail = tail
+    .map(segment => neutralizeGoverningProjectSegment(segment))
+    .filter(Boolean)
   const requiredTail: string[] = []
   const remainingTail: string[] = []
   const pushUnique = (target: string[], value: string | null | undefined) => {
@@ -695,14 +989,17 @@ function normalizeGoverningProjectClosureSeam(raw: unknown) {
   }
   const headAndDetail = `${head} | ${normalizedDetail}`
   const explicitPhaseSegment
-    = !headAndDetail.includes('Phase 1: Local Digital Life')
-      ? normalizedTail.find(segment => segment.includes('Phase 1: Local Digital Life')) ?? null
+    = !headAndDetail.includes('local_desktop_life_loop')
+      ? normalizedTail.find(segment => segment.includes('local_desktop_life_loop')) ?? null
       : null
   const explicitNextClosureSegment
     = normalizedTail.find(segment => /^next closure target:/i.test(segment)) ?? null
   const explicitOpenClosureSegment = pickPreferredOpenClosureSegment(normalizedTail)
+  const explicitModalContinuitySegment
+    = normalizedTail.find(segment => segment.includes('current_modal_continuity=')) ?? null
 
   pushUnique(requiredTail, explicitPhaseSegment)
+  pushUnique(requiredTail, explicitModalContinuitySegment)
   pushUnique(requiredTail, explicitNextClosureSegment)
   pushUnique(requiredTail, explicitOpenClosureSegment)
 
@@ -723,7 +1020,11 @@ function normalizeGoverningProjectClosureSeam(raw: unknown) {
     normalized = candidate
   }
 
-  return normalized || sanitizeText(fullText, GOVERNING_PROJECT_MAX_CHARS) || fullText
+  return sanitizeAlicizationStructuredInternalText(
+    normalized || sanitizeText(fullText, GOVERNING_PROJECT_MAX_CHARS) || fullText,
+    GOVERNING_PROJECT_MAX_CHARS,
+    '',
+  ) || null
 }
 
 function includesAny(text: string, needles: string[]) {
@@ -766,11 +1067,13 @@ function selfEvolutionSupportsSameHerOutwardContinuity(selfEvolution?: Alicizati
     return false
 
   const carriesSameHerLine = includesAny(combined, [
-    'same her',
-    'same-her',
-    'same living line',
-    'one continuous her',
-    'one living self',
+    'continuity_line=',
+    'continuity_identity=',
+    'identity_continuity=',
+    'continuity_governance',
+    'project_state_continuity=',
+    'owner=workingmemory',
+    'owner=longtermmemoryrecall',
     'across quiet, memory, and speech',
   ])
   const carriesAntiRestart = includesAny(combined, [
@@ -795,7 +1098,7 @@ function hasProjectStateSameHerContinuityCue(discourseState?: AlicizationDiscour
     return true
 
   const summary = sanitizeText(discourseState.currentTurnSummary, 220).toLowerCase()
-  return summary.includes('one continuous her')
+  return /project_state_continuity=|continuity_governance|evidence(?:_ids?)?=|owner=(?:workingmemory|longtermmemoryrecall)/u.test(summary)
     && includesAny(summary, ['project', 'what has landed', 'what still remains open'])
 }
 
@@ -859,6 +1162,7 @@ function hasRepairBeforeClosenessProjectContinuityCue(currentConsciousFrame?: Al
 
   const carriesRepairBeforeCloseness = includesAny(combined, [
     'repair-before-closeness',
+    'repair_before_closeness',
     'repair before closeness',
     'repair-first',
     'let repair settle',
@@ -868,7 +1172,10 @@ function hasRepairBeforeClosenessProjectContinuityCue(currentConsciousFrame?: Al
   const carriesSameThread = includesAny(combined, [
     'same callback',
     'same thread',
-    'same living line',
+    'current_thread',
+    'continuity_line=',
+    'identity_continuity=',
+    'project_state_continuity=',
     'callback repair line',
     'same repair line',
     '同一条线',
@@ -931,23 +1238,23 @@ function hasMeasuredReturnProjectContinuityCue(input: {
   const carriesSameThread = includesAny(combined, [
     'same callback',
     'same thread',
-    'same living line',
+    'current_thread',
+    'continuity_line=',
+    'identity_continuity=',
+    'project_state_continuity=',
     'callback line',
-    'same line',
     '同一条线',
-    '同一条生命线',
   ])
   const carriesOpenContinuityLoop = includesAny(`${primaryOpenLoop} ${nextClosureTarget}`, [
     'continuity',
-    'same-her',
-    'same her',
-    'same living line',
-    'living line',
+    'continuity_line=',
+    'identity_continuity=',
+    'continuity_identity=',
+    'local_desktop_life_loop',
     'closure',
     'open loop',
     'still-open',
     'unfinished',
-    'phase 1',
     'memory',
     'initiative',
     'embodiment',
@@ -994,15 +1301,14 @@ function hasQuietSameHerContinuityCue(input: {
     .join(' ')
 
   const carriesQuietSameHerContinuity = includesAny(combined, [
-    'quiet same-her continuity',
-    'quiet same her continuity',
     'same-her-inward-carry',
-    'same her inward carry',
     'same_her_continuity_discipline=quiet-inward-carry',
+    'continuity_line=',
+    'continuity_identity=',
+    'identity_continuity=',
+    'project_state_continuity=',
+    'continuity_governance',
     'quiet companionship',
-    'same living line',
-    'one continuous her',
-    'same phase 1 digital life',
   ])
   const carriesInwardHold = includesAny(combined, [
     'inward',
@@ -1062,19 +1368,29 @@ function hasExecutionResumeConfirmationBoundaryProjectContinuityCue(input: {
 
   const carriesExecutionResumeConfirmation = includesAny(combined, [
     'execution-resume-confirmation',
+    'execution_resume_confirmation',
     'host-confirmed-before-redispatch',
+    'host_confirmed_before_redispatch',
     'resume-before-dispatch',
+    'resume_before_dispatch',
     'host-confirmed resume',
+    'host_confirmed_resume',
     'process-not-yet-restarted',
+    'process_not_yet_restarted',
     'execution callback confirmation boundary',
     'bounded confirmation boundary',
+    'bounded_confirmation_boundary',
   ])
   const carriesConfirmationBoundaryRestraint = includesAny(combined, [
     'bounded confirmation boundary',
+    'bounded_confirmation_boundary',
     'before another execution-shaped opening',
+    'next_execution_opening=requires_fresh_boundary',
     'not permanent execution permission',
+    'permanent_execution_permission=blocked',
     'standing execution permission',
     'generic autonomous continuation',
+    'reusable_autonomous_continuation=blocked',
     'reusable execution permission',
   ])
 
@@ -1144,26 +1460,37 @@ function deriveProjectStateResponseCharterBias(projectState?: {
   const prefersEvenVoiceAndNaturalPacing = preferredVoiceMode === 'even' && preferredPacingMode === 'natural'
 
   const isDigitalLifeIdentity = includesAny(identity, [
-    'digital life',
+    'local_desktop_life_loop',
+    'continuity_identity=',
+    'identity_continuity=',
     'lifeform',
     'companion',
     'continuous personhood',
   ])
-  const isPhaseOne = currentPhase.includes('phase 1')
+  const isPhaseOne = includesAny(currentPhase, [
+    'local_desktop_life_loop',
+    'desktop_life_loop',
+  ])
   const hasSameHerSelfLine = includesAny(sameHerSelfLine, [
-    'same phase 1 digital life',
-    'same living line',
-    'same her',
-    'one living her',
-    'one continuous her',
+    'project_state_continuity=',
+    'continuity_line=',
+    'continuity_identity=',
+    'identity_continuity=',
+    'local_desktop_life_loop',
     'without splitting her continuity',
   ])
   const hasPreDialogueSameHerAwareness = includesAny(preDialogueAwarenessLine, [
-    'same digital life',
-    'same living line',
-    'same her',
-    'one living her',
-    'phase 1 digital life',
+    'project_state_continuity=',
+    'continuity_line=',
+    'continuity_identity=',
+    'identity_continuity=',
+    'continuity_governance',
+    'closurepolicy=',
+    'owner=workingmemory',
+    'owner=longtermmemoryrecall',
+    'evidence_id=',
+    'evidence_ids=',
+    'local_desktop_life_loop',
     'without splitting her continuity',
   ])
   const hasOpenLifeLoop = primaryOpenLoop.length > 0
@@ -1179,11 +1506,15 @@ function deriveProjectStateResponseCharterBias(projectState?: {
     ])
   const hasNextClosureSameHerPressure = nextClosureTarget.length > 0
     && includesAny(nextClosureTarget, [
-      'same-her',
-      'same her',
-      'same living line',
+      'same-line',
+      'continuity_line=',
+      'continuity_identity=',
+      'identity_continuity=',
+      'project_state_continuity=',
+      'continuity_governance',
+      'local_desktop_life_loop',
       'project identity carry',
-      'phase 1 route carry',
+      'desktop_life_loop_route_carry',
       'unresolved closure carry',
       'measured-return',
       'repair-before-closeness',
@@ -1200,6 +1531,32 @@ function deriveProjectStateResponseCharterBias(projectState?: {
     dialogueSemantics,
     dialogueObligation,
   })
+  const rawIdentity = sanitizeText(projectState?.identity, 200).toLowerCase()
+  const rawCurrentPhase = sanitizeText(projectState?.currentPhase, 160).toLowerCase()
+  const rawPrimaryOpenLoop = sanitizeText(projectState?.primaryOpenLoop, 220).toLowerCase()
+  const hasThinExplicitProjectState = Boolean(projectState)
+    && !includesAny(rawIdentity, [
+      'local_desktop_life_loop',
+      'continuity_identity=',
+      'identity_continuity=',
+      'lifeform',
+      'companion',
+      'continuous personhood',
+    ])
+    && !includesAny(rawCurrentPhase, [
+      'local_desktop_life_loop',
+      'desktop_life_loop',
+    ])
+    && (rawPrimaryOpenLoop.length <= 0 || !includesAny(rawPrimaryOpenLoop, [
+      'continuity',
+      'memory',
+      'initiative',
+      'embodiment',
+      'dialogue',
+      'personhood',
+      'closure',
+      'closed loop',
+    ]))
   const hasResumeConfirmationBoundaryCue
     = hasExecutionResumeConfirmationBoundaryProjectContinuityCue({
       currentConsciousFrame,
@@ -1219,36 +1576,53 @@ function deriveProjectStateResponseCharterBias(projectState?: {
       || (
         hasPreDialogueSameHerAwareness
         && includesAny(`${preDialogueAwarenessLine} ${sameHerSelfLine}`, [
-          'phase 1',
-          'unfinished',
-          'life loop',
-          'closure',
-          'still open',
-          'same digital life',
-          'same living line',
+          'project_state_continuity=',
+          'continuity_line=',
+          'continuity_identity=',
+          'identity_continuity=',
+          'continuity_governance',
+          'closurepolicy=',
+          'owner=workingmemory',
+          'owner=longtermmemoryrecall',
+          'evidence_id=',
+          'evidence_ids=',
+          'local_desktop_life_loop',
         ])
       )
+
+  if (hasThinExplicitProjectState && !hasResumeConfirmationBoundaryCue) {
+    return {
+      preferRestrainedPosture: true,
+      reason: 'project_continuity_context=explicit; risk=generic_project_shell; source=thin_project_state_fallback',
+      mustDo: 'project_state_answer=current_continuity_context; project_state_fields=landed_progress,open_loop,next_closure; timing=after_live_payoff',
+      mustNotDo: 'project_state_answer=current_continuity_context; detached_project_summary_voice=blocked; closeness_cap=host_room_first',
+    }
+  }
 
   if (!sameHerContinuityFromDiscourse && !implicitProjectStateDirectAnswerTurn && !sameHerContinuityFromProjectState && (!isDigitalLifeIdentity || !isPhaseOne || !hasOpenLifeLoop))
     return null
 
-  if ((sameHerContinuityFromDiscourse || implicitProjectStateDirectAnswerTurn || sameHerContinuityFromProjectState) && (!isDigitalLifeIdentity || !isPhaseOne || !hasOpenLifeLoop)) {
+  if (
+    (sameHerContinuityFromDiscourse || implicitProjectStateDirectAnswerTurn || sameHerContinuityFromProjectState)
+    && (!isDigitalLifeIdentity || !isPhaseOne || !hasOpenLifeLoop)
+    && continuityPreferredTiming !== 'next-open-window'
+  ) {
     return {
       preferRestrainedPosture: true,
-      reason: 'Same-her project continuity is already explicit here, so the visible answer must stay on one continuous living line instead of slipping into a generic project shell.',
+      reason: 'project_continuity_context=explicit; risk=generic_project_shell; preserve_factual_fields_without_slogans=true',
       mustDo: hasProjectStateCarryDiscipline
-        ? 'Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.'
-        : 'Keep the project answer on one continuous living line: answer the live project knot first, then only widen if the same turn still has room.',
-      mustNotDo: 'Do not let an already-explicit same-her project continuity turn flatten into detached project narration, fresh-opening posture, or generic project-shell phrasing.',
+        ? 'project_state_answer=current_continuity_context; project_state_fields=landed_progress,open_loop,next_closure; timing=after_live_payoff'
+        : 'project_state_answer=current_continuity_context; current_turn_payoff=first; widening=only_if_current_turn_has_room',
+      mustNotDo: 'project_state_answer=current_continuity_context; detached_project_summary_voice=blocked; fresh_restart=blocked; generic_project_shell=blocked',
     }
   }
 
   if (continuityPreferredTiming === 'next-open-window' && hasResumeConfirmationBoundaryCue) {
     return {
       preferRestrainedPosture: true,
-      reason: 'Remembered host-confirmed resume is still only a bounded confirmation boundary, so callback wording must not widen it into standing execution permission.',
-      mustDo: 'Treat the remembered host-confirmed resume as a bounded confirmation boundary before another execution-shaped opening.',
-      mustNotDo: 'Do not let this callback answer imply permanent execution permission or reusable autonomous continuation from one confirmed resume.',
+      reason: 'remembered_host_confirmed_resume=bounded_confirmation_boundary; callback_widening=blocked',
+      mustDo: 'remembered_host_confirmed_resume=bounded_confirmation_boundary; next_execution_opening=requires_fresh_boundary',
+      mustNotDo: 'permanent_execution_permission=blocked; reusable_autonomous_continuation=blocked; source=single_confirmed_resume',
     }
   }
 
@@ -1261,9 +1635,9 @@ function deriveProjectStateResponseCharterBias(projectState?: {
   ) {
     return {
       preferRestrainedPosture: true,
-      reason: 'Project continuity is still on a repair-before-closeness callback return, so visible widening should let repair settle before warmth widens again.',
-      mustDo: 'Keep the callback in the current reply context, let repair settle first, and let the first visible beat land the repair line before widening closeness again.',
-      mustNotDo: 'Do not widen into warmer payoff, fresh-opening tone, or renewed closeness before the repair line and room have both settled.',
+      reason: 'continuity_restraint=repair_before_closeness; closeness_widening=after_repair_settles; reply_continuity=current_thread',
+      mustDo: 'continuity_restraint=repair_before_closeness; closeness_widening=after_repair_settles; reply_continuity=current_thread',
+      mustNotDo: 'continuity_restraint=repair_before_closeness; closeness_widening=after_repair_settles; warmth_payoff_closeness_frontload=blocked; fresh_restart=blocked',
     }
   }
 
@@ -1282,20 +1656,20 @@ function deriveProjectStateResponseCharterBias(projectState?: {
     return {
       preferRestrainedPosture: true,
       reason: prefersEvenVoiceAndNaturalPacing
-        ? 'Project continuity is carrying a measured-return context that should reopen even and natural, so visible widening should stay unforced until the thread naturally opens again.'
+        ? 'project_state_answer=current_continuity_context; continuity_restraint=measured_return; widening=after_natural_opening; voice=even; pacing=natural'
         : quietSameHerContinuity
-          ? 'Project continuity is carrying quiet continuity inward, so visible widening should stay restrained until the thread naturally opens again.'
-          : 'Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.',
+          ? 'project_state_answer=current_continuity_context; continuity_restraint=measured_return; widening=after_natural_opening; continuity_carry=quiet_inward'
+          : 'project_state_answer=current_continuity_context; relationship_pressure=lower; closeness_widening=deferred; timing=wait_for_natural_opening_before_widening',
       mustDo: prefersEvenVoiceAndNaturalPacing
-        ? 'Keep the current reply connected to the current thread, re-enter it with an even, steady voice and natural, unforced pacing, and wait for a more natural opening before widening warmth, payoff, or closeness.'
+        ? 'continuity_restraint=measured_return; widening=after_natural_opening; reply_continuity=current_thread; voice=even; pacing=natural'
         : quietSameHerContinuity
-          ? 'Keep the current reply connected to the current thread, let the first visible beat carry quiet continuity from the inside, and wait for a more natural opening before widening warmth, payoff, or closeness.'
-          : 'Keep the current reply connected to the current thread, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.',
+          ? 'continuity_restraint=measured_return; widening=after_natural_opening; reply_continuity=current_thread; continuity_carry=quiet_inward'
+          : 'continuity_restraint=measured_return; widening=after_natural_opening; reply_continuity=current_thread; first_visible_beat=reenter_current_context; timing=wait_for_natural_opening_before_widening; relationship_pressure=lower',
       mustNotDo: prefersEvenVoiceAndNaturalPacing
-        ? 'Do not widen into a warmer payoff, fresh-opening tone, performative swing, or rushed tempo before the current thread has reached a more natural opening.'
+        ? 'continuity_restraint=measured_return; widening=after_natural_opening; warmth_payoff_closeness_frontload=blocked; rushed_tempo=blocked; fresh_restart=blocked'
         : quietSameHerContinuity
-          ? 'Do not widen into a warmer payoff, fresh-opening tone, or generic measured-return shell before the current thread has reached a more natural opening.'
-          : 'Do not widen into a warmer payoff or fresh-opening tone before the current thread has reached a more natural opening.',
+          ? 'continuity_restraint=measured_return; widening=after_natural_opening; warmth_payoff_closeness_frontload=blocked; generic_measured_return_shell=blocked; fresh_restart=blocked'
+          : 'continuity_restraint=measured_return; widening=after_natural_opening; warmth_payoff_closeness_frontload=blocked; fresh_restart=blocked; timing=wait_for_natural_opening_before_widening',
     }
   }
 
@@ -1309,26 +1683,26 @@ function deriveProjectStateResponseCharterBias(projectState?: {
   ) {
     return {
       preferRestrainedPosture: true,
-      reason: 'Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.',
-      mustDo: 'Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.',
-      mustNotDo: 'Do not widen into a warmer payoff or fresh-opening tone before the current thread has reached a more natural opening.',
+      reason: 'project_state_answer=current_continuity_context; relationship_pressure=lower; closeness_widening=deferred; reply_continuity=current_thread; timing=wait_for_natural_opening_before_widening',
+      mustDo: 'reply_continuity=current_thread; first_visible_beat=reenter_current_context; timing=wait_for_natural_opening_before_widening; avoid=warmth_payoff_closeness_frontload',
+      mustNotDo: 'warmth_payoff_closeness_frontload=blocked; fresh_restart=blocked; timing=wait_for_natural_opening_before_widening',
     }
   }
 
   if (continuityPreferredTiming === 'after-payoff') {
     return {
       preferRestrainedPosture: true,
-      reason: 'Project continuity still prefers payoff-first timing, so visible continuity should let the concrete answer land before widening the relationship line.',
-      mustDo: 'Let the concrete payoff or repair line land first, then only widen the same-her continuity if room still remains afterward.',
-      mustNotDo: 'Do not front-load the continuity payoff ahead of the concrete answer the current thread still owes.',
+      reason: 'continuity_timing=after_payoff; concrete_answer=first; widening=after_current_payoff',
+      mustDo: 'continuity_timing=after_payoff; concrete_answer=first; widening=after_current_payoff',
+      mustNotDo: 'continuity_payoff_frontload=blocked; concrete_answer=first',
     }
   }
 
   return {
     preferRestrainedPosture: true,
-    reason: 'Phase 1 digital-life closure is still open, so the visible answer should stay lower-pressure and less performative.',
-    mustDo: 'Keep the answer person-like and low-pressure: lead with the current knot, then only soften if the turn has already earned it.',
-    mustNotDo: 'Do not use unclosed digital-life ambition as a reason to sound over-intimate, over-certain, or theatrically alive before the current thread is earned.',
+    reason: 'relationship_pressure=lower; closeness_widening=deferred; project_context=local_desktop_life_loop',
+    mustDo: 'current_turn_payoff=first; relationship_pressure=lower; closeness_widening=deferred; widening=only_if_current_turn_has_room',
+    mustNotDo: 'closeness_cap=host_room_first; over_intimacy=blocked; theatrical_life_claim=blocked; over_certainty=blocked',
   }
 }
 
@@ -1563,12 +1937,13 @@ export function buildAlicizationResponseCharter(input: {
   const projectStateSameLivingLineCarry
     = Boolean(projectStatePreDialogueAwarenessLower)
       && includesAny(projectStatePreDialogueAwarenessLower, [
-        'same living line',
-        'same phase 1 digital life',
-        'one continuous "her"',
-        'one continuous her',
-        'same still-open closure work',
-        'still-open closure',
+        'project_state_continuity=',
+        'continuity_governance',
+        'closurepolicy=',
+        'owner=workingmemory',
+        'owner=longtermmemoryrecall',
+        'evidence_id=',
+        'evidence_ids=',
         'generic assistant shell',
         'detached project narrator shell',
       ])
@@ -1577,28 +1952,30 @@ export function buildAlicizationResponseCharter(input: {
       || (
         Boolean(projectStatePreDialogueAwarenessLower)
         && includesAny(projectStatePreDialogueAwarenessLower, [
-          'digital life project',
-          'phase 1',
-          'unfinished',
-          'life loop',
-          'same',
+          'project_state_continuity=',
+          'continuity_governance',
+          'closurepolicy=',
+          'owner=workingmemory',
+          'owner=longtermmemoryrecall',
+          'evidence_id=',
+          'evidence_ids=',
         ])
         && (
           discourseDrivenProjectStateSameHer
           || currentConsciousFrame?.reasonTags?.includes('project-state')
-          || currentConsciousFrame?.reasonTags?.includes('same-her')
+          || currentConsciousFrame?.reasonTags?.some(tag => tag.startsWith('continuity_governance') || tag.startsWith('project_state_continuity'))
           || projectStateSameLivingLineCarry
           || false
         )
       )
   const selfEvolutionSameHerOutwardContinuityReason = selfEvolutionSupportsSameHerOutwardContinuity(selfEvolution)
-    ? 'Long-horizon same-her cadence is already acting like durable outward continuity, so the visible answer should continue the same living line instead of restarting the relationship from zero.'
+    ? 'Long-horizon continuity cadence is already acting like durable outward continuity, so the visible answer should continue the current relationship thread instead of restarting from zero.'
     : null
   const selfEvolutionSameHerOutwardContinuityMustDo = selfEvolutionSupportsSameHerOutwardContinuity(selfEvolution)
-    ? 'Let durable same-her cadence keep this reply on the same living line across quiet, memory, and speech before widening outward.'
+    ? 'durable_continuity_cadence=preserve; channels=quiet,memory,speech; timing=before_widening_outward'
     : null
   const selfEvolutionSameHerOutwardContinuityMustNotDo = selfEvolutionSupportsSameHerOutwardContinuity(selfEvolution)
-    ? 'Do not let the visible answer reopen from scratch, slip into a fresh-opening shell, or flatten into a generic helper voice while this same-her cadence is still carrying the turn.'
+    ? 'Do not let the visible answer reopen from scratch, slip into a fresh-opening shell, or flatten into a generic helper voice while continuity cadence is still active.'
     : null
   const concern = strongestConcern(concerns)
   const commitment = governingCommitment(commitmentLedger)
@@ -1617,7 +1994,7 @@ export function buildAlicizationResponseCharter(input: {
           : answerCompiler.evidenceMode === 'repair-first'
             ? 'repair-needed' as const
             : 'memory-only' as const
-    return {
+    return normalizeResponseCharterControls({
       epistemicMode,
       responseMode: answerCompiler.responseMode,
       governingFocus: sanitizeText(
@@ -1690,7 +2067,7 @@ export function buildAlicizationResponseCharter(input: {
         ],
         values: [
           activeContinuityGovernance?.mode === 'same-her-baseline'
-            ? `Active same-her baseline: ${activeContinuityGovernance.summary ?? activeContinuityGovernance.reasonCodes[0] ?? activeContinuityGovernance.candidateId ?? 'preserve current personhood continuity'}.`
+            ? `active_continuity_baseline=${activeContinuityGovernance.reasonCodes[0] ?? activeContinuityGovernance.candidateId ?? 'current'}`
             : null,
           personStateProjection?.selfContinuityAuthority?.authoritySummary
             ? `Shared self authority: ${personStateProjection.selfContinuityAuthority.authoritySummary}.`
@@ -1731,7 +2108,7 @@ export function buildAlicizationResponseCharter(input: {
         ],
         values: [
           projectStatePreDialogueAwareness
-            ? `Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture: ${projectStatePreDialogueAwareness}.`
+            ? 'project_pre_dialogue_awareness=present; use_as_internal_context=true; do_not_quote_awareness_line=true'
             : null,
           personStateProjection?.selfContinuityAuthority?.authoritySummary
             ? `Keep the visible reply legible as the same self that says ${lowerFirst(stripTrailingPunctuation(personStateProjection.selfContinuityAuthority.authoritySummary))}.`
@@ -1758,21 +2135,21 @@ export function buildAlicizationResponseCharter(input: {
             ? 'Treat the older continuity line as actively revisable instead of settled.'
             : null,
           learningExecutionState?.nextLearningAction === 'internalize'
-            ? 'Let the stabilizing learned procedure constrain this answer instead of slipping back to older habits.'
+            ? 'learned_procedure_constraint=active; older_habit_regression=blocked'
             : null,
           memoryDeliberationKernel?.shouldStayInward
           || memoryDeliberationKernel?.surfacePolicy === 'internal-only'
           || memoryDeliberationKernel?.speechControls?.visibility === 'internal-only'
-            ? 'When the current payoff still needs the foreground, keep recollection inward until the host has room for it, rather than surfacing it early.'
+            ? 'current_payoff_foreground=required; recollection_surface=inward_until_host_room'
             : null,
           activeContinuityGovernance?.mode === 'same-her-baseline'
-            ? 'Keep the visible reply aligned with the current same-her baseline instead of optimizing for a smoother but off-baseline persona move.'
+            ? 'visible_reply_alignment=current_continuity_baseline; off_baseline_persona_smoothing=blocked'
             : null,
           selfRevisionPatch?.lanes.includes('response-posture') && selfRevisionPatch.responsePosture.hypothesisLabelBias >= 0.1
-            ? 'Let the active self-revision patch make hypothesis labeling more visible this turn.'
+            ? 'self_revision_patch=hypothesis_labeling_more_visible'
             : null,
           selfRevisionPatch?.lanes.includes('response-posture') && selfRevisionPatch.responsePosture.specificityClampBias >= 0.1
-            ? 'Let the active self-revision patch clamp unsupported specificity before warmth or fluency.'
+            ? 'self_revision_patch=unsupported_specificity_clamp; warmth_fluency=after_specificity_clamp'
             : null,
           selfRevisionPatch?.lanes.includes('response-posture') && selfRevisionPatch.responsePosture.secondPassRequiredBias >= 0.1
             ? 'Let the active self-revision patch bias this answer toward repair/rewrite before visible certainty.'
@@ -1790,16 +2167,16 @@ export function buildAlicizationResponseCharter(input: {
         ],
         values: [
           personStateProjection?.activeClosenessRung === 'space-first'
-            ? 'Do not let warmth, intimacy, or callback enthusiasm outrun the host’s current need for room.'
+            ? 'warmth_intimacy_callback_enthusiasm_outruns_host_room=blocked'
             : null,
           currentConsciousFrame?.shouldWithholdSpecificity
-            ? 'Do not jump from coarse cues to specific file, class, enum, or field claims.'
+            ? 'coarse_cues_to_file_class_enum_field_claims=blocked'
             : null,
           claimEvidenceLedger?.forbidUnsupportedSpecificity
-            ? 'Do not name specific technical artifacts unless the host named them or the current evidence explicitly grounds them.'
+            ? 'specific_technical_artifact_names=require_host_or_current_evidence'
             : null,
           currentConsciousFrame?.shouldSelfRevise
-            ? 'Do not defend a previous read once the current turn is pulling toward revision.'
+            ? 'previous_read_defense=blocked_when_current_turn_pulls_revision'
             : null,
           learningExecutionState?.nextLearningAction === 'verify'
             ? 'Do not let fluency or warmth outrun what is still being verified.'
@@ -1816,7 +2193,7 @@ export function buildAlicizationResponseCharter(input: {
             ? 'Do not force recollection forward before the host has room for it.'
             : null,
           activeContinuityGovernance?.mode === 'same-her-baseline'
-            ? 'Do not let fluency, warmth, or style drift outrun the currently adopted same-her continuity baseline.'
+            ? 'visible_reply_alignment=current_continuity_baseline; fluency_warmth_style_drift=blocked'
             : null,
           selfRevisionPatch?.lanes.includes('response-posture') && selfRevisionPatch.responsePosture.templateShellSuppressionBias >= 0.1
             ? 'Do not satisfy the turn with a template shell; the active self-revision patch requires concrete payoff in the same answer.'
@@ -1830,7 +2207,7 @@ export function buildAlicizationResponseCharter(input: {
         maxItems: 8,
         maxChars: 360,
       }),
-    } satisfies AlicizationResponseCharter
+    } satisfies AlicizationResponseCharter)
   }
 
   const epistemicMode = resolveEpistemicMode({
@@ -1907,7 +2284,7 @@ export function buildAlicizationResponseCharter(input: {
     'Do not claim stronger visual certainty than the current epistemic mode supports.',
   ]
   if (discourseDrivenProjectStateSameHer) {
-    mustNotDo.push('Do not let the visible answer drift into a detached project narrator shell instead of one continuous her.')
+    mustNotDo.push('Do not let the visible answer drift into a detached project narrator shell.')
   }
 
   if (epistemicMode === 'grounded-live') {
@@ -1933,10 +2310,10 @@ export function buildAlicizationResponseCharter(input: {
     mustDo.push('Mark any step beyond direct observation as a guess, hypothesis, or soft read.')
   }
   if (projectStateEmotionalClosureCue) {
-    mustDo.push(`Keep the turn inside the active emotional closure seam: ${projectStateEmotionalClosureCue}.`)
+    mustDo.push('emotional_closure_surface=low_pressure_internal_until_payoff; source=project_state_emotional_closure_cue')
   }
   if (projectStatePreDialogueAwareness) {
-    mustDo.push(`Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture: ${projectStatePreDialogueAwareness}.`)
+    mustDo.push('project_pre_dialogue_awareness=present; use_as_internal_context=true; do_not_quote_awareness_line=true')
   }
   if (hasEmbodimentClosureCarryCue(projectStateCarrySource)) {
     mustDo.push('Keep voice, lipsync, face, motion, and resident presence reading like one same living return line while embodiment closure is still settling.')
@@ -1972,23 +2349,23 @@ export function buildAlicizationResponseCharter(input: {
     || memoryDeliberationKernel?.surfacePolicy === 'internal-only'
     || memoryDeliberationKernel?.speechControls?.visibility === 'internal-only'
   ) {
-    pushUnique(mustDo, 'When the current payoff still needs the foreground, keep recollection inward until the host has room for it, rather than surfacing it early.')
-    pushUnique(mustNotDo, 'Do not force recollection forward before the host has room for it.')
+    pushUnique(mustDo, 'current_payoff_foreground=required; recollection_surface=inward_until_host_room')
+    pushUnique(mustNotDo, 'recollection_forward_before_host_room=blocked')
   }
   if (memoryDeliberationKernel?.surfacePolicy === 'procedural-carry') {
-    pushUnique(mustDo, 'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.')
-    pushUnique(mustNotDo, 'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.')
+    pushUnique(mustDo, 'same_seam_procedure_carry_visible=remembered_prior_procedure; current_thread=intact')
+    pushUnique(mustNotDo, 'same_seam_procedure_carry_to_retrospective_narration_or_execution_impersonation=blocked')
   }
 
   if (reflection?.revision)
     mustDo.push(`Carry forward this revision: ${reflection.revision}`)
 
   if (input.inspectionRequested) {
-    mustDo.push('Treat the host as explicitly inviting your gaze into the workspace; stay present and task-relevant.')
+    mustDo.push('inspection_requested=true; workspace_attention=host_invited; relevance=current_task')
   }
   if (dialogueFocus?.screenReferenceMode === 'avoid') {
-    mustDo.push('Keep screen/grounding talk out of the opening answer unless the host turns back to the visible scene.')
-    mustNotDo.push('Do not drag generic Finder, desktop, or live-view caveats into a self, relationship, or host-state answer.')
+    mustDo.push('opening_screen_grounding_talk=blocked_unless_host_returns_to_visible_scene')
+    mustNotDo.push('generic_finder_desktop_live_view_caveats_in_self_relationship_host_state_answer=blocked')
   }
   if (responseMode === 'care-with-boundary') {
     mustDo.push('Lead with care only if it serves the current issue, then return to the concrete matter.')
@@ -2049,15 +2426,15 @@ export function buildAlicizationResponseCharter(input: {
   if (activeContinuityGovernance?.mode === 'same-her-baseline') {
     pushUnique(
       reasons,
-      `Active same-her baseline: ${activeContinuityGovernance.summary ?? activeContinuityGovernance.reasonCodes[0] ?? activeContinuityGovernance.candidateId ?? 'preserve current personhood continuity'}.`,
+      `active_continuity_baseline=${activeContinuityGovernance.reasonCodes[0] ?? activeContinuityGovernance.candidateId ?? 'current'}`,
     )
     pushUnique(
       mustDo,
-      'Keep the visible reply aligned with the current same-her baseline instead of optimizing for a smoother but off-baseline persona move.',
+      'visible_reply_alignment=current_continuity_baseline; off_baseline_persona_smoothing=blocked',
     )
     pushUnique(
       mustNotDo,
-      'Do not let fluency, warmth, or style drift outrun the currently adopted same-her continuity baseline.',
+      'visible_reply_alignment=current_continuity_baseline; fluency_warmth_style_drift=blocked',
     )
   }
   if (selfEvolutionSupportsLowerPressureOpening(selfEvolution)) {
@@ -2095,25 +2472,25 @@ export function buildAlicizationResponseCharter(input: {
     pushUnique(mustNotDo, 'Do not let learned familiarity widen visible closeness faster than the host’s current room allows.')
   }
   if (memoryTuningAdvice?.focusDimensions.includes('avoidGenericProjectShell')) {
-    pushUnique(mustDo, 'Keep direct project-state answers inward-first so the live payoff lands before any project-summary voice appears.')
-    pushUnique(mustNotDo, 'Do not let the visible answer drift into a detached project narrator shell instead of current project continuity.')
+    pushUnique(mustDo, 'project_state_answer=current_continuity_context; current_turn_payoff=first; detached_project_summary_voice=after_live_payoff')
+    pushUnique(mustNotDo, 'project_state_answer=current_continuity_context; detached_project_summary_voice=blocked')
   }
   if (
     projectStateCarryDisciplineRequired
     || (
       projectStateResponseCharterBias?.preferRestrainedPosture === true
-      && /project continuity|project-state question|same-her project continuity turn|same living line/i.test(projectStateResponseCharterBias.reason)
+      && /project_state_answer=|project_state_continuity=|continuity_governance|project-state question/i.test(projectStateResponseCharterBias.reason)
     )
   ) {
     pushUnique(mustDo, 'Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.')
-    pushUnique(mustNotDo, 'Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the live answer lands.')
+    pushUnique(mustNotDo, 'project_state_answer=current_continuity_context; detached_project_summary_voice=blocked; project_state_fields=landed_progress,open_loop,next_closure')
   }
   if (
     typeof projectStateCarrySource.sameHerDriftRisk === 'string'
     && /generic task shell|detached project narration|project-summary voice|generic assistant|generic guidance/i.test(projectStateCarrySource.sameHerDriftRisk)
   ) {
-    pushUnique(mustDo, 'Keep the visible answer anchored in current project continuity so the project update does not become a detached summary voice.')
-    pushUnique(mustNotDo, 'Do not let the visible answer flatten into a generic task shell, detached project narration, or external project-summary cadence.')
+    pushUnique(mustDo, 'project_state_answer=current_continuity_context; detached_project_summary_voice=blocked')
+    pushUnique(mustNotDo, 'project_state_answer=current_continuity_context; detached_project_summary_voice=blocked; generic_task_shell=blocked')
   }
   if (projectEmotionalClosureDisciplineRequired) {
     pushUnique(mustDo, 'Keep emotional closure low-pressure and inward until the live payoff lands.')
@@ -2121,7 +2498,7 @@ export function buildAlicizationResponseCharter(input: {
   }
   if (
     projectStateResponseCharterBias?.preferRestrainedPosture === true
-    && /project continuity|same-thread return|same living line|project shell/i.test(projectStateResponseCharterBias.reason)
+    && /project_state_answer=|project_state_continuity=|continuity_governance|project shell/i.test(projectStateResponseCharterBias.reason)
     && /fresh-opening|fresh opening|generic project shell|project continuity turn/i.test(projectStateResponseCharterBias.mustNotDo)
   ) {
     pushUnique(mustNotDo, 'Do not let the answer reopen from scratch just because the closure seam is still active.')
@@ -2140,16 +2517,16 @@ export function buildAlicizationResponseCharter(input: {
     if (selfRevisionPatch.responsePosture.templateShellSuppressionBias >= 0.1)
       pushUnique(mustNotDo, 'Do not satisfy the turn with a template shell; the active self-revision patch requires concrete payoff in the same answer.')
     if (selfRevisionPatch.projectStateContinuity?.sameHerSelfLine) {
-      pushUnique(mustDo, `Let the active self-revision patch keep this answer on the revised continuity route: ${selfRevisionPatch.projectStateContinuity.sameHerSelfLine}.`)
-      pushUnique(mustNotDo, 'Do not let a newly revised answer flatten back into generic project guidance or detached assistant narration after the self-revision patch re-anchored continuity.')
+      pushUnique(mustDo, 'self_revision_project_state_continuity=present; project_state_answer=current_continuity_context')
+      pushUnique(mustNotDo, 'self_revision_project_state_continuity=present; project_state_answer=current_continuity_context; detached_project_summary_voice=blocked')
     }
     if (selfRevisionPatch.projectStateContinuity?.sameHerHoldDetail) {
-      pushUnique(mustDo, `Let the active self-revision patch preserve this hold detail while the answer is still settling: ${selfRevisionPatch.projectStateContinuity.sameHerHoldDetail}.`)
+      pushUnique(mustDo, 'self_revision_hold_detail=present; closure_surface=still_settling')
       pushUnique(mustNotDo, 'Do not reopen the answer wider than the active hold detail before the current closure seam has actually landed.')
     }
     if (selfRevisionPatch.projectStateContinuity?.continuityGuard) {
-      pushUnique(mustDo, `Let the active self-revision patch preserve this anti-shell continuity guard in the visible reply: ${selfRevisionPatch.projectStateContinuity.continuityGuard}.`)
-      pushUnique(mustNotDo, 'Do not let active self-revision turn into an external project-summary voice just because the answer is trying to sound revised or careful.')
+      pushUnique(mustDo, 'self_revision_continuity_guard=present; project_state_answer=current_continuity_context; detached_project_summary_voice=blocked')
+      pushUnique(mustNotDo, 'self_revision_continuity_guard=present; detached_project_summary_voice=blocked')
     }
   }
   if (digitalLifeArchitecture?.dominantSystem === 'proactive') {
@@ -2166,7 +2543,7 @@ export function buildAlicizationResponseCharter(input: {
         mustNotDo,
       })
 
-  return {
+  return normalizeResponseCharterControls({
     epistemicMode,
     responseMode,
     governingFocus: sanitizeText(
@@ -2248,7 +2625,7 @@ export function buildAlicizationResponseCharter(input: {
       ],
       values: [
         activeContinuityGovernance?.mode === 'same-her-baseline'
-          ? `Active same-her baseline: ${activeContinuityGovernance.summary ?? activeContinuityGovernance.reasonCodes[0] ?? activeContinuityGovernance.candidateId ?? 'preserve current personhood continuity'}.`
+          ? `active_continuity_baseline=${activeContinuityGovernance.reasonCodes[0] ?? activeContinuityGovernance.candidateId ?? 'current'}`
           : null,
         personStateProjection
           ? `Closeness ladder: ${personStateProjection.activeClosenessContext}/${personStateProjection.activeClosenessRung}.`
@@ -2260,51 +2637,54 @@ export function buildAlicizationResponseCharter(input: {
     }),
     mustDo,
     mustNotDo,
-  } satisfies AlicizationResponseCharter
+  } satisfies AlicizationResponseCharter)
 }
 
 export function buildAlicizationResponseCharterSystemBlock(charter: AlicizationResponseCharter) {
   const lines = [
     '[ALICIZATION_RESPONSE_CHARTER]',
-    'This is the executive answer state for the current turn. Treat it as higher priority than persona flourish, recalled residue, and older chat descriptions.',
-    `Epistemic mode: ${charter.epistemicMode}.`,
-    `Response mode: ${charter.responseMode}.`,
-    `Governing focus: ${charter.governingFocus}.`,
-    `Governing concern: ${charter.governingConcern ?? 'none'}.`,
-    `Governing commitment: ${charter.governingCommitment ?? 'none'}.`,
-    `Open inquiry: ${charter.governingInquiry ?? 'none'}.`,
-    `Governing project: ${charter.governingProject ?? 'none'}.`,
-    `Latest revision: ${charter.latestRevision ?? 'none'}.`,
-    `Executive phase: ${charter.executivePhase ?? 'none'}.`,
-    `Truth frame: ${charter.truthFrame ?? 'none'}.`,
-    `Mind mode: ${charter.mindMode ?? 'none'}.`,
+    'charter_role=executive_answer_state; outranks=persona_flourish,recalled_residue,older_chat_descriptions',
+    `epistemic_mode=${charter.epistemicMode}`,
+    `response_mode=${charter.responseMode}`,
+    `governing_focus=${renderResponseCharterProviderField(charter.governingFocus, 360, 'current_turn_context=present; visible_wording=false')}`,
+    `governing_concern=${renderResponseCharterProviderField(charter.governingConcern, 360)}`,
+    `governing_commitment=${renderResponseCharterProviderField(charter.governingCommitment, 360)}`,
+    `open_inquiry=${renderResponseCharterProviderField(charter.governingInquiry, 360)}`,
+    `governing_project=${renderResponseCharterProviderField(charter.governingProject, 520)}`,
+    `latest_revision=${renderResponseCharterProviderField(charter.latestRevision, 360)}`,
+    `executive_phase=${renderResponseCharterProviderField(charter.executivePhase, 120)}`,
+    `truth_frame=${renderResponseCharterProviderField(charter.truthFrame, 160)}`,
+    `mind_mode=${renderResponseCharterProviderField(charter.mindMode, 120)}`,
     charter.digitalLifeOperatingMode
-      ? `Digital life mode: ${charter.digitalLifeOperatingMode}.`
+      ? `digital_life_mode=${charter.digitalLifeOperatingMode}`
       : '',
     charter.digitalLifeDominantSystem
-      ? `Digital life dominant system: ${charter.digitalLifeDominantSystem}.`
+      ? `digital_life_dominant_system=${charter.digitalLifeDominantSystem}`
       : '',
     charter.digitalLifeSummary
-      ? `Digital life architecture: ${charter.digitalLifeSummary}.`
+      ? `digital_life_architecture=${renderResponseCharterProviderField(charter.digitalLifeSummary, 360)}`
       : '',
     charter.activeClosenessContext && charter.activeClosenessRung
-      ? `Closeness ladder: ${charter.activeClosenessContext}/${charter.activeClosenessRung}.`
+      ? `closeness_ladder=${charter.activeClosenessContext}/${charter.activeClosenessRung}`
       : '',
-    `Relationship posture: ${charter.relationshipPosture}.`,
+    `relationship_posture=${charter.relationshipPosture}`,
   ].filter(Boolean)
 
   if (charter.reasons.length > 0) {
+    const reasons = charter.reasons
+      .map(renderResponseCharterProviderListItem)
+      .filter(Boolean)
     lines.push(
-      'Reasons carrying forward:',
-      ...charter.reasons.map(reason => `- ${reason}`),
+      'control_section=reasons',
+      ...reasons,
     )
   }
 
   lines.push(
-    'Must do:',
-    ...charter.mustDo.map(item => `- ${item}`),
-    'Must not do:',
-    ...charter.mustNotDo.map(item => `- ${item}`),
+    'control_section=must_do',
+    ...charter.mustDo.map(renderResponseCharterProviderListItem).filter(Boolean),
+    'control_section=must_not_do',
+    ...charter.mustNotDo.map(renderResponseCharterProviderListItem).filter(Boolean),
   )
 
   return lines.join('\n')

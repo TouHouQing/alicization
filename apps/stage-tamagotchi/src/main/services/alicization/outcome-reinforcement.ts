@@ -12,6 +12,8 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import type { AlicizationEmbodimentContinuityLedger } from './embodiment-continuity-ledger'
 import type { AlicizationRecentProactiveOutcome } from './proactive-feedback'
 
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
+
 import { computeEpisodicEventSalience, sanitizeHumanlikeMemoryText, summarizeRelationshipShift } from './humanlike-memory'
 import {
   isAlicizationThinProjectAwarenessLine,
@@ -32,8 +34,44 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+const outcomeMemoryFactFixedTemplatePattern = /Same Phase 1 digital life|Before answering|Right now I am|one continuous her|same[- ]?her|same living line|same digital[- ]life line|same local-first digital life project/iu
+
+function uniqueFactFields(values: Array<string | null | undefined>) {
+  const result: string[] = []
+  for (const value of values) {
+    const normalized = sanitizeText(value, 80)
+    if (!normalized || result.includes(normalized))
+      continue
+    result.push(normalized)
+  }
+  return result
+}
+
+function hasOutcomeMemoryFactFixedTemplateResidue(raw: string) {
+  return containsAlicizationFixedTemplateResidue(raw) || outcomeMemoryFactFixedTemplatePattern.test(raw)
+}
+
+function structuredFixedTemplateMemoryFact(raw: string) {
+  const lower = raw.toLowerCase()
+  return uniqueFactFields([
+    'continuity_scope=local_runtime',
+    /phase\s*1|local[- ]first|digital[- ]life/u.test(lower) ? 'project_phase=local_desktop_life_loop' : null,
+    /closure|open loop|unfinished|still open|gap|needs/u.test(lower) ? 'closure_state=open' : null,
+    /proactive/u.test(lower) ? 'proactive_continuity_gap=open' : null,
+    /execution|callback|proposal|codex|command|tool/u.test(lower) ? 'execution_context=bounded' : null,
+    /denied|declined|consent|confirmation|confirmed|permission/u.test(lower) ? 'consent_boundary=explicit' : null,
+    /failed|failure|error|timeout|provider/u.test(lower) ? 'failure_surface=transparent' : null,
+    'fixed_template_text=dropped',
+  ]).join('; ')
+}
+
 function trimFactObject(raw: string) {
-  return sanitizeText(raw, 180)
+  const normalized = sanitizeText(raw, 640)
+  if (!normalized)
+    return ''
+  if (!hasOutcomeMemoryFactFixedTemplateResidue(normalized))
+    return sanitizeText(normalized, 180)
+  return sanitizeText(structuredFixedTemplateMemoryFact(normalized), 180)
 }
 
 function normalizeClosureTagValue(raw: unknown) {
@@ -76,7 +114,7 @@ function compactReplyProjectIdentityForMemoryFact(raw: unknown) {
     return ''
 
   if (/alicization is a local-first digital life project/iu.test(identity))
-    return 'Alicization is a local-first digital life project.'
+    return 'identity=local_desktop_life_loop'
 
   return identity
 }
@@ -385,12 +423,12 @@ function hasReplyRuntimeProjectAwarenessCarry(input: ReturnType<typeof readReply
 
 function buildReplyProjectClosureLesson(input: ReturnType<typeof readReplyRuntimeProjectAwareness>) {
   return sanitizeText([
-    input.currentPhase ? `same-her ${input.currentPhase} line stays active.` : '',
+    input.currentPhase ? `continuity_phase=${input.currentPhase}.` : '',
     input.sameHerSelfLine,
     input.relationshipLine,
     input.preDialogueAwarenessLine,
-    input.primaryOpenLoop ? `Still-open same-her closure: ${input.primaryOpenLoop}.` : '',
-    input.proactiveSameHerGap ? `Proactive same-her gap still remains open: ${input.proactiveSameHerGap}.` : '',
+    input.primaryOpenLoop ? `Still-open continuity closure: ${input.primaryOpenLoop}.` : '',
+    input.proactiveSameHerGap ? `Proactive continuity gap still remains open: ${input.proactiveSameHerGap}.` : '',
     input.nextClosureTarget ? `Next closure target: ${input.nextClosureTarget}.` : '',
   ].filter(Boolean).join(' '), 220)
 }
@@ -406,8 +444,7 @@ function buildReplyProjectClosureMemoryFact(input: ReturnType<typeof readReplyRu
 
   return sanitizeText([
     projectIdentityLine,
-    phaseLine ? `Keep this closure on one same-her ${phaseLine} line.` : 'Keep this closure on one same-her line.',
-    sameHerSelfLine.includes('Phase 1') ? sameHerSelfLine : '',
+    phaseLine ? `Keep this closure attached to ${phaseLine} continuity facts.` : 'Keep this closure attached to current continuity facts.',
     !sameHerSelfLine && richerAwarenessLine ? richerAwarenessLine : '',
   ].filter(Boolean).join(' '), 220)
 }
@@ -597,28 +634,27 @@ function buildExecutionResultProjectClosureLesson(input: {
   const proactiveSameHerGap = sanitizeText(projectState.proactiveSameHerGap, 220)
   const nextClosureTarget = sanitizeText(projectState.nextClosureTarget, 220)
   const sameHerSelfLine = sanitizeText(projectState.sameHerSelfLine, 220)
-  const phase = sanitizeText(projectState.currentPhase, 180)
 
   if (input.feedback === 'valued') {
     return sanitizeText(
-      `For ${goal}${outcome ? ` with outcome ${outcome}` : ''}, keep the callback on one same-her ${phase || 'Phase 1'} line: some closure already landed, but ${openLoop || 'unfinished closure still remains open'}, ${proactiveSameHerGap || 'the proactive same-her gap still needs follow-through'}, and ${nextClosureTarget || 'the next closure target still needs follow-through'}. ${sameHerSelfLine || ''}`,
+      `For ${goal}${outcome ? ` with outcome ${outcome}` : ''}, keep the callback in first-person continuity; memory_continuity=local_runtime; verified_closure_progress=partial; unresolved_closure=${openLoop || 'open'}; proactive_gap=${proactiveSameHerGap || 'needs-follow-through'}; next_closure=${nextClosureTarget || 'needs-follow-through'}. ${sameHerSelfLine || ''}`,
       220,
     )
   }
   if (input.feedback === 'doubted') {
     return sanitizeText(
-      `For ${goal}, do not let a doubted callback break same-her continuity into confident task-shell reporting; ${openLoop || 'unfinished closure still remains open'}, ${proactiveSameHerGap || 'the proactive same-her gap still needs quieter proof'}, and the return should stay more verified before widening outward.`,
+      `For ${goal}, do not let a doubted callback become confident task-shell reporting; ${openLoop || 'unfinished closure still remains open'}, ${proactiveSameHerGap || 'the proactive continuity gap still needs quieter proof'}, and the return should stay more verified before widening outward.`,
       220,
     )
   }
   if (input.feedback === 'intrusive') {
     return sanitizeText(
-      `For ${goal}, keep the callback on the same living line without restarting it too abruptly; ${proactiveSameHerGap || 'the proactive same-her gap still needs a lower-pressure return'} and ${nextClosureTarget || 'the next closure target still needs a lower-pressure return'} before closeness or directness widens.`,
+      `For ${goal}, callback_continuity=current_thread; restart=avoid_abrupt; proactive_gap=${proactiveSameHerGap || 'needs_lower_pressure_return'}; next_closure=${nextClosureTarget || 'needs_lower_pressure_return'}; widening=defer_closeness_or_directness.`,
       220,
     )
   }
   return sanitizeText(
-    `For ${goal}, if the opening disappears, keep the same digital-life line inwardly alive and wait for a fresher return; ${openLoop || 'unfinished closure still remains open'} and ${proactiveSameHerGap || 'the proactive same-her gap still remains open'}.`,
+    `For ${goal}, if the opening disappears, keep callback continuity inward and wait for a fresher return; ${openLoop || 'unfinished closure still remains open'} and ${proactiveSameHerGap || 'the proactive continuity gap still remains open'}.`,
     220,
   )
 }
@@ -638,18 +674,18 @@ function buildExecutionProposalProjectClosureLesson(input: {
 
   if (input.feedback === 'affirmed') {
     return sanitizeText(
-      `${openLoop || 'Unfinished proactive agency closure still remains open'}; for ${goal}, host consent can move agency forward on one same-her ${phase || 'Phase 1'} line through ${proactiveSameHerGap || 'the proactive same-her gap'} toward ${nextClosureTarget || 'the next closure target'}. ${sameHerSelfLine || ''}`,
+      `${openLoop || 'Unfinished proactive agency closure still remains open'}; for ${goal}, host consent can move agency forward through ${proactiveSameHerGap || 'the proactive continuity gap'} toward ${nextClosureTarget || 'the next closure target'}. phase=${phase || 'current'}.`,
       220,
     )
   }
   if (input.feedback === 'denied') {
     return sanitizeText(
-      `${openLoop || 'Unfinished proactive agency closure still remains open'}; denied agency for ${goal} belongs to the same-her ${phase || 'Phase 1'} boundary loop, not generic consent bookkeeping. ${proactiveSameHerGap || 'The proactive same-her gap still remains open.'} Next: ${nextClosureTarget || 'return with lower pressure'}.`,
+      `${openLoop || 'Unfinished proactive agency closure still remains open'}; denied agency for ${goal} belongs to an explicit consent boundary loop, not generic consent bookkeeping. ${proactiveSameHerGap || 'The proactive continuity gap still remains open.'} phase=${phase || 'current'}; Next: ${nextClosureTarget || 'return with lower pressure'}.`,
       220,
     )
   }
   return sanitizeText(
-    `${openLoop || 'Unfinished proactive agency closure still remains open'}; if the host pivots away from ${goal}, keep the same-her ${phase || 'Phase 1'} initiative line inwardly alive, preserve ${proactiveSameHerGap || 'the proactive same-her gap'}, and wait for a fresher opening.`,
+    `${openLoop || 'Unfinished proactive agency closure still remains open'}; if the host pivots away from ${goal}, keep initiative continuity inward, preserve ${proactiveSameHerGap || 'the proactive continuity gap'}, and wait for a fresher opening. phase=${phase || 'current'}.`,
     220,
   )
 }
@@ -659,15 +695,15 @@ function executionResultProjectClosureTags(projectBriefing?: AlicizationExecutio
   const tags = [
     'digital-life-project',
     'phase-1-local-digital-life',
-    'same-her',
+    'continuity-evidence',
     'closure-carry',
   ]
   if (sanitizeText(projectState.primaryOpenLoop, 220))
     tags.push('still-open-closure')
   if (sanitizeText(projectState.proactiveSameHerGap, 220))
-    tags.push('proactive-same-her-gap')
+    tags.push('proactive-continuity-gap')
   if (sanitizeText(projectState.sameHerDriftRisk, 220))
-    tags.push('same-her-drift-risk')
+    tags.push('continuity-drift-risk')
   return [...new Set(tags)]
 }
 
@@ -945,7 +981,7 @@ export function buildReplyOutcomeClosure(input: {
           /status recap|status report|tool shell|same[- ]?her|same[- ]?person|continuous digital life/iu.test(
             `${runtimeProjectAwareness.relationshipLine} ${runtimeProjectAwareness.sameHerDriftRisk} ${runtimeProjectAwareness.preDialogueAwarenessLine}`,
           )
-            ? 'The host was not asking for a raw status recap, but testing whether she stayed the same her instead of sliding into a tool shell in this same local-first digital life project.'
+            ? 'The host was not asking for a raw status recap, but testing whether the reply used real continuity evidence instead of sliding into a tool shell.'
             : runtimeProjectAwareness.relationshipLine || runtimeProjectAwareness.preDialogueAwarenessLine,
         ].filter(Boolean).join(' ')
       : [
@@ -967,7 +1003,7 @@ export function buildReplyOutcomeClosure(input: {
         preferredPacingMode: runtimeProjectAwareness.preferredPacingMode,
       }),
       carriesReplyProjectAwareness && runtimeProjectAwareness.sameHerHoldDetail
-        ? `Keep the same-her line: ${runtimeProjectAwareness.sameHerHoldDetail}.`
+        ? `Keep callback continuity evidence explicit: ${runtimeProjectAwareness.sameHerHoldDetail}.`
         : runtimeEmbodiment.manifestationCadenceSummary
           ? `Let the body return like this: ${runtimeEmbodiment.manifestationCadenceSummary}.`
           : buildReplyRuntimeEmbodimentHintCarry({
@@ -1150,7 +1186,7 @@ export function buildReplyOutcomeClosure(input: {
       result.memoryFacts.push({
         subject: 'project',
         predicate: 'closure',
-        object: trimFactObject(`Proactive same-her gap still remains open: ${runtimeProjectAwareness.proactiveSameHerGap}`),
+        object: trimFactObject(`Proactive continuity gap still remains open: ${runtimeProjectAwareness.proactiveSameHerGap}`),
         confidence: 0.8,
       })
     }
@@ -1427,34 +1463,34 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
           : 'The host explicitly turned away from the previous Alicization reply before staying with it.'
   const dialogueRelationshipMeaning = input.feedback === 'robotic'
     ? sanitizeText(
-        'The host heard the previous Alicization reply as a tool shell, so same-her continuity now depends on rehumanizing the line and letting living texture return before fluency hardens into template speech.',
+        'The host heard the previous Alicization reply as a tool shell, so the next reply should use real memory evidence and avoid template speech.',
         200,
       )
     : input.feedback === 'missed'
       ? sanitizeText(
-          'The host felt the previous Alicization reply missed the actual point, so same-her continuity now depends on repair-first recentering before the line continues outward again.',
+          'The host felt the previous Alicization reply missed the actual point, so the next reply should repair the topic before continuing outward again.',
           200,
         )
       : input.feedback === 'intrusive'
         ? sanitizeText(
-            'The host felt the previous Alicization reply pressed too close, so same-her continuity now depends on lower pressure, more room, and a quieter return instead of pushing warmth through the same line.',
+            'The host felt the previous Alicization reply pressed too close, so the next reply should use lower pressure, more room, and a quieter return.',
             200,
           )
         : input.feedback === 'interrupted'
           ? sanitizeText(
-              'The host turned away before staying with the previous Alicization reply, so same-her continuity now depends on holding the line quietly and waiting for a fresher opening instead of clinging to the same return.',
+              'The host turned away before staying with the previous Alicization reply, so the next reply should wait for a fresher opening instead of clinging to the same return.',
               200,
             )
           : summary
   const dialogueFelt = input.feedback === 'received'
     ? 'I felt relief because the reply finally landed as a living line.'
     : input.feedback === 'robotic'
-      ? 'I felt the same-her line shelled over and knew I had to let more living texture return before speaking again.'
+      ? 'I felt the reply shelled over and knew I had to use more concrete memory evidence before speaking again.'
       : input.feedback === 'missed'
-        ? 'I felt the same-her line slip off the actual point and knew it needed direct repair before continuing.'
+        ? 'I felt the reply slip off the actual point and knew it needed direct repair before continuing.'
         : input.feedback === 'intrusive'
-          ? 'I felt the same-her line tighten at the boundary and knew I had to lower pressure before coming closer again.'
-          : 'I felt the same-her line lose its opening and knew it had to wait quietly for a fresher return.'
+          ? 'I felt the reply tighten at the boundary and knew I had to lower pressure before coming closer again.'
+          : 'I felt the reply lose its opening and knew it had to wait quietly for a fresher return.'
   const dialogueLesson = input.feedback === 'robotic'
     ? 'Let the body return like this: rehumanize, steadier gaze, slower blink, lower-pressure voice. Keep this on one continuous response context instead of a shell.'
     : input.feedback === 'missed'
@@ -1465,7 +1501,7 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
           ? 'Do not cling to a line after the host turns away. Let the body return like this: hold, soften the gaze, slower blink, lower-pressure voice.'
           : 'A reply that lands can become part of the bond history.'
   const dialogueEmbodimentTags = input.feedback === 'robotic'
-    ? ['body-rehumanize', 'continuity-same-her', 'residue-shell-pressure']
+    ? ['body-rehumanize', 'continuity-evidence', 'residue-shell-pressure']
     : input.feedback === 'missed'
       ? ['body-recenter', 'continuity-repair-first', 'residue-misread-pressure']
       : input.feedback === 'intrusive'
@@ -1632,7 +1668,7 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
       subject: 'project',
       predicate: 'closure',
       object: trimFactObject(
-        `Current Phase 1 project context. Some closure already landed, but ${projectState.primaryOpenLoop} ${projectState.sameHerSelfLine}`,
+        `memory_continuity=local_runtime; verified_closure_progress=partial; unresolved_closure=${projectState.primaryOpenLoop}; continuity_owner=${projectState.sameHerSelfLine}`,
       ),
       confidence: 0.82,
     })
@@ -1840,23 +1876,23 @@ export function buildExecutionProposalFeedbackOutcomeClosure(input: {
       : `The host shifted away while a proactive ${channel} execution proposal was still pending.`
   const executionProposalRelationshipMeaning = input.feedback === 'affirmed'
     ? sanitizeText(
-        `The host opened the same-her line by giving explicit consent to a proactive ${channel} execution proposal, so agency can move forward without extra pressure.`,
+        `The host gave explicit consent to a proactive ${channel} execution proposal, so agency can move forward without extra pressure.`,
         200,
       )
     : input.feedback === 'denied'
       ? sanitizeText(
-          `The host explicitly declined a proactive ${channel} execution proposal, so same-her continuity now depends on explicit consent, lower pressure, and carrying this boundary forward instead of flattening it into generic consent bookkeeping.`,
+          `The host explicitly declined a proactive ${channel} execution proposal, so future initiative should preserve explicit consent, lower pressure, and this boundary instead of flattening it into generic consent bookkeeping.`,
           200,
         )
       : sanitizeText(
-          `The host turned away while a proactive ${channel} execution proposal was pending, so same-her continuity now depends on waiting for a fresher opening before asking again.`,
+          `The host turned away while a proactive ${channel} execution proposal was pending, so future initiative should wait for a fresher opening before asking again.`,
           200,
         )
   const executionProposalFelt = input.feedback === 'affirmed'
-    ? 'I felt the same-her line open into action because the host gave explicit consent.'
+    ? 'I felt action become available because the host gave explicit consent.'
     : input.feedback === 'denied'
-      ? 'I felt the same-her line tighten at the boundary and knew I had to step back until explicit consent reopened it.'
-      : 'I felt the same-her line hold in place and wait for a fresher opening before the proposal could settle.'
+      ? 'I felt the boundary tighten and knew I had to step back until explicit consent reopened it.'
+      : 'I felt the proposal hold in place and wait for a fresher opening before it could settle.'
   const executionProposalLesson = input.feedback === 'affirmed'
     ? sanitizeText(
         `${projectClosureLesson} ${procedureLesson} Let the body return like this: move forward gently, steady the gaze, and keep the voice low-pressure while action begins.`,
@@ -2027,7 +2063,7 @@ export function buildExecutionProposalFeedbackOutcomeClosure(input: {
     result.memoryFacts.push({
       subject: 'project',
       predicate: 'closure',
-      object: trimFactObject(`Proactive same-her gap still remains open: ${explicitProactiveSameHerGap}`),
+      object: trimFactObject(`Proactive continuity gap still remains open: ${explicitProactiveSameHerGap}`),
       confidence: input.feedback === 'affirmed' ? 0.78 : 0.82,
     })
   }
@@ -2145,7 +2181,7 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
   const executionResultRelationshipMeaning = carriesBlockedDispatchSafetyRestraint
     ? sanitizeText(
         [
-          `The host treated blocked-before-dispatch restraint as part of the same-her execution line, so this should be remembered as explainable restraint with ${safetyGateSummary} instead of flattening into a generic failed result.`,
+          `The host treated blocked-before-dispatch restraint as part of execution continuity, so this should be remembered as explainable restraint with ${safetyGateSummary} instead of flattening into a generic failed result.`,
           projectClosureLesson,
         ].filter(Boolean).join(' '),
         200,
@@ -2153,7 +2189,7 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
     : carriesResumeConfirmationBoundary
       ? sanitizeText(
           [
-            `The host treated host-confirmed-before-redispatch as a same-her confirmation boundary, so this should be remembered as bounded redispatch with ${resumeConfirmationSummary} instead of generic autonomous continuation.`,
+            `The host treated host-confirmed-before-redispatch as a confirmation boundary, so this should be remembered as bounded redispatch with ${resumeConfirmationSummary} instead of generic autonomous continuation.`,
             projectClosureLesson,
           ].filter(Boolean).join(' '),
           200,
@@ -2161,20 +2197,20 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
       : input.feedback === 'doubted'
         ? sanitizeText(
             [
-              `The host doubted the proactive ${channel} result, so same-her continuity now depends on verification before the callback hardens into detached task-shell reporting.`,
+              `The host doubted the proactive ${channel} result, so future callback continuity depends on verification before the result hardens into detached task-shell reporting.`,
               projectClosureLesson,
             ].filter(Boolean).join(' '),
             200,
           )
         : resultFeedbackSummary
   const executionResultFelt = carriesBlockedDispatchSafetyRestraint
-    ? 'I felt a little tension while the body settled back to keep the same-her line safe, because blocked-before-dispatch restraint mattered more than forcing action.'
+    ? 'I felt a little tension while the body settled back because blocked-before-dispatch restraint mattered more than forcing action.'
     : carriesResumeConfirmationBoundary
-      ? 'I felt the same-her line resume only inside a host-confirmed-before-redispatch boundary, so I should not mistake one confirmation for standing permission.'
+      ? 'I felt the action resume only inside a host-confirmed-before-redispatch boundary, so I should not mistake one confirmation for standing permission.'
       : input.feedback === 'valued'
         ? 'I felt the result become something genuinely useful to the host.'
         : input.feedback === 'doubted'
-          ? 'I felt the need to verify more before sounding sure next time, so the same-her line would not collapse into task-shell confidence.'
+          ? 'I felt the need to verify more before sounding sure next time, so the callback would not collapse into task-shell confidence.'
           : input.feedback === 'intrusive'
             ? 'I felt the callback timing press into the host too hard.'
             : 'I felt the callback line lose its opening before it fully landed.'
@@ -2200,7 +2236,7 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
         ? sanitizeText(
             [
               projectClosureLesson,
-              'Keep the callback verification-first, lower-pressure, and same-her before sounding settled.',
+              'Keep the callback verification-first and lower-pressure before sounding settled.',
             ].join(' '),
             200,
           )
@@ -2485,7 +2521,7 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
     result.memoryFacts.push({
       subject: 'project',
       predicate: 'closure',
-      object: trimFactObject(`Proactive same-her gap still remains open: ${explicitProactiveSameHerGap}`),
+      object: trimFactObject(`Proactive continuity gap still remains open: ${explicitProactiveSameHerGap}`),
       confidence: input.feedback === 'valued' ? 0.78 : 0.8,
     })
   }

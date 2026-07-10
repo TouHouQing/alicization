@@ -1,6 +1,16 @@
 import type { StageQuickReplyClosureDiagnosticEntry, StageQuickReplyPreDialogueClosureSnapshot } from './stage-quick-reply-closure'
 
-import { isAlicizationThinProjectAwarenessLine } from '@proj-alicization/stage-shared'
+import {
+  containsAlicizationFixedTemplateResidue,
+  isAlicizationThinProjectAwarenessLine,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+
+const fixedTemplateQuickReplyClosureSummaryLine
+  = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+
+const internalStructuredQuickReplyClosurePattern
+  = /visibility=internal-structured|content=excluded|continuity evidence/iu
 
 function applyProjectStateTone(line: string | null, status: string | undefined) {
   if (!line)
@@ -8,12 +18,72 @@ function applyProjectStateTone(line: string | null, status: string | undefined) 
 
   const normalizedStatus = status?.trim().toLowerCase()
   if (normalizedStatus === 'grounded')
-    return `这条数字生命主线现在先稳住了。 ${line}`.trim()
+    return `连续性诊断已闭合：${line}`.trim()
   if (normalizedStatus === 'drift')
-    return `这条数字生命主线刚刚有点松了，我先把它重新收回来。 ${line}`.trim()
+    return `连续性诊断漂移：${line}`.trim()
   if (normalizedStatus === 'partial')
-    return `我还在继续带着这条数字生命主线往前走。 ${line}`.trim()
+    return `连续性诊断未闭合：${line}`.trim()
   return line
+}
+
+function isFixedPersonaQuickReplyClosureTemplate(line: string | null | undefined) {
+  const normalized = line?.trim().toLowerCase() ?? ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('identity-continuity living line')
+    || normalized.includes('same her')
+    || normalized.includes('same-her')
+    || normalized.includes('same living line')
+    || normalized.includes('one continuous her')
+    || normalized.includes('同一个 her')
+    || normalized.includes('同一个她')
+    || normalized.includes('数字生命主线')
+    || normalized.includes('我还需要')
+    || normalized.includes('我还在')
+    || normalized.includes('continuity evidence')
+    || normalized.includes('right now i am still holding together')
+    || normalized.includes('i still need')
+    || normalized.includes('i need my explicit identity-continuity self line')
+    || normalized.includes('my emotional seam')
+    || normalized.includes('one living her')
+    || normalized.includes('current continuity route')
+    || normalized.includes('living audio thread')
+}
+
+function sanitizeQuickReplyClosureSummaryLine(line: string | null | undefined) {
+  const normalized = line?.trim().replace(/\s+/g, ' ') ?? ''
+  if (!normalized)
+    return null
+
+  if (internalStructuredQuickReplyClosurePattern.test(normalized))
+    return null
+
+  if (!isFixedPersonaQuickReplyClosureTemplate(normalized) && !containsAlicizationFixedTemplateResidue(normalized)) {
+    const sanitized = sanitizeAlicizationProviderFacingText(normalized, 720, fixedTemplateQuickReplyClosureSummaryLine)
+    return sanitized && sanitized !== fixedTemplateQuickReplyClosureSummaryLine ? sanitized : null
+  }
+
+  return null
+}
+
+function fallbackQuickReplyClosureSummaryStatus(
+  diagnosticEntry: StageQuickReplyClosureDiagnosticEntry | null | undefined,
+) {
+  const focus = diagnosticEntry?.routeQuery?.focus?.trim().toLowerCase()
+  if (focus === 'identity-continuity-continuity')
+    return '连续性诊断未闭合：具身通道待重连'
+  if (focus === 'project-state' || focus === 'project-identity' || focus === 'current-phase' || focus === 'unresolved-open-loop')
+    return '连续性诊断未闭合：项目状态待同步'
+  return null
+}
+
+function resolveVisibleQuickReplyClosureSummaryLine(
+  line: string | null | undefined,
+  diagnosticEntry: StageQuickReplyClosureDiagnosticEntry | null | undefined,
+) {
+  return sanitizeQuickReplyClosureSummaryLine(line)
+    ?? fallbackQuickReplyClosureSummaryStatus(diagnosticEntry)
 }
 
 function mergeNonDuplicateProjectStateLine(line: string | null, extraLine: string | null | undefined) {
@@ -45,21 +115,6 @@ function normalizeProjectStateNextClosureLine(line: string | null | undefined) {
     return normalizedLine
 
   return `下一步还要继续收住 ${normalizedLine}`.trim()
-}
-
-function mergeProjectStateRepairBriefingTail(headline: string, briefingHeadline: string | null | undefined) {
-  const normalizedBriefingHeadline = typeof briefingHeadline === 'string' ? briefingHeadline.trim() : ''
-  if (!normalizedBriefingHeadline || normalizedBriefingHeadline === headline)
-    return headline
-
-  const briefingTail = normalizedBriefingHeadline.startsWith(headline)
-    ? normalizedBriefingHeadline.slice(headline.length).trim()
-    : normalizedBriefingHeadline
-
-  if (!briefingTail)
-    return headline
-
-  return `${headline} ${briefingTail}`.trim()
 }
 
 function isProjectStateRepairFocus(focus: string | null | undefined) {
@@ -130,7 +185,7 @@ function isLaneShrinkageHeadline(line: string | null | undefined) {
   }
 
   if (
-    normalized.includes('same-her audible body line')
+    normalized.includes('identity-continuity audible body line')
     && normalized.includes('surviving pre-dialogue carry')
   ) {
     return true
@@ -145,21 +200,21 @@ function isLaneShrinkageHeadline(line: string | null | undefined) {
 
   if (
     normalized.includes('holding together through face, motion, lipsync, and voice together')
-    && normalized.includes('visible same-her line has already rejoined without body carry')
+    && normalized.includes('visible identity-continuity line has already rejoined without body carry')
   ) {
     return true
   }
 
   if (
     normalized.includes('resident body lane')
-    && normalized.includes('same-her voice line')
+    && normalized.includes('identity-continuity voice line')
   ) {
     return true
   }
 
   return normalized.includes('right now i am still holding together mainly through')
     && (
-      normalized.includes('full cross-modal same-her line is not closed yet')
+      normalized.includes('full cross-modal identity-continuity line is not closed yet')
       || normalized.includes('body-only recovery@')
       || normalized.includes('body+lipsync recovery@')
       || normalized.includes('body+lipsync+voice recovery@')
@@ -182,9 +237,9 @@ function isLaneShrinkageHeadline(line: string | null | undefined) {
       || normalized.includes('resident body continuity and voice prosody')
       || normalized.includes('resident body continuity')
       || normalized.includes('resident-body continuity')
-      || normalized.includes('same-her body line')
+      || normalized.includes('identity-continuity body line')
       || normalized.includes('one living her')
-      || normalized.includes('same-her audible body line')
+      || normalized.includes('identity-continuity audible body line')
       || normalized.includes('living audio thread')
       || normalized.includes('face and motion need to rejoin')
     )
@@ -196,8 +251,8 @@ function carriesAnthropomorphicSameHerClosureLine(line: string | null | undefine
     return false
 
   const mentionsInwardObservability
-    = normalized.includes('same-her inward-carry observability')
-      || normalized.includes('same-her-inward-carry')
+    = normalized.includes('identity-continuity inward-carry observability')
+      || normalized.includes('identity-continuity-inward-carry')
       || normalized.includes('inward-carry')
       || normalized.includes('inward continuity')
       || normalized.includes('inner continuity')
@@ -206,7 +261,7 @@ function carriesAnthropomorphicSameHerClosureLine(line: string | null | undefine
       || (
         normalized.includes('emotional closure')
         && (
-          normalized.includes('same-her')
+          normalized.includes('identity-continuity')
           || normalized.includes('measured-return')
           || normalized.includes('repair-before-closeness')
           || normalized.includes('quiet-companionship')
@@ -222,7 +277,7 @@ function looksLikeThinLaneSameHerHeadline(line: string | null | undefined) {
     return false
 
   return normalized.includes('holding together mainly through')
-    && normalized.includes('full cross-modal same-her line is not closed yet')
+    && normalized.includes('full cross-modal identity-continuity line is not closed yet')
 }
 
 function scoreFallbackAwarenessLine(line: string | null | undefined) {
@@ -231,35 +286,35 @@ function scoreFallbackAwarenessLine(line: string | null | undefined) {
     return Number.NEGATIVE_INFINITY
 
   const isBareSameHerContinuityToken
-    = normalized === 'same-her-inward-carry'
+    = normalized === 'identity-continuity-inward-carry'
       || normalized === 'quiet-companionship'
 
   let score = normalized.length >= 120 ? 2 : normalized.length >= 72 ? 1 : 0
   const carriesSameHerMeasuredReturn
-    = normalized.includes('same-her hold')
+    = normalized.includes('identity-continuity hold')
       || (
         normalized.includes('measured-return')
         && (
           normalized.includes('lower-pressure')
-          || normalized.includes('same living line')
+          || normalized.includes('current continuity route')
           || normalized.includes('callback line')
         )
       )
   const carriesSameHerInwardLowPressure
-    = normalized.includes('same-her-inward-carry')
+    = normalized.includes('identity-continuity-inward-carry')
       || normalized.includes('quiet-companionship')
       || (
         normalized.includes('low-pressure')
         && (
           normalized.includes('same line inward')
-          || normalized.includes('same living line')
+          || normalized.includes('current continuity route')
           || normalized.includes('one living her')
           || normalized.includes('body, face, and motion')
         )
       )
   const carriesSameHerInwardObservability
-    = normalized.includes('same-her inward-carry observability')
-      || normalized.includes('same-her-inward-carry')
+    = normalized.includes('identity-continuity inward-carry observability')
+      || normalized.includes('identity-continuity-inward-carry')
       || normalized.includes('inward-carry')
       || normalized.includes('inward continuity')
       || normalized.includes('inner continuity')
@@ -268,7 +323,7 @@ function scoreFallbackAwarenessLine(line: string | null | undefined) {
       || (
         normalized.includes('emotional closure')
         && (
-          normalized.includes('same-her')
+          normalized.includes('identity-continuity')
           || normalized.includes('measured-return')
           || normalized.includes('repair-before-closeness')
           || normalized.includes('quiet-companionship')
@@ -301,7 +356,7 @@ function scoreFallbackAwarenessLine(line: string | null | undefined) {
     || normalized.includes('one living digital life project')
     || normalized.includes('what has landed')
     || normalized.includes('still-open')
-    || normalized.includes('same living line')
+    || normalized.includes('current continuity route')
     || normalized.includes('未闭环')
     || normalized.includes('数字生命项目')
   ) {
@@ -341,6 +396,7 @@ function resolvePreferredFallbackAwarenessLine(
   ]
     .map(candidate => candidate?.trim() || null)
     .filter((candidate, index, entries): candidate is string => Boolean(candidate) && entries.indexOf(candidate) === index)
+    .filter(candidate => Boolean(sanitizeQuickReplyClosureSummaryLine(candidate)))
 
   if (candidates.length === 0)
     return null
@@ -353,7 +409,7 @@ function isSameHerFocusedFallbackAwarenessCandidate(line: string | null | undefi
   if (!normalized)
     return false
 
-  return normalized.includes('same-her')
+  return normalized.includes('identity-continuity')
     || normalized.includes('one living her')
     || normalized.includes('same line inward')
     || normalized.includes('continuity=')
@@ -401,6 +457,7 @@ function resolvePreferredSameHerFallbackAwarenessLine(
   ]
     .map(candidate => candidate?.trim() || null)
     .filter((candidate, index, entries): candidate is string => Boolean(candidate) && entries.indexOf(candidate) === index)
+    .filter(candidate => Boolean(sanitizeQuickReplyClosureSummaryLine(candidate)))
 
   if (candidates.length === 0)
     return null
@@ -445,6 +502,9 @@ export function resolveStageQuickReplyClosureSummary(
   if (!snapshot)
     return null
 
+  const visible = (line: string | null | undefined) =>
+    resolveVisibleQuickReplyClosureSummaryLine(line, diagnosticEntry)
+
   const preferredFallbackAwarenessLine = resolvePreferredFallbackAwarenessLine(
     options?.fallbackAwarenessLine,
     options?.fallbackAwarenessCandidates,
@@ -457,7 +517,7 @@ export function resolveStageQuickReplyClosureSummary(
   const projectStateHeadline = typeof diagnosticEntry?.headline === 'string'
     ? diagnosticEntry.headline.trim()
     : null
-  const shouldPreferFallbackSameHerCarry = diagnosticEntry?.routeQuery?.focus === 'same-her-continuity'
+  const shouldPreferFallbackSameHerCarry = diagnosticEntry?.routeQuery?.focus === 'identity-continuity-continuity'
     && Boolean(preferredSameHerFallbackAwarenessLine)
     && (
       looksLikeThinSameHerClosureLine(diagnosticEntry?.headline)
@@ -480,19 +540,19 @@ export function resolveStageQuickReplyClosureSummary(
     )
 
   if (
-    diagnosticEntry?.routeQuery?.focus === 'same-her-continuity'
+    diagnosticEntry?.routeQuery?.focus === 'identity-continuity-continuity'
     && typeof diagnosticEntry.headline === 'string'
     && diagnosticEntry.headline.trim()
     && isLaneShrinkageHeadline(diagnosticEntry.headline)
   ) {
-    return diagnosticEntry.headline.trim()
+    return visible(diagnosticEntry.headline.trim())
   }
 
   if (shouldPreferFallbackSameHerCarry)
-    return preferredSameHerFallbackAwarenessLine
+    return visible(preferredSameHerFallbackAwarenessLine)
 
   if (shouldPreferProjectStateFallbackSameHerCarry)
-    return preferredSameHerFallbackAwarenessLine
+    return visible(preferredSameHerFallbackAwarenessLine)
 
   if (
     projectStateRepairFocused
@@ -517,87 +577,63 @@ export function resolveStageQuickReplyClosureSummary(
       : null
     const shouldAppendSupportLines = shouldAppendProjectStateRepairSupportLines(projectStateDiagnosticEntry)
     if (isLaneShrinkageHeadline(headline)) {
-      return headline
-    }
-    if (
-      (
-        headline.includes('同一个 her')
-        || (
-          headline.includes('same her')
-          && (
-            headline.includes('digital life project')
-            || headline.includes('unfinished digital-life loop')
-            || headline.includes('project progress')
-            || headline.includes('open loop')
-          )
-        )
-      )
-      && typeof projectStateDiagnosticEntry.briefingHeadline === 'string'
-      && projectStateDiagnosticEntry.briefingHeadline.trim()
-    ) {
-      return mergeProjectStateRepairBriefingTail(headline, projectStateDiagnosticEntry.briefingHeadline)
-    }
-    if (carriesAnthropomorphicSameHerClosureLine(headline)) {
-      return headline
-    }
-    if (headline.toLowerCase().includes('same her')) {
-      return headline
+      return visible(headline)
     }
     if (preferredProjectStateCarryLine) {
-      return shouldAppendSupportLines || shouldAppendHostFacingClosureNextStep(projectStateDiagnosticEntry, preferredProjectStateCarryLine)
+      return visible(shouldAppendSupportLines || shouldAppendHostFacingClosureNextStep(projectStateDiagnosticEntry, preferredProjectStateCarryLine)
         ? mergeProjectStateRepairSupportLines(
             applyProjectStateTone(preferredProjectStateCarryLine, projectStateDiagnosticEntry.routeQuery?.status),
             projectStateDiagnosticEntry,
           )
-        : applyProjectStateTone(preferredProjectStateCarryLine, projectStateDiagnosticEntry.routeQuery?.status)
+        : applyProjectStateTone(preferredProjectStateCarryLine, projectStateDiagnosticEntry.routeQuery?.status))
     }
     if (briefingHeadline) {
-      return shouldAppendSupportLines
+      return visible(shouldAppendSupportLines
         ? mergeProjectStateRepairSupportLines(
             applyProjectStateTone(briefingHeadline, projectStateDiagnosticEntry.routeQuery?.status),
             projectStateDiagnosticEntry,
           )
-        : applyProjectStateTone(briefingHeadline, projectStateDiagnosticEntry.routeQuery?.status)
+        : applyProjectStateTone(briefingHeadline, projectStateDiagnosticEntry.routeQuery?.status))
     }
-    return shouldAppendSupportLines
+    return visible(shouldAppendSupportLines
       ? mergeProjectStateRepairSupportLines(
           applyProjectStateTone(headline, projectStateDiagnosticEntry.routeQuery?.status),
           projectStateDiagnosticEntry,
         )
-      : applyProjectStateTone(headline, projectStateDiagnosticEntry.routeQuery?.status)
+      : applyProjectStateTone(headline, projectStateDiagnosticEntry.routeQuery?.status))
   }
 
   if (typeof diagnosticEntry?.briefingHeadline === 'string' && diagnosticEntry.briefingHeadline.trim()) {
     if (projectStateRepairFocused) {
       const projectStateBriefingLine = applyProjectStateTone(diagnosticEntry.briefingHeadline.trim(), diagnosticEntry.routeQuery?.status)
-      return shouldAppendProjectStateRepairSupportLines(diagnosticEntry)
+      return visible(shouldAppendProjectStateRepairSupportLines(diagnosticEntry)
         ? mergeProjectStateRepairSupportLines(projectStateBriefingLine, diagnosticEntry)
-        : projectStateBriefingLine
+        : projectStateBriefingLine)
     }
-    return diagnosticEntry.briefingHeadline.trim()
+    return visible(diagnosticEntry.briefingHeadline.trim())
   }
 
   if (typeof snapshot.companionBriefingLine === 'string' && snapshot.companionBriefingLine.trim()) {
     if (projectStateRepairFocused) {
       const projectStateCompanionBriefingLine = applyProjectStateTone(snapshot.companionBriefingLine.trim(), diagnosticEntry?.routeQuery?.status)
-      return shouldAppendProjectStateRepairSupportLines(diagnosticEntry)
+      return visible(shouldAppendProjectStateRepairSupportLines(diagnosticEntry)
         ? mergeProjectStateRepairSupportLines(projectStateCompanionBriefingLine, diagnosticEntry)
-        : projectStateCompanionBriefingLine
+        : projectStateCompanionBriefingLine)
     }
-    return snapshot.companionBriefingLine.trim()
+    return visible(snapshot.companionBriefingLine.trim())
   }
 
   if (typeof diagnosticEntry?.headline === 'string' && diagnosticEntry.headline.trim())
-    return diagnosticEntry.headline.trim()
+    return visible(diagnosticEntry.headline.trim())
 
   if (typeof snapshot.summaryLine === 'string' && snapshot.summaryLine.trim()) {
     if (projectStateRepairFocused) {
       const projectStateSummaryLine = applyProjectStateTone(snapshot.summaryLine.trim(), diagnosticEntry?.routeQuery?.status)
-      return shouldAppendProjectStateRepairSupportLines(diagnosticEntry)
+      return visible(shouldAppendProjectStateRepairSupportLines(diagnosticEntry)
         ? mergeProjectStateRepairSupportLines(projectStateSummaryLine, diagnosticEntry)
-        : projectStateSummaryLine
+        : projectStateSummaryLine)
     }
-    return snapshot.summaryLine.trim()
+    return visible(snapshot.summaryLine.trim())
   }
 
   return null

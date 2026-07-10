@@ -33,9 +33,9 @@ const directGatewaySourceChecks = {
       'function buildReminderProjectSelfBriefSystemBlock()',
       'function buildCoreIncarnationReforgeProjectSelfBriefSystemBlock()',
       '[ALICIZATION_CORE_INCARNATION_REFORGE_SELF_BRIEF]',
-      'Core incarnation reforge must stay inside the same digital life project line, the same Phase 1 proving ground, and the same still-open closure work.',
+      'reforge_scope=core_incarnation',
       'Do not let core incarnation reforge collapse into a detached persona rewrite, generic companion archetype, or abstract assistant shell.',
-      'same_her_hold=',
+      'continuity_hold=',
       'buildDreamProjectSelfBriefSystemBlock(),',
       'buildProactiveProjectSelfBriefSystemBlock(),',
       'buildReminderProjectSelfBriefSystemBlock(),',
@@ -48,35 +48,29 @@ const directGatewaySourceChecks = {
     requiredPatterns: [
       'function withProjectStateSystem',
       'function buildMemoryPlanningProjectSelfBriefSystemBlock()',
-      '[ALICIZATION_MEMORY_PLANNING_SELF_BRIEF]',
-      'project_identity=',
-      'current_phase=',
-      'pre_dialogue_awareness=',
-      'same_her_line=',
-      'same_her_hold=',
-      'primary_open_loop=',
-      'next_closure_target=',
-      'buildAlicizationProjectStateExtraSystemBlocks',
+      '[ALICIZATION_MEMORY_PLANNING_OWNER_BOUNDARY]',
+      'short_term_owner=WorkingMemory',
+      'long_term_recall_owner=LongTermMemoryRecall',
+      'workbench_role=governance_surface_only',
+      'project_state_policy=withheld_for_memory_planning_unless_explicitly_requested',
       'buildMemoryPlanningProjectSelfBriefSystemBlock(),',
-      '...buildAlicizationProjectStateExtraSystemBlocks()',
       'system: withProjectStateSystem([',
     ],
   },
   'runtime-mind-state.ts:dialogue-semantics-and-subjective-inference': {
     relativePath: './runtime-mind-state.ts',
     requiredPatterns: [
-      'buildAlicizationProjectStateExtraSystemBlocks',
       'const mindProjectStatePromptSnapshot = buildMindProjectStatePromptSnapshot({',
       'projectState: mindProjectStatePromptSnapshot,',
-      'extraSystemBlocks: buildAlicizationProjectStateExtraSystemBlocks().concat(',
+      'extraSystemBlocks: [',
       'buildDialogueTurnSemanticsProjectSelfBriefSystemBlock(),',
       'buildSubjectiveInferenceProjectSelfBriefSystemBlock(),',
-      'project_identity=',
-      'current_phase=',
-      'pre_dialogue_awareness=',
-      'same_her_line=',
-      'primary_open_loop=',
-      'next_closure_target=',
+      '[ALICIZATION_DIALOGUE_TURN_SEMANTICS_OWNER_BOUNDARY]',
+      '[ALICIZATION_SUBJECTIVE_INFERENCE_OWNER_BOUNDARY]',
+      'short_term_owner=WorkingMemory',
+      'long_term_recall_owner=LongTermMemoryRecall',
+      'project_state_policy=withheld_for_turn_semantics_unless_explicitly_requested',
+      'project_state_policy=withheld_for_subjective_inference_unless_explicitly_requested',
     ],
   },
   'runtime-execution-delivery.ts:execution-callback': {
@@ -85,7 +79,7 @@ const directGatewaySourceChecks = {
       'buildAlicizationProjectStateExtraSystemBlocks',
       'buildExecutionCallbackProjectSelfBriefSystemBlock(',
       'pre_dialogue_awareness=',
-      'same_her_line=',
+      'continuity_anchor=',
       'primary_open_loop=',
       'next_closure_target=',
     ],
@@ -93,9 +87,9 @@ const directGatewaySourceChecks = {
   'runtime-main-gateway-one-shot.ts:screen-semantic-and-scene-appraisal': {
     relativePath: './runtime-main-gateway-one-shot.ts',
     requiredPatterns: [
-      'buildAlicizationProjectStateExtraSystemBlocks',
-      'buildAlicizationProjectStateSystemBlock',
-      'buildAlicizationProjectStateClosureDashboard',
+      'buildAlicizationProviderFacingProjectStateExtraSystemBlocks',
+      'buildAlicizationProviderFacingProjectStateSystemBlock',
+      'buildAlicizationProviderFacingProjectStateClosureDashboard',
       'function buildScreenSemanticProjectSelfBriefSystemBlock(',
       'function buildSceneAppraisalProjectSelfBriefSystemBlock(',
       'function buildOneShotSourceProjectSelfBriefs(input: {',
@@ -105,20 +99,20 @@ const directGatewaySourceChecks = {
       'current_phase=',
       '[ALICIZATION_PROJECT_STATE_ANSWER_CONTRACT]',
       'pre_dialogue_awareness=',
-      'same_her_line=',
-      'same_her_hold=',
+      'continuity_anchor=',
+      'continuity_hold=',
       'primary_open_loop=',
       'next_closure_target=',
       'landed=',
       'open=',
-      'same_her=',
+      'continuity_anchor=',
       'alicizationProjectStateAnswerMustDo',
       'alicizationProjectStateAnswerContractLines',
-      'const projectStateClosureDashboard = buildAlicizationProjectStateClosureDashboard({',
+      'const projectStateClosureDashboard = buildAlicizationProviderFacingProjectStateClosureDashboard({',
       '{ role: \'system\', content: projectStateSystemBlock } as Message,',
       '{ role: \'system\', content: projectStateClosureDashboard } as Message,',
       '...buildOneShotSourceProjectSelfBriefs({',
-      'extraSystemBlocks: buildAlicizationProjectStateExtraSystemBlocks()',
+      'extraSystemBlocks: buildAlicizationProviderFacingProjectStateExtraSystemBlocks()',
     ],
   },
 } as const
@@ -157,7 +151,7 @@ describe('project-state gateway regression', () => {
     expect(/^function collectDirectProviderImportFiles\(/m.test(source)).toBe(false)
   })
 
-  it('keeps every audited direct gateway family wired to project-state prompt context in source', () => {
+  it('keeps every audited direct gateway family wired to project-state or owner-boundary prompt context in source', () => {
     const targets = resolveAlicizationProjectStateDirectGatewayAuditTargets()
 
     expect(new Set(targets)).toEqual(new Set(Object.keys(directGatewaySourceChecks)))
@@ -360,7 +354,7 @@ describe('project-state gateway regression', () => {
     }
   })
 
-  it('requires every discovered audited gateway callsite to carry project-state prompt context before generation', () => {
+  it('requires every discovered audited gateway callsite to carry project-state prompt context or an owner boundary before generation', () => {
     const { evidence } = deriveGatewayFamiliesFromCurrentSource()
 
     expect(evidence.length).toBeGreaterThanOrEqual(9)
@@ -368,18 +362,23 @@ describe('project-state gateway regression', () => {
       expect(callsiteCarriesProjectStateContext(entry)).toBe(true)
   })
 
-  it('keeps runtime mind-state dialogue cognition anchored to the canonical digital-life project-state block', () => {
+  it('keeps runtime mind-state dialogue cognition anchored to memory owner boundaries instead of the canonical project-state dashboard', () => {
     const runtimeMindStateSource = readFileSync(new URL('./runtime-mind-state.ts', import.meta.url), 'utf8')
     const canonicalProjectStateBlock = buildAlicizationProjectStateSystemBlock()
 
     expect(runtimeMindStateSource).toContain('const mindProjectStatePromptSnapshot = buildMindProjectStatePromptSnapshot({')
     expect(runtimeMindStateSource).toContain('projectState: mindProjectStatePromptSnapshot,')
-    expect(runtimeMindStateSource).toContain('extraSystemBlocks: buildAlicizationProjectStateExtraSystemBlocks().concat(')
+    expect(runtimeMindStateSource).not.toContain('extraSystemBlocks: buildAlicizationProjectStateExtraSystemBlocks().concat(')
+    expect(runtimeMindStateSource).toContain('extraSystemBlocks: [\n        buildDialogueTurnSemanticsProjectSelfBriefSystemBlock(),\n      ]')
+    expect(runtimeMindStateSource).toContain('extraSystemBlocks: [\n        buildSubjectiveInferenceProjectSelfBriefSystemBlock(),\n      ]')
     expect(runtimeMindStateSource).toContain('source: \'dialogue-turn-semantics\'')
     expect(runtimeMindStateSource).toContain('source: \'subjective-inference\'')
-    expect(runtimeMindStateSource).toContain('[ALICIZATION_DIALOGUE_TURN_SEMANTICS_SELF_BRIEF]')
-    expect(runtimeMindStateSource).toContain('[ALICIZATION_SUBJECTIVE_INFERENCE_SELF_BRIEF]')
-    expect(runtimeMindStateSource).toContain('same_her_hold=')
+    expect(runtimeMindStateSource).toContain('[ALICIZATION_DIALOGUE_TURN_SEMANTICS_OWNER_BOUNDARY]')
+    expect(runtimeMindStateSource).toContain('[ALICIZATION_SUBJECTIVE_INFERENCE_OWNER_BOUNDARY]')
+    expect(runtimeMindStateSource).toContain('short_term_owner=WorkingMemory')
+    expect(runtimeMindStateSource).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(runtimeMindStateSource).toContain('project_state_policy=withheld_for_turn_semantics_unless_explicitly_requested')
+    expect(runtimeMindStateSource).toContain('project_state_policy=withheld_for_subjective_inference_unless_explicitly_requested')
     expect(canonicalProjectStateBlock).toContain('[ALICIZATION_PROJECT_STATE]')
     expect(canonicalProjectStateBlock).toContain('Alicization is a local-first digital life project building one continuous "her"')
     expect(canonicalProjectStateBlock).toContain('current_phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')

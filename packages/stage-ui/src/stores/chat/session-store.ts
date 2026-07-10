@@ -2,10 +2,13 @@ import type { ChatHistoryItem } from '../../types/chat'
 import type { ChatSessionMeta, ChatSessionRecord, ChatSessionsExport, ChatSessionsIndex } from '../../types/chat-session'
 
 import {
+  containsAlicizationFixedTemplateResidue,
+  formatAlicizationProjectStateAwarenessFields,
   isAlicizationThinProjectAwarenessLine,
   isStageTamagotchi,
   isAlicizationThinSamePhaseCarryLine as isThinSamePhaseCarryLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
+  sanitizeAlicizationProviderFacingText,
   scoreAlicizationProjectAwarenessLine,
 } from '@proj-alicization/stage-shared'
 import { nanoid } from 'nanoid'
@@ -25,6 +28,8 @@ import { useAiriCardStore } from '../modules/airi-card'
 import { canonicalizeSessionMessages, mergeLoadedSessionMessages } from './session-message-merge'
 
 export const useChatSessionStore = defineStore('chat-session', () => {
+  const fixedTemplateWithheldLine = ''
+
   const { userId, isAuthenticated } = storeToRefs(useAuthStore())
   const { activeCardId } = storeToRefs(useAiriCardStore())
 
@@ -45,29 +50,28 @@ export const useChatSessionStore = defineStore('chat-session', () => {
   const loadingSessions = new Map<string, Promise<void>>()
 
   function buildRestoredProjectAwarenessLine(input: {
-    identity: string
-    currentPhase: string
-    primaryOpenLoop: string
-    sameHerSelfLine: string
+    latestLandedProgress?: string | null
+    primaryOpenLoop?: string | null
+    nextClosureTarget?: string | null
+    sameHerDriftRisk?: string | null
+    proactiveSameHerGap?: string | null
   }) {
-    const compactIdentity = input.identity
-      .replace(/\s+rather than a better chat wrapper\.?$/u, '')
-      .replace(/\s+on the host computer\.?$/u, '')
-      .trim()
-      .slice(0, 120)
-    const compactPhase = input.currentPhase.split('. ')[0]?.trim() ?? input.currentPhase.trim()
-    const compactOpenLoop = input.primaryOpenLoop
-      .split(' so ')[0]
-      ?.replace(/[.。!！?？;；:：]+$/u, '')
-      .trim()
-      .slice(0, 120) ?? input.primaryOpenLoop.trim().slice(0, 120)
-    const compactSameHer = input.sameHerSelfLine.trim().slice(0, 110)
-    return [
-      `Before answering, remember: ${compactIdentity}`,
-      `She is still inside ${compactPhase}`,
-      `The still-open closure is ${compactOpenLoop}`,
-      compactSameHer,
-    ].join('. ').replace(/\s+/g, ' ').slice(0, 320).trim() || null
+    const primaryOpenLoop = input.primaryOpenLoop?.trim() || ''
+    const compactOpenLoop = primaryOpenLoop
+      ? (primaryOpenLoop
+          .split(' so ')[0]
+          ?.replace(/[.。!！?？;；:：]+$/u, '')
+          .trim()
+          .slice(0, 120) ?? primaryOpenLoop.slice(0, 120))
+      : ''
+    return formatAlicizationProjectStateAwarenessFields({
+      latestLandedProgress: input.latestLandedProgress ?? undefined,
+      primaryOpenLoop: compactOpenLoop || undefined,
+      nextClosureTarget: input.nextClosureTarget ?? undefined,
+      continuityDriftRisk: input.sameHerDriftRisk ?? undefined,
+      proactiveSameHerGap: input.proactiveSameHerGap ?? undefined,
+      maxChars: 320,
+    }).replace(/\s+/g, ' ').slice(0, 320).trim() || null
   }
 
   function isSameHerInwardLowPressureHeadline(value: string | null | undefined) {
@@ -75,7 +79,11 @@ export const useChatSessionStore = defineStore('chat-session', () => {
     if (!normalized)
       return false
 
-    return normalized.includes('holding together mainly through')
+    return (
+      normalized.includes('continuity=embodiment')
+      && normalized.includes('low-pressure-inward-carry')
+    ) || (
+      normalized.includes('holding together mainly through')
       && normalized.includes('low-pressure')
       && (
         normalized.includes('same line inward')
@@ -83,10 +91,253 @@ export const useChatSessionStore = defineStore('chat-session', () => {
         || normalized.includes('same-her-inward-carry')
         || normalized.includes('quiet-companionship')
       )
+    )
   }
 
-  function buildCompactSameHerInwardLowPressureAwarenessLine(companionBriefingLine: string) {
-    return `${companionBriefingLine} Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.`
+  function isBlockedSessionEvidence(value: unknown) {
+    if (typeof value !== 'string')
+      return false
+    const normalized = value.trim().toLowerCase()
+    return normalized === fixedTemplateWithheldLine
+      || normalized.includes('content=excluded')
+      || normalized.includes('reason=continuity-residue')
+  }
+
+  function looksLikeStructuredSessionFact(value: string) {
+    return /(?:^|\|\s*)(?:identity|phase|landed|open|next|continuity_[a-z_]+|emotional_closure|proactive_gap|status|summary|visibility|owner|source|evidence|observability|affective_closure|pending_rejoin|open_loop|life_loop_continuity|project_state_continuity|cross_modal_continuity_proof|runtime_authoritative_send_alignment|embodiment_lanes|pending_lanes|embodiment_closure|body_continuity|memory_surface_policy|remaining-open)=/iu.test(value)
+      || /^[a-z][\w+-]*:[\w+:-]+$/iu.test(value)
+  }
+
+  function looksLikeNeutralizedTemplateSentence(value: string) {
+    const carriesNeutralizedContinuityToken = /\b(?:continuity_identity|continuity_line|local_desktop_life_loop|project_state_continuity)\b/iu.test(value)
+    if (!carriesNeutralizedContinuityToken)
+      return false
+
+    const carriesDirectiveResidue = /\b(?:should|needs?|must|keep|rather than|before|after|reopen|widen|follow-through|drift|preserved closure)\b/iu.test(value)
+    if (carriesDirectiveResidue)
+      return true
+
+    return !looksLikeStructuredSessionFact(value)
+  }
+
+  function looksLikeGenericSessionShell(value: string) {
+    const normalized = value.trim().toLowerCase()
+    return normalized.includes('generic continuity reminder')
+      || normalized.includes('generic awareness reminder')
+      || normalized.includes('generic awareness summary')
+      || normalized.includes('generic same-her reminder')
+      || normalized.includes('generic next target')
+      || normalized.includes('generic next closure')
+      || normalized.includes('generic closure shell')
+      || normalized.includes('generic closure summary')
+  }
+
+  function looksLikeDirectiveSessionShell(value: string) {
+    const normalized = value.trim().toLowerCase()
+    if (!normalized)
+      return false
+
+    if (/^(?:before (?:answering|speaking|acting)|right now\b|next closure\b|if (?:this|restored|imported|the forked)|keep\b)/iu.test(normalized))
+      return true
+
+    return /\b(?:should|needs?|must|requires?|before|reopen|widen|flatten|override|proof so|preserved closure)\b/iu.test(normalized)
+      && /\b(?:project|phase|continuity|closure|life loop|digital life|identity|same|turn|reply|awareness|embodiment)\b/iu.test(normalized)
+  }
+
+  function normalizeSessionNextFact(value: string) {
+    const normalized = value.trim()
+    const lower = normalized.toLowerCase()
+    if (!normalized)
+      return null
+
+    if (
+      /cross[-_ ]modal|body|face|motion|lipsync|voice|声音|表情|动作|唇型/iu.test(lower)
+      || /continuity_identity proof|continuity_proof|continuity_line/iu.test(normalized)
+    ) {
+      return 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs'
+    }
+    if (/memory|initiative|dialogue|execution|embodiment|记忆|主动性|对话|执行|具身/iu.test(lower))
+      return 'life_loop_continuity=memory+initiative+dialogue+execution+embodiment'
+    if (/project identity|landed progress|unresolved closure|项目身份|已落|未闭环|未闭合/iu.test(lower))
+      return 'project_state_continuity=identity+landed+open+next'
+    if (/callback|reopened|回调|重开/iu.test(lower))
+      return 'callback_continuity=preserve; widening=deferred'
+
+    return null
+  }
+
+  function sanitizeSessionStructuredText(value: string | null | undefined, maxChars = 420) {
+    if (typeof value !== 'string')
+      return null
+    if (isBlockedSessionEvidence(value))
+      return null
+    if (looksLikeGenericSessionShell(value))
+      return null
+    if (looksLikeDirectiveSessionShell(value))
+      return null
+
+    const sanitized = sanitizeAlicizationProviderFacingText(value, maxChars, '')
+    if (!sanitized || isBlockedSessionEvidence(sanitized))
+      return null
+    if (containsAlicizationFixedTemplateResidue(sanitized))
+      return null
+    if (looksLikeNeutralizedTemplateSentence(sanitized))
+      return null
+    if (looksLikeDirectiveSessionShell(sanitized))
+      return null
+
+    return sanitized
+  }
+
+  function sanitizeSessionStructuredProjectField(
+    field: 'identity' | 'phase' | 'open' | 'next' | 'continuity_anchor' | 'continuity_hold' | 'continuity_drift_risk' | 'emotional_closure' | 'proactive_gap',
+    value: string | null | undefined,
+    maxChars = 420,
+  ) {
+    if (typeof value !== 'string' || !value.trim())
+      return null
+    if (field === 'phase' && /\bphase\s*1\b|第一阶段|阶段一|project_phase=life_core/iu.test(value))
+      return null
+
+    const structured = formatAlicizationProjectStateAwarenessFields({
+      ...(field === 'identity' ? { identity: value } : {}),
+      ...(field === 'phase' ? { currentPhase: value } : {}),
+      ...(field === 'open' ? { primaryOpenLoop: value } : {}),
+      ...(field === 'next' ? { nextClosureTarget: value } : {}),
+      ...(field === 'continuity_anchor' ? { continuityAnchor: value } : {}),
+      ...(field === 'continuity_hold' ? { sameHerHoldDetail: value } : {}),
+      ...(field === 'continuity_drift_risk' ? { sameHerDriftRisk: value } : {}),
+      ...(field === 'emotional_closure' ? { emotionalClosureCue: value } : {}),
+      ...(field === 'proactive_gap' ? { proactiveSameHerGap: value } : {}),
+      maxChars,
+    })
+    const prefix = `${field}=`
+    const structuredValue = structured
+      .split('|')
+      .map(fragment => fragment.trim())
+      .find(fragment => fragment.startsWith(prefix))
+      ?.slice(prefix.length)
+      .trim()
+
+    if (field === 'next' && structuredValue) {
+      const normalizedNextFact = normalizeSessionNextFact(structuredValue)
+      if (normalizedNextFact)
+        return normalizedNextFact
+      if (
+        looksLikeGenericSessionShell(structuredValue)
+        || looksLikeDirectiveSessionShell(structuredValue)
+        || looksLikeNeutralizedTemplateSentence(structuredValue)
+      ) {
+        return 'continuity_review_required'
+      }
+    }
+
+    if (
+      structuredValue
+      && !isBlockedSessionEvidence(structuredValue)
+      && !containsAlicizationFixedTemplateResidue(structuredValue)
+      && !looksLikeGenericSessionShell(structuredValue)
+      && !looksLikeDirectiveSessionShell(structuredValue)
+    ) {
+      return structuredValue
+    }
+
+    if (field === 'next' && looksLikeDirectiveSessionShell(value))
+      return 'continuity_review_required'
+
+    return sanitizeSessionStructuredText(value, maxChars)
+  }
+
+  function sanitizeSessionStructuredProjectLine(
+    field: 'next' | 'continuity_drift_risk' | 'emotional_closure' | 'proactive_gap',
+    value: string | null | undefined,
+    maxChars = 420,
+  ) {
+    const sanitized = sanitizeSessionStructuredProjectField(field, value, maxChars)
+    return sanitized ? `${field}=${sanitized}` : null
+  }
+
+  function sanitizeSessionStructuredLines(values: string[] | null | undefined) {
+    return (values ?? [])
+      .map(value => sanitizeSessionStructuredText(value))
+      .filter((value): value is string => Boolean(value))
+  }
+
+  function sanitizeSessionProjectState<T extends Record<string, any> | null>(projectState: T): T {
+    if (!projectState)
+      return projectState
+
+    return {
+      ...projectState,
+      identity: sanitizeSessionStructuredProjectField('identity', projectState.identity, 220),
+      currentPhase: sanitizeSessionStructuredProjectField('phase', projectState.currentPhase, 180),
+      latestLandedProgress: sanitizeSessionStructuredText(projectState.latestLandedProgress),
+      latestProgress: sanitizeSessionStructuredText(projectState.latestProgress),
+      landedProgressSummary: sanitizeSessionStructuredText(projectState.landedProgressSummary),
+      preDialogueAwarenessLine: sanitizeSessionStructuredText(projectState.preDialogueAwarenessLine),
+      awarenessLine: sanitizeSessionStructuredText(projectState.awarenessLine),
+      preDialogueAwarenessSummary: sanitizeSessionStructuredText(projectState.preDialogueAwarenessSummary),
+      preflightSummary: sanitizeSessionStructuredText(projectState.preflightSummary),
+      memoryClosureSummary: sanitizeSessionStructuredText(projectState.memoryClosureSummary),
+      companionHeadlineLine: sanitizeSessionStructuredText(projectState.companionHeadlineLine),
+      companionBriefingLine: sanitizeSessionStructuredText(projectState.companionBriefingLine),
+      companionNextClosureLine: sanitizeSessionStructuredText(projectState.companionNextClosureLine),
+      primaryOpenLoop: sanitizeSessionStructuredProjectField('open', projectState.primaryOpenLoop),
+      nextClosureTarget: sanitizeSessionStructuredProjectField('next', projectState.nextClosureTarget),
+      continuitySummary: sanitizeSessionStructuredText(projectState.continuitySummary),
+      sameHerSelfLine: sanitizeSessionStructuredProjectField('continuity_anchor', projectState.sameHerSelfLine),
+      sameHerHoldDetail: sanitizeSessionStructuredProjectField('continuity_hold', projectState.sameHerHoldDetail),
+      sameHerDriftRisk: sanitizeSessionStructuredProjectField('continuity_drift_risk', projectState.sameHerDriftRisk),
+      emotionalClosureCue: sanitizeSessionStructuredProjectField('emotional_closure', projectState.emotionalClosureCue),
+      proactiveSameHerGap: sanitizeSessionStructuredProjectField('proactive_gap', projectState.proactiveSameHerGap),
+      continuityCue: sanitizeSessionStructuredText(projectState.continuityCue),
+    } as T
+  }
+
+  function sanitizeSessionPreDialogueAwareness<T extends Record<string, any> | null | undefined>(awareness: T): T {
+    if (!awareness)
+      return awareness
+
+    return {
+      ...awareness,
+      summaryLine: sanitizeSessionStructuredText(awareness.summaryLine),
+      companionHeadlineLine: sanitizeSessionStructuredText(awareness.companionHeadlineLine),
+      companionBriefingLine: sanitizeSessionStructuredText(awareness.companionBriefingLine),
+      companionNextClosureLine: sanitizeSessionStructuredProjectLine('next', awareness.companionNextClosureLine),
+      awarenessLine: sanitizeSessionStructuredText(awareness.awarenessLine),
+      emotionalClosureCue: sanitizeSessionStructuredText(awareness.emotionalClosureCue),
+      reasonPreview: Array.isArray(awareness.reasonPreview)
+        ? sanitizeSessionStructuredLines(awareness.reasonPreview)
+        : [],
+    } as T
+  }
+
+  function sanitizeSessionPreDialogueClosure<T extends Record<string, any> | null | undefined>(closure: T): T {
+    if (!closure)
+      return closure
+
+    return {
+      ...closure,
+      summaryLine: sanitizeSessionStructuredText(closure.summaryLine),
+      companionHeadlineLine: sanitizeSessionStructuredText(closure.companionHeadlineLine),
+      companionBriefingLine: sanitizeSessionStructuredText(closure.companionBriefingLine),
+      companionNextClosureLine: sanitizeSessionStructuredProjectLine('next', closure.companionNextClosureLine),
+      emotionalClosureCue: sanitizeSessionStructuredText(closure.emotionalClosureCue),
+      sameHerDriftRiskLine: sanitizeSessionStructuredText(closure.sameHerDriftRiskLine),
+      companionshipReasonLine: sanitizeSessionStructuredText(closure.companionshipReasonLine),
+      briefingLines: Array.isArray(closure.briefingLines)
+        ? sanitizeSessionStructuredLines(closure.briefingLines)
+        : [],
+      reasons: Array.isArray(closure.reasons)
+        ? sanitizeSessionStructuredLines(closure.reasons)
+        : [],
+    } as T
+  }
+
+  function buildCompactSameHerInwardLowPressureAwarenessLine() {
+    return sanitizeSessionStructuredText(
+      'source=companion_briefing; continuity=embodiment; status=pending-rejoin; pending_rejoin=lipsync+voice; evidence=low-pressure-inward-carry',
+    )
   }
 
   function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undefined) {
@@ -95,12 +346,14 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       return false
 
     return normalized.includes('anthropomorphic emotional closure')
-      && normalized.includes('same-her inward-carry observability')
+      && (normalized.includes('same-her inward-carry observability') || normalized.includes('continuity inward-carry observability'))
       && normalized.includes('measured-return')
   }
 
-  function buildCompactAnthropomorphicHostFacingAwarenessLine(companionBriefingLine: string) {
-    return `${companionBriefingLine} Right now this one living her still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line before anything reopens outward.`
+  function buildCompactAnthropomorphicHostFacingAwarenessLine() {
+    return sanitizeSessionStructuredText(
+      'source=companion_briefing; affective_closure=anthropomorphic-emotional-closure; observability=continuity-inward-carry; timing=measured-return',
+    )
   }
 
   function maybeBackfillRestoredPreDialogueAwareness(
@@ -108,14 +361,19 @@ export const useChatSessionStore = defineStore('chat-session', () => {
     preDialogueAwareness: ReturnType<typeof normalizeStructuredPreDialogueAwarenessPayload> | null,
     preferredEmotionalClosureCue: string | null,
   ) {
-    if (
-      !projectState?.identity
-      || !projectState.currentPhase
-      || !projectState.primaryOpenLoop
-      || !projectState.nextClosureTarget
-    ) {
+    if (!projectState) {
       return preDialogueAwareness
     }
+    const hasRecoverableProjectFacts = Boolean(
+      projectState.latestLandedProgress
+      || projectState.primaryOpenLoop
+      || projectState.nextClosureTarget
+      || projectState.sameHerDriftRisk
+      || projectState.proactiveSameHerGap
+      || projectState.continuitySummary,
+    )
+    if (!hasRecoverableProjectFacts)
+      return preDialogueAwareness
 
     const persistedSummary = preDialogueAwareness?.summaryLine?.trim() || ''
     const persistedAwarenessLine = preDialogueAwareness?.awarenessLine?.trim() || ''
@@ -145,8 +403,9 @@ export const useChatSessionStore = defineStore('chat-session', () => {
         || normalized.includes('generic closure summary')
         || normalized.includes('steadier carry of this project, this phase, and the life loop that remains open')
     }
-    const carriesBroaderProjectFrame = (value: string) => /\b(?:project|digital life project|life loop|still-open|what has landed|before speaking|before answering|local-first digital life)\b/i.test(value)
-      || /数字生命项目|闭环|主线|已落地|开口前|先记住/u.test(value)
+    const carriesBroaderProjectFrame = (value: string) =>
+      /(?:^|\|\s*)(?:identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|emotional_closure)=/iu.test(value)
+      || /(?:open_loop|life_loop_continuity|project_state_continuity|cross_modal_continuity_proof|runtime_authoritative_send_alignment)=/iu.test(value)
     const persistedLooksThin = Boolean(preDialogueAwareness) && (
       (!persistedAwarenessLine && !persistedBriefingLine)
       || looksLikeThinReminder(persistedSummary)
@@ -164,13 +423,19 @@ export const useChatSessionStore = defineStore('chat-session', () => {
         )) ?? null
       : null
 
-    const sameHerSelfLine = projectState.sameHerSelfLine
-      ?? 'Keep one continuous her explicit from self-understanding into the final host-visible reply.'
+    const sameHerSelfLine = projectState.sameHerSelfLine?.trim() || null
     const sameHerHoldDetail = projectState.sameHerHoldDetail?.trim() || null
+    const sameHerHoldDetailIsBlockedEvidence = sameHerHoldDetail === fixedTemplateWithheldLine
+      || sameHerHoldDetail?.includes('reason=continuity-residue')
+      || sameHerHoldDetail?.includes('content=excluded')
+    const sameHerSelfLineIsBlockedEvidence = sameHerSelfLine === fixedTemplateWithheldLine
+      || sameHerSelfLine?.includes('reason=continuity-residue')
+      || sameHerSelfLine?.includes('content=excluded')
     const shouldPreferSameHerHoldDetail = Boolean(
       preDialogueAwareness
       && persistedLooksThin
       && sameHerHoldDetail
+      && !sameHerHoldDetailIsBlockedEvidence
       && (
         looksLikeThinReminder(persistedAwarenessLine)
         || looksLikeThinReminder(persistedSummary)
@@ -189,13 +454,24 @@ export const useChatSessionStore = defineStore('chat-session', () => {
     )
     const preferredSameHerBriefingLine = shouldPreferSameHerHoldDetail
       ? sameHerHoldDetail
-      : sameHerSelfLine
-    const awarenessLine = buildRestoredProjectAwarenessLine({
-      identity: projectState.identity,
-      currentPhase: projectState.currentPhase,
-      primaryOpenLoop: projectState.primaryOpenLoop,
-      sameHerSelfLine,
-    })
+      : sameHerSelfLineIsBlockedEvidence
+        ? null
+        : sameHerSelfLine
+    const awarenessLine = preferredSameHerBriefingLine
+      ? buildRestoredProjectAwarenessLine({
+          latestLandedProgress: projectState.latestLandedProgress,
+          primaryOpenLoop: projectState.primaryOpenLoop,
+          nextClosureTarget: projectState.nextClosureTarget,
+          sameHerDriftRisk: projectState.sameHerDriftRisk,
+          proactiveSameHerGap: projectState.proactiveSameHerGap,
+        })
+      : buildRestoredProjectAwarenessLine({
+          latestLandedProgress: projectState.latestLandedProgress,
+          primaryOpenLoop: projectState.primaryOpenLoop,
+          nextClosureTarget: projectState.nextClosureTarget,
+          sameHerDriftRisk: projectState.sameHerDriftRisk,
+          proactiveSameHerGap: projectState.proactiveSameHerGap,
+        })
     const normalizedContinuitySummary = projectState.continuitySummary?.trim() || ''
     const preferredContinuitySummary = normalizedContinuitySummary
       && !looksLikeThinReminder(normalizedContinuitySummary)
@@ -224,7 +500,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       && isThinSamePhaseCarryLine(persistedBriefingLine)
       && isSameHerInwardLowPressureHeadline(persistedCompanionHeadlineLine)
     )
-      ? buildCompactSameHerInwardLowPressureAwarenessLine(persistedBriefingLine)
+      ? buildCompactSameHerInwardLowPressureAwarenessLine()
       : null
     const mergedAnthropomorphicHostFacingAwarenessLine = (
       persistedAwarenessLine
@@ -233,16 +509,19 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       && isThinSamePhaseCarryLine(persistedBriefingLine)
       && isAnthropomorphicHostFacingSameHerHeadline(persistedCompanionHeadlineLine)
     )
-      ? buildCompactAnthropomorphicHostFacingAwarenessLine(persistedBriefingLine)
+      ? buildCompactAnthropomorphicHostFacingAwarenessLine()
       : null
-    const nextClosureTargetReason = /[.。!！?？]$/u.test(projectState.nextClosureTarget)
-      ? `Next closure target is still ${projectState.nextClosureTarget}`
-      : `Next closure target is still ${projectState.nextClosureTarget}.`
+    const nextClosureTarget = projectState.nextClosureTarget?.trim() || ''
+    const nextClosureTargetReason = nextClosureTarget
+      ? /[.。!！?？]$/u.test(nextClosureTarget)
+        ? `next=${nextClosureTarget.replace(/[.。!！?？]+$/u, '')}`
+        : `next=${nextClosureTarget}`
+      : ''
     const reasonPreview = [
       projectState.latestLandedProgress ?? null,
       projectState.primaryOpenLoop,
       projectState.proactiveSameHerGap ?? null,
-      nextClosureTargetReason,
+      nextClosureTargetReason || null,
     ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     const mergedReasonPreview = [
       ...(preDialogueAwareness?.reasonPreview ?? []),
@@ -253,8 +532,8 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       status: 'grounded' as const,
       summaryLine: preferredContinuitySummary || awarenessLine,
       companionHeadlineLine: null,
-      companionBriefingLine: sameHerSelfLine,
-      companionNextClosureLine: projectState.nextClosureTarget,
+      companionBriefingLine: preferredSameHerBriefingLine,
+      companionNextClosureLine: nextClosureTarget || null,
       awarenessLine,
       emotionalClosureCue: preferredEmotionalClosureCue,
       reasonPreview,
@@ -283,8 +562,8 @@ export const useChatSessionStore = defineStore('chat-session', () => {
         awarenessLine: mergedAnthropomorphicHostFacingAwarenessLine ?? mergedInwardLowPressureAwarenessLine ?? preDialogueAwareness.awarenessLine,
         companionHeadlineLine: preDialogueAwareness.companionHeadlineLine ?? null,
         companionNextClosureLine: shouldUpgradeNextClosureFromPersistedAudit
-          ? projectState.nextClosureTarget
-          : (persistedNextClosureLine || projectState.nextClosureTarget),
+          ? (nextClosureTarget || null)
+          : (persistedNextClosureLine || nextClosureTarget || null),
         emotionalClosureCue: upgradedEmotionalClosureCue,
         reasonPreview: mergedReasonPreview,
       }
@@ -297,9 +576,10 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       companionHeadlineLine: preDialogueAwareness.companionHeadlineLine ?? null,
       companionBriefingLine: preferredSameHerBriefingLine,
       companionNextClosureLine: persistedLooksThin
-        ? projectState.nextClosureTarget
+        ? (nextClosureTarget || null)
         : (preDialogueAwareness.companionNextClosureLine?.trim()
-          || projectState.nextClosureTarget),
+          || nextClosureTarget
+          || null),
       awarenessLine: resolveAlicizationProjectPreDialogueAwarenessLine({
         runtimeProjectState: {
           identity: projectState.identity,
@@ -352,7 +632,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
           sameHerDriftRiskSummary: resolvedSameHerDriftRiskSeed,
           proactiveSameHerGap: projectState.proactiveSameHerGap ?? null,
         },
-      }),
+      }) ?? mergedAnthropomorphicHostFacingAwarenessLine ?? mergedInwardLowPressureAwarenessLine,
       emotionalClosureCue: upgradedEmotionalClosureCue,
       reasonPreview: mergedReasonPreview,
     }
@@ -454,16 +734,23 @@ export const useChatSessionStore = defineStore('chat-session', () => {
           = typeof projectStateAudit?.emotionalClosureSummary === 'string'
             ? projectStateAudit.emotionalClosureSummary
             : null
-        const restoredPreDialogueAwareness = maybeBackfillRestoredPreDialogueAwareness(
-          restoredProjectState,
-          normalizedPreDialogueAwareness,
+        const sanitizedRestoredProjectState = sanitizeSessionProjectState(restoredProjectState)
+        const sanitizedPreferredEmotionalClosureCue = sanitizeSessionStructuredProjectField(
+          'emotional_closure',
           preferredEmotionalClosureCue,
         )
+        const restoredPreDialogueAwareness = maybeBackfillRestoredPreDialogueAwareness(
+          sanitizedRestoredProjectState,
+          normalizedPreDialogueAwareness,
+          sanitizedPreferredEmotionalClosureCue,
+        )
+        const sanitizedPreDialogueClosure = sanitizeSessionPreDialogueClosure(normalizedPreDialogueClosure)
+        const sanitizedRestoredPreDialogueAwareness = sanitizeSessionPreDialogueAwareness(restoredPreDialogueAwareness)
 
         if (
-          restoredProjectState === (message.structured.projectState ?? null)
-          && normalizedPreDialogueClosure === (message.structured.preDialogueClosure ?? null)
-          && restoredPreDialogueAwareness === (message.structured.preDialogueAwareness ?? null)
+          JSON.stringify(sanitizedRestoredProjectState) === JSON.stringify(message.structured.projectState ?? null)
+          && JSON.stringify(sanitizedPreDialogueClosure) === JSON.stringify(message.structured.preDialogueClosure ?? null)
+          && JSON.stringify(sanitizedRestoredPreDialogueAwareness) === JSON.stringify(message.structured.preDialogueAwareness ?? null)
         ) {
           return message
         }
@@ -472,9 +759,9 @@ export const useChatSessionStore = defineStore('chat-session', () => {
           ...message,
           structured: {
             ...message.structured,
-            projectState: restoredProjectState,
-            preDialogueClosure: normalizedPreDialogueClosure,
-            preDialogueAwareness: restoredPreDialogueAwareness,
+            projectState: sanitizedRestoredProjectState,
+            preDialogueClosure: sanitizedPreDialogueClosure,
+            preDialogueAwareness: sanitizedRestoredPreDialogueAwareness,
           },
         }
       })

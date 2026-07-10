@@ -41,6 +41,7 @@ import {
   describeAlicizationEmbodimentClosureHeadline,
   normalizeAlicizationDigitalLifeSpineDigest,
   normalizeAlicizationPerformancePayload,
+  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 import { normalizeStructuredProjectStatePayload } from '@proj-alicization/stage-ui/composables/alicization-structured-output'
 
@@ -105,7 +106,7 @@ import {
 } from './prepared-runtime-continuity'
 import { enrichProjectStateAnswerGovernanceIfNeeded } from './project-state-answer-governance'
 import {
-  buildAlicizationProjectStateExtraSystemBlocks,
+  buildAlicizationProviderFacingProjectStateExtraSystemBlocks,
   looksLikeThinProjectClosureShell,
   resolveAlicizationProjectPreDialogueAwarenessLine,
   resolveAlicizationProjectStateBrief,
@@ -180,6 +181,10 @@ function readRecord(raw: unknown): Record<string, unknown> | null {
   return raw as Record<string, unknown>
 }
 
+function sanitizeProviderFacingRecoveryCarry(raw: unknown, maxChars = 1600) {
+  return sanitizeAlicizationProviderFacingText(raw, maxChars, '') || ''
+}
+
 function isActiveDialogueFastPathTimeoutError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error ?? '')
   const normalized = message.toLowerCase()
@@ -222,9 +227,9 @@ function normalizeProjectStateAuditCarry(
 
   return {
     ...raw,
-    sameHerSummary: sanitizeText(raw.sameHerSummary, '') || null,
-    sameHerDriftRiskSummary: sanitizeText(raw.sameHerDriftRiskSummary, '') || null,
-    sameHerHoldDetail: sanitizeText(raw.sameHerHoldDetail, '') || null,
+    sameHerSummary: sanitizeProviderFacingRecoveryCarry(raw.sameHerSummary) || null,
+    sameHerDriftRiskSummary: sanitizeProviderFacingRecoveryCarry(raw.sameHerDriftRiskSummary) || null,
+    sameHerHoldDetail: sanitizeProviderFacingRecoveryCarry(raw.sameHerHoldDetail) || null,
     continuityArcStage: sanitizeText(raw.continuityArcStage, '') || null,
     continuityCue: sanitizeText(raw.continuityCue, '') || null,
     proactiveSameHerGapSummary: sanitizeText(raw.proactiveSameHerGapSummary, '') || null,
@@ -234,7 +239,7 @@ function normalizeProjectStateAuditCarry(
     nextClosureTargetSummary: sanitizeText(raw.nextClosureTargetSummary, '') || null,
     emotionalClosureSummary: sanitizeText(raw.emotionalClosureSummary, '') || null,
     embodimentClosureSummary: sanitizeText(raw.embodimentClosureSummary, '') || null,
-    preDialogueAwarenessSummary: sanitizeText(raw.preDialogueAwarenessSummary, '') || null,
+    preDialogueAwarenessSummary: sanitizeProviderFacingRecoveryCarry(raw.preDialogueAwarenessSummary) || null,
     continuitySummary: sanitizeText(raw.continuitySummary, '') || null,
     preservedIntoRewrite: raw.preservedIntoRewrite === true,
     rewriteClosureApplied: raw.rewriteClosureApplied === true,
@@ -568,7 +573,7 @@ function buildProjectStateAuditContinuitySummary(input: {
 }) {
   const projectStateContinuityCarry = buildPrioritizedProjectStateRewritePreserveLines({
     projectStateContinuityAnchors: [
-      input.sameHerSummary ? `same-her=${input.sameHerSummary}` : '',
+      input.sameHerSummary ? `continuity_anchor=${input.sameHerSummary}` : '',
       input.sameHerHoldDetail ? `hold=${input.sameHerHoldDetail}` : '',
       input.continuityArcStage ? `arc=${input.continuityArcStage}` : '',
       input.continuityCue ? `cue=${input.continuityCue}` : '',
@@ -599,7 +604,7 @@ function ensureTimeoutRecoveryCarriesCanonicalProjectState(messages: Message[]) 
     return messages
 
   return [
-    ...buildAlicizationProjectStateExtraSystemBlocks().map(content => ({ role: 'system', content }) as Message),
+    ...buildAlicizationProviderFacingProjectStateExtraSystemBlocks().map(content => ({ role: 'system', content }) as Message),
     ...messages,
   ]
 }
@@ -612,7 +617,7 @@ function strengthenSameHerSelfLineForPersistence(value: string | null | undefine
     /same phase 1 digital life|same living line|unfinished closure/iu.test(normalized)
     && !/continuous her|one continuous her/iu.test(normalized)
   ) {
-    return sanitizeText(`Keep one continuous her explicit: ${normalized}`, '') || normalized
+    return sanitizeText(`continuity_context=local_desktop_life_loop; source=legacy_project_state; detail=${normalized}`, '') || normalized
   }
   return normalized
 }
@@ -625,6 +630,7 @@ export const mainChatBackgroundRunTestInternals = {
   preferRicherProjectStateAuditText,
   preferProjectStateEmbodimentClosureSummary,
   resolvePreferredEmbodimentClosureSummary,
+  shouldUseProjectStateTimeoutRecovery,
 }
 
 function shouldUpgradeDeferredDecisionToProjectState(decision: AlicizationActiveDialogueFastPathDecision | null | undefined) {
@@ -632,7 +638,46 @@ function shouldUpgradeDeferredDecisionToProjectState(decision: AlicizationActive
     return false
 
   return decision.reasonCodes.includes('project-state-progress-open-loop-follow-up')
+    || decision.reasonCodes.includes('project-state-closure-readiness-follow-up')
     || decision.reasonCodes.includes('project-state-same-her-continuity-required')
+}
+
+function preparedExecutionHasExplicitProjectStateTimeoutIntent(preparedExecution: PreparedMainChatExecution) {
+  const governance = preparedExecution.governance as AlicizationProjectStateGovernanceShape | null | undefined
+  const contract = (preparedExecution as PreparedMainChatExecution & {
+    mindTurnContract?: (AlicizationProjectStateGovernanceShape & {
+      answerIntent?: string | null
+    }) | null
+  }).mindTurnContract
+  const normalizedContract = contract as (AlicizationProjectStateGovernanceShape & {
+    answerIntent?: string | null
+  }) | null | undefined
+  if (governance?.answerSubject === 'project-state' || normalizedContract?.answerSubject === 'project-state')
+    return true
+
+  const answerIntent = sanitizeText(normalizedContract?.answerIntent, '').toLowerCase()
+  return Boolean(
+    answerIntent
+    && (
+      answerIntent.includes('project-state')
+      || answerIntent.includes('项目状态')
+      || answerIntent.includes('current phase 1 continuity work has landed')
+    ),
+  )
+}
+
+function shouldUseProjectStateTimeoutRecovery(input: {
+  toolingRequired: boolean
+  timeoutActiveDialogueDecision: AlicizationActiveDialogueFastPathDecision | null
+  timeoutProjectStateQuestionDetected: boolean
+  preparedExecution: PreparedMainChatExecution
+}) {
+  if (input.toolingRequired)
+    return false
+
+  return shouldUpgradeDeferredDecisionToProjectState(input.timeoutActiveDialogueDecision)
+    || input.timeoutProjectStateQuestionDetected
+    || preparedExecutionHasExplicitProjectStateTimeoutIntent(input.preparedExecution)
 }
 
 function preferRicherProjectStateAuditText(input: {
@@ -794,11 +839,11 @@ function looksLikeResumeConfirmationBoundaryHoldDetail(value: string | null | un
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'Recognize the remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
+  return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal-structured'
 }
 
 function resolveRememberedSeamMoreRoomOpeningGuidance() {
-  return 'Recognize the same remembered seam, but keep more room this time because it reopened too eagerly before.'
+  return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal-structured'
 }
 
 function resolveTurnRememberedSeamMoreRoomOpeningGuidance(input: {
@@ -1333,9 +1378,9 @@ function buildPreparedRuntimeDigestFallback(prepared: AlicizationPreparedMainCha
     ) || null
     if (!candidate)
       return null
-    if (/same digital life/i.test(candidate) && /same still-open closure work/i.test(candidate))
+    if (/memory_closure_context=phase1_open_loop/i.test(candidate))
       return candidate
-    return sanitizeText(`same digital life | same still-open closure work | ${candidate}`, '') || candidate
+    return sanitizeText(`memory_closure_context=phase1_open_loop; summary=${candidate}`, '') || candidate
   })()
   const projectStatePreflightSummary = sanitizeText(
     fresherRuntimeProjectState?.preflightSummary
@@ -1717,11 +1762,11 @@ function resolveStructuredPreDialogueAwarenessSummary(structured: Record<string,
 }
 
 function resolvePayloadPreDialogueAwarenessSummary(payload: AlicizationChatStartPayload) {
-  const companionHeadlineLine = sanitizeText(payload.preDialogueSendIdentity?.companionHeadlineLine, '')
+  const companionHeadlineLine = sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionHeadlineLine)
   if (companionHeadlineLine)
     return companionHeadlineLine
-  const awarenessLine = sanitizeText(payload.preDialogueSendIdentity?.awarenessLine, '')
-  const summaryLine = sanitizeText(payload.preDialogueSendIdentity?.summaryLine, '')
+  const awarenessLine = sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.awarenessLine)
+  const summaryLine = sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.summaryLine)
   if (awarenessLine) {
     if (
       looksLikeThinProjectAwarenessShell(awarenessLine)
@@ -1734,7 +1779,7 @@ function resolvePayloadPreDialogueAwarenessSummary(payload: AlicizationChatStart
 
     return awarenessLine
   }
-  const companionBriefingLine = sanitizeText(payload.preDialogueSendIdentity?.companionBriefingLine, '')
+  const companionBriefingLine = sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionBriefingLine)
   if (companionBriefingLine)
     return companionBriefingLine
   if (summaryLine && !looksLikeThinProjectAwarenessShell(summaryLine))
@@ -1743,7 +1788,7 @@ function resolvePayloadPreDialogueAwarenessSummary(payload: AlicizationChatStart
 }
 
 function resolvePayloadPreDialogueSummaryShell(payload: AlicizationChatStartPayload) {
-  const summaryLine = sanitizeText(payload.preDialogueSendIdentity?.summaryLine, '')
+  const summaryLine = sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.summaryLine)
   if (summaryLine)
     return summaryLine
   return null
@@ -1799,7 +1844,7 @@ function resolvePreferredHostVisibleProjectPreflightSummary(input: {
 }
 
 function resolvePayloadExplicitCompanionBriefingLine(payload: AlicizationChatStartPayload) {
-  const companionBriefingLine = sanitizeText(payload.preDialogueSendIdentity?.companionBriefingLine, '')
+  const companionBriefingLine = sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionBriefingLine)
   if (companionBriefingLine)
     return companionBriefingLine
   return null
@@ -1920,7 +1965,7 @@ function looksLikeGeneratedProjectAwarenessExpansion(text: string | null | undef
 }
 
 function looksLikeStrongSameHerCarryLine(text: string | null | undefined) {
-  return /holding together mainly through|one living her|one living digital life|one continuous her|same living line|face|motion|voice|lipsync|cross-modal|embodiment closure|generic assistant shell|generic project guidance|generic project shell|detached project narration|project-summary voice|generic task shell/iu.test(text ?? '')
+  return /continuity=embodiment|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|holding together mainly through|one living her|one living digital life|one continuous her|same living line|face|motion|voice|lipsync|cross-modal|embodiment closure|generic assistant shell|generic project guidance|generic project shell|detached project narration|project-summary voice|generic task shell/iu.test(text ?? '')
 }
 
 function promoteSameHerDriftRiskOverThinAwareness(input: {
@@ -1960,8 +2005,8 @@ function preferStrongerSameHerHeadlineOverAwareness(input: {
   awarenessLine?: string | null
   companionHeadlineLine?: string | null
 }) {
-  const awarenessLine = sanitizeText(input.awarenessLine ?? '', '') || null
-  const companionHeadlineLine = sanitizeText(input.companionHeadlineLine ?? '', '') || null
+  const awarenessLine = sanitizeProviderFacingRecoveryCarry(input.awarenessLine) || null
+  const companionHeadlineLine = sanitizeProviderFacingRecoveryCarry(input.companionHeadlineLine) || null
 
   if (!companionHeadlineLine)
     return awarenessLine
@@ -2016,7 +2061,7 @@ function resolveRawPreparedRuntimeExplicitCompanionHeadlineLine(
     rawRuntimeProjectState?.companionHeadlineLine,
     rawContractProjectState?.companionHeadlineLine,
   ]
-    .map(value => sanitizeText(value ?? '', '') || null)
+    .map(value => sanitizeProviderFacingRecoveryCarry(value) || null)
     .find((value): value is string => Boolean(value))
     ?? null
 }
@@ -2027,10 +2072,10 @@ function preferCompactRecoveryPayloadHeadlineOverFallback(input: {
   payloadCompanionBriefingLine?: string | null
   payloadCompanionHeadlineLine?: string | null
 }) {
-  const awarenessLine = sanitizeText(input.awarenessLine ?? '', '') || null
-  const payloadAwarenessLine = sanitizeText(input.payloadAwarenessLine ?? '', '') || null
-  const payloadCompanionBriefingLine = sanitizeText(input.payloadCompanionBriefingLine ?? '', '') || null
-  const payloadCompanionHeadlineLine = sanitizeText(input.payloadCompanionHeadlineLine ?? '', '') || null
+  const awarenessLine = sanitizeProviderFacingRecoveryCarry(input.awarenessLine) || null
+  const payloadAwarenessLine = sanitizeProviderFacingRecoveryCarry(input.payloadAwarenessLine) || null
+  const payloadCompanionBriefingLine = sanitizeProviderFacingRecoveryCarry(input.payloadCompanionBriefingLine) || null
+  const payloadCompanionHeadlineLine = sanitizeProviderFacingRecoveryCarry(input.payloadCompanionHeadlineLine) || null
 
   if (!payloadCompanionHeadlineLine || !looksLikeStrongSameHerCarryLine(payloadCompanionHeadlineLine))
     return awarenessLine
@@ -2239,9 +2284,9 @@ export async function runAlicizationMainChatBackground(
 ) {
   const payload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(input.payload)
   const rawPreDialogueSendIdentity = input.payload.preDialogueSendIdentity ?? null
-  const rawPayloadCompanionBriefingLine = sanitizeText(rawPreDialogueSendIdentity?.companionBriefingLine, '') || null
-  const rawPayloadCompanionHeadlineLine = sanitizeText(rawPreDialogueSendIdentity?.companionHeadlineLine, '') || null
-  const rawPayloadAwarenessLine = sanitizeText(rawPreDialogueSendIdentity?.awarenessLine, '') || null
+  const rawPayloadCompanionBriefingLine = sanitizeProviderFacingRecoveryCarry(rawPreDialogueSendIdentity?.companionBriefingLine) || null
+  const rawPayloadCompanionHeadlineLine = sanitizeProviderFacingRecoveryCarry(rawPreDialogueSendIdentity?.companionHeadlineLine) || null
+  const rawPayloadAwarenessLine = sanitizeProviderFacingRecoveryCarry(rawPreDialogueSendIdentity?.awarenessLine) || null
   const rawPayloadStatus = sanitizeText(rawPreDialogueSendIdentity?.status, '') || null
   const rawPayloadPreferredPreDialogueAwarenessSummary = resolvePayloadPreferredPreDialogueAwarenessCarry(input.payload)
   const resolveVerbatimPayloadProjectAwarenessLine = (options?: {
@@ -2995,7 +3040,7 @@ export async function runAlicizationMainChatBackground(
     const fresherPreparedRuntimeProjectState = resolveFresherPreparedRuntimeProjectState(prepared)
     const awarenessPreparedRuntimeProjectState = fresherPreparedRuntimeProjectState ?? preparedRuntimeProjectState
     const normalizedProjectState = normalizeStructuredProjectStatePayload(runtimeDigestProjectState ?? null)
-    const payloadPreflightSummary = sanitizeText(payload.preDialogueSendIdentity?.summaryLine, '') || null
+    const payloadPreflightSummary = sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.summaryLine) || null
     const runtimePreflightSummary = sanitizeText(runtimeDigestProjectState?.preflightSummary ?? '', '') || null
     const preparedPreflightSummary = sanitizeText(
       fresherPreparedRuntimeProjectState?.preflightSummary
@@ -3004,9 +3049,9 @@ export async function runAlicizationMainChatBackground(
       '',
     ) || null
     const payloadPreDialogueAwarenessLine
-      = sanitizeText(payload.preDialogueSendIdentity?.companionHeadlineLine, '')
-        || sanitizeText(payload.preDialogueSendIdentity?.awarenessLine, '')
-        || sanitizeText(payload.preDialogueSendIdentity?.companionBriefingLine, '')
+      = sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionHeadlineLine)
+        || sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.awarenessLine)
+        || sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionBriefingLine)
         || null
     const runtimePreDialogueAwarenessLine = resolveProjectStateAwarenessField({
       runtimeDigestProjectState,
@@ -3112,7 +3157,7 @@ export async function runAlicizationMainChatBackground(
         ?? resolvePayloadExplicitCompanionBriefingLine(payload)
         ?? (sanitizeText(preparedRuntimeProjectState?.companionBriefingLine, '') || null)
     const summaryLine
-      = sanitizeText(payload.preDialogueSendIdentity?.summaryLine, '')
+      = sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.summaryLine)
         || sanitizeText(structuredProjectState?.preflightSummary ?? '', '')
         || preferredAwarenessLine
         || null
@@ -4136,13 +4181,13 @@ export async function runAlicizationMainChatBackground(
       : null
     const replyProjectStateAudit = reply.realization.projectStateAudit as AlicizationBackgroundProjectStateAudit | null | undefined
     const payloadAwarenessLine = rawPayloadAwarenessLine
-      || sanitizeText(payload.preDialogueSendIdentity?.awarenessLine, '')
+      || sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.awarenessLine)
       || null
     const payloadCompanionBriefingLine = rawPayloadCompanionBriefingLine
-      || sanitizeText(payload.preDialogueSendIdentity?.companionBriefingLine, '')
+      || sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionBriefingLine)
       || null
     const payloadCompanionHeadlineLine = rawPayloadCompanionHeadlineLine
-      || sanitizeText(payload.preDialogueSendIdentity?.companionHeadlineLine, '')
+      || sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionHeadlineLine)
       || null
     const isActiveDialogueCompactTimeoutRecovery
       = activeDialogueCompactTimeoutRecoveryContext
@@ -4495,11 +4540,7 @@ export async function runAlicizationMainChatBackground(
       }),
       candidate: sanitizeText((resolvedReplyProjectState as { sameHerSelfLine?: unknown } | null)?.sameHerSelfLine, ''),
     })) ?? null
-    const replyCritic = reply.realization.critic as ({
-      blockedReasons?: string[] | null
-      mustPreserve?: string[] | null
-      reasonCodes?: string[] | null
-    } & Record<string, unknown>) | null
+    const replyCritic = reply.realization.critic
     const mergedVisibleReplyRealization = {
       ...existingVisibleReplyRealization,
       ...reply.realization,
@@ -4520,15 +4561,18 @@ export async function runAlicizationMainChatBackground(
       critic: replyCritic
         ? {
             ...replyCritic,
-            blockedReasons: Array.isArray(replyCritic.blockedReasons)
-              ? [...replyCritic.blockedReasons]
-              : [],
-            mustPreserve: Array.isArray(replyCritic.mustPreserve)
-              ? [...replyCritic.mustPreserve]
-              : [],
             reasonCodes: Array.isArray(replyCritic.reasonCodes)
               ? [...replyCritic.reasonCodes]
               : [],
+            repairReasonCodes: Array.isArray(replyCritic.repairReasonCodes)
+              ? [...replyCritic.repairReasonCodes]
+              : [],
+            mustDropCount: typeof replyCritic.mustDropCount === 'number'
+              ? replyCritic.mustDropCount
+              : 0,
+            mustPreserveCount: typeof replyCritic.mustPreserveCount === 'number'
+              ? replyCritic.mustPreserveCount
+              : 0,
           }
         : null,
       closure: reply.realization.closure
@@ -4831,7 +4875,7 @@ export async function runAlicizationMainChatBackground(
           candidate:
               auditAwarenessLine
               || payloadProjectAwarenessSummary
-              || sanitizeText(payload.preDialogueSendIdentity?.summaryLine ?? '', '')
+              || sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.summaryLine)
               || null,
         }) || currentTopLevelAwarenessSummary
         : preferExplicitProjectAwarenessOverCanonicalReanchor({
@@ -4848,7 +4892,7 @@ export async function runAlicizationMainChatBackground(
         || sanitizeText(preparedRuntimeProjectState?.companionBriefingLine ?? '', '')
         || sanitizeText(preDialogueAwareness?.companionBriefingLine ?? '', '')
         || sanitizeText(preDialogueClosure?.companionBriefingLine ?? '', '')
-        || sanitizeText(payload.preDialogueSendIdentity?.companionBriefingLine ?? '', '')
+        || sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionBriefingLine)
         || null
     const currentCompanionHeadlineLine
       = preferExplicitProjectAwarenessOverCanonicalReanchor({
@@ -4856,7 +4900,7 @@ export async function runAlicizationMainChatBackground(
             sanitizeText(runtimeDigestProjectState?.companionHeadlineLine ?? '', '')
             || sanitizeText(preparedRuntimeProjectState?.companionHeadlineLine ?? '', '')
             || sanitizeText(projectState?.companionHeadlineLine ?? '', '')
-            || sanitizeText(payload.preDialogueSendIdentity?.companionHeadlineLine ?? '', '')
+            || sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionHeadlineLine)
             || null,
         candidate:
             auditAwarenessLine
@@ -4896,22 +4940,22 @@ export async function runAlicizationMainChatBackground(
         preDialogueAwarenessLine:
             auditAwarenessLine
             || payloadProjectAwarenessSummary
-            || sanitizeText(payload.preDialogueSendIdentity?.awarenessLine ?? '', '')
+            || sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.awarenessLine)
             || currentCompanionBriefingLine
             || null,
         awarenessLine:
             auditAwarenessLine
             || payloadProjectAwarenessSummary
-            || sanitizeText(payload.preDialogueSendIdentity?.awarenessLine ?? '', '')
+            || sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.awarenessLine)
             || currentCompanionBriefingLine
             || null,
         companionHeadlineLine:
           currentCompanionHeadlineLine
-          || sanitizeText(payload.preDialogueSendIdentity?.companionHeadlineLine ?? '', '')
+          || sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionHeadlineLine)
           || null,
         companionBriefingLine:
           currentCompanionBriefingLine
-          || sanitizeText(payload.preDialogueSendIdentity?.companionBriefingLine ?? '', '')
+          || sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionBriefingLine)
           || null,
         preDialogueAwarenessSummary:
           auditAwarenessLine
@@ -4951,7 +4995,7 @@ export async function runAlicizationMainChatBackground(
       || authoritativeAwarenessLine
     const authoritativeCompanionBriefingLine
       = currentCompanionBriefingLine
-        || sanitizeText(payload.preDialogueSendIdentity?.companionBriefingLine ?? '', '')
+        || sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionBriefingLine)
         || null
     const authoritativeProjectStateAuditAwarenessSummary
       = explicitAuditAwarenessLine
@@ -5931,8 +5975,8 @@ export async function runAlicizationMainChatBackground(
       return {
         fullText: settledFullText || rewriteInput.fullText,
         visibleReplyExecution: settled.visibleReplyExecution,
-        critic: settled.realization.critic ?? null,
-        closure: settled.realization.closure ?? null,
+        critic: settled.closureResult.critic,
+        closure: settled.closureResult.closure,
         projectStateAudit: settled.realization.projectStateAudit ?? null,
       }
     }
@@ -5948,8 +5992,8 @@ export async function runAlicizationMainChatBackground(
         closureReasonCodes: closure?.reasonCodes ?? [],
         closureFinalCriticReasonCodes: closure?.finalCritic?.reasonCodes ?? [],
         closureFinalCriticRepairReasonCodes: closure?.finalCritic?.repairReasonCodes ?? [],
-        closureFinalCriticMustPreserve: closure?.finalCritic?.mustPreserve ?? [],
-        closureFinalCriticMustDrop: closure?.finalCritic?.mustDrop ?? [],
+        closureFinalCriticPreserveItemCount: closure?.finalCritic?.mustPreserve.length ?? 0,
+        closureFinalCriticDropItemCount: closure?.finalCritic?.mustDrop.length ?? 0,
         rewrittenReplyExcerpt: error instanceof AlicizationVisibleReplyClosureBlockedError
           ? error.debug?.rewrittenReplyExcerpt ?? null
           : null,
@@ -6692,8 +6736,8 @@ export async function runAlicizationMainChatBackground(
           const normalizedPayoffReply = normalizeRecoveredResolvedReplyAwareness(inlineExecutionPayoffReply)
           const shouldPreserveVerbatimPayloadAwarenessLine = Boolean(
             payload.preDialogueSendIdentity?.awarenessLine
-            && !sanitizeText(payload.preDialogueSendIdentity?.companionHeadlineLine ?? '', '')
-            && !sanitizeText(payload.preDialogueSendIdentity?.companionBriefingLine ?? '', '')
+            && !sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionHeadlineLine)
+            && !sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionBriefingLine)
             && looksLikeThinProjectAwarenessShell(payload.preDialogueSendIdentity?.summaryLine),
           )
           const payoffReply = shouldPreserveVerbatimPayloadAwarenessLine
@@ -7027,7 +7071,7 @@ export async function runAlicizationMainChatBackground(
     })
     const effectiveStreamFullText = sanitizeText(streamResult.fullText, '')
       || (
-        (streamResult.visibleReplyCritic || streamResult.visibleReplyClosure || streamResult.visibleReplyProjectStateAudit)
+        streamResult.visibleReplyProjectStateAudit
           ? sanitizeText(JSON.stringify({
               format: 'mind-turn-v1',
               thought: currentStructuredThought ?? '',
@@ -7301,12 +7345,12 @@ export async function runAlicizationMainChatBackground(
         projectStatePreDialogueAwarenessSummary: sanitizeText(carriedProjectStateAudit?.preDialogueAwarenessSummary, '')
           || resolvePreparedVisibleReplyProjectStateAuditSeed().projectStatePreDialogueAwarenessSummary,
         prepared,
-        critic: streamResult.visibleReplyCritic ?? buildAlicizationVisibleReplyCriticArtifact({
+        critic: buildAlicizationVisibleReplyCriticArtifact({
           fullText: shapedFullText,
           visibleReplyExecution: streamResult.visibleReplyExecution,
           prepared,
         }),
-        closure: streamResult.visibleReplyClosure ?? null,
+        closure: null,
       })
       finalizedResolvedReply = resolvedReply
       try {
@@ -7669,7 +7713,9 @@ export async function runAlicizationMainChatBackground(
       await input.appendRuntimeDebugLine('chat-stream.completed-finish-payload-preview', {
         cardId: input.payload.cardId,
         turnId: input.payload.turnId,
-        finalHostVisiblePayload,
+        finalHostVisiblePayloadChars: finalHostVisiblePayload.length,
+        finalHostVisibleVisibleTextExcerpt: deriveAlicizationVisibleReplyText(finalHostVisiblePayload).slice(0, 240),
+        finalHostVisiblePayloadStructured: Boolean(parseJsonObjectFromText(finalHostVisiblePayload)),
       })
     }
     catch {}
@@ -7686,8 +7732,8 @@ export async function runAlicizationMainChatBackground(
             }
           : undefined),
       visibleReplyExecution: streamResult.visibleReplyExecution ?? currentVisibleReplyExecution ?? undefined,
-      visibleReplyCritic: streamResult.visibleReplyCritic ?? null,
-      visibleReplyClosure: streamResult.visibleReplyClosure ?? null,
+      visibleReplyCritic: null,
+      visibleReplyClosure: null,
     })
   }
   catch (error) {
@@ -7804,11 +7850,7 @@ export async function runAlicizationMainChatBackground(
           const text = sanitizeText(readTransportContentAsText(message.content), '')
           return /项目.*(什么|程度|进度|闭环|还差)|做到什么程度|还差什么/u.test(text)
         })
-        const timeoutPreparedProjectStateDetected = (
-          (preparedExecution.governance as AlicizationProjectStateGovernanceShape | null | undefined)?.answerSubject === 'project-state'
-          || preparedExecution.mindTurnContract?.projectState != null
-          || preparedExecution.mindTurnContract?.answerIntent?.includes('current Phase 1 continuity work has landed')
-        )
+        const timeoutPreparedProjectStateDetected = preparedExecutionHasExplicitProjectStateTimeoutIntent(preparedExecution)
         const timeoutActiveDialogueDecision = !toolingRequired
           ? deriveAlicizationActiveDialogueFastPathDecision({
               conversationMessages: recoveryConversationMessages,
@@ -7816,11 +7858,12 @@ export async function runAlicizationMainChatBackground(
               runtimeDigest: resolveRuntimeDigestFromPrepared(),
             })
           : null
-        const shouldUpgradeTimeoutRecoveryToProjectState = !toolingRequired && (
-          shouldUpgradeDeferredDecisionToProjectState(timeoutActiveDialogueDecision)
-          || timeoutProjectStateQuestionDetected
-          || timeoutPreparedProjectStateDetected
-        )
+        const shouldUpgradeTimeoutRecoveryToProjectState = shouldUseProjectStateTimeoutRecovery({
+          toolingRequired,
+          timeoutActiveDialogueDecision,
+          timeoutProjectStateQuestionDetected,
+          preparedExecution,
+        })
         if (shouldUpgradeTimeoutRecoveryToProjectState) {
           const preparedExecutionGovernance = preparedExecution.governance as AlicizationProjectStateGovernanceShape | null | undefined
           const upgradedGovernance = enrichProjectStateAnswerGovernanceIfNeeded({
@@ -7907,16 +7950,19 @@ export async function runAlicizationMainChatBackground(
             }),
           })
         }
+        const recoveryMessages = shouldUpgradeTimeoutRecoveryToProjectState
+          ? ensureTimeoutRecoveryCarriesCanonicalProjectState(recoveryInput.messages)
+          : recoveryInput.messages
         const effectiveRecoveryInput = timeoutRecoveryMode === 'tools-disabled'
           ? {
               ...recoveryInput,
-              messages: ensureTimeoutRecoveryCarriesCanonicalProjectState(recoveryInput.messages),
+              messages: recoveryMessages,
               tools: undefined,
               toolChoice: undefined,
             }
           : {
               ...recoveryInput,
-              messages: ensureTimeoutRecoveryCarriesCanonicalProjectState(recoveryInput.messages),
+              messages: recoveryMessages,
             }
         recoveryAttempts.push({
           mode: timeoutRecoveryMode === 'tools-disabled' ? 'tools-disabled' : 'non-streaming',
@@ -7938,12 +7984,15 @@ export async function runAlicizationMainChatBackground(
         if (!toolingRequired) {
           const minimalMessages = buildAlicizationMinimalContextRecoveryMessages(recoveryInput.messages)
           if (minimalMessages.length < recoveryInput.messages.length || recoveryInput.messages.length > 6) {
+            const recoveryMinimalMessages = shouldUpgradeTimeoutRecoveryToProjectState
+              ? ensureTimeoutRecoveryCarriesCanonicalProjectState(minimalMessages)
+              : minimalMessages
             recoveryAttempts.push({
               mode: 'minimal-context-non-streaming',
               input: {
                 ...recoveryInput,
                 emotionalKernel: timeoutRecoveryEmotionalKernel,
-                messages: ensureTimeoutRecoveryCarriesCanonicalProjectState(minimalMessages),
+                messages: recoveryMinimalMessages,
                 tools: undefined,
                 toolChoice: undefined,
                 timeoutMs: Math.max(
@@ -8071,7 +8120,7 @@ export async function runAlicizationMainChatBackground(
             const recoveredAuthorityOnlyProjectAwarenessSummary
               = Boolean(timeoutActiveDialogueDecision)
                 && !groundedPayloadProjectAwarenessSummary
-                && !sanitizeText(payload.preDialogueSendIdentity?.companionHeadlineLine, '')
+                && !sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionHeadlineLine)
                 && !recoveredPreparedRuntimeExplicitCompanionHeadlineLine
                 ? synthesizeAuthorityOnlyEmbodimentCompanionHeadline({
                     authoritySummary: sanitizeText(recoveredPreparedEmbodimentClosureAuthority.authoritySummary ?? '', '') || null,
@@ -8134,13 +8183,11 @@ export async function runAlicizationMainChatBackground(
                       )
                       ?? null,
                     companionHeadlineLine:
-                      sanitizeText(payload.preDialogueSendIdentity?.companionHeadlineLine, '')
+                      sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionHeadlineLine)
                       || recoveredAuthorityOnlyProjectAwarenessSummary
                       || null,
                   }),
               prepared: preparedExecution,
-              critic: recoveredReply.realization.critic ?? null,
-              closure: recoveredReply.realization.closure ?? null,
             })
             const enrichedRecoveredReplyProjectStateAudit = enrichedRecoveredReply.realization.projectStateAudit as AlicizationBackgroundProjectStateAudit | null | undefined
             const enrichedRecoveredReplyWithAudit = buildAlicizationResolvedVisibleReply({
@@ -8198,13 +8245,11 @@ export async function runAlicizationMainChatBackground(
                       )
                       ?? null,
                     companionHeadlineLine:
-                      sanitizeText(payload.preDialogueSendIdentity?.companionHeadlineLine, '')
+                      sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionHeadlineLine)
                       || recoveredAuthorityOnlyProjectAwarenessSummary
                       || null,
                   }),
               prepared: preparedExecution,
-              critic: enrichedRecoveredReply.realization.critic ?? null,
-              closure: enrichedRecoveredReply.realization.closure ?? null,
             })
             let rewrittenRecovered = null
             if (shouldAttemptRecoveredReplySecondPass({
@@ -8305,7 +8350,7 @@ export async function runAlicizationMainChatBackground(
                                   ?? resolveStructuredPreDialogueAwarenessSummary(parseJsonObjectFromText(rewrittenRecovered.fullText))
                                   ?? null,
                             companionHeadlineLine:
-                                sanitizeText(payload.preDialogueSendIdentity?.companionHeadlineLine, '')
+                                sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionHeadlineLine)
                                 || recoveredAuthorityOnlyProjectAwarenessSummary
                                 || null,
                           })
@@ -8462,6 +8507,8 @@ export async function runAlicizationMainChatBackground(
             finishPayload.visibleReplyRealization
             ?? latestResolvedVisibleReply?.realization
             ?? undefined,
+          visibleReplyCritic: null,
+          visibleReplyClosure: null,
         })
       },
       appendRuntimeDebugLine: input.appendRuntimeDebugLine,

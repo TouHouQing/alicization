@@ -170,28 +170,29 @@ describe('main chat execution surface', () => {
     })
 
     const projectBriefingBlock = blocks[0] ?? ''
-    expect(projectBriefingBlock).toContain('[ALICIZATION_PROJECT_BRIEFING]')
-    expect(projectBriefingBlock).toContain('Before answering execution capability or routing questions, keep this project-state briefing explicit.')
-    expect(projectBriefingBlock).toContain('project_identity=')
-    expect(projectBriefingBlock).toContain('project_phase=')
+    expect(projectBriefingBlock).toContain('[ALICIZATION_EXECUTION_BRIEFING]')
+    expect(projectBriefingBlock).toContain('briefing_scope=execution_capability | visibility=internal-structured | owner=execution-runtime-context')
+    expect(projectBriefingBlock).toContain('runtime_context=alicization_phase1')
+    expect(projectBriefingBlock).not.toContain('Before answering execution capability')
+    expect(projectBriefingBlock).not.toContain('project_identity=')
+    expect(projectBriefingBlock).not.toContain('project_phase=')
     expect(projectBriefingBlock).toContain('latest_landed_progress=')
     expect(projectBriefingBlock).toContain('primary_open_loop=')
     expect(projectBriefingBlock).toContain('next_closure_target=')
-    expect(projectBriefingBlock).toContain('same_her_line=')
-    expect(projectBriefingBlock).toContain('same_her_hold=')
-    expect(projectBriefingBlock).toContain('same_her_drift_risk=')
-    expect(projectBriefingBlock).toContain('project_continuity_arc_stage=')
-    expect(projectBriefingBlock).toContain('project_continuity=')
-    expect(projectBriefingBlock).toContain('project_awareness=')
-    expect(projectBriefingBlock).toContain('project_identity=Alicization is a local-first digital life project building one continuous "her" on the host computer.')
-    expect(projectBriefingBlock).toContain('project_phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
+    expect(projectBriefingBlock).not.toContain('same_her_line=')
+    expect(projectBriefingBlock).not.toContain('same_her_hold=')
+    expect(projectBriefingBlock).not.toContain('same_her_drift_risk=')
+    expect(projectBriefingBlock).toContain('execution_continuity_arc_stage=')
+    expect(projectBriefingBlock).toContain('execution_continuity=')
+    expect(projectBriefingBlock).toContain('template_awareness=withheld_from_execution_capability_answer')
     expect(projectBriefingBlock).toContain('latest_landed_progress=Same-session mirror carry and measured-return continuity now survive longer noisy detours.')
     expect(projectBriefingBlock).toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.')
-    expect(projectBriefingBlock).toContain('same_her_hold=same-her hold: execution should keep this same project line inward before widening outward.')
-    expect(projectBriefingBlock).toContain('project_continuity_arc_stage=same-thread-continuation')
-    expect(projectBriefingBlock).toContain('project_continuity=same living line: execution should keep carrying this same Phase 1 digital life before widening outward.')
-    expect(projectBriefingBlock).toContain('project_awareness=Before answering, remember: this is still the same digital life project.')
-    expect(projectBriefingBlock).toContain('Execution guidance must stay inside the same digital life project')
+    expect(projectBriefingBlock).toContain('execution_continuity_arc_stage=same-thread-continuation')
+    expect(projectBriefingBlock).toContain('execution_continuity=execution should keep first-person project continuity active before widening outward.')
+    expect(projectBriefingBlock).not.toContain('same-her hold: execution should keep this same project line inward before widening outward.')
+    expect(projectBriefingBlock).not.toContain('same living line: execution should keep carrying this same Phase 1 digital life before widening outward.')
+    expect(projectBriefingBlock).not.toContain('Before answering, remember: this is still the same digital life project.')
+    expect(projectBriefingBlock).not.toContain('Execution guidance must stay inside the same digital life project')
   })
 
   it('keeps richer same-her execution awareness summary and cadence detail explicit in execution capability blocks instead of collapsing back to a thinner project shell', () => {
@@ -280,17 +281,21 @@ describe('main chat execution surface', () => {
     })
 
     const projectBriefingBlock = blocks[0] ?? ''
-    expect(projectBriefingBlock).toContain(`project_preflight=${richerProjectAwareSummary}`)
-    expect(projectBriefingBlock).toContain(`project_awareness=${richerProjectAwareSummary}`)
-    expect(projectBriefingBlock).toContain(`project_awareness_summary=${richerProjectAwareSummary}`)
-    expect(projectBriefingBlock).toContain('project_companion_briefing=Before answering, remember she is still inside Phase 1 and this execution turn must keep emotion, memory, initiative, and embodiment on the same living line.')
-    expect(projectBriefingBlock).toContain('project_emotional_closure=same-her execution seam: keep this execution turn low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.')
-    expect(projectBriefingBlock).toContain('project_continuity_preferred_timing=next-open-window')
-    expect(projectBriefingBlock).toContain('project_continuity_cadence=measured-return')
-    expect(projectBriefingBlock).toContain('project_pause_mode=longer')
-    expect(projectBriefingBlock).toContain('project_lipsync_mode=restrained')
-    expect(projectBriefingBlock).toContain('project_voice_mode=lower-pressure')
-    expect(projectBriefingBlock).toContain('project_pacing_mode=slower')
+    expect(projectBriefingBlock).not.toContain('project_preflight=')
+    expect(projectBriefingBlock).not.toContain('project_awareness=')
+    expect(projectBriefingBlock).not.toContain('project_awareness_summary=')
+    expect(projectBriefingBlock).not.toContain('project_companion_briefing=')
+    expect(projectBriefingBlock).not.toContain('project_emotional_closure=')
+    expect(projectBriefingBlock).toContain('execution_continuity_preferred_timing=next-open-window')
+    expect(projectBriefingBlock).toContain('execution_continuity_cadence=measured-return')
+    expect(projectBriefingBlock).toContain('execution_pause_mode=longer')
+    expect(projectBriefingBlock).toContain('execution_lipsync_mode=restrained')
+    expect(projectBriefingBlock).toContain('execution_voice_mode=lower-pressure')
+    expect(projectBriefingBlock).toContain('execution_pacing_mode=slower')
+    expect(projectBriefingBlock).toContain('template_awareness=withheld_from_execution_capability_answer')
+    expect(projectBriefingBlock).not.toContain(richerProjectAwareSummary)
+    expect(projectBriefingBlock).not.toContain('Before answering, remember she is still inside Phase 1')
+    expect(projectBriefingBlock).not.toContain('same-her execution seam:')
     expect(projectBriefingBlock).not.toContain('project_awareness=Before answering, keep the same digital life project in view.')
   })
 
@@ -370,12 +375,18 @@ describe('main chat execution surface', () => {
     })
 
     const projectBriefingBlock = blocks[0] ?? ''
-    expect(projectBriefingBlock).toContain('project_preflight=Same Phase 1 digital life. The callback return still belongs to one living her rather than a generic execution shell.')
-    expect(projectBriefingBlock).toContain('project_awareness=Before answering, remember this callback return still belongs to one living her.')
+    expect(projectBriefingBlock).not.toContain('project_preflight=')
+    expect(projectBriefingBlock).not.toContain('project_awareness=')
     expect(projectBriefingBlock).toContain('latest_landed_progress=Same-session mirror carry survives noisier execution detours.')
-    expect(projectBriefingBlock).toContain('primary_open_loop=Execution reopenings still need stronger same-her closure.')
-    expect(projectBriefingBlock).toContain('same_her_hold=same-her hold: keep execution on the same living line before widening outward.')
-    expect(projectBriefingBlock).toContain('project_continuity=same living line: execution should keep carrying this same Phase 1 digital life before widening outward.')
+    expect(projectBriefingBlock).not.toContain('primary_open_loop=[fixed-template-excluded]')
+    expect(projectBriefingBlock).not.toContain('same_her_line=')
+    expect(projectBriefingBlock).not.toContain('same_her_hold=')
+    expect(projectBriefingBlock).not.toContain('project_continuity=')
+    expect(projectBriefingBlock).toContain('template_awareness=withheld_from_execution_capability_answer')
+    expect(projectBriefingBlock).not.toContain('Same Phase 1 digital life. The callback return still belongs to one living her rather than a generic execution shell.')
+    expect(projectBriefingBlock).not.toContain('Before answering, remember this callback return still belongs to one living her.')
+    expect(projectBriefingBlock).not.toContain('same-her hold: keep execution on the same living line before widening outward.')
+    expect(projectBriefingBlock).not.toContain('same living line: execution should keep carrying this same Phase 1 digital life before widening outward.')
     expect(projectBriefingBlock).not.toContain('project_preflight=identity=Alicization | phase=Phase 1')
   })
 
@@ -457,9 +468,11 @@ describe('main chat execution surface', () => {
     })
 
     const projectBriefingBlock = blocks[0] ?? ''
-    expect(projectBriefingBlock).toContain(`project_preflight=${richerProjectAwarePreflight}`)
+    expect(projectBriefingBlock).not.toContain('project_preflight=')
     expect(projectBriefingBlock).not.toContain(`project_preflight=${thinnerSameHerBaseline}`)
-    expect(projectBriefingBlock).toContain(`project_awareness=${richerProjectAwarePreflight}`)
+    expect(projectBriefingBlock).not.toContain('project_awareness=')
+    expect(projectBriefingBlock).toContain('template_awareness=withheld_from_execution_capability_answer')
+    expect(projectBriefingBlock).not.toContain(richerProjectAwarePreflight)
   })
 
   it('builds execution routing guard with required tool names', () => {
@@ -2360,7 +2373,7 @@ describe('main chat execution surface', () => {
             projectBriefing: expect.objectContaining({
               identity: expect.stringContaining('local-first digital life project'),
               currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-              sameHerSelfLine: expect.stringContaining('Same Phase 1 digital life'),
+              sameHerSelfLine: expect.stringContaining('phase1_local_digital_life_anchor'),
             }),
             recentActions: [{
               kind: 'sensory',
@@ -2394,7 +2407,7 @@ describe('main chat execution surface', () => {
             projectBriefing: expect.objectContaining({
               identity: expect.stringContaining('local-first digital life project'),
               currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-              sameHerSelfLine: expect.stringContaining('Same Phase 1 digital life'),
+              sameHerSelfLine: expect.stringContaining('phase1_local_digital_life_anchor'),
             }),
             recentActions: [{
               kind: 'sensory',

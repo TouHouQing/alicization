@@ -1,7 +1,12 @@
 import type { AlicizationCurrentConsciousFrameSnapshot, AlicizationMindTurnGovernance, AlicizationRuntimeProjectStateDigest } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
-import { isAlicizationThinProjectAwarenessLine } from '@proj-alicization/stage-shared'
+import {
+  alicizationFixedTemplateReplacement,
+  containsAlicizationFixedTemplateResidue,
+  isAlicizationThinProjectAwarenessLine,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
 
 import {
   compactProjectLatestProgressForSystemBlock,
@@ -17,19 +22,79 @@ export interface RuntimeAnswerPlannerReducerInput {
 }
 
 function preferProjectStateLine(primary: unknown, fallback: unknown) {
-  const primaryText = String(primary ?? '').trim()
-  const fallbackText = String(fallback ?? '').trim()
+  const primaryText = sanitizeRuntimeAnswerPlannerText(primary, 12000)
+  const fallbackText = sanitizeRuntimeAnswerPlannerText(fallback, 12000)
   if (!primaryText)
     return fallbackText
   if (!fallbackText)
     return primaryText
-  const primaryLooksEmbodied = /holding together mainly through|voice|face|motion|lipsync|cross-modal|one living digital life|same living line/u.test(primaryText.toLowerCase())
+  const primaryLooksEmbodied = /holding together mainly through|voice|face|motion|lipsync|cross-modal|embodiment_continuity|cross_modal/u.test(primaryText.toLowerCase())
   const fallbackLooksCanonicalExpansion = /local-first digital life project building one continuous|still-open closure is|same phase 1 digital life\. some closure already/u.test(fallbackText.toLowerCase())
   if (primaryLooksEmbodied && fallbackLooksCanonicalExpansion)
     return primaryText
   if (fallbackText.startsWith(primaryText) && fallbackText.length > primaryText.length)
     return fallbackText
   return primaryText
+}
+
+function sanitizeRuntimeAnswerPlannerText(raw: unknown, maxChars = 360) {
+  const sanitized = sanitizeAlicizationProviderFacingText(raw, maxChars, '')
+  if (sanitized)
+    return sanitized
+
+  const normalized = String(raw ?? '').trim()
+  if (!normalized)
+    return ''
+
+  const replacementCheck = sanitizeAlicizationProviderFacingText(normalized, maxChars, alicizationFixedTemplateReplacement)
+  if (replacementCheck !== alicizationFixedTemplateReplacement)
+    return ''
+
+  if (/local-first digital life project|phase\s*1|same[- ]her|same living line|one continuous her|同一个她|同一个\s*her|数字生命主线/u.test(normalized)) {
+    return [
+      'local_desktop_life_loop',
+      'visibility=internal-structured',
+      'content=excluded',
+      'reason=continuity-residue',
+    ].join('; ')
+  }
+
+  return alicizationFixedTemplateReplacement
+}
+
+function sanitizeRuntimeAnswerPlannerRule(raw: unknown) {
+  const sanitized = sanitizeAlicizationProviderFacingText(raw, 360, '')
+  if (sanitized)
+    return sanitized
+  const normalized = String(raw ?? '').trim()
+  if (!normalized)
+    return ''
+  if (sanitizeAlicizationProviderFacingText(normalized, 360, alicizationFixedTemplateReplacement) === alicizationFixedTemplateReplacement)
+    return 'provider_instruction_status=withheld; reason=continuity-residue; visibility=internal-structured'
+  return ''
+}
+
+function sanitizeRuntimeAnswerPlannerRules(values: unknown[] | null | undefined) {
+  return (values ?? [])
+    .map(sanitizeRuntimeAnswerPlannerRule)
+    .filter(Boolean)
+}
+
+function sanitizeRuntimeAnswerPlannerMetaRules(values: unknown[] | null | undefined) {
+  return mergeUniqueRules(sanitizeRuntimeAnswerPlannerRules(values), values?.length ?? 16)
+}
+
+function sanitizeRuntimeAnswerPlannerProjectState<T extends Record<string, unknown> | null | undefined>(
+  projectState: T,
+) {
+  if (!projectState)
+    return projectState
+  return Object.fromEntries(
+    Object.entries(projectState).map(([key, value]) => [
+      key,
+      typeof value === 'string' ? sanitizeRuntimeAnswerPlannerText(value, 1600) : value,
+    ]),
+  ) as T
 }
 
 function isCanonicalProjectReminderLine(text: string | null | undefined) {
@@ -42,6 +107,8 @@ function isCanonicalProjectReminderLine(text: string | null | undefined) {
 function isStrongerSameHerHeadline(text: string | null | undefined) {
   const normalized = String(text ?? '').trim().toLowerCase()
   if (!normalized)
+    return false
+  if (containsAlicizationFixedTemplateResidue(text))
     return false
   const modalityCueCount = [
     'body',
@@ -93,7 +160,7 @@ function deriveSameHerEmotionalClosureCueFromGovernance(governance: AlicizationM
       || corpus.includes('reopen the same-her line from scratch')
   if (!hasLowPressureCarry || !hasAntiRestartCarry)
     return null
-  return 'closure cadence: keep the return low-pressure, leave more room, and do not reopen from scratch while continuity is still settling.'
+  return 'closure_policy=settling_cadence; reply_pressure=low; room=preserve; restart=avoid; visibility=internal-structured'
 }
 
 function normalizePreferredBlinkCadence(raw: unknown): AlicizationRuntimeProjectStateDigest['preferredBlinkCadence'] {
@@ -122,8 +189,11 @@ export function reduceRuntimeAnswerPlanner(input: RuntimeAnswerPlannerReducerInp
   const governance = input.governance ?? null
   if (!surface || !governance)
     return surface
-  const answerIntent = governance.answerIntent ?? governance.focusAnchor ?? governance.liveSurface ?? ''
-  const openingMove = governance.openingMove ?? answerIntent
+  const answerIntent = sanitizeRuntimeAnswerPlannerText(
+    governance.answerIntent ?? governance.focusAnchor ?? governance.liveSurface ?? '',
+    360,
+  )
+  const openingMove = sanitizeRuntimeAnswerPlannerText(governance.openingMove ?? answerIntent, 360)
   const canonicalProjectState = resolveAlicizationProjectStateBrief()
   const consciousProjectState = surface.dialogue?.currentConsciousFrame?.projectState ?? null
   const rawProjectState = surface.raw?.runtimeDigest?.projectState ?? null
@@ -251,18 +321,18 @@ export function reduceRuntimeAnswerPlanner(input: RuntimeAnswerPlannerReducerInp
     proactiveSameHerGap,
     nextClosureTarget,
   ]
-    .map(value => String(value ?? '').trim())
+    .map(value => sanitizeRuntimeAnswerPlannerText(value, 12000))
     .filter(Boolean)
     .join(' | ')
   const projectConstraintLine = primaryOpenLoop
-    ? `Keep the answer on the same digital-life closure seam: ${primaryOpenLoop}`
-    : 'Keep the answer on the same digital-life closure seam.'
+    ? `project_closure_constraint=open_loop; open=${primaryOpenLoop}`
+    : 'project_closure_constraint=local_desktop_life_loop'
   const emotionalClosureCue = [
     consciousProjectState?.emotionalClosureCue,
     governance.emotionalClosureCue,
     deriveSameHerEmotionalClosureCueFromGovernance(governance),
   ]
-    .map(value => String(value ?? '').trim())
+    .map(value => sanitizeRuntimeAnswerPlannerText(value, 360))
     .find(Boolean)
     ?? ''
   const emotionalClosureNarrativeTag = emotionalClosureCue
@@ -287,13 +357,13 @@ export function reduceRuntimeAnswerPlanner(input: RuntimeAnswerPlannerReducerInp
     || continuityTexts.includes('continue')
     || continuityTexts.includes('one continuous her')
     ? [
-        'Keep this on one continuous her line instead of restarting the relationship as a fresh opening.',
-        'Stay on the same thread before widening closeness or adding a new approach.',
+        'continuity_constraint=anti_restart; source=relationship_continuity; timing=before_widening',
+        'continuity_constraint=same_thread; widening=defer_until_natural_opening',
       ]
     : []
   const sameThreadAntiRestartMustNotDo = sameThreadAntiRestartMustDo.length
     ? [
-        'Do not rewrite the still-live line as a fresh opening or reintroduction.',
+        'continuity_avoid=reopen_as_fresh_introduction',
       ]
     : []
 
@@ -305,12 +375,12 @@ export function reduceRuntimeAnswerPlanner(input: RuntimeAnswerPlannerReducerInp
         ? {
             ...surface.raw.runtimeDigest,
             projectState: {
-              ...surface.raw.runtimeDigest.projectState,
-              preDialogueAwarenessLine: preferredPreparedAwarenessLine || (((surface.raw.runtimeDigest.projectState as { preDialogueAwarenessLine?: string | null } | null)?.preDialogueAwarenessLine) ?? null),
-              awarenessLine: preferredPreparedAwarenessLine || (((surface.raw.runtimeDigest.projectState as { awarenessLine?: string | null } | null)?.awarenessLine) ?? null),
-              preDialogueAwarenessSummary: preferredPreparedAwarenessLine || (((surface.raw.runtimeDigest.projectState as { preDialogueAwarenessSummary?: string | null } | null)?.preDialogueAwarenessSummary) ?? null),
-              companionHeadlineLine: companionHeadlineLine || (((surface.raw.runtimeDigest.projectState as { companionHeadlineLine?: string | null } | null)?.companionHeadlineLine) ?? null),
-              proactiveSameHerGap: proactiveSameHerGap || (((surface.raw.runtimeDigest.projectState as { proactiveSameHerGap?: string | null } | null)?.proactiveSameHerGap) ?? null),
+              ...sanitizeRuntimeAnswerPlannerProjectState(surface.raw.runtimeDigest.projectState),
+              preDialogueAwarenessLine: preferredPreparedAwarenessLine || sanitizeRuntimeAnswerPlannerText(((surface.raw.runtimeDigest.projectState as { preDialogueAwarenessLine?: string | null } | null)?.preDialogueAwarenessLine) ?? null, 1600) || null,
+              awarenessLine: preferredPreparedAwarenessLine || sanitizeRuntimeAnswerPlannerText(((surface.raw.runtimeDigest.projectState as { awarenessLine?: string | null } | null)?.awarenessLine) ?? null, 1600) || null,
+              preDialogueAwarenessSummary: preferredPreparedAwarenessLine || sanitizeRuntimeAnswerPlannerText(((surface.raw.runtimeDigest.projectState as { preDialogueAwarenessSummary?: string | null } | null)?.preDialogueAwarenessSummary) ?? null, 1600) || null,
+              companionHeadlineLine: companionHeadlineLine || sanitizeRuntimeAnswerPlannerText(((surface.raw.runtimeDigest.projectState as { companionHeadlineLine?: string | null } | null)?.companionHeadlineLine) ?? null, 1600) || null,
+              proactiveSameHerGap: proactiveSameHerGap || sanitizeRuntimeAnswerPlannerText(((surface.raw.runtimeDigest.projectState as { proactiveSameHerGap?: string | null } | null)?.proactiveSameHerGap) ?? null, 1600) || null,
               continuityPreferredTiming: continuityPreferredTiming || (((surface.raw.runtimeDigest.projectState as { continuityPreferredTiming?: string | null } | null)?.continuityPreferredTiming) ?? null),
               continuityCadence: continuityCadence || (((surface.raw.runtimeDigest.projectState as { continuityCadence?: string | null } | null)?.continuityCadence) ?? null),
               preferredBlinkCadence: preferredBlinkCadence || normalizePreferredBlinkCadence((surface.raw.runtimeDigest.projectState as AlicizationRuntimeProjectStateDigest | null)?.preferredBlinkCadence),
@@ -325,7 +395,7 @@ export function reduceRuntimeAnswerPlanner(input: RuntimeAnswerPlannerReducerInp
         ? {
             ...surface.dialogue.currentConsciousFrame,
             projectState: {
-              ...surface.dialogue.currentConsciousFrame?.projectState,
+              ...sanitizeRuntimeAnswerPlannerProjectState(surface.dialogue.currentConsciousFrame?.projectState),
               preDialogueAwarenessLine: preferredPreparedAwarenessLine || null,
               awarenessLine: preferredPreparedAwarenessLine || null,
               preDialogueAwarenessSummary: preferredPreparedAwarenessLine || null,
@@ -341,18 +411,22 @@ export function reduceRuntimeAnswerPlanner(input: RuntimeAnswerPlannerReducerInp
       replyDeliberation: surface.dialogue?.replyDeliberation
         ? {
             ...surface.dialogue.replyDeliberation,
+            openingBeat: sanitizeRuntimeAnswerPlannerText(surface.dialogue.replyDeliberation.openingBeat, 360),
+            whyThisReplyNow: sanitizeRuntimeAnswerPlannerText(surface.dialogue.replyDeliberation.whyThisReplyNow, 360),
+            whyNotOtherCandidates: sanitizeRuntimeAnswerPlannerMetaRules(surface.dialogue.replyDeliberation.whyNotOtherCandidates),
+            withheldImpulses: sanitizeRuntimeAnswerPlannerMetaRules(surface.dialogue.replyDeliberation.withheldImpulses),
             mustInclude: mergeUniqueRules([
-              ...(surface.dialogue.replyDeliberation?.mustInclude ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(surface.dialogue.replyDeliberation?.mustInclude),
               ...sameThreadAntiRestartMustDo,
-              ...(governance.mustDo ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(governance.mustDo),
             ], 10),
             mustAvoid: mergeUniqueRules([
-              ...(surface.dialogue.replyDeliberation?.mustAvoid ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(surface.dialogue.replyDeliberation?.mustAvoid),
               ...sameThreadAntiRestartMustNotDo,
-              ...(governance.mustNotDo ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(governance.mustNotDo),
             ], 10),
             narrative: mergeUniqueRules([
-              ...(surface.dialogue.replyDeliberation?.narrative ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(surface.dialogue.replyDeliberation?.narrative),
               'runtime-answer-planner',
               'project-state-answer-planner',
               emotionalClosureNarrativeTag,
@@ -370,11 +444,11 @@ export function reduceRuntimeAnswerPlanner(input: RuntimeAnswerPlannerReducerInp
             shouldSpeak: true,
             mustInclude: mergeUniqueRules([
               ...sameThreadAntiRestartMustDo,
-              ...(governance.mustDo ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(governance.mustDo),
             ], 10),
             mustAvoid: mergeUniqueRules([
               ...sameThreadAntiRestartMustNotDo,
-              ...(governance.mustNotDo ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(governance.mustNotDo),
             ], 10),
             confidence: 0.72,
             narrative: mergeUniqueRules([
@@ -387,20 +461,23 @@ export function reduceRuntimeAnswerPlanner(input: RuntimeAnswerPlannerReducerInp
       answerPlanner: surface.dialogue?.answerPlanner
         ? {
             ...surface.dialogue.answerPlanner,
-            governingProject: surface.dialogue.answerPlanner?.governingProject ?? (governingProject || null),
+            governingFocus: sanitizeRuntimeAnswerPlannerText(surface.dialogue.answerPlanner.governingFocus, 360),
+            governingProject: sanitizeRuntimeAnswerPlannerText(surface.dialogue.answerPlanner?.governingProject, 12000) || governingProject || null,
+            openingMove: sanitizeRuntimeAnswerPlannerText(surface.dialogue.answerPlanner.openingMove, 360),
+            answerIntent: sanitizeRuntimeAnswerPlannerText(surface.dialogue.answerPlanner.answerIntent, 360),
             mustDo: mergeUniqueRules([
-              ...(surface.dialogue.answerPlanner?.mustDo ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(surface.dialogue.answerPlanner?.mustDo),
               projectConstraintLine,
               ...sameThreadAntiRestartMustDo,
-              ...(governance.mustDo ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(governance.mustDo),
             ], 10),
             mustNotDo: mergeUniqueRules([
-              ...(surface.dialogue.answerPlanner?.mustNotDo ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(surface.dialogue.answerPlanner?.mustNotDo),
               ...sameThreadAntiRestartMustNotDo,
-              ...(governance.mustNotDo ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(governance.mustNotDo),
             ], 10),
             narrative: mergeUniqueRules([
-              ...(surface.dialogue.answerPlanner?.narrative ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(surface.dialogue.answerPlanner?.narrative),
               'runtime-answer-planner',
               'project-state-answer-planner',
               emotionalClosureNarrativeTag,
@@ -429,11 +506,11 @@ export function reduceRuntimeAnswerPlanner(input: RuntimeAnswerPlannerReducerInp
             mustDo: mergeUniqueRules([
               projectConstraintLine,
               ...sameThreadAntiRestartMustDo,
-              ...(governance.mustDo ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(governance.mustDo),
             ], 10),
             mustNotDo: mergeUniqueRules([
               ...sameThreadAntiRestartMustNotDo,
-              ...(governance.mustNotDo ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(governance.mustNotDo),
             ], 10),
             narrative: mergeUniqueRules([
               'runtime-answer-planner',
@@ -445,17 +522,20 @@ export function reduceRuntimeAnswerPlanner(input: RuntimeAnswerPlannerReducerInp
       dialogueActKernel: surface.dialogue?.dialogueActKernel
         ? {
             ...surface.dialogue.dialogueActKernel,
+            openingClaim: sanitizeRuntimeAnswerPlannerText(surface.dialogue.dialogueActKernel.openingClaim, 360),
+            openingMove: sanitizeRuntimeAnswerPlannerText(surface.dialogue.dialogueActKernel.openingMove, 360),
+            whyNow: sanitizeRuntimeAnswerPlannerText(surface.dialogue.dialogueActKernel.whyNow, 360),
             mustSay: mergeUniqueRules([
-              ...(surface.dialogue.dialogueActKernel?.mustSay ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(surface.dialogue.dialogueActKernel?.mustSay),
               answerIntent,
-              ...(governance.mustDo ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(governance.mustDo),
             ], 8),
             mustAvoid: mergeUniqueRules([
-              ...(surface.dialogue.dialogueActKernel?.mustAvoid ?? []),
-              ...(governance.mustNotDo ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(surface.dialogue.dialogueActKernel?.mustAvoid),
+              ...sanitizeRuntimeAnswerPlannerRules(governance.mustNotDo),
             ], 8),
             sourceTrace: mergeUniqueRules([
-              ...(surface.dialogue.dialogueActKernel?.sourceTrace ?? []),
+              ...sanitizeRuntimeAnswerPlannerRules(surface.dialogue.dialogueActKernel?.sourceTrace),
               'runtime-answer-planner',
             ], 8),
           }
@@ -473,8 +553,8 @@ export function reduceRuntimeAnswerPlanner(input: RuntimeAnswerPlannerReducerInp
             openingClaim: mergeGuidanceLine([governance.focusAnchor ?? null, governance.liveSurface ?? null], 220) || answerIntent,
             openingMove,
             whyNow: answerIntent,
-            mustSay: mergeUniqueRules([answerIntent, ...(governance.mustDo ?? [])], 8),
-            mustAvoid: mergeUniqueRules(governance.mustNotDo ?? [], 8),
+            mustSay: mergeUniqueRules([answerIntent, ...sanitizeRuntimeAnswerPlannerRules(governance.mustDo)], 8),
+            mustAvoid: mergeUniqueRules(sanitizeRuntimeAnswerPlannerRules(governance.mustNotDo), 8),
             sourceTrace: ['runtime-answer-planner'],
             confidence: 0.72,
             updatedAt: input.now,

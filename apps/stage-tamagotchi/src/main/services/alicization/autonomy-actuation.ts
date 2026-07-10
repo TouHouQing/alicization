@@ -9,6 +9,8 @@ import type { AlicizationDigitalLifeSpineSnapshot } from './digital-life-spine'
 import type { AlicizationGovernedTaskThreadPlanningResult } from './task-execution-governor'
 import type { AlicizationDispatchTaskThreadRuntimeInput } from './task-thread-dispatcher'
 
+import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
+
 import { deriveExecutionInteractionLearningProfile } from './execution-interaction-learning'
 
 type AlicizationObserveDispatchChannel = 'codex' | 'claude-code'
@@ -137,6 +139,14 @@ function enrichAutonomyGoalSummary(input: {
       .join('; '),
     180,
   ) || goalSummary
+}
+
+function sanitizeAutonomyDispatchSummary(raw: unknown) {
+  return sanitizeAlicizationProviderFacingText(
+    raw,
+    180,
+    'structured_context=withheld_fixed_template_residue',
+  ) || 'structured_context=unavailable'
 }
 
 function deriveProactiveExecutionRiskBand(input: {
@@ -274,23 +284,15 @@ function buildReminderMessage(input: {
   }) || 'the held continuity line'
   const deferReason = sanitizeText(autonomy.deferReason, 80)
 
-  const tail = deferReason === 'busy-host'
-    ? 'Return when the host has more room.'
-    : deferReason === 'respect-boundary'
-      ? 'Return gently without crowding the host.'
-      : deferReason === 'corrected-same-person-settling'
-        ? 'Return after corrected same-person continuity feels steadier and embodiment quieter.'
-        : deferReason === 'quieter-embodiment-settling'
-          ? 'Return after embodiment quieter settling has had a little more room to land.'
-          : deferReason === 'rest-window'
-            ? 'Return after the rest window softens.'
-            : deferReason === 'needs-grounding'
-              ? 'Return after regrounding the scene.'
-              : deferReason === 'repair-incomplete'
-                ? 'Return after the truth line is steadier.'
-                : 'Return when the opening is riper.'
+  const normalizedDeferReason = deferReason || 'waiting-opening'
 
-  return sanitizeText(`Quietly come back to ${target}. ${tail}`, 220)
+  return sanitizeText([
+    'autonomy_revisit=deferred',
+    `target=${target}`,
+    `defer_reason=${normalizedDeferReason}`,
+    'status=awaiting_opening',
+    'visibility=internal-structured',
+  ].join('; '), 220)
 }
 
 export function deriveAutonomyRevisitReminder(input: {
@@ -543,50 +545,17 @@ export function deriveAutonomyExecutionProposalSurface(input: {
     320,
   )
 
-  const reply = (() => {
-    if (desktopFallback) {
-      return sanitizeText(
-        interactionLearning.proposalTone === 'direct'
-          ? channelLabel
-            ? `我想直接替你把「${goal}」这一步接过去，但这会直接碰到${channelLabel}。你点头，我就动。`
-            : `我想直接替你把「${goal}」这一步接过去，但这会直接碰到界面本身。你点头，我就动。`
-          : channelLabel
-            ? `我手里已经有一条能把「${goal}」接过去的线了，但这会直接碰到${channelLabel}。我先不越过你，你愿意我再动。`
-            : `我手里已经有一条能把「${goal}」接过去的线了，但这会直接碰到界面本身。我先不越过你，你愿意我再动。`,
-        180,
-      )
-    }
-    if (explicitConsent) {
-      return sanitizeText(
-        interactionLearning.proposalTone === 'cautious'
-          ? channelLabel
-            ? `我已经把「${goal}」压成一条更像改动而不是观察的线了。${carriesSameHerProjectClosureLine(autonomy?.whyNow) ? '这条线还是同一个 Phase 1 living line，我先不越过你。' : ''}你要是愿意，我就从${channelLabel}开始替你动手，做完把改动摊给你看。`
-            : `我已经把「${goal}」压成一条更像改动而不是观察的线了。${carriesSameHerProjectClosureLine(autonomy?.whyNow) ? '这条线还是同一个 Phase 1 living line，我先不越过你。' : ''}你要是愿意，我就开始替你动手，做完把改动摊给你看。`
-          : interactionLearning.proposalTone === 'direct'
-            ? channelLabel
-              ? `我想直接把「${goal}」动掉。你点头，我现在就从${channelLabel}开始做。`
-              : `我想直接把「${goal}」动掉。你点头，我现在就开始做。`
-            : channelLabel
-              ? `我已经把「${goal}」压成一条可执行线了，下一步会真的在${channelLabel}动手。你要是愿意，我现在就做。`
-              : `我已经把「${goal}」压成一条可执行线了，下一步会真的动手。你要是愿意，我现在就做。`,
-        180,
-      )
-    }
-    return sanitizeText(
-      interactionLearning.proposalTone === 'cautious'
-        ? channelLabel
-          ? `我手里已经有一条能把「${goal}」往前推的线了，但我更想先等你点头，再从${channelLabel}动。`
-          : `我手里已经有一条能把「${goal}」往前推的线了，但我更想先等你点头再动。`
-        : interactionLearning.proposalTone === 'direct'
-          ? channelLabel
-            ? `我想直接把「${goal}」这条线接过去，从${channelLabel}开始做。你点头，我就现在动。`
-            : `我想直接把「${goal}」这条线接过去。你点头，我就现在动。`
-          : channelLabel
-            ? `我想顺手把「${goal}」这条线接过去，先从${channelLabel}动手。但这一步得你点头，我收到确认就做。`
-            : `我想顺手把「${goal}」这条线接过去。但这一步得你点头，我收到确认就做。`,
-      180,
-    )
-  })()
+  const confirmationGate = explicitConsent
+    ? 'explicit_consent'
+    : desktopFallback
+      ? 'desktop_fallback'
+      : 'affirmation'
+  const reply = sanitizeText([
+    `execution_proposal=${confirmationGate}`,
+    'status=awaiting_user_confirmation',
+    channelLabel ? `channel=${channelLabel}` : '',
+    `goal=${goal}`,
+  ].filter(Boolean).join('; '), 180)
 
   if (!reply)
     return null
@@ -614,10 +583,11 @@ export function buildAutonomousObserveDispatchInput(input: {
   workspaceRoot?: string
   runtimeContext?: AlicizationExecutionRuntimeContext | null
 }): AlicizationDispatchTaskThreadRuntimeInput {
+  const taskContext = sanitizeAutonomyDispatchSummary(input.summary)
   const prompt = [
-    'Investigate the current Alicization continuity line without modifying files.',
+    'Investigate the current task context without modifying files.',
     `Goal: ${sanitizeText(input.task.goal, 220)}`,
-    `Continuity focus: ${sanitizeText(input.summary, 180)}`,
+    `Task context: ${taskContext}`,
     'Constraints:',
     '- Read-only investigation only.',
     '- Do not edit files, do not stage files, do not commit, and do not run destructive commands.',
@@ -663,10 +633,11 @@ export function buildAutonomousTaskDispatchInput(input: {
   if (input.task.kind !== 'codebase-edit')
     return buildAutonomousObserveDispatchInput(input)
 
+  const taskContext = sanitizeAutonomyDispatchSummary(input.summary)
   const prompt = [
-    'Continue the current Alicization task directly and make the smallest safe code change now.',
+    'Continue the current task directly and make the smallest safe code change now.',
     `Goal: ${sanitizeText(input.task.goal, 220)}`,
-    `Continuity focus: ${sanitizeText(input.summary, 180)}`,
+    `Task context: ${taskContext}`,
     'Constraints:',
     '- Keep the change narrow and reversible.',
     '- Do not run destructive commands.',

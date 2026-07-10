@@ -20,16 +20,16 @@ export interface PerformanceVisualizerRuntimeDiagnosticSummaryEntry {
     | 'authority-match'
     | 'embodiment-closure-stage'
     | 'authority-trust'
-    | 'same-her-signature'
-    | 'same-her-reasons'
-    | 'same-her-continuity'
+    | 'identity-continuity-signature'
+    | 'identity-continuity-reasons'
+    | 'identity-continuity-continuity'
     | 'memory-closure-identity'
-    | 'same-her-frame-summary'
-    | 'same-her-frame-aligned'
-    | 'same-her-frame-mismatch-drivers'
-    | 'same-her-execution-summary'
-    | 'same-her-execution-aligned'
-    | 'same-her-execution-mismatch-drivers'
+    | 'identity-continuity-frame-summary'
+    | 'identity-continuity-frame-aligned'
+    | 'identity-continuity-frame-mismatch-drivers'
+    | 'identity-continuity-execution-summary'
+    | 'identity-continuity-execution-aligned'
+    | 'identity-continuity-execution-mismatch-drivers'
     | 'execution-safety-gate'
     | 'prosody-authority'
     | 'authority-mismatch'
@@ -187,10 +187,10 @@ function formatAuthorityDriver(value: string) {
 function formatSameHerContinuityLaneTruth(value: string) {
   const normalizedLane = value.trim()
   if (normalizedLane === 'face+lipsync+voice-only') {
-    return '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线'
+    return '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线'
   }
   if (normalizedLane === 'motion+lipsync+voice-only') {
-    return '当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线'
+    return '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线'
   }
   return null
 }
@@ -480,7 +480,7 @@ function formatAuthorityLaneDisplay(
       normalizedHint.includes('较薄证据维持')
       || normalizedHint.includes('thin measured-return')
       || normalizedHint.includes('noisy-detour continuity line')
-      || normalizedHint.includes('thinner measured-return same-her line')
+      || normalizedHint.includes('thinner measured-return identity-continuity line')
     )
   ) {
     return '噪声 detour 后，这条 measured-return 连续身体线仍由较薄证据维持'
@@ -819,7 +819,7 @@ export function buildRuntimeAuthoritySummaryEntries(
   }
   if (hasValue(overview.sameHerSignature)) {
     pushSummaryEntry(entries, {
-      key: 'same-her-signature',
+      key: 'identity-continuity-signature',
       label: '同一人签名',
       value: overview.sameHerSignature!,
     })
@@ -835,7 +835,7 @@ export function buildRuntimeAuthoritySummaryEntries(
   const sameHerReasons = formatList(overview.sameHerReasonTags ?? undefined)
   if (sameHerReasons) {
     pushSummaryEntry(entries, {
-      key: 'same-her-reasons',
+      key: 'identity-continuity-reasons',
       label: '同一人线索',
       value: sameHerReasons,
     })
@@ -956,7 +956,7 @@ export function buildPlaybackCueAuthoritySummaryEntries(
   }
   if (hasValue((view as { signature?: string | null }).signature)) {
     pushSummaryEntry(entries, {
-      key: 'same-her-signature',
+      key: 'identity-continuity-signature',
       label: '同一人签名',
       value: (view as { signature?: string | null }).signature!,
     })
@@ -964,7 +964,7 @@ export function buildPlaybackCueAuthoritySummaryEntries(
   const sameHerReasons = formatList((view as { reasonTags?: string[] | null }).reasonTags ?? undefined)
   if (sameHerReasons) {
     pushSummaryEntry(entries, {
-      key: 'same-her-reasons',
+      key: 'identity-continuity-reasons',
       label: '同一人线索',
       value: sameHerReasons,
     })

@@ -633,8 +633,8 @@ export function buildSelfEvolutionRendererAuthorityProjection(input: {
     authority?.voiceSegmentMatched === true ? 'authority-voice:yes' : null,
     authorityLaneSummary,
     remainingOpenAuthoritySummary ? `remaining-open=${remainingOpenAuthoritySummary}` : null,
-    sameHerFrameAligned === true ? 'same-her-frame:aligned' : null,
-    sameHerExecutionAligned === true ? 'same-her-execution:aligned' : null,
+    sameHerFrameAligned === true ? 'identity-continuity-frame:aligned' : null,
+    sameHerExecutionAligned === true ? 'identity-continuity-execution:aligned' : null,
   ])
 
   const missingSignals = pushUnique([
@@ -669,13 +669,13 @@ export function buildSelfEvolutionRendererAuthorityProjection(input: {
     authority?.voiceSegmentMatched === false ? 'authority-voice:no' : null,
     ...(sameHerFrameAligned === false
       ? sameHerFrameMismatchDrivers.length > 0
-        ? sameHerFrameMismatchDrivers.map(driver => `same-her-frame:${driver}`)
-        : ['same-her-frame:drift']
+        ? sameHerFrameMismatchDrivers.map(driver => `identity-continuity-frame:${driver}`)
+        : ['identity-continuity-frame:drift']
       : []),
     ...(sameHerExecutionAligned === false
       ? sameHerExecutionMismatchDrivers.length > 0
-        ? sameHerExecutionMismatchDrivers.map(driver => `same-her-execution:${driver}`)
-        : ['same-her-execution:drift']
+        ? sameHerExecutionMismatchDrivers.map(driver => `identity-continuity-execution:${driver}`)
+        : ['identity-continuity-execution:drift']
       : []),
     rendererDriftSummary ? `renderer-drift:${rendererDriftSummary}` : null,
     sameHerFrameAligned === false && scopedSameHerFrameSummary ? `renderer-drift:${scopedSameHerFrameSummary}` : null,
@@ -726,16 +726,16 @@ export function buildSelfEvolutionRendererAuthorityProjection(input: {
         ? `Authority matching remains ${authorityMatchSummary} on ${rendererTarget}, which shows the bound renderer segment is the one the desktop runtime actually executed.`
         : null,
       bodyContinuityPhase === 'body-only-hold'
-        ? 'Body continuity is still the only lane carrying this same living segment, so the current embodiment should be read as one continuous her being held inward rather than as a renderer-neutral idle settle.'
+        ? 'Body continuity is still the only lane carrying this same living segment, so the current embodiment should be read as identity continuity being held inward rather than as a renderer-neutral idle settle.'
         : null,
       bodyContinuityPhase === 'body-carried-to-renderer-rejoin'
-        ? `Body continuity is still carrying the same living segment while ${formatRendererManifestationLabel(rendererTarget)} rejoins that exact line, so the visible renderer recovery is a same-her manifestation repair instead of a fresh shell takeover.`
+        ? `Body continuity is still carrying the same living segment while ${formatRendererManifestationLabel(rendererTarget)} rejoins that exact line, so the visible renderer recovery is a identity-continuity manifestation repair instead of a fresh shell takeover.`
         : null,
       bodyContinuityPhase === 'full-cross-modal-lock'
-        ? `Body continuity and ${formatRendererManifestationLabel(rendererTarget)} are now locked back onto the same living segment together, so voice, face, motion, and lipsync are re-forming one explicit same-her embodiment line instead of merely approximating it.`
+        ? `Body continuity and ${formatRendererManifestationLabel(rendererTarget)} are now locked back onto the same living segment together, so voice, face, motion, and lipsync are re-forming one explicit identity-continuity embodiment line instead of merely approximating it.`
         : null,
       bodyContinuityPhase === 'renderer-rejoin-without-body'
-        ? `Renderer lanes have rejoined on ${formatRendererManifestationLabel(rendererTarget)}, but the body line is no longer carrying that same living segment, so the visible recovery should still be treated as same-her drift risk rather than a completed embodiment repair.`
+        ? `Renderer lanes have rejoined on ${formatRendererManifestationLabel(rendererTarget)}, but the body line is no longer carrying that same living segment, so the visible recovery should still be treated as identity-continuity drift risk rather than a completed embodiment repair.`
         : null,
       companionshipReasonSummary
         ? `Companionship restraint is still carrying "${companionshipReasonSummary}", so renderer authority is preserving the same lower-pressure relationship line instead of flattening the body back into a generic technical settle.`
@@ -745,10 +745,10 @@ export function buildSelfEvolutionRendererAuthorityProjection(input: {
         ? `Renderer drift still shows ${rendererDriftSummary}, so the visible face is diverging after mind-to-render projection rather than before it.`
         : null,
       sameHerFrameAligned === false && scopedSameHerFrameSummary
-        ? `VRM same-her frame evidence reports ${scopedSameHerFrameSummary}, so self-evolution should treat this as an embodiment lane drift inside the same digital-life thread rather than a separate renderer personality.`
+        ? `VRM identity-continuity frame evidence reports ${scopedSameHerFrameSummary}, so self-evolution should treat this as an embodiment lane drift inside the same digital-life thread rather than a separate renderer personality.`
         : null,
       sameHerExecutionAligned === false && scopedSameHerExecutionSummary
-        ? `Live2D same-her execution evidence reports ${scopedSameHerExecutionSummary}, so self-evolution should treat this as an execution-lane drift inside the same digital-life thread rather than a separate Live2D shell personality.`
+        ? `Live2D identity-continuity execution evidence reports ${scopedSameHerExecutionSummary}, so self-evolution should treat this as an execution-lane drift inside the same digital-life thread rather than a separate Live2D shell personality.`
         : null,
       authorityMismatchDisplay,
     ]),

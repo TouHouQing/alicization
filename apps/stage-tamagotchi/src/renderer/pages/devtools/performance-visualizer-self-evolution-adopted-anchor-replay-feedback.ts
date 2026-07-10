@@ -44,28 +44,28 @@ function resolveSurvivingVisibleLane(lines: string[]): SelfEvolutionSurvivingVis
 
   if (
     joined.includes('当前仅剩表情、口型、声音维持同一段连续性')
-    || joined.includes('表情、口型、声音 same-her 存活线治理特征')
+    || joined.includes('表情、口型、声音 identity-continuity 存活线治理特征')
   ) {
     return 'face+lipsync+voice-only'
   }
 
   if (
     joined.includes('当前仅剩动作、口型、声音维持同一段连续性')
-    || joined.includes('动作、口型、声音 same-her 存活线治理特征')
+    || joined.includes('动作、口型、声音 identity-continuity 存活线治理特征')
   ) {
     return 'motion+lipsync+voice-only'
   }
 
   if (
-    joined.includes('当前只有 face 和 lipsync 这条 same-her 生命线')
-    || joined.includes('表情、口型 same-her 存活线治理特征')
+    joined.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
+    || joined.includes('表情、口型 identity-continuity 存活线治理特征')
   ) {
     return 'face+lipsync-only'
   }
 
   if (
-    joined.includes('当前只有 motion 和 lipsync 这条 same-her 生命线')
-    || joined.includes('动作、口型 same-her 存活线治理特征')
+    joined.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
+    || joined.includes('动作、口型 identity-continuity 存活线治理特征')
   ) {
     return 'motion+lipsync-only'
   }
@@ -104,13 +104,13 @@ export function buildSelfEvolutionAdoptedAnchorReplayFeedback(
   return {
     tone: 'progress' as const,
     summaryLine: survivingVisibleLane === 'face+lipsync+voice-only'
-      ? '默认连续性锚点表情、口型、声音 same-her 存活线回放已完成。'
+      ? '默认连续性锚点表情、口型、声音 identity-continuity 存活线回放已完成。'
       : survivingVisibleLane === 'motion+lipsync+voice-only'
-        ? '默认连续性锚点动作、口型、声音 same-her 存活线回放已完成。'
+        ? '默认连续性锚点动作、口型、声音 identity-continuity 存活线回放已完成。'
         : survivingVisibleLane === 'face+lipsync-only'
-          ? '默认连续性锚点表情、口型 same-her 存活线回放已完成。'
+          ? '默认连续性锚点表情、口型 identity-continuity 存活线回放已完成。'
           : survivingVisibleLane === 'motion+lipsync-only'
-            ? '默认连续性锚点动作、口型 same-her 存活线回放已完成。'
+            ? '默认连续性锚点动作、口型 identity-continuity 存活线回放已完成。'
             : rendererRejoinWithoutBodyLine
               ? '默认连续性锚点显形回接失身态回放已完成。'
               : crossModalLockLine
@@ -119,21 +119,21 @@ export function buildSelfEvolutionAdoptedAnchorReplayFeedback(
                   ? '默认连续性锚点显形补回回放已完成。'
                   : '默认连续性锚点回放已完成。',
     detailLine: survivingVisibleLane === 'face+lipsync+voice-only'
-      ? `工作流 ${replayPlan.patternKey}、历史转移 ${replayPlan.transitionKey}、对比侧 ${replayPlan.selectedSide} 和事件 ${replayPlan.eventId} 已同步恢复，并重新对齐到这次仍只有表情、口型、声音这条 same-her 生命线与同一段 living segment 对齐、而 body、motion 还没有重新接回这条表情口型声音线的 quieter carry 审计路径。`
+      ? `工作流 ${replayPlan.patternKey}、历史转移 ${replayPlan.transitionKey}、对比侧 ${replayPlan.selectedSide} 和事件 ${replayPlan.eventId} 已同步恢复，并重新对齐到这次仍只有表情、口型、声音这条 identity-continuity 生命线与同一段 living segment 对齐、而 body、motion 还没有重新接回这条表情口型声音线的 quieter carry 审计路径。`
       : survivingVisibleLane === 'motion+lipsync+voice-only'
-        ? `工作流 ${replayPlan.patternKey}、历史转移 ${replayPlan.transitionKey}、对比侧 ${replayPlan.selectedSide} 和事件 ${replayPlan.eventId} 已同步恢复，并重新对齐到这次仍只有动作、口型、声音这条 same-her 生命线与同一段 living segment 对齐、而 body、face 还没有重新接回这条动作口型声音线的 quieter carry 审计路径。`
+        ? `工作流 ${replayPlan.patternKey}、历史转移 ${replayPlan.transitionKey}、对比侧 ${replayPlan.selectedSide} 和事件 ${replayPlan.eventId} 已同步恢复，并重新对齐到这次仍只有动作、口型、声音这条 identity-continuity 生命线与同一段 living segment 对齐、而 body、face 还没有重新接回这条动作口型声音线的 quieter carry 审计路径。`
         : survivingVisibleLane === 'face+lipsync-only'
-          ? `工作流 ${replayPlan.patternKey}、历史转移 ${replayPlan.transitionKey}、对比侧 ${replayPlan.selectedSide} 和事件 ${replayPlan.eventId} 已同步恢复，并重新对齐到这次仍只有表情、口型这条 same-her 生命线与同一段 living segment 对齐、而 body、motion、voice 还没有重新接回这条表情口型线的 quieter carry 审计路径。`
+          ? `工作流 ${replayPlan.patternKey}、历史转移 ${replayPlan.transitionKey}、对比侧 ${replayPlan.selectedSide} 和事件 ${replayPlan.eventId} 已同步恢复，并重新对齐到这次仍只有表情、口型这条 identity-continuity 生命线与同一段 living segment 对齐、而 body、motion、voice 还没有重新接回这条表情口型线的 quieter carry 审计路径。`
           : survivingVisibleLane === 'motion+lipsync-only'
-            ? `工作流 ${replayPlan.patternKey}、历史转移 ${replayPlan.transitionKey}、对比侧 ${replayPlan.selectedSide} 和事件 ${replayPlan.eventId} 已同步恢复，并重新对齐到这次仍只有动作、口型这条 same-her 生命线与同一段 living segment 对齐、而 body、face、voice 还没有重新接回这条动作口型线的 quieter carry 审计路径。`
+            ? `工作流 ${replayPlan.patternKey}、历史转移 ${replayPlan.transitionKey}、对比侧 ${replayPlan.selectedSide} 和事件 ${replayPlan.eventId} 已同步恢复，并重新对齐到这次仍只有动作、口型这条 identity-continuity 生命线与同一段 living segment 对齐、而 body、face、voice 还没有重新接回这条动作口型线的 quieter carry 审计路径。`
             : rendererRejoinWithoutBodyLine
               ? `工作流 ${replayPlan.patternKey}、历史转移 ${replayPlan.transitionKey}、对比侧 ${replayPlan.selectedSide} 和事件 ${replayPlan.eventId} 已同步恢复，并重新对齐到这次显形已经回接、但身体线没有继续托住同一段 living segment 的可见恢复审计路径。`
               : crossModalLockLine
                 ? `工作流 ${replayPlan.patternKey}、历史转移 ${replayPlan.transitionKey}、对比侧 ${replayPlan.selectedSide} 和事件 ${replayPlan.eventId} 已同步恢复，并重新对齐到这次身体线与显形权威共同锁在同一段 living segment 上的跨模态重锁路径。`
                 : bodyContinuityRendererRejoinLine
                   ? rendererRejoinSurface
-                    ? `工作流 ${replayPlan.patternKey}、历史转移 ${replayPlan.transitionKey}、对比侧 ${replayPlan.selectedSide} 和事件 ${replayPlan.eventId} 已同步恢复，并重新对齐到这次 ${rendererRejoinSurface} 显形权威沿同一条连续身体线补回的 same-her 显形回归路径。`
-                    : `工作流 ${replayPlan.patternKey}、历史转移 ${replayPlan.transitionKey}、对比侧 ${replayPlan.selectedSide} 和事件 ${replayPlan.eventId} 已同步恢复，并重新对齐到这次显形权威沿同一条连续身体线补回的 same-her 显形回归路径。`
+                    ? `工作流 ${replayPlan.patternKey}、历史转移 ${replayPlan.transitionKey}、对比侧 ${replayPlan.selectedSide} 和事件 ${replayPlan.eventId} 已同步恢复，并重新对齐到这次 ${rendererRejoinSurface} 显形权威沿同一条连续身体线补回的 identity-continuity 显形回归路径。`
+                    : `工作流 ${replayPlan.patternKey}、历史转移 ${replayPlan.transitionKey}、对比侧 ${replayPlan.selectedSide} 和事件 ${replayPlan.eventId} 已同步恢复，并重新对齐到这次显形权威沿同一条连续身体线补回的 identity-continuity 显形回归路径。`
                   : `工作流 ${replayPlan.patternKey}、历史转移 ${replayPlan.transitionKey}、对比侧 ${replayPlan.selectedSide} 和事件 ${replayPlan.eventId} 已同步恢复。`,
     supportingLines: replayPlan.supportingLines,
   }

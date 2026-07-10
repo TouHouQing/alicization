@@ -14,6 +14,11 @@ import type {
   CommitAlicizationDigitalLifeMindStateInput,
 } from './digital-life-kernel'
 
+import {
+  alicizationFixedTemplateReplacement,
+  sanitizeAlicizationStructuredInternalText,
+} from '@proj-alicization/stage-shared'
+
 import { deriveAlicizationContinuityDeliberationFromSpine } from './continuity-deliberation'
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
 import {
@@ -26,6 +31,9 @@ import {
 import { buildAlicizationDigitalLifeMemoryDigest } from './digital-life-memory'
 import { buildMindEcology } from './mind-ecology'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
+
+const digitalLifeSpineTemplateExclusionLine
+  = 'relationship_continuity=present; source_template=excluded; visibility=internal-structured'
 
 export interface AlicizationDigitalLifeSpineSnapshot {
   version: 'digital-life-spine-v1'
@@ -58,7 +66,25 @@ export interface AlicizationCommittedDigitalLifeSpine {
 function sanitizeDigitalLifeSpineDigestText(raw: unknown, maxChars = 160) {
   if (typeof raw !== 'string')
     return ''
-  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  const sanitized = sanitizeAlicizationStructuredInternalText(normalized, maxChars, alicizationFixedTemplateReplacement)
+  if (!sanitized)
+    return ''
+  return sanitized === alicizationFixedTemplateReplacement
+    ? digitalLifeSpineTemplateExclusionLine
+    : sanitized
+}
+
+function isDigitalLifeSpineTemplateExclusionLine(raw: unknown) {
+  return raw === digitalLifeSpineTemplateExclusionLine
+}
+
+function isDigitalLifeSpineGenericTemplateCarryLine(raw: unknown) {
+  if (typeof raw !== 'string')
+    return false
+  return raw.includes('local_desktop_life_loop')
+    && raw.includes('landed_progress=present')
+    && raw.includes('unresolved_closure=continuity_line')
 }
 
 function looksLikeSceneContaminatedProjectSameHerLine(raw: unknown) {
@@ -68,10 +94,10 @@ function looksLikeSceneContaminatedProjectSameHerLine(raw: unknown) {
 
   const lowered = text.toLowerCase()
   const carriesProjectSameHerBaseline
-    = lowered.includes('same phase 1 digital life')
-      || lowered.includes('same living line')
+    = lowered.includes('phase 1 continuity')
+      || lowered.includes('continuity line')
       || lowered.includes('continuous her')
-      || lowered.includes('one continuous her')
+      || lowered.includes('identity continuity')
   const carriesForegroundSceneNarration
     = /宿主正在|宿主还在沿着|host is|host is still following|runtime\.ts|index\.ts|callback result seam|foreground|screen|window|scene|工作线程|work thread|trust seam/u.test(text)
 
@@ -188,7 +214,10 @@ function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntim
     320,
   ) || null
   const currentConsciousProjectState = surface.dialogue?.currentConsciousFrame?.projectState ?? null
-  const phaseLine = sanitizeDigitalLifeSpineDigestText(currentConsciousProjectState?.currentPhase ?? '', 80) || null
+  const rawPhaseLine = sanitizeDigitalLifeSpineDigestText(currentConsciousProjectState?.currentPhase ?? '', 80) || null
+  const phaseLine = rawPhaseLine && /phase\s*1\s*:\s*local digital life/iu.test(rawPhaseLine)
+    ? 'local_desktop_life_loop'
+    : rawPhaseLine
   const landedLine = sanitizeDigitalLifeSpineDigestText(
     currentConsciousProjectState?.latestLandedProgress
     ?? currentConsciousProjectState?.latestProgress
@@ -217,17 +246,17 @@ function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntim
     nextClosureLine,
   ].filter(Boolean).join(' | ').toLowerCase()
   const carriesPhase1SameHerClosure
-    = /phase 1|local digital life/u.test([
+    = /phase1_local_digital_life|phase 1|local digital life|local_desktop_life_loop/u.test([
       phaseLine,
       sameHerLine,
       openLoopLine,
       nextClosureLine,
     ].filter(Boolean).join(' | ').toLowerCase())
-    && /same living line|same-her|same her|continuous her|one continuous her/u.test(combinedCarry)
+    && /continuity line|continuity_line|identity-continuity|identity continuity|continuity_identity|continuous her|same living line|same-her|local_desktop_life_loop|project_state_continuity/u.test(combinedCarry)
     && /memory|initiative|embodiment|voice|face|motion|lipsync/u.test(combinedCarry)
   const projectClosureCarrySuffix = carriesPhase1SameHerClosure
     ? sanitizeDigitalLifeSpineDigestText([
-      phaseLine ? `phase=${phaseLine}` : 'phase=Phase 1: Local Digital Life',
+      phaseLine ? `phase=${phaseLine}` : 'phase=local_desktop_life_loop',
       landedLine ? `landed=${landedLine}` : '',
       openLoopLine ? `open=${openLoopLine}` : '',
       nextClosureLine ? `next=${nextClosureLine}` : '',
@@ -236,7 +265,7 @@ function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntim
   const openingGuidance = projectClosureCarrySuffix
     ? sanitizeDigitalLifeSpineDigestText([
       rawOpeningGuidance,
-      `Keep project identity, current Phase 1 progress, and the still-open same-her life-loop closure explicit while this turn forms.`,
+      `project_context=local_desktop_life_loop; continuity_evidence=present; source=project_state; visibility=internal-structured.`,
     ].filter(Boolean).join(' '), 220) || rawOpeningGuidance
     : rawOpeningGuidance
   const combinedProjectClosureWhySummary = projectClosureCarrySuffix
@@ -297,16 +326,16 @@ function buildPersonaManifestationCadenceSummary(input: {
 }
 
 function extractProjectContinuitySummary(surface: Partial<AlicizationDigitalLifeRuntimeSurface>) {
-  const personStateProjectionSummary = sanitizeDigitalLifeSpineDigestText(
-    surface.memory?.personStateProjection?.summary,
-    220,
-  )
-  if (!personStateProjectionSummary.includes('project_continuity='))
+  const rawSummary = surface.memory?.personStateProjection?.summary
+  if (typeof rawSummary !== 'string')
     return null
 
-  return personStateProjectionSummary
+  return rawSummary
+    .trim()
+    .replace(/\s+/g, ' ')
     .split('|')
     .map(part => sanitizeDigitalLifeSpineDigestText(part, 220))
+    .filter(part => !isDigitalLifeSpineTemplateExclusionLine(part))
     .find(part => part.startsWith('project_continuity=')) ?? null
 }
 
@@ -319,8 +348,13 @@ function extractProjectStateCarrySummary(surface: Partial<AlicizationDigitalLife
     return null
 
   const inwardLine = sanitizeDigitalLifeSpineDigestText(selfContinuityAuthority?.inwardLine ?? '', 220)
-  if (!inwardLine)
+  if (
+    !inwardLine
+    || isDigitalLifeSpineTemplateExclusionLine(inwardLine)
+    || isDigitalLifeSpineGenericTemplateCarryLine(inwardLine)
+  ) {
     return null
+  }
 
   return inwardLine
 }
@@ -330,13 +364,17 @@ function resolveRuntimeContinuityCue(input: {
   projectStateCarrySummary?: string | null
 }) {
   const projectContinuitySummary = sanitizeDigitalLifeSpineDigestText(input.projectContinuitySummary ?? '', 220)
-  const projectStateCarrySummary = sanitizeDigitalLifeSpineDigestText(input.projectStateCarrySummary ?? '', 220)
+  const rawProjectStateCarrySummary = sanitizeDigitalLifeSpineDigestText(input.projectStateCarrySummary ?? '', 220)
+  const projectStateCarrySummary = isDigitalLifeSpineTemplateExclusionLine(rawProjectStateCarrySummary)
+    || isDigitalLifeSpineGenericTemplateCarryLine(rawProjectStateCarrySummary)
+    ? ''
+    : rawProjectStateCarrySummary
 
   const callbackLikeContinuitySummary = /project_continuity=.*(?:callback|same-thread|same thread|same line|同一条线|沿着刚才那条线)/u
     .test(projectContinuitySummary)
   const callbackLikeCarrySummary = /callback|same-thread|same thread|same line|同一条线|沿着刚才那条线/u
     .test(projectStateCarrySummary)
-  const explicitSameHerCarrySummary = /same phase 1 digital life|same living line|same digital life|same-her|same her|continuous her|one continuous her|同一个她/iu
+  const explicitSameHerCarrySummary = /phase 1 continuity|continuity line|continuity_line|same digital life|identity-continuity|identity continuity|continuity_identity|continuous her|local_desktop_life_loop|project_state_continuity|连续性/iu
     .test(projectStateCarrySummary)
 
   if (callbackLikeContinuitySummary && explicitSameHerCarrySummary && !callbackLikeCarrySummary)
@@ -370,7 +408,7 @@ function normalizeSelfContinuitySourceTags(surface: Partial<AlicizationDigitalLi
   ].filter(Boolean).join(' | '), 1200)
   const loweredProjectCarryLine = sameHerProjectCarryLine.toLowerCase()
   const carriesProjectStateCarry
-    = /same phase 1 digital life|same living line|one continuous her|same-her|same her|continuous her/iu.test(loweredProjectCarryLine)
+    = /phase 1 continuity|continuity line|continuity_line|identity continuity|identity-continuity|continuity_identity|continuous her|local_desktop_life_loop|project_state_continuity/iu.test(loweredProjectCarryLine)
       && /unfinished|still needs|continuing|unfinished closure|keep the same|leave room|measured-return|lower-pressure/iu.test(loweredProjectCarryLine)
   const carriesExecutionCallbackProjectCarry
     = loweredProjectCarryLine.includes('continuity-execution-callback-project-carry')

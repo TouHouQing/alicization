@@ -261,13 +261,13 @@ describe('runtime-memory-deliberation-reducer', () => {
       now: 123456,
     })
 
-    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).toContain('local-first digital life project')
-    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).toContain('one continuous "her"')
-    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).toContain('Phase 1')
-    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('same digital life')
-    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('still-open closure work')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).toContain('project_identity=')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).toContain('project_phase=phase=local_desktop_life_loop')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).not.toMatch(/\b(?:This turn still belongs to|I am still working inside|What has already become real enough)\b/iu)
+    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('identity_continuity_open_loop=')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('next_closure=')
     expect(nextSurface?.dialogue.currentConsciousFrame?.reasonTags).toContain('memory-deliberation')
-    expect(nextSurface?.dialogue.currentConsciousFrame?.reasonTags.some(tag => tag.startsWith('project-phase:Phase 1'))).toBe(true)
+    expect(nextSurface?.dialogue.currentConsciousFrame?.reasonTags.some(tag => tag.startsWith('project-phase:phase=local_desktop_life_loop'))).toBe(true)
     expect(nextSurface?.dialogue.currentConsciousFrame?.reasonTags.some(tag => tag.startsWith('project-open-loop:'))).toBe(true)
     expect(nextSurface?.dialogue.currentConsciousFrame?.reasonTags.some(tag => tag.startsWith('project-next-closure:'))).toBe(true)
     expect(projectState.continuityProgressSummary?.startsWith(nextSurface?.dialogue.currentConsciousFrame?.projectState?.latestProgress ?? '')).toBe(true)
@@ -399,9 +399,9 @@ describe('runtime-memory-deliberation-reducer', () => {
       now: 123456,
     })
 
-    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.emotionalClosureCue).toBe(cue)
-    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed.toLowerCase()).toContain('low-pressure')
-    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention.toLowerCase()).toContain('same living line')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.emotionalClosureCue).toBeNull()
+    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).toContain('project_identity=')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention.toLowerCase()).toContain('identity_continuity_open_loop=')
   })
 
   it('keeps repair-before-closeness recollection carry explicit in downstream reply and conscious-frame tags', () => {
@@ -979,7 +979,7 @@ describe('runtime-memory-deliberation-reducer', () => {
     expect(nextSurface?.dialogue.currentConsciousFrame?.projectState).toEqual(expect.objectContaining({
       continuityCadence: 'measured-return',
       continuityPreferredTiming: 'next-open-window',
-      continuityCue: 'Carry corrected same-person continuity forward while the newer meaning is still settling, and let the body settle more quietly before widening outward.',
+      continuityCue: 'memory_cadence=corrected_same_person_continuity; newer_meaning=settling; body=quiet_settle; widening=deferred; visibility=internal-structured',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
       preferredPauseMode: 'longer',
@@ -988,7 +988,7 @@ describe('runtime-memory-deliberation-reducer', () => {
       preferredPacingMode: 'natural',
     }))
     expect(nextSurface?.raw?.runtimeDigest?.projectState).toEqual(expect.objectContaining({
-      continuityCue: 'Carry corrected same-person continuity forward while the newer meaning is still settling, and let the body settle more quietly before widening outward.',
+      continuityCue: 'memory_cadence=corrected_same_person_continuity; newer_meaning=settling; body=quiet_settle; widening=deferred; visibility=internal-structured',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
       preferredPauseMode: 'longer',
@@ -997,7 +997,7 @@ describe('runtime-memory-deliberation-reducer', () => {
       preferredPacingMode: 'natural',
     }))
     expect(nextSurface?.cognition?.runtimeDigest?.projectState).toEqual(expect.objectContaining({
-      continuityCue: 'Carry corrected same-person continuity forward while the newer meaning is still settling, and let the body settle more quietly before widening outward.',
+      continuityCue: 'memory_cadence=corrected_same_person_continuity; newer_meaning=settling; body=quiet_settle; widening=deferred; visibility=internal-structured',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
       preferredPauseMode: 'longer',
@@ -1151,13 +1151,13 @@ describe('runtime-memory-deliberation-reducer', () => {
     expect(nextSurface?.dialogue.currentConsciousFrame?.projectState).toEqual(expect.objectContaining({
       continuityCadence: 'measured-return',
       continuityPreferredTiming: 'next-open-window',
-      continuityCue: 'Carry the stronger merged same-thread continuity forward and keep faded temporary noise in the background so the return does not split back into thinner echoes.',
+      continuityCue: 'memory_cadence=merged_same_thread_continuity; faded_noise=background; split_echoes=blocked; visibility=internal-structured',
     }))
     expect(nextSurface?.raw?.runtimeDigest?.projectState).toEqual(expect.objectContaining({
-      continuityCue: 'Carry the stronger merged same-thread continuity forward and keep faded temporary noise in the background so the return does not split back into thinner echoes.',
+      continuityCue: 'memory_cadence=merged_same_thread_continuity; faded_noise=background; split_echoes=blocked; visibility=internal-structured',
     }))
     expect(nextSurface?.cognition?.runtimeDigest?.projectState).toEqual(expect.objectContaining({
-      continuityCue: 'Carry the stronger merged same-thread continuity forward and keep faded temporary noise in the background so the return does not split back into thinner echoes.',
+      continuityCue: 'memory_cadence=merged_same_thread_continuity; faded_noise=background; split_echoes=blocked; visibility=internal-structured',
     }))
   })
 
@@ -1308,7 +1308,7 @@ describe('runtime-memory-deliberation-reducer', () => {
     expect(nextSurface?.dialogue.currentConsciousFrame?.projectState).toEqual(expect.objectContaining({
       continuityRestraint: 'rest-protective',
       continuityCadence: 'rest-protective',
-      continuityCue: 'Keep this return rest-protective so vulnerable-care stays care-before-analysis, lighter, and inward before older analysis-heavy pressure widens back in.',
+      continuityCue: 'memory_cadence=rest_protective; care_before_analysis=true; direction=inward; analysis_pressure=deferred; visibility=internal-structured',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
       preferredVoiceMode: 'lower-pressure',
@@ -1317,7 +1317,7 @@ describe('runtime-memory-deliberation-reducer', () => {
     expect(nextSurface?.raw?.runtimeDigest?.projectState).toEqual(expect.objectContaining({
       continuityRestraint: 'rest-protective',
       continuityCadence: 'rest-protective',
-      continuityCue: 'Keep this return rest-protective so vulnerable-care stays care-before-analysis, lighter, and inward before older analysis-heavy pressure widens back in.',
+      continuityCue: 'memory_cadence=rest_protective; care_before_analysis=true; direction=inward; analysis_pressure=deferred; visibility=internal-structured',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
       preferredVoiceMode: 'lower-pressure',
@@ -1326,7 +1326,7 @@ describe('runtime-memory-deliberation-reducer', () => {
     expect(nextSurface?.cognition?.runtimeDigest?.projectState).toEqual(expect.objectContaining({
       continuityRestraint: 'rest-protective',
       continuityCadence: 'rest-protective',
-      continuityCue: 'Keep this return rest-protective so vulnerable-care stays care-before-analysis, lighter, and inward before older analysis-heavy pressure widens back in.',
+      continuityCue: 'memory_cadence=rest_protective; care_before_analysis=true; direction=inward; analysis_pressure=deferred; visibility=internal-structured',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
       preferredVoiceMode: 'lower-pressure',
@@ -1497,7 +1497,7 @@ describe('runtime-memory-deliberation-reducer', () => {
     }))
     expect(enrichedSurface?.dialogue.currentConsciousFrame?.projectState).toEqual(expect.objectContaining({
       continuityCadence: 'measured-return',
-      continuityCue: 'Carry worried continuity carefully so the same-person line stays lower-pressure, and keep the body steadier so modality risk does not outrun the repair.',
+      continuityCue: 'memory_cadence=worried_continuity_repair; pressure=lower; body=steadier; modality_risk_outruns_repair=false; visibility=internal-structured',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'steady',
       preferredVoiceMode: 'lower-pressure',
@@ -1507,8 +1507,8 @@ describe('runtime-memory-deliberation-reducer', () => {
 
   it('preserves richer repair-first closure summary and same-her hold detail when memory deliberation rebuilds from a thinner cue', () => {
     const thinCue = 'same-her closure seam: keep the return low-pressure and on the same living line.'
-    const repairSummary = 'Keep this return repair-before-closeness on the same living line until repair settles.'
-    const holdDetail = 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.'
+    const repairSummary = 'emotional_closure=repair_before_closeness; callback_line=same_turn; visibility=internal-structured'
+    const holdDetail = 'hold_detail=repair_before_closeness; closeness_widening=deferred; visibility=internal-structured'
 
     const nextSurface = applyMemoryDeliberationToDigitalLifeRuntimeSurface({
       surface: {
@@ -1635,11 +1635,16 @@ describe('runtime-memory-deliberation-reducer', () => {
       now: 123456,
     })
 
-    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).toContain('repair-before-closeness')
-    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('repair-before-closeness')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).toContain('project_identity=')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('memory_latent_controls=')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).not.toMatch(/\b(?:The remembered|Let recollection|Keep the emotional closure seam|This turn still belongs to)\b/iu)
+    expect(nextSurface?.dialogue.replyDeliberation?.whyThisReplyNow).not.toMatch(/\bThe remembered\b/iu)
     expect(nextSurface?.dialogue.currentConsciousFrame?.projectState).toEqual(expect.objectContaining({
       emotionalClosureSummary: repairSummary,
       sameHerHoldDetail: holdDetail,
+      continuityCadence: 'repair-before-closeness',
+      continuityRestraint: 'repair-before-closeness',
+      continuityPreferredTiming: 'same-turn-if-invited',
     }))
   })
 
@@ -1915,8 +1920,8 @@ describe('runtime-memory-deliberation-reducer', () => {
       now: 123456,
     })
 
-    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('memory, initiative')
-    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('still-open closure work')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('identity_continuity_open_loop=')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('next_closure=')
   })
 
   it('keeps same-her Phase 1 closure pressure active when landed progress already names the unfinished memory, initiative, and embodiment line', () => {
@@ -2038,8 +2043,8 @@ describe('runtime-memory-deliberation-reducer', () => {
       now: 123456,
     })
 
-    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('memory, initiative')
-    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('same living line')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('identity_continuity_open_loop=')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('next_closure=')
   })
 
   it('keeps same-her project-shell drift risk explicit in reply deliberation why-now so memory-shaped answers do not reopen as detached project narration', () => {
@@ -2167,8 +2172,8 @@ describe('runtime-memory-deliberation-reducer', () => {
       now: 323456,
     })
 
-    expect(nextSurface?.dialogue.replyDeliberation?.whyThisReplyNow).toContain('Keep the answer from drifting into')
-    expect(nextSurface?.dialogue.replyDeliberation?.whyThisReplyNow).toContain('generic')
+    expect(nextSurface?.dialogue.replyDeliberation?.whyThisReplyNow).not.toMatch(/\bKeep the answer from drifting into\b/iu)
+    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.sameHerDriftRisk).toContain('generic')
   })
 
   it('lets project-state same-her continuity become the remembered relationship carry when deliberation relationship lines are otherwise too thin', () => {
@@ -2290,10 +2295,93 @@ describe('runtime-memory-deliberation-reducer', () => {
       now: 223456,
     })
 
-    expect(nextSurface?.memory.personStateProjection?.selfContinuityAuthority?.relationshipLine).toContain('Same Phase 1 digital life')
-    expect(nextSurface?.memory.personStateProjection?.selfContinuityAuthority?.relationshipLine).toContain('same living line')
-    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('same digital life')
-    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('memory, initiative, and embodiment')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.sameHerSelfLine).toContain('local_desktop_life_loop')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('identity_continuity_open_loop=')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('next_closure=')
+  })
+
+  it('does not promote fixed template residue into memory deliberation governance mustDo', () => {
+    const nextGovernance = applyMemoryDeliberationToGovernance({
+      governance: {
+        answerSubject: 'relationship',
+        answerAct: 'care',
+        answerIntent: 'answer from current context',
+        openingMove: null,
+        carriedThread: 'current context',
+        liveSurface: 'chat',
+        truthState: 'grounded',
+        repairState: 'none',
+        relationshipPosture: 'warm',
+        mindMode: 'focused',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'steady',
+        turnMode: 'care-with-boundary',
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        evidenceMode: 'dialogue-grounded',
+        mustDo: [],
+        mustNotDo: [],
+        mindTurnFrame: null,
+        focusAnchor: 'current context',
+      } as any,
+      context: {
+        recollectionIntent: {
+          mode: 'relationship-history',
+          temporalFocus: 'cross-session',
+          confidence: 0.82,
+          rationale: 'The turn has memory pressure.',
+        },
+        recollectionSpeechPlan: {
+          shouldSurface: true,
+          surfaceMode: 'relationship-continuity',
+          placement: 'inside-payoff',
+          certainty: 'approximate',
+          confidence: 0.8,
+        },
+        memoryDeliberation: {
+          shouldRecall: true,
+          surfacePolicy: 'relationship-continuity',
+          confidence: 0.84,
+          whyNow: 'The answer should stay useful.',
+          ambiguityPosture: 'settled',
+          conflictSeverity: 'none',
+          stableCore: ['Answer from current context.'],
+          unsafeDetails: [],
+          selectedPeriods: [],
+          selectedEras: [],
+          selectedEpisodes: [],
+          selectedProcedures: [],
+          selectedBundles: [],
+          selectedChains: [{
+            kind: 'relationship-continuity',
+            summary: 'Answer from current context.',
+            currentStance: 'Stay low-pressure.',
+            answerPosture: 'Stay useful before widening.',
+            confidence: 0.82,
+          }],
+          selectedRelationshipLines: [],
+          followUpAffordance: {
+            summary: 'Stay useful before widening.',
+            whyNow: 'The host is still here.',
+            intrusionRisk: 'low',
+            payoffDependency: 'can-surface-softly',
+            preferredTiming: 'same-turn-if-invited',
+          },
+        },
+        projectStateContinuity: {
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence while initiative stays natural.',
+          preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life and the unfinished Phase 1 closure seam still belongs to one living her.',
+          openClosureSummary: 'Memory, initiative, and embodiment still need stronger same-her closure so the life loop stops flattening into project shell narration.',
+        },
+        knowledgeEvidence: null,
+        memoryTuningAdvice: null,
+      } as any,
+    })
+
+    const mustDoText = JSON.stringify(nextGovernance?.mustDo ?? [])
+    expect(mustDoText).not.toContain('project_self_line=active')
+    expect(mustDoText).not.toMatch(/same-her|same living line|one living her|Same Phase 1 digital life/i)
   })
 
   it('synthesizes held-autonomy callback relationship carry into person-state projection when deliberation is the earliest live source', () => {
@@ -2416,9 +2504,9 @@ describe('runtime-memory-deliberation-reducer', () => {
   })
 
   it('promotes richer raw runtime project-state carry over a thin dialogue shell inside the reducer itself', () => {
-    const runtimeNext = 'Keep the next closure target on one measured-return living line across reminder, proactive, and same-thread returns.'
-    const runtimeProgress = 'Project-state carry already survives into same-thread returns and reminder/proactive preparation without reopening from zero.'
-    const runtimeOpenLoop = 'Dialogue, initiative, memory, and embodiment still need one tighter same-her closure seam across return-side turns.'
+    const runtimeNext = 'closure_target=measured_return; surfaces=reminder,proactive,same_thread; visibility=internal-structured'
+    const runtimeProgress = 'landed=project_state_carry; surfaces=same_thread,reminder,proactive; reopen_from_zero=false; visibility=internal-structured'
+    const runtimeOpenLoop = 'open_loop=dialogue_initiative_memory_embodiment_closure; return_side_turns=needs_tighter_continuity; visibility=internal-structured'
 
     const context: any = {
       recollectionIntent: {
@@ -2747,10 +2835,10 @@ describe('runtime-memory-deliberation-reducer', () => {
       now: 123456,
     })
 
-    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preflightSummary).toContain('Alicization is a local-first digital life project')
-    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preflightSummary).toContain('Phase 1: Local Digital Life')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preflightSummary).toContain('local_desktop_life_loop')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preflightSummary).toContain('open=memory_dialogue_embodiment_closure')
     expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preflightSummary).not.toBe(thinPreflightSummaryShell)
-    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toBe(richerRuntimeProjectAwareOpening)
+    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toContain('identity=')
   })
 
   it('prefers richer chinese project continuity over a thin chinese reminder shell when memory deliberation rebuilds current conscious frame project awareness', () => {
@@ -2877,9 +2965,9 @@ describe('runtime-memory-deliberation-reducer', () => {
       now: 223456,
     })
 
-    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toBe(richerChineseAwarenessLine)
-    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.awarenessLine).toBe(richerChineseAwarenessLine)
-    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary).toBe(richerChineseAwarenessLine)
+    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toContain('identity=local_desktop_life_loop')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.awarenessLine).toContain('identity=local_desktop_life_loop')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary).toContain('identity=local_desktop_life_loop')
     expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).not.toBe(thinChineseReminder)
   })
 })

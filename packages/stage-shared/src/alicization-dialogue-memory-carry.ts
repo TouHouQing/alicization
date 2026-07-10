@@ -1,5 +1,7 @@
 import type { AlicizationDigitalLifeSpineDigest } from './alicization-transport-contracts'
 
+import { sanitizeAlicizationProviderFacingText } from './alicization-fixed-template-sanitizer'
+
 export type AlicizationDialogueMemoryCarryMode = 'quiet' | 'carry-thread' | 'reflective-repair'
 
 export interface AlicizationDialogueMemoryCarryPolicy {
@@ -24,9 +26,7 @@ export interface DeriveAlicizationDialogueMemoryCarryPolicyFromDigestInput {
 const defaultMirrorStaleAfterMs = 10 * 60 * 1000
 
 function sanitizeText(raw: unknown, maxChars = 180) {
-  if (typeof raw !== 'string')
-    return ''
-  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  return sanitizeAlicizationProviderFacingText(raw, maxChars)
 }
 
 function normalize01(raw: unknown) {

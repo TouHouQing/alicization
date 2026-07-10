@@ -423,7 +423,7 @@ describe('memory-tuning-advice', () => {
     expect(speechPlan?.placement).toBe('internal-only')
     expect(speechPlan?.visibleLead).toBeNull()
     expect(speechPlan?.certainty).toBe('approximate')
-    expect(speechPlan?.styleNote).toContain('same-her emotional closure')
+    expect(speechPlan?.styleNote).toContain('emotional continuity closure')
   })
 
   it('keeps same-her emotional closure recollection inward when tuning only names low-pressure and anti-restart closure carry', () => {
@@ -495,7 +495,7 @@ describe('memory-tuning-advice', () => {
     expect(speechPlan?.placement).toBe('internal-only')
     expect(speechPlan?.visibleLead).toBeNull()
     expect(speechPlan?.certainty).toBe('approximate')
-    expect(speechPlan?.styleNote).toContain('same-her emotional closure')
+    expect(speechPlan?.styleNote).toContain('emotional continuity closure')
   })
 
   it('raises presence-related tuning advice from presence quality regressions', () => {
@@ -880,7 +880,7 @@ describe('memory-tuning-advice', () => {
     ]))
     expect(advice.notes).toEqual(expect.arrayContaining([
       expect.stringContaining('project identity, current phase, still-open closure work'),
-      expect.stringContaining('same-her emotional closure seam'),
+      expect.stringContaining('emotional continuity seam'),
     ]))
     expect(advice.retrievalAdjustments.relationshipBoost).toBeGreaterThan(0)
     expect(advice.surfaceAdjustments.inwardCarryBias).toBeGreaterThan(0)
@@ -958,7 +958,7 @@ describe('memory-tuning-advice', () => {
     ]))
     expect(advice.notes).toEqual(expect.arrayContaining([
       expect.stringContaining('before visible wording forms'),
-      expect.stringContaining('project identity, landed progress, still-open closure pressure, and same-her emotional seam'),
+      expect.stringContaining('project identity, landed progress, still-open closure pressure, and emotional continuity'),
     ]))
     expect(advice.retrievalAdjustments.relationshipBoost).toBeGreaterThan(0)
     expect(advice.surfaceAdjustments.inwardCarryBias).toBeGreaterThan(0)
@@ -1035,7 +1035,7 @@ describe('memory-tuning-advice', () => {
       'projectEmotionalClosureAntiRestartCarry',
     ]))
     expect(advice.notes).toEqual(expect.arrayContaining([
-      expect.stringContaining('same-her emotional closure seam'),
+      expect.stringContaining('emotional continuity closure seam'),
       expect.stringContaining('do not reopen from scratch'),
     ]))
     expect(advice.surfaceAdjustments.inwardCarryBias).toBeGreaterThan(0)
@@ -1199,9 +1199,9 @@ describe('memory-tuning-advice', () => {
       'avoidGenericProjectShell',
     ]))
     expect(advice.notes).toEqual(expect.arrayContaining([
-      expect.stringContaining('same-her self line degraded into generic guidance'),
-      expect.stringContaining('richer same-her pre-dialogue awareness line also degraded'),
-      expect.stringContaining('generic project shell instead of one continuous her'),
+      expect.stringContaining('identity-continuity line degraded into generic guidance'),
+      expect.stringContaining('richer pre-dialogue continuity awareness line also degraded'),
+      expect.stringContaining('generic project shell instead of stable continuity'),
       expect.stringContaining('stay more inward-first, delay warmth until after payoff, and avoid sounding like a detached project narrator'),
     ]))
     expect(advice.retrievalAdjustments.relationshipBoost).toBeGreaterThan(0)
@@ -1327,11 +1327,11 @@ describe('memory-tuning-advice', () => {
       'runtimeSameHerEmbodimentCarry',
       'runtimeSameHerEmbodimentCausality',
     ]))
-    const runtimeSameHerNote = advice.notes.find(note => note.includes('Runtime sampling found same-her gaps')) ?? ''
-    expect(runtimeSameHerNote).toContain('memory')
-    expect(runtimeSameHerNote).toContain('initiative/execution')
-    expect(runtimeSameHerNote).toContain('emotion')
-    expect(runtimeSameHerNote).toContain('embodiment')
+    const runtimeContinuityNote = advice.notes.find(note => note.includes('runtime_continuity_gap')) ?? ''
+    expect(runtimeContinuityNote).toContain('lanes=memory,initiative/execution,emotion,embodiment')
+    expect(runtimeContinuityNote).toContain('turn_gap=3')
+    expect(runtimeContinuityNote).toContain('transition_gap=2')
+    expect(advice.notes.join('\n')).not.toMatch(/same-her|one carried line/iu)
     expect(advice.notes).toEqual(expect.arrayContaining([
       expect.stringContaining('proactive opening, execution callback, and learning feedback'),
       expect.stringContaining('emotional afterglow causally tied to prior recall'),
@@ -1513,5 +1513,37 @@ describe('memory-tuning-advice', () => {
       'runtimeMemoryClosureLaneCarry',
       'runtimeMemoryClosureIdentityContinuity',
     ]))
+  })
+
+  it('sanitizes persisted legacy same-her tuning notes when parsed', () => {
+    const parsed = parseMemoryTuningAdvice(JSON.stringify({
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 1_700_000_000_000,
+      sourceReportAt: 1_700_000_000_000,
+      focusDimensions: ['runtimeSameHerRepairTargets'],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0.08,
+        temporalWindowBias: 0.04,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0.08,
+        delayUntilAfterPayoffBias: 0.06,
+        provenanceLabelBias: 0,
+        specificityClampBias: 0,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0.04,
+        closenessCapBias: 0.04,
+      },
+      notes: [
+        'Runtime sampling found same-her gaps across memory, initiative/execution (1 turn, 1 transition), so the next run should keep memory, initiative/execution, emotion, and embodiment on one carried line.',
+      ],
+    }))
+
+    expect(parsed?.notes.join('\n')).toContain('runtime_continuity_gap')
+    expect(parsed?.notes.join('\n')).not.toMatch(/same-her|one carried line/iu)
   })
 })

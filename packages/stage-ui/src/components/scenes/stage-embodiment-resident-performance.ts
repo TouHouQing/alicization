@@ -171,8 +171,8 @@ function resolveEmotionalKernelResidentFallbackBias(
     || reasonTags.includes('rest-protective-companionship')
   const isMeasuredReturn = rawTension.includes('measured-return')
     || reasonTags.includes('measured-return')
-  const isSameHerInwardCarry = reasonTags.includes('same-her-inward-carry')
-    || reasonTags.includes('same-her')
+  const isSameHerInwardCarry = reasonTags.includes('continuity-inward-carry')
+    || reasonTags.includes('continuity')
   const isQuietCompanionship = reasonTags.includes('quiet-companionship')
     || privateThought.stance === 'accompany'
 
@@ -268,8 +268,8 @@ function resolveEmotionalKernelResidentFallbackBias(
             }
           : isSameHerInwardCarry
             ? {
-                relationshipDoctrine: 'Keep companionship quietly continuous on one inward same-her line before widening outward.',
-                latestInflection: 'The host trusted the quieter inward same-her carry more than a wider outward reopening.',
+                relationshipDoctrine: 'Keep companionship quietly continuous on one inward continuity line before widening outward.',
+                latestInflection: 'The host trusted the quieter inward continuity carry more than a wider outward reopening.',
                 burdenLine: 'Do not ask this quieter line to widen before it has settled as the same living self.',
                 trustMeaning: 'Trust deepens when the same inward line stays present without rushing into a warmer reopen.',
                 nextLearningAction: 'internalize',
@@ -283,7 +283,7 @@ function resolveEmotionalKernelResidentFallbackBias(
       ...(isRepairBeforeCloseness ? ['repair-before-closeness'] : []),
       ...(isRestProtective ? ['rest-protective'] : []),
       ...(isMeasuredReturn ? ['measured-return', 'durable-relationship-rhythm'] : []),
-      ...(isSameHerInwardCarry ? ['same-her-inward-carry', 'quiet-companionship'] : []),
+      ...(isSameHerInwardCarry ? ['continuity-inward-carry', 'quiet-companionship'] : []),
       ...reasonTags,
     ])),
     stance: privateThought.stance
@@ -411,14 +411,14 @@ function hasAutobiographicalSameHerContinuityCarry(
     .join(' ')
     .toLowerCase()
 
-  return cueText.includes('same-her drift risk')
+  return cueText.includes('continuity drift risk')
     || cueText.includes('generic assistant shell')
     || cueText.includes('project-summary voice')
     || cueText.includes('detached status talk')
     || cueText.includes('continuity drift')
     || cueText.includes('drift rather than completion')
-    || cueText.includes('same living line')
-    || cueText.includes('one continuous her')
+    || cueText.includes('continuity line')
+    || cueText.includes('continuous identity')
     || cueText.includes('continuous her')
 }
 

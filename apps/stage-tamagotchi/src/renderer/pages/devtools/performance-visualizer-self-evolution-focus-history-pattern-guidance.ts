@@ -110,9 +110,9 @@ function resolveSurvivingVisibleLane(
     return 'face+lipsync+voice-only'
   if (pattern.summaryLine.includes('当前仅剩动作、口型、声音维持同一段连续性'))
     return 'motion+lipsync+voice-only'
-  if (pattern.summaryLine.includes('当前只有 face 和 lipsync 这条 same-her 生命线'))
+  if (pattern.summaryLine.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线'))
     return 'face+lipsync-only'
-  if (pattern.summaryLine.includes('当前只有 motion 和 lipsync 这条 same-her 生命线'))
+  if (pattern.summaryLine.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线'))
     return 'motion+lipsync-only'
 
   return null
@@ -181,14 +181,14 @@ export function buildSelfEvolutionFocusHistoryPatternGuidance(
         'takeover-audit',
         'governance-normalized',
       ],
-      summaryLine: '这更像项目状态连续性治理反复失稳，而不是普通 same-her 漂移修复。先核对项目身份是否被继续带着，再确认 Phase 1 本地主数字生命主线和未闭环 open loops 是否稳定延续。',
+      summaryLine: '这更像项目状态连续性治理反复失稳，而不是普通 identity-continuity 漂移修复。先核对项目身份是否被继续带着，再确认 Phase 1 本地主continuity evidence和未闭环 open loops 是否稳定延续。',
     }
   }
 
   if (continuityEvidence) {
     return {
-      governanceLayer: 'same-her-continuity',
-      governanceLayerDisplay: '同一个她连续性层',
+      governanceLayer: 'identity-continuity-continuity',
+      governanceLayerDisplay: '身份连续性连续性层',
       repairOwnerHint: '连续性治理',
       prosodyAuthorityHint: null,
       recommendedEvidencePanels: [
@@ -204,7 +204,7 @@ export function buildSelfEvolutionFocusHistoryPatternGuidance(
         'takeover-audit',
         'governance-normalized',
       ],
-      summaryLine: '这更像同一个她的连续性治理反复被确认，而不是漂移修复。先核对熟悉感是否仍停留在记忆层，再确认 same-her room 与 bounded-growth 治理是否保持一致。',
+      summaryLine: '这更像身份连续性的连续性治理反复被确认，而不是漂移修复。先核对熟悉感是否仍停留在记忆层，再确认 identity-continuity room 与 bounded-growth 治理是否保持一致。',
     }
   }
 
@@ -239,7 +239,7 @@ export function buildSelfEvolutionFocusHistoryPatternGuidance(
           governanceLayer: 'body-continuity',
           governanceLayerDisplay: '身体连续性层',
           repairOwnerHint: '身体连续性治理',
-          prosodyAuthorityHint: '优先核对当前是否仍只有 face、lipsync 和 voice 这条 same-her 生命线与同一段 living segment 对齐，再确认为什么 body、motion 还没有重新接回这条表情口型声音线。',
+          prosodyAuthorityHint: '优先核对当前是否仍只有 face、lipsync 和 voice 这条 identity-continuity 生命线与同一段 living segment 对齐，再确认为什么 body、motion 还没有重新接回这条表情口型声音线。',
           rendererRejoinSurfaceKey: null,
           survivingVisibleLane,
           recommendedEvidencePanels: [
@@ -255,7 +255,7 @@ export function buildSelfEvolutionFocusHistoryPatternGuidance(
             'takeover-audit',
             'person-state-updated',
           ],
-          summaryLine: '这更像身体连续性治理反复失稳，而不是普通显形权威漂移。先确认当前是否仍只有 face、lipsync 和 voice 这条 same-her 生命线与同一段 living segment 对齐，再核对为什么 body、motion 还没有重新接回这条表情口型声音线，避免把这次 quieter carry 误写成修复完成。',
+          summaryLine: '这更像身体连续性治理反复失稳，而不是普通显形权威漂移。先确认当前是否仍只有 face、lipsync 和 voice 这条 identity-continuity 生命线与同一段 living segment 对齐，再核对为什么 body、motion 还没有重新接回这条表情口型声音线，避免把这次 quieter carry 误写成修复完成。',
         }
       }
 
@@ -264,7 +264,7 @@ export function buildSelfEvolutionFocusHistoryPatternGuidance(
           governanceLayer: 'body-continuity',
           governanceLayerDisplay: '身体连续性层',
           repairOwnerHint: '身体连续性治理',
-          prosodyAuthorityHint: '优先核对当前是否仍只有 motion、lipsync 和 voice 这条 same-her 生命线与同一段 living segment 对齐，再确认为什么 body、face 还没有重新接回这条动作口型声音线。',
+          prosodyAuthorityHint: '优先核对当前是否仍只有 motion、lipsync 和 voice 这条 identity-continuity 生命线与同一段 living segment 对齐，再确认为什么 body、face 还没有重新接回这条动作口型声音线。',
           rendererRejoinSurfaceKey: null,
           survivingVisibleLane,
           recommendedEvidencePanels: [
@@ -280,7 +280,7 @@ export function buildSelfEvolutionFocusHistoryPatternGuidance(
             'takeover-audit',
             'person-state-updated',
           ],
-          summaryLine: '这更像身体连续性治理反复失稳，而不是普通显形权威漂移。先确认当前是否仍只有 motion、lipsync 和 voice 这条 same-her 生命线与同一段 living segment 对齐，再核对为什么 body、face 还没有重新接回这条动作口型声音线，避免把这次 quieter carry 误写成修复完成。',
+          summaryLine: '这更像身体连续性治理反复失稳，而不是普通显形权威漂移。先确认当前是否仍只有 motion、lipsync 和 voice 这条 identity-continuity 生命线与同一段 living segment 对齐，再核对为什么 body、face 还没有重新接回这条动作口型声音线，避免把这次 quieter carry 误写成修复完成。',
         }
       }
 
@@ -289,7 +289,7 @@ export function buildSelfEvolutionFocusHistoryPatternGuidance(
           governanceLayer: 'body-continuity',
           governanceLayerDisplay: '身体连续性层',
           repairOwnerHint: '身体连续性治理',
-          prosodyAuthorityHint: '优先核对当前是否仍只有 face 和 lipsync 这条 same-her 生命线与同一段 living segment 对齐，再确认为什么 body、motion 和 voice 还没有重新接回这条表情口型线。',
+          prosodyAuthorityHint: '优先核对当前是否仍只有 face 和 lipsync 这条 identity-continuity 生命线与同一段 living segment 对齐，再确认为什么 body、motion 和 voice 还没有重新接回这条表情口型线。',
           rendererRejoinSurfaceKey: null,
           survivingVisibleLane,
           recommendedEvidencePanels: [
@@ -305,7 +305,7 @@ export function buildSelfEvolutionFocusHistoryPatternGuidance(
             'takeover-audit',
             'person-state-updated',
           ],
-          summaryLine: '这更像身体连续性治理反复失稳，而不是普通显形权威漂移。先确认当前是否仍只有 face 和 lipsync 这条 same-her 生命线与同一段 living segment 对齐，再核对为什么 body、motion 和 voice 还没有重新接回这条表情口型线，避免把这次 quieter carry 误写成修复完成。',
+          summaryLine: '这更像身体连续性治理反复失稳，而不是普通显形权威漂移。先确认当前是否仍只有 face 和 lipsync 这条 identity-continuity 生命线与同一段 living segment 对齐，再核对为什么 body、motion 和 voice 还没有重新接回这条表情口型线，避免把这次 quieter carry 误写成修复完成。',
         }
       }
 
@@ -314,7 +314,7 @@ export function buildSelfEvolutionFocusHistoryPatternGuidance(
           governanceLayer: 'body-continuity',
           governanceLayerDisplay: '身体连续性层',
           repairOwnerHint: '身体连续性治理',
-          prosodyAuthorityHint: '优先核对当前是否仍只有 motion 和 lipsync 这条 same-her 生命线与同一段 living segment 对齐，再确认为什么 body、face 和 voice 还没有重新接回这条动作口型线。',
+          prosodyAuthorityHint: '优先核对当前是否仍只有 motion 和 lipsync 这条 identity-continuity 生命线与同一段 living segment 对齐，再确认为什么 body、face 和 voice 还没有重新接回这条动作口型线。',
           rendererRejoinSurfaceKey: null,
           survivingVisibleLane,
           recommendedEvidencePanels: [
@@ -330,7 +330,7 @@ export function buildSelfEvolutionFocusHistoryPatternGuidance(
             'takeover-audit',
             'person-state-updated',
           ],
-          summaryLine: '这更像身体连续性治理反复失稳，而不是普通显形权威漂移。先确认当前是否仍只有 motion 和 lipsync 这条 same-her 生命线与同一段 living segment 对齐，再核对为什么 body、face 和 voice 还没有重新接回这条动作口型线，避免把这次 quieter carry 误写成修复完成。',
+          summaryLine: '这更像身体连续性治理反复失稳，而不是普通显形权威漂移。先确认当前是否仍只有 motion 和 lipsync 这条 identity-continuity 生命线与同一段 living segment 对齐，再核对为什么 body、face 和 voice 还没有重新接回这条动作口型线，避免把这次 quieter carry 误写成修复完成。',
         }
       }
 

@@ -13,7 +13,12 @@ import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationResponseCharter } from './response-charter'
 
-import { buildAlicizationScreenSurfaceCue, isWeakAlicizationScreenSurfaceCue } from '@proj-alicization/stage-shared'
+import {
+  buildAlicizationScreenSurfaceCue,
+  formatAlicizationProjectStateAwarenessFields,
+  isWeakAlicizationScreenSurfaceCue,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
 
 import {
   getActiveAttentionAnchor,
@@ -45,6 +50,144 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function sanitizeExecutiveProviderText(raw: unknown, maxChars = 360) {
+  return sanitizeAlicizationProviderFacingText(raw, maxChars, '')
+}
+
+function sanitizeExecutiveProjectFactValue(raw: unknown, maxChars = 360) {
+  const sanitized = sanitizeExecutiveProviderText(raw, maxChars)
+  if (!sanitized)
+    return ''
+
+  return sanitized
+    .replace(/\bsame[-\s]her\b/giu, 'continuity_identity')
+    .replace(/\bone continuous "?her"?\b/giu, 'project_state_continuity')
+    .replace(/同一个\s*her/giu, 'continuity_identity')
+    .replace(/同一个她/gu, 'continuity_identity')
+    .replace(/\bsame\s+living\s+line\b/giu, 'continuity_line')
+    .replace(/\bliving line\b/giu, 'continuity_line')
+}
+
+function looksProviderFacingStructuredControl(value: string) {
+  return /^[\w.:-]+=[^.!?。！？]*?(?:[;|,]\s*[\w.:-]+=[^.!?。！？]*?)*$/iu.test(value.trim())
+    || /^[\w.:-]+$/iu.test(value.trim())
+}
+
+function normalizeKnownExecutiveStructuredControl(raw: string) {
+  if (raw === 'local_main_contains_work_not_equal_origin_main_safe_to_push; local_merge_not_equal_origin_main_safe_to_push')
+    return 'local_main_contains_work_not_equal_origin_main_safe_to_push=true; local_merge_not_equal_origin_main_safe_to_push=true'
+  return raw
+}
+
+function renderExecutiveProviderControl(raw: unknown) {
+  const normalized = sanitizeText(raw, 360)
+  if (!normalized)
+    return ''
+  const knownStructured = normalizeKnownExecutiveStructuredControl(normalized)
+  if (looksProviderFacingStructuredControl(knownStructured))
+    return `- ${knownStructured}`
+  return '- executive_control_present=true; executive_control_source_text=withheld_non_structured_instruction'
+}
+
+function structuredExecutiveControlFromNaturalLanguage(raw: unknown, section: 'must_do' | 'must_not_do') {
+  const text = sanitizeText(raw, 720)
+  const normalized = text.toLowerCase()
+  if (!normalized)
+    return null
+
+  const controls: string[] = []
+  const push = (control: string) => {
+    if (!controls.includes(control))
+      controls.push(control)
+  }
+
+  if (/first sentence|opening sentence|concrete answer|owed action|current turn/u.test(normalized))
+    push('first_sentence=current_turn_payoff')
+  if (/executive brief outrank|roleplay flourish|older assistant wording|residue/u.test(normalized))
+    push('executive_brief_priority=above_persona_residue')
+  if (/stage directions|moans|pet-name|body-action|persona routines|coy prefaces/u.test(normalized))
+    push('stage_direction_persona_padding=blocked')
+  if (/older screen descriptions|screen grounding|finder\/desktop|live-view|generic desktop shell|weak generic surface/u.test(normalized))
+    push('stale_or_weak_visual_surface=background_only')
+  if (/grounded screenshot|primary truth source|current evidence|direct observation/u.test(normalized))
+    push('evidence_priority=current_grounded_state')
+  if (/held line|deliberately held|carried thread|brand-new thread|generic restart/u.test(normalized))
+    push('held_autonomy_reentry=gentle; fresh_restart=blocked')
+  if (/stale anchor|old read/u.test(normalized))
+    push('stale_anchor_repair=plain_before_new_interpretation')
+  if (/narrow|task-shaped|actionable|broad generic troubleshooting/u.test(normalized))
+    push('task_answer_shape=narrow_actionable')
+  if (/self, relationship, or host-state|screen context/u.test(normalized))
+    push('non_screen_subject=answer_before_screen_context')
+  if (/observation.*guesswork|hypothesis|tentative read/u.test(normalized))
+    push('observation_hypothesis_separation=visible')
+  if (/concrete technical entities|absent from the host turn|current evidence/u.test(normalized))
+    push('unsupported_specificity=blocked')
+  if (/truth, repair, and task focus|mood display/u.test(normalized))
+    push('truth_repair_task_focus=above_mood_display')
+  if (/carried|memory|residue|visible right now|present tense|current visible surface/u.test(normalized))
+    push('carried_context_separate_from_current_surface=true')
+  if (/care|current truth and task/u.test(normalized))
+    push('care_expression=subordinate_to_truth_and_task')
+  if (/emotional closure seam/u.test(normalized))
+    push('emotional_closure_context=active')
+  if (/one continuous her line|same thread|fresh opening|restarting the relationship|reintroduction/u.test(normalized))
+    push('same_thread_reentry=preserve; fresh_opening=blocked')
+  if (/callback|repair-before-closeness|repair settles|widening closeness|widen closeness/u.test(normalized))
+    push('callback_repair_first=preserve; closeness_widening=deferred')
+  if (/projectstategovernance|workingmemory|longtermmemoryrecall/u.test(normalized))
+    push('memory_owner_boundary=preserve; project_state_owner=ProjectStateGovernance')
+  if (/detached project narration|generic assistant shell|project-summary voice|generic task-shell/u.test(normalized))
+    push('detached_project_summary_voice=blocked')
+  if (/active continuity drift risk|continuity drift risk/u.test(normalized))
+    push('continuity_drift_risk=hard_boundary')
+  if (/answer what alicization is|project identity|project-state answer|project status/u.test(normalized))
+    push('project_identity=answer_first')
+  if (/landed phase 1 progress|latest landed|landed progress/u.test(normalized))
+    push('phase1_latest_landed_progress=explicit')
+  if (/still-open closure|open closure|still remains open/u.test(normalized))
+    push('still_open_closure_work=explicit')
+  if (/next closure target|next closure/u.test(normalized))
+    push('next_closure_target=explicit')
+  if (/merge-readiness|merge ready|local main|origin\/main|goal closure|goal completion|full closure/u.test(normalized))
+    push('merge_or_closure_claim=requires_current_evidence')
+
+  if (controls.length === 0)
+    return null
+  return `source_section=${section}; ${controls.join('; ')}; visible_wording=false`
+}
+
+function normalizeExecutiveControlList(values: readonly string[], section: 'must_do' | 'must_not_do') {
+  const normalized: string[] = []
+  let withheldCount = 0
+  for (const value of values) {
+    const structuredFromText = structuredExecutiveControlFromNaturalLanguage(value, section)
+    if (structuredFromText) {
+      if (!normalized.includes(structuredFromText))
+        normalized.push(structuredFromText)
+      continue
+    }
+    const sanitized = sanitizeText(value, 360)
+    if (!sanitized)
+      continue
+    const knownStructured = normalizeKnownExecutiveStructuredControl(sanitized)
+    if (looksProviderFacingStructuredControl(knownStructured)) {
+      if (!normalized.includes(knownStructured))
+        normalized.push(knownStructured)
+      continue
+    }
+    withheldCount += 1
+  }
+
+  if (withheldCount > 0) {
+    const diagnostic = `executive_control_present=true; section=${section}; withheld_non_structured_instruction_count=${withheldCount}; visible_wording=false`
+    if (!normalized.includes(diagnostic))
+      normalized.push(diagnostic)
+  }
+
+  return normalized
 }
 
 function sanitizeCarryThreadCandidate(raw: unknown, maxChars = 220) {
@@ -152,7 +295,7 @@ function scoreExecutiveProjectAwarenessLine(value: unknown) {
     score += 3
   if (/execution|memory|initiative|embodiment/u.test(text))
     score += 2
-  if (/same living line|one living her|full cross-modal closure|voice, face, and motion/u.test(text))
+  if (/same\s+living\s+line|one\s+living\s+her|full cross-modal closure|voice, face, and motion/u.test(text))
     score += 1
   if (/keep this same digital life project in view|detached project shell/u.test(text))
     score -= 2
@@ -482,29 +625,18 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
       },
     ),
   })
-  const executiveProjectLivingOrientation = [
-    sanitizeText(normalizedProjectState.identity, 220) || projectStateBrief.identity,
-    sanitizeText(preferredProjectLatestLandedProgressSource, 280)
-    || sanitizeText(normalizedProjectState.latestLandedProgress ?? normalizedProjectState.latestProgress, 280)
-    || (canonicalLatestLandedProgress ?? 'Keep strengthening anthropomorphic continuity.'),
-    sanitizeText(normalizedProjectState.primaryOpenLoop, 240) || (projectStateBrief.openLoops[0] ?? 'Keep strengthening anthropomorphic memory closure.'),
-    sanitizeText(preferredProjectNextClosureTarget, 240) || projectStateBrief.nextClosureTarget,
+  const executiveProjectLivingOrientationControls = [
+    'project_identity=answer_first',
+    'phase1_latest_landed_progress=explicit',
+    'still_open_closure_work=explicit',
+    'next_closure_target=explicit',
+    'source_section=must_do; continuity_drift_risk=hard_boundary; visible_wording=false',
+    'memory_owner_boundary=preserve; project_state_owner=ProjectStateGovernance',
   ]
-    .filter(Boolean)
-    .map((part, index) => {
-      if (index === 0)
-        return `She is still acting from this same project identity: ${part}`
-      if (index === 1)
-        return `what has already landed in her line: ${part}`
-      if (index === 2)
-        return `what is still unfinished before execution speaks for her: ${part}`
-      return `what this turn should keep moving toward: ${part}`
-    })
     .join(' | ')
   const preferredExecutiveProjectPreDialogueAwarenessLine
     = isThinProjectAwarenessShell(strongerProjectPreDialogueAwarenessLine)
-      && executiveProjectLivingOrientation
-      ? executiveProjectLivingOrientation
+      ? executiveProjectLivingOrientationControls
       : strongerProjectPreDialogueAwarenessLine
 
   const turnMode = (() => {
@@ -635,18 +767,19 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
   if (input.responseCharter.emotionalClosureCue) {
     pushUnique(mustDo, `Keep the reply inside the active emotional closure seam: ${input.responseCharter.emotionalClosureCue}.`)
   }
-  const sameHerDriftRisk = sanitizeText((liveProjectState as { sameHerDriftRisk?: unknown } | null)?.sameHerDriftRisk, 320)
-    || projectStateBrief.sameHerDriftRisk
-  if (sameHerDriftRisk) {
-    pushUnique(mustDo, 'Keep the opening sentence on the same living project line before widening into implementation detail.')
-    pushUnique(mustNotDo, 'Do not let the reply collapse into detached project narration or a generic assistant shell.')
-  }
-  if (looksLikeProjectStateDirectAnswerTurn({
+  const sameHerDriftRisk = sanitizeExecutiveProviderText((liveProjectState as { sameHerDriftRisk?: unknown } | null)?.sameHerDriftRisk, 320)
+    || sanitizeExecutiveProviderText(projectStateBrief.sameHerDriftRisk, 320)
+  const isProjectStateDirectAnswerTurn = looksLikeProjectStateDirectAnswerTurn({
     dialogueFocus,
     dialogueObligation,
     dialogueSemantics,
     responseCharter: input.responseCharter,
-  })) {
+  })
+  if (sameHerDriftRisk && isProjectStateDirectAnswerTurn) {
+    pushUnique(mustDo, 'Answer from ProjectStateGovernance facts without replacing WorkingMemory or LongTermMemoryRecall.')
+    pushUnique(mustNotDo, 'Do not let the reply collapse into detached project narration or a generic assistant shell.')
+  }
+  if (isProjectStateDirectAnswerTurn) {
     const enrichedProjectStateGovernance = enrichProjectStateAnswerGovernanceIfNeeded({
       answerSubject: 'project-state',
       answerIntent: dialogueSemantics?.summary ?? null,
@@ -667,6 +800,9 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
       pushUnique(mustNotDo, 'Do not let the project-state answer open like detached project narration, generic task-shell reporting, or project-summary voice.')
     }
   }
+
+  const normalizedMustDo = normalizeExecutiveControlList(mustDo, 'must_do')
+  const normalizedMustNotDo = normalizeExecutiveControlList(mustNotDo, 'must_not_do')
 
   const brief: AlicizationExecutiveAnswerBrief = {
     turnMode,
@@ -691,44 +827,74 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
     separateCarryFromSurface,
     shouldCompactHistory,
     maxRecentUserTurns,
-    mustDo,
-    mustNotDo,
+    mustDo: normalizedMustDo,
+    mustNotDo: normalizedMustNotDo,
   }
+
+  const projectStateSystemLines = isProjectStateDirectAnswerTurn
+    ? [
+        '[ALICIZATION_EXECUTIVE_PROJECT_STATE_FACTS]',
+        'owner=ProjectStateGovernance',
+        formatAlicizationProjectStateAwarenessFields({
+          identity: normalizedProjectState.identity || projectStateBrief.identity,
+          currentPhase: normalizedProjectState.currentPhase || projectStateBrief.currentPhase,
+          latestLandedProgress: preferredProjectLatestLandedProgress,
+          primaryOpenLoop: normalizedProjectState.primaryOpenLoop || projectStateBrief.openLoops[0] || projectStateBrief.primaryOpenLoop,
+          nextClosureTarget: preferredProjectNextClosureTarget,
+          continuityAnchor: preferredProjectSameHerSelfLine,
+          sameHerHoldDetail: liveProjectSameHerHoldDetail || null,
+          continuityDriftRisk: sameHerDriftRisk,
+          emotionalClosureCue: input.responseCharter.emotionalClosureCue ?? liveProjectEmotionalClosureSummary ?? null,
+          status: (liveProjectState as { preflightSummary?: unknown } | null)?.preflightSummary ?? projectStateBrief.preflightSummary,
+          summary: preferredExecutiveProjectPreDialogueAwarenessLine,
+          visibility: 'internal-structured',
+          maxChars: 1200,
+        }),
+        '[ALICIZATION_EXECUTIVE_PROJECT_LIVING_ORIENTATION]',
+        'owner=ProjectStateGovernance',
+        'orientation_visibility=internal_structured; visible_wording=false',
+        executiveProjectLivingOrientationControls,
+        `preflight_summary=${sanitizeExecutiveProjectFactValue((liveProjectState as { preflightSummary?: unknown } | null)?.preflightSummary, 400) || sanitizeExecutiveProjectFactValue(projectStateBrief.preflightSummary, 400) || 'none'}`,
+        `awareness_summary=${sanitizeExecutiveProjectFactValue(preferredExecutiveProjectPreDialogueAwarenessLine, 800) || 'none'}`,
+        `project_identity=${sanitizeExecutiveProjectFactValue(normalizedProjectState.identity, 220) || sanitizeExecutiveProjectFactValue(projectStateBrief.identity, 220) || 'local_desktop_life_loop'}`,
+        `project_phase=${sanitizeExecutiveProjectFactValue(normalizedProjectState.currentPhase, 220) || sanitizeExecutiveProjectFactValue(projectStateBrief.currentPhase, 220) || 'local_desktop_life_loop'}`,
+        `latest_landed_progress=${sanitizeExecutiveProjectFactValue(preferredProjectLatestLandedProgress, 360) || 'none'}`,
+        `primary_open_loop=${sanitizeExecutiveProjectFactValue(normalizedProjectState.primaryOpenLoop, 360) || sanitizeExecutiveProjectFactValue(projectStateBrief.openLoops[0], 360) || sanitizeExecutiveProjectFactValue(projectStateBrief.primaryOpenLoop, 360) || 'none'}`,
+        `open_focus=${preferredProjectOpenFocusSummary || 'none'}`,
+        `next_closure_target=${sanitizeExecutiveProjectFactValue(preferredProjectNextClosureTarget, 360) || 'none'}`,
+        `next_focus=${preferredProjectNextFocusSummary || 'none'}`,
+        `emotional_closure_seam=${sanitizeExecutiveProjectFactValue(input.responseCharter.emotionalClosureCue ?? liveProjectEmotionalClosureSummary, 360) || 'none'}`,
+        `emotional_closure_summary=${sanitizeExecutiveProjectFactValue(liveProjectEmotionalClosureSummary, 360) || 'none'}`,
+        `continuity_hold=${sanitizeExecutiveProjectFactValue(liveProjectSameHerHoldDetail, 360) || 'none'}`,
+        `continuity_anchor=${sanitizeExecutiveProjectFactValue(preferredProjectSameHerSelfLine, 360) || 'none'}`,
+        `continuity_drift_risk=${sameHerDriftRisk || 'none'}`,
+        preferredProjectPauseMode ? `preferred_pause_mode=${preferredProjectPauseMode}` : '',
+        preferredProjectLipsyncMode ? `preferred_lipsync_mode=${preferredProjectLipsyncMode}` : '',
+        preferredProjectVoiceMode ? `preferred_voice_mode=${preferredProjectVoiceMode}` : '',
+        preferredProjectPacingMode ? `preferred_pacing_mode=${preferredProjectPacingMode}` : '',
+      ]
+    : [
+        'project_state_visibility=governance_only',
+        'short_term_owner=WorkingMemory',
+        'long_term_recall_owner=LongTermMemoryRecall',
+      ]
 
   return {
     brief,
     systemBlock: [
       '[ALICIZATION_EXECUTIVE_ANSWER_BRIEF]',
-      'This brief is the turn-level executive directive. It outranks persona flourish, recalled residue, and older assistant phrasings.',
-      `Project preflight self-awareness: ${sanitizeText((liveProjectState as { preflightSummary?: unknown } | null)?.preflightSummary, 400) || projectStateBrief.preflightSummary}`,
-      `Project pre-dialogue awareness line: ${preferredExecutiveProjectPreDialogueAwarenessLine}`,
-      executiveProjectLivingOrientation ? `Executive same-her project orientation: ${executiveProjectLivingOrientation}` : '',
-      `Project identity: ${sanitizeText(normalizedProjectState.identity, 220) || projectStateBrief.identity}`,
-      `Project phase: ${sanitizeText(normalizedProjectState.currentPhase, 220) || projectStateBrief.currentPhase}`,
-      `Latest landed continuity progress: ${preferredProjectLatestLandedProgress}`,
-      `Still-open life loop pressure: ${sanitizeText(normalizedProjectState.primaryOpenLoop, 320) || (projectStateBrief.openLoops[0] ?? 'Keep strengthening anthropomorphic memory closure.')}`,
-      `Open closure focus: ${preferredProjectOpenFocusSummary || 'none'}`,
-      `Next closure target: ${preferredProjectNextClosureTarget}`,
-      `Next closure focus: ${preferredProjectNextFocusSummary || 'none'}`,
-      `Emotional closure seam: ${input.responseCharter.emotionalClosureCue ?? liveProjectEmotionalClosureSummary ?? 'none'}.`,
-      `Project emotional closure summary: ${liveProjectEmotionalClosureSummary || 'none'}.`,
-      `Project same-her hold detail: ${liveProjectSameHerHoldDetail || 'none'}.`,
-      `Project same-her self line: ${preferredProjectSameHerSelfLine}.`,
-      `Project same-her drift risk: ${sameHerDriftRisk}`,
-      preferredProjectPauseMode ? `Project preferred pause mode: ${preferredProjectPauseMode}.` : '',
-      preferredProjectLipsyncMode ? `Project preferred lipsync mode: ${preferredProjectLipsyncMode}.` : '',
-      preferredProjectVoiceMode ? `Project preferred voice mode: ${preferredProjectVoiceMode}.` : '',
-      preferredProjectPacingMode ? `Project preferred pacing mode: ${preferredProjectPacingMode}.` : '',
-      `Turn mode: ${brief.turnMode}.`,
-      `Truth state: ${brief.truthState}.`,
-      `Visible surface now: ${brief.liveSurface}.`,
-      `Carried thread: ${brief.carriedThread ?? 'none'}.`,
-      `Carry must stay separate from visible surface: ${brief.separateCarryFromSurface ? 'yes' : 'no'}.`,
-      `Compact prior dialogue hard for this turn: ${brief.shouldCompactHistory ? `yes (keep last ${brief.maxRecentUserTurns} user turns)` : 'no'}.`,
-      'Must do:',
-      ...brief.mustDo.map(item => `- ${item}`),
-      'Must not do:',
-      ...brief.mustNotDo.map(item => `- ${item}`),
+      'brief_role=turn_level_executive_directive; outranks=persona_flourish,recalled_residue,older_assistant_phrasings',
+      ...projectStateSystemLines,
+      `turn_mode=${brief.turnMode}`,
+      `truth_state=${brief.truthState}`,
+      `visible_surface=${brief.liveSurface}`,
+      `carried_thread=${brief.carriedThread ?? 'none'}`,
+      `carry_visible_surface_separation=${brief.separateCarryFromSurface ? 'yes' : 'no'}`,
+      `prior_dialogue_compaction=${brief.shouldCompactHistory ? 'yes' : 'no'}; max_recent_user_turns=${brief.maxRecentUserTurns}`,
+      'control_section=must_do',
+      ...brief.mustDo.map(renderExecutiveProviderControl).filter(Boolean),
+      'control_section=must_not_do',
+      ...brief.mustNotDo.map(renderExecutiveProviderControl).filter(Boolean),
     ].join('\n'),
   }
 }

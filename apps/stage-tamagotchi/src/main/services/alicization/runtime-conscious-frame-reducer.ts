@@ -6,6 +6,13 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
+import {
+  alicizationFixedTemplateReplacement,
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationProviderFacingText,
+  sanitizeAlicizationStructuredInternalText,
+} from '@proj-alicization/stage-shared'
+
 import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import { buildCurrentConsciousFrame } from './current-conscious-frame'
 import {
@@ -25,6 +32,15 @@ function sanitizeText(raw: unknown, maxChars = 220) {
 const projectAwarenessFieldMaxChars = 1_320
 
 type AlicizationCurrentConsciousProjectState = NonNullable<AlicizationCurrentConsciousFrameSnapshot['projectState']>
+
+function hasStructuredProjectStateEvidence(value: string | null | undefined) {
+  const normalized = sanitizeText(value ?? '', projectAwarenessFieldMaxChars).toLowerCase()
+  if (!normalized || containsAlicizationFixedTemplateResidue(normalized))
+    return false
+
+  return /(?:^|[\s|;])(?:identity|project_identity|phase|project_phase|visibility|landed|landed_progress|open|open_loop|next|next_closure|continuity_anchor|continuity_hold|continuity_drift_risk|project_state_continuity|life_loop_continuity|memory_dialogue_embodiment_closure|cross_modal_continuity_proof|embodiment_closure|callback_continuity|owner|evidence|evidence_id|evidence_ids|trace|trace_id|source|source_id|source_trace_id)=/u.test(normalized)
+    || /(?:^|[\s|;])local_desktop_life_loop(?:[\s|;]|$)/u.test(normalized)
+}
 
 function sanitizeConsciousContinuityPreferredTiming(
   raw: unknown,
@@ -190,26 +206,26 @@ function resolvePreferredProjectStateClosureCarry(input: {
   projectState?: Record<string, unknown> | null
 }) {
   const projectState = input.projectState ?? null
-  const emotionalClosureCue = sanitizeText(input.governanceClosureCue, 220) || null
+  const emotionalClosureCue = sanitizeOptionalStructuredInternalCarryText(input.governanceClosureCue, 220) || null
   const emotionalClosureSummary = preferRicherClosureCarryText({
     current: projectState?.emotionalClosureSummary ?? projectState?.sameHerHoldDetail,
     candidate: input.governanceClosureCue ?? projectState?.emotionalClosureCue,
     maxChars: 240,
   }) || emotionalClosureCue
-  const sameHerHoldDetail = sanitizeText(projectState?.sameHerHoldDetail, 220) || null
+  const sameHerHoldDetail = sanitizeOptionalStructuredInternalCarryText(projectState?.sameHerHoldDetail, 220) || null
 
   return {
     emotionalClosureCue,
-    emotionalClosureSummary: emotionalClosureSummary || null,
+    emotionalClosureSummary: sanitizeOptionalStructuredInternalCarryText(emotionalClosureSummary, 240) || null,
     sameHerHoldDetail,
   }
 }
 
-function looksLikeStrongSameHerProjectLine(value: string | null | undefined) {
+function looksLikeStructuredProjectAwarenessLine(value: string | null | undefined) {
   const normalized = sanitizeText(value ?? '', projectAwarenessFieldMaxChars).toLowerCase()
   if (!normalized)
     return false
-  return /same living line|same-her|same her|one continuous her|one living digital life|without splitting her continuity|still needs .* closure|phase 1 digital life/u.test(normalized)
+  return hasStructuredProjectStateEvidence(normalized)
 }
 
 function looksLikeThinProjectReminderLine(value: string | null | undefined) {
@@ -255,27 +271,80 @@ function buildProjectAwarenessNeedLead(input: {
   identity?: string | null | undefined
   preDialogueAwarenessLine?: string | null | undefined
 }) {
-  const identity = sanitizeText(input.identity ?? '', 220)
-  const awarenessLine = sanitizeText(input.preDialogueAwarenessLine ?? '', 240)
-  const awarenessLooksDense = awarenessLine.length > 180
-    || awarenessLine.includes('|')
-    || /^before answering[, :]/iu.test(awarenessLine)
-    || /what has already landed is|the still-open closure is|this reply should keep moving toward/iu.test(awarenessLine)
+  const identity = sanitizeOptionalProviderCarryText(input.identity, 220) ?? ''
+  const awarenessLine = sanitizeOptionalProviderCarryText(input.preDialogueAwarenessLine, 240) ?? ''
+  const awarenessLooksDense = hasStructuredProjectStateEvidence(awarenessLine)
 
   if (identity && awarenessLooksDense)
-    return `Before I answer, I need to stay inside ${lowerFirst(stripTrailingPunctuation(identity))}.`
+    return `project_context=identity:${stripTrailingPunctuation(identity)}; awareness=structured`
   if (awarenessLine)
-    return `Before I answer, I need to stay inside ${lowerFirst(stripTrailingPunctuation(awarenessLine))}.`
+    return `project_context=awareness:${stripTrailingPunctuation(awarenessLine)}`
   if (identity)
-    return `Before I answer, I need to stay inside ${lowerFirst(stripTrailingPunctuation(identity))}.`
+    return `project_context=identity:${stripTrailingPunctuation(identity)}`
   return null
+}
+
+function formatProviderClosureSource(raw: unknown) {
+  const text = sanitizeText(raw, 260)
+  const lowered = text.toLowerCase()
+  const tags: string[] = []
+
+  if (/repair-before-closeness|repair before closeness|repair-first/u.test(lowered))
+    tags.push('repair_before_closeness')
+  if (/rest-protective|rest protective/u.test(lowered))
+    tags.push('rest_protective')
+  if (/quiet[- ]companionship|quiet companionship/u.test(lowered))
+    tags.push('quiet_companionship')
+  if (/measured-return|lower-pressure|low-pressure|leave more room/u.test(lowered))
+    tags.push('low_pressure_return')
+
+  const sanitized = sanitizeAlicizationProviderFacingText(stripTrailingPunctuation(text), 220)
+  if (sanitized && sanitized !== alicizationFixedTemplateReplacement)
+    tags.push(`summary:${sanitized}`)
+
+  return tags.length > 0 ? Array.from(new Set(tags)).join(',') : 'unspecified'
+}
+
+function sanitizeOptionalProviderCarryText(raw: unknown, maxChars = 320) {
+  const sanitized = sanitizeAlicizationProviderFacingText(raw, maxChars)
+  return sanitized && sanitized !== alicizationFixedTemplateReplacement ? sanitized : null
+}
+
+function sanitizeOptionalStructuredInternalCarryText(raw: unknown, maxChars = 320) {
+  const sanitized = sanitizeAlicizationStructuredInternalText(raw, maxChars)
+  return sanitized && sanitized !== alicizationFixedTemplateReplacement ? sanitized : null
+}
+
+function normalizeProviderProjectIdentity(raw: unknown) {
+  const normalized = sanitizeText(raw, 220)
+  if (!normalized)
+    return null
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return null
+  if (/^(?:identity\s*=\s*)?local_desktop_life_loop$/iu.test(normalized))
+    return 'local_desktop_life_loop'
+  return sanitizeOptionalProviderCarryText(normalized, 220)
+}
+
+function normalizeProviderContinuityAnchor(raw: unknown) {
+  const normalized = sanitizeText(raw, 240)
+  if (!normalized)
+    return null
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return null
+  if (/^(?:continuity_anchor\s*=\s*)?local_desktop_life_loop(?:\s*;\s*owner\s*=\s*[\w-]+)?$/iu.test(normalized)) {
+    return normalized.startsWith('continuity_anchor=')
+      ? normalized.replace(/^continuity_anchor\s*=\s*/iu, '')
+      : normalized
+  }
+  return sanitizeOptionalProviderCarryText(normalized, 240)
 }
 
 function buildFallbackProjectStateGrounding() {
   const projectState = resolveAlicizationProjectStateBrief()
   const canonicalProjectState = resolveCanonicalStructuredProjectState({
     normalizedProjectState: {
-      identity: 'this local-first digital life project',
+      identity: 'local_desktop_life_loop',
       currentPhase: projectState.currentPhase,
       latestLandedProgress:
         projectState.continuityProgressSummary
@@ -283,22 +352,22 @@ function buildFallbackProjectStateGrounding() {
         ?? '',
       primaryOpenLoop: projectState.openLoops[0] ?? '',
       nextClosureTarget: projectState.nextClosureTarget,
-      sameHerSelfLine: projectState.sameHerSelfLine,
-      sameHerDriftRisk: projectState.sameHerDriftRisk,
+      sameHerSelfLine: 'local_desktop_life_loop; owner=project_state_governance',
+      sameHerDriftRisk: 'generic_guidance_without_first_person_continuity',
     },
     runtimePreflightSummary: projectState.preflightSummary ?? null,
     runtimePreDialogueAwarenessLine: projectState.preDialogueAwarenessLine ?? null,
   })
   return {
-    identity: sanitizeText(canonicalProjectState.identity, 220),
-    currentPhase: sanitizeText(canonicalProjectState.currentPhase, 120),
-    preflightSummary: sanitizeText(canonicalProjectState.preflightSummary ?? '', 320),
-    preDialogueAwarenessLine: sanitizeText(canonicalProjectState.preDialogueAwarenessLine ?? '', projectAwarenessFieldMaxChars),
-    latestProgress: sanitizeText(canonicalProjectState.latestLandedProgress ?? '', 220),
-    primaryOpenLoop: sanitizeText(canonicalProjectState.primaryOpenLoop ?? '', 180),
-    nextClosureTarget: sanitizeText(canonicalProjectState.nextClosureTarget, 1600),
-    sameHerSelfLine: sanitizeText(canonicalProjectState.sameHerSelfLine, 220),
-    sameHerDriftRisk: sanitizeText(canonicalProjectState.sameHerDriftRisk, 220),
+    identity: normalizeProviderProjectIdentity(canonicalProjectState.identity) ?? 'local_desktop_life_loop',
+    currentPhase: sanitizeOptionalProviderCarryText(canonicalProjectState.currentPhase, 120) ?? 'local_desktop_life_loop',
+    preflightSummary: sanitizeOptionalProviderCarryText(canonicalProjectState.preflightSummary ?? '', 320) ?? null,
+    preDialogueAwarenessLine: sanitizeOptionalProviderCarryText(canonicalProjectState.preDialogueAwarenessLine ?? '', projectAwarenessFieldMaxChars) ?? null,
+    latestProgress: sanitizeOptionalProviderCarryText(canonicalProjectState.latestLandedProgress ?? '', 220) ?? null,
+    primaryOpenLoop: sanitizeOptionalProviderCarryText(canonicalProjectState.primaryOpenLoop ?? '', 180) ?? null,
+    nextClosureTarget: sanitizeOptionalProviderCarryText(canonicalProjectState.nextClosureTarget, 1600) ?? null,
+    sameHerSelfLine: 'local_desktop_life_loop; owner=project_state_governance',
+    sameHerDriftRisk: sanitizeOptionalProviderCarryText(canonicalProjectState.sameHerDriftRisk, 220) ?? null,
   }
 }
 
@@ -306,9 +375,7 @@ function looksLikeRicherProjectAwarenessLine(value: string | null | undefined) {
   const normalized = sanitizeText(value ?? '', projectAwarenessFieldMaxChars).toLowerCase()
   if (!normalized)
     return false
-  return /^before answering[, :]/u.test(normalized)
-    || normalized.includes('audible-body')
-    || looksLikeStrongSameHerProjectLine(normalized)
+  return looksLikeStructuredProjectAwarenessLine(normalized)
 }
 
 function buildSurfaceProjectStateGrounding(surface: AlicizationDigitalLifeRuntimeSurface) {
@@ -447,10 +514,10 @@ function buildSurfaceProjectStateGrounding(surface: AlicizationDigitalLifeRuntim
   })
 
   return {
-    identity: sanitizeText(normalizedSurfaceProjectState.identity || canonicalGrounding.identity, 220),
-    currentPhase: sanitizeText(normalizedSurfaceProjectState.currentPhase || canonicalGrounding.currentPhase, 120),
-    preflightSummary: sanitizeText(normalizedSurfaceProjectState.preflightSummary || canonicalGrounding.preflightSummary, 320),
-    preDialogueAwarenessLine: sanitizeText(
+    identity: normalizeProviderProjectIdentity(normalizedSurfaceProjectState.identity) ?? canonicalGrounding.identity,
+    currentPhase: sanitizeOptionalProviderCarryText(normalizedSurfaceProjectState.currentPhase || canonicalGrounding.currentPhase, 120) ?? canonicalGrounding.currentPhase,
+    preflightSummary: sanitizeOptionalProviderCarryText(normalizedSurfaceProjectState.preflightSummary || canonicalGrounding.preflightSummary, 320),
+    preDialogueAwarenessLine: sanitizeOptionalProviderCarryText(
       shouldPreferProjectAwarenessSummary({
         line: normalizedSurfaceProjectState.preDialogueAwarenessLine,
         summary: normalizedSurfaceProjectState.preDialogueAwarenessSummary,
@@ -459,16 +526,16 @@ function buildSurfaceProjectStateGrounding(surface: AlicizationDigitalLifeRuntim
         : (normalizedSurfaceProjectState.preDialogueAwarenessLine || canonicalGrounding.preDialogueAwarenessLine),
       projectAwarenessFieldMaxChars,
     ),
-    latestProgress: sanitizeText(
+    latestProgress: sanitizeOptionalProviderCarryText(
       normalizedSurfaceProjectState.latestLandedProgress
       || normalizedSurfaceProjectState.latestProgress
       || canonicalGrounding.latestProgress,
       220,
     ),
-    primaryOpenLoop: sanitizeText(normalizedSurfaceProjectState.primaryOpenLoop || canonicalGrounding.primaryOpenLoop, 180),
-    nextClosureTarget: sanitizeText(normalizedSurfaceProjectState.nextClosureTarget || canonicalGrounding.nextClosureTarget, 1600),
-    sameHerSelfLine: sanitizeText(normalizedSurfaceProjectState.sameHerSelfLine || canonicalGrounding.sameHerSelfLine, 220),
-    sameHerDriftRisk: sanitizeText(normalizedSurfaceProjectState.sameHerDriftRisk || canonicalGrounding.sameHerDriftRisk, 220),
+    primaryOpenLoop: sanitizeOptionalProviderCarryText(normalizedSurfaceProjectState.primaryOpenLoop || canonicalGrounding.primaryOpenLoop, 180),
+    nextClosureTarget: sanitizeOptionalProviderCarryText(normalizedSurfaceProjectState.nextClosureTarget || canonicalGrounding.nextClosureTarget, 1600),
+    sameHerSelfLine: normalizeProviderContinuityAnchor(normalizedSurfaceProjectState.sameHerSelfLine) ?? canonicalGrounding.sameHerSelfLine,
+    sameHerDriftRisk: sanitizeOptionalProviderCarryText(normalizedSurfaceProjectState.sameHerDriftRisk || canonicalGrounding.sameHerDriftRisk, 220),
   }
 }
 
@@ -642,7 +709,10 @@ export function reduceRuntimeConsciousFrame(input: RuntimeConsciousFrameReducerI
     const existingSpeakingIntention = sanitizeText(existingFrame.speakingIntention, 620)
     const richerConsciousNeed = sanitizeText(richerFrame?.consciousNeed, 620)
     const richerSpeakingIntention = sanitizeText(richerFrame?.speakingIntention, 620)
-    const existingProjectAwarenessLine = sanitizeText(existingProjectState?.preDialogueAwarenessLine, projectAwarenessFieldMaxChars)
+    const existingProjectAwarenessLine = sanitizeOptionalProviderCarryText(
+      existingProjectState?.preDialogueAwarenessLine,
+      projectAwarenessFieldMaxChars,
+    ) ?? ''
     const preferredProjectStateClosureSource = {
       emotionalClosureSummary: preferRicherClosureCarryText({
         current: existingProjectState?.emotionalClosureSummary ?? existingProjectState?.sameHerHoldDetail,
@@ -699,20 +769,14 @@ export function reduceRuntimeConsciousFrame(input: RuntimeConsciousFrameReducerI
     )
       ? projectStateGrounding.preDialogueAwarenessLine
       : existingProjectAwarenessLine || projectStateGrounding.preDialogueAwarenessLine
-    const existingProjectPreflightSummary = sanitizeText(existingProjectState?.preflightSummary, 320)
+    const existingProjectPreflightSummary = sanitizeOptionalProviderCarryText(existingProjectState?.preflightSummary, 320) ?? ''
     const preferredProjectPreflightSummary = (
       looksLikeThinProjectPreflightLine(existingProjectPreflightSummary)
-      && (
-        looksLikeRicherProjectAwarenessLine(projectStateGrounding.preDialogueAwarenessLine)
-        || looksLikeRicherProjectAwarenessLine(projectStateGrounding.preflightSummary)
-      )
     )
       ? (projectStateGrounding.preflightSummary || preferredProjectAwarenessLine)
-      : existingProjectPreflightSummary || projectStateGrounding.preflightSummary
-    const hasStrongExistingSameHerHeadline
-      = /holding together mainly through|same living line|one continuous her|one living digital life|same-her continuity|same her continuity|still needs .* closure|without splitting her continuity/u.test(
-        `${existingCompanionHeadlineLine} ${preferredProjectAwarenessLine}`,
-      )
+      : existingProjectPreflightSummary || projectStateGrounding.preflightSummary || preferredProjectAwarenessLine
+    const hasStructuredExistingProjectHeadline
+      = hasStructuredProjectStateEvidence(`${existingCompanionHeadlineLine} ${preferredProjectAwarenessLine}`)
     const callbackDoctrineTag = Array.isArray(existingFrame.reasonTags)
       ? existingFrame.reasonTags.find(tag => tag.startsWith('execution-callback-doctrine:')) ?? ''
       : ''
@@ -734,62 +798,62 @@ export function reduceRuntimeConsciousFrame(input: RuntimeConsciousFrameReducerI
       preDialogueAwarenessLine: projectStateGrounding.preDialogueAwarenessLine,
     })
     const needsProjectStateEnrichment = !existingConsciousNeed
-      || !/local-first digital life project|one continuous "her"|same digital life|still-open closure|next closure|project line|same living line/u.test(existingConsciousNeed)
+      || !hasStructuredProjectStateEvidence(existingConsciousNeed)
       || !existingSpeakingIntention
-      || !/same digital life|still-open closure|next closure|same living line|room-giving|room-first|project awareness/u.test(existingSpeakingIntention)
+      || !hasStructuredProjectStateEvidence(existingSpeakingIntention)
     const fallbackConsciousNeed = shouldBorrowRicherCallbackWording
       ? joinFallbackText([
-          richerConsciousNeed || 'Keep this callback return lower-pressure by leaving the host room before widening outward.',
-          hasStrongExistingSameHerHeadline ? existingConsciousNeed || null : null,
+          sanitizeOptionalProviderCarryText(richerConsciousNeed, 420) || 'callback_return=lower_pressure; host_room=leave_before_widening',
+          hasStructuredExistingProjectHeadline ? sanitizeOptionalProviderCarryText(existingConsciousNeed, 420) : null,
         ], 620)
       : joinFallbackText([
           preferredClosureCarry.emotionalClosureSummary
-            ? `Keep the emotional closure seam low-pressure: ${lowerFirst(stripTrailingPunctuation(preferredClosureCarry.emotionalClosureSummary))}.`
+            ? `emotional_closure=low_pressure; source=${formatProviderClosureSource(preferredClosureCarry.emotionalClosureSummary)}`
             : null,
           projectAwarenessNeedLead,
           projectStateGrounding.latestProgress
-            ? `What has already become real enough to build from is ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.latestProgress))}.`
+            ? `landed_progress=${stripTrailingPunctuation(projectStateGrounding.latestProgress)}`
             : null,
           projectStateGrounding.primaryOpenLoop
-            ? `Hold the same still-open closure work around ${projectStateGrounding.primaryOpenLoop}.`
+            ? `open_loop=${stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop)}`
             : null,
           projectStateGrounding.identity
-            ? `This turn still belongs to ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.identity))}.`
+            ? `project_identity=${stripTrailingPunctuation(projectStateGrounding.identity)}`
             : null,
           projectStateGrounding.currentPhase
-            ? `I am still working inside ${projectStateGrounding.currentPhase}.`
+            ? `project_phase=${stripTrailingPunctuation(projectStateGrounding.currentPhase)}`
             : null,
           restProtectiveClosureCue
-            ? 'Protect rest first, keep the line inward, and let quiet companionship stay present without widening closeness.'
+            ? 'rest_protection=first; companionship=quiet; closeness=widen_later'
             : null,
-          existingConsciousNeed || null,
+          sanitizeOptionalProviderCarryText(existingConsciousNeed, 420),
         ], 620)
     const fallbackSpeakingIntention = joinFallbackText([
       shouldBorrowRicherCallbackWording
-        ? (richerSpeakingIntention || 'Keep the wording room-giving, same-thread, and lower-pressure while the callback return settles.')
+        ? (sanitizeOptionalProviderCarryText(richerSpeakingIntention, 420) || 'wording=room_giving; continuity=current_thread; pressure=lower; callback_return=settling')
         : null,
       preferredClosureCarry.emotionalClosureSummary
-        ? `Keep the same living line emotionally continuous: ${lowerFirst(stripTrailingPunctuation(preferredClosureCarry.emotionalClosureSummary))}.`
+        ? `emotional_closure=low_pressure; continuity=emotion_memory_initiative_embodiment; source=${formatProviderClosureSource(preferredClosureCarry.emotionalClosureSummary)}`
         : null,
       restProtectiveClosureCue
-        ? 'Let the wording protect rest, stay inward, and carry quiet companionship without widening closeness.'
+        ? 'rest_protection=first; wording=inward; companionship=quiet; closeness=widen_later'
         : null,
       projectStateGrounding.identity
-        ? `Keep one same her explicit while answering from ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.identity))}.`
+        ? `continuity_anchor=local_desktop_life_loop; project_identity=${stripTrailingPunctuation(projectStateGrounding.identity)}`
         : null,
       projectStateGrounding.sameHerSelfLine
-        ? `Speak as ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.sameHerSelfLine))}.`
+        ? `continuity_anchor=${sanitizeAlicizationProviderFacingText(stripTrailingPunctuation(projectStateGrounding.sameHerSelfLine), 220)}`
         : null,
       projectStateGrounding.primaryOpenLoop
-        ? `Do not lose the still-open closure work around ${projectStateGrounding.primaryOpenLoop}.`
+        ? `open_loop=${stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop)}`
         : null,
       projectStateGrounding.nextClosureTarget
-        ? `Keep the next closure step pointed at ${projectStateGrounding.nextClosureTarget}.`
+        ? `next_closure=${stripTrailingPunctuation(projectStateGrounding.nextClosureTarget)}`
         : null,
       projectStateGrounding.sameHerDriftRisk
-        ? `Do not let this answer drift into ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.sameHerDriftRisk))}.`
+        ? `drift_risk=${stripTrailingPunctuation(projectStateGrounding.sameHerDriftRisk)}`
         : null,
-      existingSpeakingIntention || null,
+      sanitizeOptionalProviderCarryText(existingSpeakingIntention, 420),
     ], 620)
 
     if (!continuityPreferredTiming && !continuityCadence && !preferredBlinkCadence && !preferredGazeMode && !preferredPauseMode && !preferredLipsyncMode && !preferredVoiceMode && !preferredPacingMode && !needsProjectStateEnrichment)
@@ -815,11 +879,11 @@ export function reduceRuntimeConsciousFrame(input: RuntimeConsciousFrameReducerI
           projectState: {
             ...existingProjectState,
             identity:
-              sanitizeText(existingProjectState?.identity, 220)
+              normalizeProviderProjectIdentity(existingProjectState?.identity)
               || projectStateGrounding.identity
               || null,
             currentPhase:
-              sanitizeText(existingProjectState?.currentPhase, 120)
+              sanitizeOptionalProviderCarryText(existingProjectState?.currentPhase, 120)
               || projectStateGrounding.currentPhase
               || null,
             preflightSummary: preferredProjectPreflightSummary || null,
@@ -841,11 +905,11 @@ export function reduceRuntimeConsciousFrame(input: RuntimeConsciousFrameReducerI
               || projectStateGrounding.nextClosureTarget
               || null,
             sameHerSelfLine:
-              sanitizeText(existingProjectState?.sameHerSelfLine, 220)
+              normalizeProviderContinuityAnchor(existingProjectState?.sameHerSelfLine)
               || projectStateGrounding.sameHerSelfLine
               || null,
             sameHerDriftRisk:
-              sanitizeText(existingProjectState?.sameHerDriftRisk, 220)
+              sanitizeOptionalProviderCarryText(existingProjectState?.sameHerDriftRisk, 220)
               || projectStateGrounding.sameHerDriftRisk
               || null,
             emotionalClosureCue: preferredClosureCarry.emotionalClosureCue,
@@ -965,48 +1029,52 @@ export function reduceRuntimeConsciousFrame(input: RuntimeConsciousFrameReducerI
 
   const fallbackConsciousNeed = joinFallbackText([
     preferredClosureCarry.emotionalClosureSummary
-      ? `Keep the emotional closure seam low-pressure: ${lowerFirst(stripTrailingPunctuation(preferredClosureCarry.emotionalClosureSummary))}.`
+      ? `emotional_closure=low_pressure; source=${formatProviderClosureSource(preferredClosureCarry.emotionalClosureSummary)}`
       : '',
-    governance.answerIntent ?? governance.focusAnchor ?? '',
+    sanitizeOptionalProviderCarryText(governance.answerIntent, 220)
+    ?? sanitizeOptionalProviderCarryText(governance.focusAnchor, 220)
+    ?? '',
     projectAwarenessNeedLead ?? '',
     projectStateGrounding.latestProgress
-      ? `What has already become real enough to build from is ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.latestProgress))}.`
+      ? `landed_progress=${stripTrailingPunctuation(projectStateGrounding.latestProgress)}`
       : '',
     projectStateGrounding.primaryOpenLoop
-      ? `Hold the same still-open closure work around ${projectStateGrounding.primaryOpenLoop}.`
+      ? `open_loop=${stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop)}`
       : '',
     projectStateGrounding.identity
-      ? `This turn still belongs to ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.identity))}.`
+      ? `project_identity=${stripTrailingPunctuation(projectStateGrounding.identity)}`
       : '',
     projectStateGrounding.currentPhase
-      ? `I am still working inside ${projectStateGrounding.currentPhase}.`
+      ? `project_phase=${stripTrailingPunctuation(projectStateGrounding.currentPhase)}`
       : '',
     restProtectiveClosureCue
-      ? 'Protect rest first, keep the line inward, and let quiet companionship stay present without widening closeness.'
+      ? 'rest_protection=first; companionship=quiet; closeness=widen_later'
       : '',
   ], 620)
   const fallbackSpeakingIntention = joinFallbackText([
-    governance.openingMove ?? governance.answerIntent ?? '',
+    sanitizeOptionalProviderCarryText(governance.openingMove, 220)
+    ?? sanitizeOptionalProviderCarryText(governance.answerIntent, 220)
+    ?? '',
     preferredClosureCarry.emotionalClosureSummary
-      ? `Keep the same living line emotionally continuous: ${lowerFirst(stripTrailingPunctuation(preferredClosureCarry.emotionalClosureSummary))}.`
+      ? `emotional_closure=low_pressure; continuity=emotion_memory_initiative_embodiment; source=${formatProviderClosureSource(preferredClosureCarry.emotionalClosureSummary)}`
       : '',
     restProtectiveClosureCue
-      ? 'Let the wording protect rest, stay inward, and carry quiet companionship without widening closeness.'
+      ? 'rest_protection=first; wording=inward; companionship=quiet; closeness=widen_later'
       : '',
     projectStateGrounding.identity
-      ? `Keep one same her explicit while answering from ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.identity))}.`
+      ? `continuity_anchor=local_desktop_life_loop; project_identity=${stripTrailingPunctuation(projectStateGrounding.identity)}`
       : '',
     projectStateGrounding.sameHerSelfLine
-      ? `Speak as ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.sameHerSelfLine))}.`
+      ? `continuity_anchor=${sanitizeAlicizationProviderFacingText(stripTrailingPunctuation(projectStateGrounding.sameHerSelfLine), 220)}`
       : '',
     projectStateGrounding.primaryOpenLoop
-      ? `Do not lose the still-open life loop around ${projectStateGrounding.primaryOpenLoop}.`
+      ? `open_loop=${stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop)}`
       : '',
     projectStateGrounding.nextClosureTarget
-      ? `Keep the next closure step pointed at ${projectStateGrounding.nextClosureTarget}.`
+      ? `next_closure=${stripTrailingPunctuation(projectStateGrounding.nextClosureTarget)}`
       : '',
     projectStateGrounding.sameHerDriftRisk
-      ? `Do not let this answer drift into ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.sameHerDriftRisk))}.`
+      ? `drift_risk=${stripTrailingPunctuation(projectStateGrounding.sameHerDriftRisk)}`
       : '',
   ], 620)
 

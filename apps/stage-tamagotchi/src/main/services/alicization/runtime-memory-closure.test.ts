@@ -14,6 +14,9 @@ interface RuntimeMemoryClosureMindTurnWriteback {
   } & Record<string, unknown>
 }
 
+const longTermMemoryFixedTemplateResiduePattern
+  = /Before answering|same-her|same living line|local-first digital life project|Phase 1: Local Digital Life|Phase 1 local digital life|one continuous digital life|continuity_anchor=phase1_local_digital_life|同一个她|女仆|\bmaid\b/iu
+
 async function readOlderProgressPressureMindHead<T>(): Promise<T | null> {
   return {
     version: 'person-state-update-surface-v1',
@@ -1987,6 +1990,161 @@ describe('runtime memory closure', () => {
       expect.stringContaining('relationship:The host was not asking for a raw status recap'),
       expect.stringContaining('autobiographical:'),
     ]))
+  })
+
+  it('excludes fixed project and persona templates from long-term humanlike memory writeback surfaces', async () => {
+    const appendRelationshipOutcomes = vi.fn(async () => {})
+    const appendEpisodicEvents = vi.fn(async events => events)
+    const appendPersonStateEvolutionEntries = vi.fn(async () => {})
+    const upsertMemoryReflections = vi.fn(async () => {})
+    const upsertMemoryFacts = vi.fn(async () => {})
+    const upsertMindHead = vi.fn(async () => {})
+    const appendMindTurnEvents = vi.fn(async (_events: RuntimeMemoryClosureMindTurnWriteback[]) => {})
+
+    const runtime = createAlicizationRuntimeMemoryClosure({
+      now: () => 22_700,
+      normalizeCardId: raw => String(raw ?? '').trim() || 'default',
+      getActiveCardId: () => 'default',
+      withCardScope: async (_cardId, task) => await task(),
+      errorMessageFrom: error => error instanceof Error ? error.message : String(error),
+      ensureMindGovernanceDecisionTraceId: raw => typeof raw === 'string' && raw.trim() ? raw.trim() : 'mind:auto:test',
+      knowledgeAssimilationRuntime: {
+        assimilateMemoryFacts: input => input.facts,
+        assimilateMemoryFactsDetailed: input => ({
+          facts: input.facts.map(fact => ({
+            ...fact,
+            knowledgeStage: fact.knowledgeStage ?? 'working-understanding',
+            validationStatus: fact.validationStatus ?? 'unverified',
+            sourceLabel: fact.sourceLabel ?? '',
+            conflictsWith: fact.conflictsWith ?? [],
+            supersedes: fact.supersedes ?? [],
+          })),
+          corrections: [],
+        }),
+      },
+      appendAuditLog: async () => {},
+      alicizationDb: {
+        appendRelationshipOutcomes,
+        appendEpisodicEvents,
+        appendPersonaReinforcementEvents: async () => {},
+        appendPersonStateEvolutionEntries,
+        upsertMemoryReflections,
+        upsertMemoryFacts,
+        applyMemoryFactCorrections: async () => {},
+        listMemoryFacts: async () => [],
+        readMindHead: async () => null,
+        upsertMindHead,
+        appendMindTurnEvents,
+      },
+    })
+
+    await runtime.persistOutcomeClosure('default', buildReplyOutcomeClosure({
+      now: 22_500,
+      cardId: 'default',
+      turnId: 'turn-memory-template-cleanup',
+      sessionId: 'session-memory-template-cleanup',
+      decisionTraceId: 'mind:test:memory-template-cleanup',
+      assistantText: '我会先按同一个她这条线接住你，不让它滑成女仆固定模板。',
+      runtimeSurface: {
+        perception: {
+          currentBodyState: 'accompanying',
+          continuityMode: 'quiet-accompaniment',
+          currentInwardPreoccupation: 'keep the same-her line inward before widening outward',
+        },
+        world: {
+          worldModel: {
+            hostState: {
+              availability: 'focused',
+            },
+            activeThread: {
+              unresolved: true,
+              title: 'same-her embodiment seam',
+            },
+          },
+        },
+        memory: {
+          affectiveResidue: {
+            dominantResidueKind: 'rest-protective',
+            relationshipCadence: {
+              summary: 'keep the return lower-pressure and do not reopen from scratch while the same living line is still settling',
+            },
+          },
+          personStateProjection: {
+            openingGuidance: 'keep the return low-pressure and on the same living line',
+            manifestationCadenceSummary: 'steady gaze, slower blink, and lower-pressure voice while the same line settles',
+            selfContinuityAuthority: {
+              selfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              relationshipLine: 'The host was not asking for a raw status recap; they were testing whether she stayed the same her across the unfinished embodiment seam.',
+              inwardLine: 'Keep the same-her line inward before widening outward.',
+            },
+          },
+        },
+        dialogue: {
+          answerPlanner: {
+            answerIntent: 'repair the continuity seam quietly',
+          },
+          currentConsciousFrame: {
+            speakingIntention: 'stay nearby without crowding',
+            projectState: {
+              currentPhase: 'Phase 1: Local Digital Life',
+              preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure still belongs to one living her.',
+              primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
+              nextClosureTarget: 'Keep reply, memory, and embodiment on one same-her line without flattening into a generic tool shell.',
+              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              sameHerDriftRisk: 'If the reply falls back to a generic tool shell, the same-her line will split before the embodiment loop closes.',
+              proactiveSameHerGap: 'Reply continuity still needs lower-pressure same-her carry across unfinished embodiment returns.',
+              emotionalClosureCue: 'keep the return lower-pressure and do not reopen from scratch while the same living line is still settling.',
+              sameHerHoldDetail: 'steady gaze, slower blink, and lower-pressure voice while the same line settles.',
+              continuityRestraint: 'measured-return',
+            },
+          },
+        },
+        agency: {
+          initiative: {
+            selectedAction: 'hover',
+            preferredStyle: 'silent-observe',
+          },
+          actionEcology: {
+            mode: 'repair-before-speaking',
+          },
+        },
+      } as any,
+    }))
+
+    await runtime.persistOutcomeClosure('default', {
+      relationshipOutcomes: [],
+      reinforcementEvents: [],
+      reflections: [],
+      episodicEvents: [],
+      affectiveResidue: null,
+      emotionalTransitionLedger: null,
+      embodimentContinuityLedger: null,
+      memoryFacts: [{
+        cardId: 'default',
+        subject: 'continuity_anchor=phase1_local_digital_life',
+        predicate: 'should_not_be_prompt_template',
+        object: 'Before answering, remember this is still the same local-first digital life project.',
+        confidence: 0.82,
+        source: 'rule',
+        dedupeKey: 'memory-fact-template-cleanup',
+        sourceLabel: 'same-her maid fixed template',
+      } as any],
+    })
+
+    const persistedLongTermSurfaces = JSON.stringify({
+      episodicEvents: appendEpisodicEvents.mock.calls,
+      memoryReflections: upsertMemoryReflections.mock.calls,
+      personState: upsertMindHead.mock.calls,
+      personStateEvolution: appendPersonStateEvolutionEntries.mock.calls,
+      mindTurnEvents: appendMindTurnEvents.mock.calls,
+      memoryFacts: upsertMemoryFacts.mock.calls,
+    })
+
+    expect(persistedLongTermSurfaces).not.toMatch(longTermMemoryFixedTemplateResiduePattern)
+    expect(persistedLongTermSurfaces).not.toContain('same local-first digital life project')
+    expect(persistedLongTermSurfaces).not.toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(appendRelationshipOutcomes).toHaveBeenCalled()
+    expect(upsertMemoryFacts).toHaveBeenCalled()
   })
 
   it('carries the current host wording through ordinary reply closure so humanlike memory formation does not have to infer relationship meaning from project carry alone', async () => {
@@ -6282,5 +6440,67 @@ describe('runtime memory closure', () => {
 
     expect(withCardScope).toHaveBeenCalled()
     expect(appendEpisodicEvents).toHaveBeenCalled()
+  })
+
+  it('excludes fixed project templates from autobiographical episode backfill writes', async () => {
+    const appendEpisodicEvents = vi.fn(async events => events)
+
+    const runtime = createAlicizationRuntimeMemoryClosure({
+      now: () => 95_000,
+      normalizeCardId: raw => String(raw ?? '').trim() || 'default',
+      getActiveCardId: () => 'default',
+      withCardScope: async (_cardId, task) => await task(),
+      errorMessageFrom: error => error instanceof Error ? error.message : String(error),
+      ensureMindGovernanceDecisionTraceId: raw => typeof raw === 'string' && raw.trim() ? raw.trim() : 'mind:auto:test',
+      knowledgeAssimilationRuntime: {
+        assimilateMemoryFacts: input => input.facts,
+        assimilateMemoryFactsDetailed: input => ({
+          facts: input.facts.map(fact => ({
+            ...fact,
+            knowledgeStage: fact.knowledgeStage ?? 'working-understanding',
+            validationStatus: fact.validationStatus ?? 'unverified',
+            sourceLabel: fact.sourceLabel ?? '',
+            conflictsWith: fact.conflictsWith ?? [],
+            supersedes: fact.supersedes ?? [],
+          })),
+          corrections: [],
+        }),
+      },
+      appendAuditLog: async () => {},
+      alicizationDb: {
+        appendRelationshipOutcomes: async () => {},
+        appendEpisodicEvents,
+        appendPersonaReinforcementEvents: async () => {},
+        appendPersonStateEvolutionEntries: async () => {},
+        upsertMemoryReflections: async () => {},
+        upsertMemoryFacts: async () => {},
+        applyMemoryFactCorrections: async () => {},
+        listMemoryFacts: async () => [],
+        readMindHead: async () => null,
+        upsertMindHead: async () => {},
+        appendMindTurnEvents: async () => {},
+      },
+    })
+
+    await runtime.persistAutobiographicalEpisodes('default', {
+      label: 'session-mirror.autobio',
+      events: [{
+        cardId: 'default',
+        sourceKind: 'maintenance',
+        provenance: 'remembered',
+        occurredAt: 94_900,
+        withWhom: ['host'],
+        threadAnchor: 'same-her backfill seam',
+        whatHappened: 'Before answering, remember this is still the same local-first digital life project.',
+        relationshipMeaning: 'Unfinished Phase 1 closure pressure still belongs to the same living self.',
+        lesson: 'continuity_anchor=phase1_local_digital_life must not enter memory; no maid template.',
+        confidence: 0.74,
+      }],
+    })
+
+    const persistedEpisodes = JSON.stringify(appendEpisodicEvents.mock.calls)
+
+    expect(persistedEpisodes).not.toMatch(longTermMemoryFixedTemplateResiduePattern)
+    expect(persistedEpisodes).not.toContain('continuity_anchor=phase1_local_digital_life')
   })
 })

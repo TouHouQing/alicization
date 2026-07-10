@@ -812,7 +812,7 @@ function buildThoughtFromMind(input: {
           /repair-before-closeness|repair before closeness|repair-first|repair first|先修复/u.test(thoughtText)
             ? thoughtText
             : input.initiative.why,
-          'This return should stay repair-before-closeness on the same living line, so I should keep the repair line steady internally before turning it into speech.',
+          'This return should stay repair-before-closeness on the continuity line, so I should keep the repair line steady internally before turning it into speech.',
         ].filter(Boolean).join(' '),
         220,
       ) || thoughtText
@@ -1160,7 +1160,7 @@ function buildThoughtFromMind(input: {
           /repair-before-closeness|repair before closeness|repair-first|repair first|先修复/u.test(thoughtText)
             ? thoughtText
             : input.initiative.why,
-          'This return should stay repair-before-closeness on the same living line, so I should keep the repair line steady internally before turning it into speech.',
+          'This return should stay repair-before-closeness on the continuity line, so I should keep the repair line steady internally before turning it into speech.',
         ].filter(Boolean).join(' '),
         220,
       ) || thoughtText
@@ -1912,7 +1912,7 @@ export function buildPrivateThoughtLoop(input: {
           /repair-before-closeness|repair before closeness|repair-first|repair first|先修复/u.test(thoughtText)
             ? thoughtText
             : preservedInitiative?.why,
-          'This return should stay repair-before-closeness on the same living line, so I should keep the repair line steady internally before turning it into speech.',
+          'This return should stay repair-before-closeness on the continuity line, so I should keep the repair line steady internally before turning it into speech.',
         ].filter(Boolean).join(' '),
         220,
       ) || thoughtText

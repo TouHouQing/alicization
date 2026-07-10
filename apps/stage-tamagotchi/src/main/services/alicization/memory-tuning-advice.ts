@@ -55,7 +55,7 @@ function sanitizeText(raw: unknown, maxChars = 220) {
 function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
   const result: string[] = []
   for (const value of values) {
-    const normalized = sanitizeText(value)
+    const normalized = sanitizeMemoryTuningNote(value)
     if (!normalized || result.includes(normalized))
       continue
     result.push(normalized)
@@ -63,6 +63,26 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
       break
   }
   return result
+}
+
+function sanitizeMemoryTuningNote(raw: unknown, maxChars = 260) {
+  const normalized = sanitizeText(raw, maxChars)
+  if (!normalized)
+    return ''
+
+  const runtimeSamplingMatch = normalized.match(/Runtime sampling found same-her gaps across (?<lanes>[^()]+)\((?<turns>\d+) turn,\s*(?<transitions>\d+) transition\)/iu)
+  if (runtimeSamplingMatch?.groups) {
+    const lanes = runtimeSamplingMatch.groups.lanes
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean)
+      .join(',')
+    return `runtime_continuity_gap; lanes=${lanes}; turn_gap=${runtimeSamplingMatch.groups.turns}; transition_gap=${runtimeSamplingMatch.groups.transitions}; owner=memory-quality-harness`
+  }
+
+  return normalized
+    .replace(/\bsame-her\b/giu, 'identity-continuity')
+    .replace(/\bone carried line\b/giu, 'one structured continuity path')
 }
 
 function describeRuntimeSameHerLane(lane: string) {
@@ -276,7 +296,7 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
       advice.surfaceAdjustments.inwardCarryBias += 0.04
       advice.surfaceAdjustments.provenanceLabelBias += 0.03
     }
-    advice.notes.push('Replay lost project identity, current phase, still-open closure work, or the same-her emotional closure seam too often, so project-state continuity cues should stay carried through memory ranking and restrained surface planning before answers flatten them away.')
+    advice.notes.push('Replay lost project identity, current phase, still-open closure work, or the emotional continuity seam too often, so project-state continuity cues should stay carried through memory ranking and restrained surface planning before answers flatten them away.')
   }
 
   const preDialogueBriefingDriftDetected = input.results.some((item) => {
@@ -304,7 +324,7 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
     advice.surfaceAdjustments.inwardCarryBias += 0.08
     advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.05
     advice.surfaceAdjustments.provenanceLabelBias += 0.04
-    advice.notes.push('Replay dropped pre-dialogue project briefing cues before visible wording forms, so project identity, landed progress, still-open closure pressure, and same-her emotional seam should stay explicit earlier in memory carry and restrained surface planning.')
+    advice.notes.push('Replay dropped pre-dialogue project briefing cues before visible wording forms, so project identity, landed progress, still-open closure pressure, and emotional continuity should stay explicit earlier in memory carry and restrained surface planning.')
   }
 
   const emotionalClosureDriftDetected = input.results.some((item) => {
@@ -334,7 +354,7 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
     advice.surfaceAdjustments.inwardCarryBias += 0.08
     advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.06
     advice.personStateAdjustments.closenessCapBias += 0.04
-    advice.notes.push('Replay let the same-her emotional closure seam drop out of rewrite carry too often, so the return should stay lower-pressure, do not reopen from scratch, and keep closure cues alive through preserved surface realization.')
+    advice.notes.push('Replay let the emotional continuity closure seam drop out of rewrite carry too often, so the return should stay lower-pressure, do not reopen from scratch, and keep closure cues alive through preserved surface realization.')
   }
 
   const projectStateSameHerSelfLineDriftDetected = input.results.some((item) => {
@@ -358,9 +378,9 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
     advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.07
     advice.surfaceAdjustments.provenanceLabelBias += 0.04
     advice.personStateAdjustments.closenessCapBias += 0.04
-    advice.notes.push('Replay still carried project-state continuity, but the same-her self line degraded into generic guidance and the reply slipped toward a generic project shell instead of one continuous her, so self-line-grade continuity should stay explicit through ranking, rewrite preservation, and final surface realization.')
+    advice.notes.push('Replay still carried project-state continuity, but the identity-continuity line degraded into generic guidance and the reply slipped toward a generic project shell instead of stable continuity, so self-line-grade continuity should stay explicit through ranking, rewrite preservation, and final surface realization.')
     if ((projectStateAuditSummary?.richPreDialogueAwarenessTurnCount ?? 0) < Math.max(1, projectStateAuditSummary?.sameHerSummaryTurnCount ?? 0)) {
-      advice.notes.push('The richer same-her pre-dialogue awareness line also degraded before reply wording formed, so future turns should preserve one-continuous-her wording earlier instead of letting it collapse into a thinner project reminder.')
+      advice.notes.push('The richer pre-dialogue continuity awareness line also degraded before reply wording formed, so future turns should preserve identity-continuity wording earlier instead of letting it collapse into a thinner project reminder.')
     }
     advice.notes.push('Until that drift is gone, later replies should stay more inward-first, delay warmth until after payoff, and avoid sounding like a detached project narrator.')
   }
@@ -415,7 +435,7 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
       advice.personStateAdjustments.closenessCapBias += 0.03
       advice.notes.push('Runtime embodiment repair should make voice, face, motion, lipsync, and body derive from the same recalled state so expression remains one body-line rather than a skin-layer recap.')
     }
-    advice.notes.push(`Runtime sampling found same-her gaps across ${runtimeSameHerRepairLanes.map(describeRuntimeSameHerLane).join(', ')} (${missingTurnCount} turn, ${missingTransitionCount} transition), so the next run should keep memory, initiative/execution, emotion, and embodiment on one carried line instead of letting the sampled desktop loop split into correct-but-separate subsystems.`)
+    advice.notes.push(`runtime_continuity_gap; lanes=${runtimeSameHerRepairLanes.map(describeRuntimeSameHerLane).join(',')}; turn_gap=${missingTurnCount}; transition_gap=${missingTransitionCount}; owner=memory-quality-harness; action=preserve_memory_initiative_execution_emotion_embodiment_causality`)
   }
 
   const failedMemoryClosureLongRuns = input.results
@@ -465,7 +485,7 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
     if (hasLaneCarryGap) {
       advice.surfaceAdjustments.inwardCarryBias += 0.06
       advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.04
-      advice.notes.push(`Memory closure lane carry is missing across ${missingLaneLabels.join(', ') || 'required downstream lanes'}, so initiative/execution, emotion, and embodiment should carry the recalled memory closure before the run is treated as one continuous her.`)
+      advice.notes.push(`Memory closure lane carry is missing across ${missingLaneLabels.join(', ') || 'required downstream lanes'}, so initiative/execution, emotion, and embodiment should carry the recalled memory closure before the run is treated as stable continuity.`)
     }
     if (hasInitiativeExecutionGap) {
       advice.retrievalAdjustments.relationshipBoost += 0.04
@@ -644,7 +664,7 @@ export function applyMemoryTuningAdviceToSpeechPlan(input: {
       visibleLead: null,
       styleNote: uniqueList([
         next.styleNote,
-        'Keep recollection inward until the competing memory pressure settles.',
+        'recollection_surface=inward_until_competing_memory_pressure_settles',
       ], 2).join(' '),
     }
   }
@@ -710,9 +730,9 @@ export function applyMemoryTuningAdviceToSpeechPlan(input: {
       || tuningAdvice.focusDimensions.includes('projectEmotionalClosureRewriteCarry')
       || tuningAdvice.focusDimensions.includes('projectEmotionalClosureLowPressureCarry')
       || tuningAdvice.focusDimensions.includes('projectEmotionalClosureAntiRestartCarry')
-      ? 'Keep the same-her emotional closure line inward until the live payoff lands, so the return stays low-pressure and does not reopen from scratch.'
+      ? 'Keep the emotional continuity closure line inward until the live payoff lands, so the return stays low-pressure and does not reopen from scratch.'
       : tuningAdvice.focusDimensions.includes('projectStateRichAwarenessCarry')
-        ? 'Keep richer same-her project awareness inward until the live payoff lands, so project identity, landed progress, and still-open closure stay on one living line.'
+        ? 'Keep richer project continuity awareness inward until the live payoff lands, so project identity, landed progress, and still-open closure stay in one continuity context.'
         : 'Keep the project continuity line inward until the live payoff lands, so pre-dialogue project identity and closure pressure do not spill outward too early.'
     next = {
       ...next,

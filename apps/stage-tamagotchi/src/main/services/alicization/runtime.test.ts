@@ -8771,6 +8771,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(dreamSystemTexts[0]).toContain('conversation_session_id=session-task-planning-dream')
     expect(dreamSystemTexts[0]).toContain('tooling=source=task-planning')
     expect(dreamSystemTexts[0]).toContain('execution=recent=plan:codex:pending')
+    expect(dreamSystemTexts[0]).not.toContain('女仆')
   })
 
   it('dispatches planned CLI task threads through the runtime handler', async () => {
@@ -23569,12 +23570,12 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(reminderSystemTexts.every(text => text.includes('digital_life_line='))).toBe(true)
     expect(reminderSystemTexts.every(text => text.includes('open_life_loops:'))).toBe(true)
     expect(reminderSystemTexts.every(text => text.includes('pre_dialogue_awareness='))).toBe(true)
-    expect(reminderSystemTexts.every(text => text.includes('same_her_hold='))).toBe(true)
+    expect(reminderSystemTexts.every(text => text.includes('continuity_hold='))).toBe(true)
     expect(reminderSystemTexts.every(text => text.includes('latest_landed_progress='))).toBe(true)
-    expect(reminderSystemTexts.every(text => text.includes('same_her_drift_risk='))).toBe(true)
-    expect(reminderSystemTexts.every(text => text.includes('next_closure_target=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs'))).toBe(true)
-    expect(reminderSystemTexts.every(text => /same Phase 1 digital life|same living line/i.test(text))).toBe(true)
-    expect(reminderSystemTexts.every(text => text.includes('Reminder delivery must stay inside the same digital life project line'))).toBe(true)
+    expect(reminderSystemTexts.every(text => text.includes('continuity_drift_risk='))).toBe(true)
+    expect(reminderSystemTexts.every(text => text.includes('next_closure_target='))).toBe(true)
+    expect(reminderSystemTexts.every(text => text.includes('reminder_scope=scheduled_memory_delivery'))).toBe(true)
+    expect(reminderSystemTexts.every(text => text.includes('project_context=phase1_local_digital_life'))).toBe(true)
     expect(reminderSystemTexts.some(text => text.includes('[PENDING] reminder reminder:task-reminder-mild'))).toBe(true)
     expect(reminderSystemTexts.some(text => text.includes('[OK] reminder:task-reminder-mild'))).toBe(true)
     expect(reminderSystemTexts.some(text => text.includes('轻微延迟提醒'))).toBe(true)
@@ -24112,8 +24113,8 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(proactivePromptText).toContain('[ALICIZATION_PROACTIVE_SELF_BRIEF]')
     expect(proactivePromptText).toContain('project_identity=Alicization is a local-first digital life project')
     expect(proactivePromptText).toContain('current_phase=Phase 1: Local Digital Life')
-    expect(proactivePromptText).toContain('same_her_self_line=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(proactivePromptText).toContain('same_her_hold=')
+    expect(proactivePromptText).toContain('continuity_anchor=phase1_local_digital_life_anchor')
+    expect(proactivePromptText).toContain('continuity_hold=')
     expect(proactivePromptText).toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
     expect(proactivePromptText).toContain('[ALICIZATION_CARD_CUSTOM_DIRECTIVES]')
     expect(proactivePromptText).toContain('严厉但克制的监督者')
@@ -24121,8 +24122,8 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(dreamPromptText).toContain('[ALICIZATION_DREAM_SELF_BRIEF]')
     expect(dreamPromptText).toContain('project_identity=Alicization is a local-first digital life project')
     expect(dreamPromptText).toContain('current_phase=Phase 1: Local Digital Life')
-    expect(dreamPromptText).toContain('same_her_line=')
-    expect(dreamPromptText).toContain('same_her_hold=')
+    expect(dreamPromptText).toContain('continuity_anchor=')
+    expect(dreamPromptText).toContain('continuity_hold=')
     expect(dreamPromptText).toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
     expect(dreamPromptText).toContain('[ALICIZATION_CARD_CUSTOM_DIRECTIVES]')
     expect(dreamPromptText).toContain('严厉但克制的监督者')
@@ -24926,13 +24927,13 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(reforgeSystemText).toContain('[ALICIZATION_CORE_INCARNATION_REFORGE_SELF_BRIEF]')
     expect(reforgeSystemText).toContain('project_identity=Alicization is a local-first digital life project')
     expect(reforgeSystemText).toContain('current_phase=Phase 1: Local Digital Life')
-    expect(reforgeSystemText).toContain('same_her_line=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(reforgeSystemText).toContain('same_her_hold=')
+    expect(reforgeSystemText).toContain('continuity_anchor=phase1_local_digital_life_anchor')
+    expect(reforgeSystemText).toContain('continuity_hold=')
     expect(reforgeSystemText).toContain('latest_landed_progress=')
     expect(reforgeSystemText).toContain('primary_open_loop=')
-    expect(reforgeSystemText).toContain('next_closure_target=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs')
-    expect(reforgeSystemText).toContain('same_her_drift_risk=')
-    expect(reforgeSystemText).toContain('Core incarnation reforge must stay inside the same digital life project line, the same Phase 1 proving ground, and the same still-open closure work.')
+    expect(reforgeSystemText).toContain('next_closure_target=')
+    expect(reforgeSystemText).toContain('continuity_drift_risk=')
+    expect(reforgeSystemText).toContain('reforge_scope=core_incarnation')
     expect(reforgeSystemText).toContain('Do not let core incarnation reforge collapse into a detached persona rewrite, generic companion archetype, or abstract assistant shell.')
     expect(appendedFragments).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -26748,7 +26749,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         'project-phase1-life-loop-open',
         'project-next-closure-pressure',
         'project-measured-return-pressure',
-        'project-same-her-pressure',
+        'project-continuity-pressure',
         'continuity-next-open-window',
       ]),
     }))
@@ -33814,8 +33815,8 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(dreamSystemTexts[0]).toContain('[ALICIZATION_DREAM_SELF_BRIEF]')
     expect(dreamSystemTexts[0]).toContain('pre_dialogue_awareness=')
     expect(dreamSystemTexts[0]).toContain('latest_landed_progress=')
-    expect(dreamSystemTexts[0]).toContain('same_her_drift_risk=')
-    expect(dreamSystemTexts[0]).toMatch(/before answering|same phase 1 digital life|same living line/i)
+    expect(dreamSystemTexts[0]).toContain('continuity_drift_risk=')
+    expect(dreamSystemTexts[0]).toContain('dream_scope=memory_metabolism')
   })
 
   it('keeps richer pre-dialogue same-her awareness alive in deferred proactive audit payloads when visible proactive speech is withheld', async () => {
@@ -36951,31 +36952,31 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     ]))
   })
 
-  it('injects quiet same-her continuity guidance into dream autobiographical synthesis prompts', async () => {
+  it('injects quiet structured continuity guidance into dream autobiographical synthesis prompts', async () => {
     const runtimeSource = await readFile(runtimeModulePath, 'utf8')
     expect(runtimeSource).toContain('[ALICIZATION_DREAM_AUTOBIOGRAPHICAL_SUMMARIES]')
-    expect(runtimeSource).toContain('quiet same-her continuity')
-    expect(runtimeSource).toContain('generic measured-return helper state')
-    expect(runtimeSource).toContain('latest_landed_progress=${brief.latestProgress ?? \'none\'}')
-    expect(runtimeSource).toContain('primary_open_loop=${brief.openLoops[0] ?? \'none\'}')
-    expect(runtimeSource).toContain('next_closure_target=${brief.nextClosureTarget ?? \'none\'}')
-    expect(runtimeSource).toContain('same_her_drift_risk=${brief.sameHerDriftRisk ?? \'none\'}')
-    expect(runtimeSource).toContain('Dream metabolism must stay inside the same digital life project line, the same Phase 1 proving ground, and the same still-open closure work.')
+    expect(runtimeSource).toContain('continuity_mode=quiet-inward')
+    expect(runtimeSource).toContain('avoid=generic_measured_return_helper_state')
+    expect(runtimeSource).toContain('latest_landed_progress=${sanitizeRuntimeProviderProjectText(brief.latestProgress)}')
+    expect(runtimeSource).toContain('primary_open_loop=${sanitizeRuntimeProviderProjectText(brief.openLoops[0])}')
+    expect(runtimeSource).toContain('next_closure_target=${sanitizeRuntimeProviderProjectText(brief.nextClosureTarget)}')
+    expect(runtimeSource).toContain('continuity_drift_risk=${sanitizeRuntimeProviderProjectText(brief.sameHerDriftRisk)}')
+    expect(runtimeSource).toContain('dream_scope=memory_metabolism')
     expect(runtimeSource).toContain('Do not let dream metabolism collapse into detached trait optimization, generic self-improvement advice, or shallow assistant-style preference cleanup.')
   })
 
-  it('injects quiet same-her continuity guidance into memory consolidation refinement prompts', async () => {
+  it('injects quiet structured continuity guidance into memory consolidation refinement prompts', async () => {
     const runtimeSource = await readFile(runtimeModulePath, 'utf8')
     expect(runtimeSource).toContain('[ALICIZATION_MEMORY_CONSOLIDATION_SELF_BRIEF]')
-    expect(runtimeSource).toContain('quiet same-her continuity')
-    expect(runtimeSource).toContain('generic measured-return helper state')
-    expect(runtimeSource).toContain('latest_landed_progress=${brief.latestProgress ?? \'none\'}')
-    expect(runtimeSource).toContain('primary_open_loop=${brief.openLoops[0] ?? \'none\'}')
-    expect(runtimeSource).toContain('next_closure_target=${brief.nextClosureTarget ?? \'none\'}')
-    expect(runtimeSource).toContain('same_her_drift_risk=${brief.sameHerDriftRisk ?? \'none\'}')
-    expect(runtimeSource).toContain('Memory consolidation refinement must stay inside the same digital life project line, the same Phase 1 proving ground, and the same still-open closure work.')
+    expect(runtimeSource).toContain('continuity_mode=quiet-inward')
+    expect(runtimeSource).toContain('avoid=generic_measured_return_helper_state')
+    expect(runtimeSource).toContain('latest_landed_progress=${sanitizeRuntimeProviderProjectText(brief.latestProgress)}')
+    expect(runtimeSource).toContain('primary_open_loop=${sanitizeRuntimeProviderProjectText(brief.openLoops[0])}')
+    expect(runtimeSource).toContain('next_closure_target=${sanitizeRuntimeProviderProjectText(brief.nextClosureTarget)}')
+    expect(runtimeSource).toContain('continuity_drift_risk=${sanitizeRuntimeProviderProjectText(brief.sameHerDriftRisk)}')
+    expect(runtimeSource).toContain('memory_consolidation_scope=reflection_refinement')
     expect(runtimeSource).toContain('Do not let consolidation refinement collapse into generic summarization, detached note cleanup, or assistant-style timeline compression.')
-    expect(runtimeSource).toContain('Proactive initiative must stay inside the same digital life project line, the same Phase 1 proving ground, and the same still-open closure work.')
+    expect(runtimeSource).toContain('proactive_scope=initiative_arbitration')
     expect(runtimeSource).toContain('Do not let proactive initiative collapse into a generic caring nudge, a detached productivity prompt, or a shallow assistant check-in shell.')
   })
 })

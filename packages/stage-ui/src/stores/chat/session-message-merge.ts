@@ -1,9 +1,12 @@
 import type { ChatHistoryItem } from '../../types/chat'
 
 import {
+  alicizationFixedTemplateReplacement,
+  formatAlicizationProjectStateAwarenessFields,
   isAlicizationThinProjectAwarenessLine,
   isAlicizationThinSamePhaseCarryLine as isThinSamePhaseCarryLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
+  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
 function extractMessageContent(message: ChatHistoryItem) {
@@ -21,6 +24,80 @@ function extractMessageContent(message: ChatHistoryItem) {
   }
 
   return ''
+}
+
+function structuredProjectFieldForKey(key: string, value: unknown) {
+  switch (key) {
+    case 'identity':
+      return formatAlicizationProjectStateAwarenessFields({ identity: value })
+    case 'currentPhase':
+    case 'phase':
+      return formatAlicizationProjectStateAwarenessFields({ currentPhase: value })
+    case 'latestLandedProgress':
+    case 'latestProgress':
+    case 'landedProgressSummary':
+      return formatAlicizationProjectStateAwarenessFields({ latestLandedProgress: value })
+    case 'primaryOpenLoop':
+    case 'openClosureSummary':
+      return formatAlicizationProjectStateAwarenessFields({ primaryOpenLoop: value })
+    case 'nextClosureTarget':
+    case 'nextClosureTargetSummary':
+    case 'companionNextClosureLine':
+      return formatAlicizationProjectStateAwarenessFields({ nextClosureTarget: value })
+    case 'sameHerSelfLine':
+    case 'sameHerSummary':
+      return formatAlicizationProjectStateAwarenessFields({ sameHerSelfLine: value })
+    case 'sameHerHoldDetail':
+    case 'companionBriefingLine':
+      return formatAlicizationProjectStateAwarenessFields({ sameHerHoldDetail: value })
+    case 'sameHerDriftRisk':
+    case 'sameHerDriftRiskLine':
+      return formatAlicizationProjectStateAwarenessFields({ sameHerDriftRisk: value })
+    case 'emotionalClosureCue':
+      return formatAlicizationProjectStateAwarenessFields({ emotionalClosureCue: value })
+    case 'continuitySummary':
+    case 'summaryLine':
+    case 'awarenessLine':
+    case 'companionHeadlineLine':
+    case 'preDialogueAwarenessSummary':
+      return formatAlicizationProjectStateAwarenessFields({ summary: value })
+    default:
+      return ''
+  }
+}
+
+function sanitizeMergedStructuredProjectText(key: string, value: unknown, maxChars = 1600) {
+  if (typeof value !== 'string')
+    return value
+
+  const normalized = value.trim().replace(/\s+/g, ' ').slice(0, Math.max(0, maxChars)).trim()
+  if (!normalized)
+    return value
+  if ((key === 'currentPhase' || key === 'phase') && /\bphase\s*1\b|第一阶段|阶段一|project_phase=life_core/iu.test(normalized))
+    return alicizationFixedTemplateReplacement
+
+  const safe = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
+  if (safe)
+    return safe
+
+  const structured = structuredProjectFieldForKey(key, normalized)
+  return structured && structured !== alicizationFixedTemplateReplacement
+    ? structured
+    : alicizationFixedTemplateReplacement
+}
+
+function sanitizeMergedStructuredProjectPayload<T>(payload: T, parentKey = ''): T {
+  if (typeof payload === 'string')
+    return sanitizeMergedStructuredProjectText(parentKey, payload) as T
+  if (Array.isArray(payload))
+    return payload.map(item => sanitizeMergedStructuredProjectPayload(item, parentKey)) as T
+  if (payload && typeof payload === 'object') {
+    return Object.fromEntries(
+      Object.entries(payload as Record<string, unknown>)
+        .map(([key, value]) => [key, sanitizeMergedStructuredProjectPayload(value, key)]),
+    ) as T
+  }
+  return payload
 }
 
 function normalizeMessageId(raw: unknown) {
@@ -184,7 +261,11 @@ function isSameHerInwardLowPressureHeadline(value: string | null | undefined) {
   if (!normalized)
     return false
 
-  return normalized.includes('holding together mainly through')
+  return (
+    normalized.includes('continuity=embodiment')
+    && normalized.includes('low-pressure-inward-carry')
+  ) || (
+    normalized.includes('holding together mainly through')
     && normalized.includes('low-pressure')
     && (
       normalized.includes('same line inward')
@@ -192,10 +273,11 @@ function isSameHerInwardLowPressureHeadline(value: string | null | undefined) {
       || normalized.includes('same-her-inward-carry')
       || normalized.includes('quiet-companionship')
     )
+  )
 }
 
-function buildCompactSameHerInwardLowPressureAwarenessLine(companionBriefingLine: string) {
-  return `${companionBriefingLine} Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.`
+function buildCompactSameHerInwardLowPressureAwarenessLine() {
+  return 'continuity_context=runtime_carry; source=companion_briefing; continuity=embodiment; status=pending-rejoin; pending_rejoin=lipsync+voice; evidence=low-pressure-inward-carry; visibility=internal'
 }
 
 function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undefined) {
@@ -204,12 +286,12 @@ function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undef
     return false
 
   return normalized.includes('anthropomorphic emotional closure')
-    && normalized.includes('same-her inward-carry observability')
+    && (normalized.includes('same-her inward-carry observability') || normalized.includes('continuity inward-carry observability'))
     && normalized.includes('measured-return')
 }
 
-function buildCompactAnthropomorphicHostFacingAwarenessLine(companionBriefingLine: string) {
-  return `${companionBriefingLine} Right now this one living her still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line before anything reopens outward.`
+function buildCompactAnthropomorphicHostFacingAwarenessLine() {
+  return 'continuity_context=runtime_carry; source=companion_briefing; affective_closure=anthropomorphic-emotional-closure; observability=continuity-inward-carry; timing=measured-return; visibility=internal'
 }
 
 function carriesBroaderMergedProjectFrame(value: string | null | undefined) {
@@ -347,7 +429,7 @@ function resolveMergedSameHerInwardLowPressureAwarenessLine(input: {
   if (!isSameHerInwardLowPressureHeadline(strongerHeadline))
     return null
 
-  return buildCompactSameHerInwardLowPressureAwarenessLine(companionBriefingLine)
+  return buildCompactSameHerInwardLowPressureAwarenessLine()
 }
 
 function resolveMergedAnthropomorphicHostFacingAwarenessLine(input: {
@@ -378,7 +460,7 @@ function resolveMergedAnthropomorphicHostFacingAwarenessLine(input: {
   if (!isAnthropomorphicHostFacingSameHerHeadline(strongerHeadline))
     return null
 
-  return buildCompactAnthropomorphicHostFacingAwarenessLine(companionBriefingLine)
+  return buildCompactAnthropomorphicHostFacingAwarenessLine()
 }
 
 function areMessagesEquivalent(left: ChatHistoryItem, right: ChatHistoryItem) {
@@ -466,12 +548,15 @@ function mergeEquivalentMessages(left: ChatHistoryItem, right: ChatHistoryItem):
     const fallbackStructured = primaryStructuredScore >= secondaryStructuredScore
       ? cloneValue(secondaryAssistant.structured)
       : cloneValue(primaryAssistant.structured)
-    const mergedProjectState = preferredStructured?.projectState && fallbackStructured?.projectState
+    const rawMergedProjectState = preferredStructured?.projectState && fallbackStructured?.projectState
       ? {
           ...fallbackStructured.projectState,
           ...preferredStructured.projectState,
         }
       : preferredStructured?.projectState ?? fallbackStructured?.projectState
+    const mergedProjectState = rawMergedProjectState
+      ? sanitizeMergedStructuredProjectPayload(rawMergedProjectState)
+      : rawMergedProjectState
     const mergedCompanionBriefingLine = preferMergedCompanionBriefingLine(
       preferredStructured?.preDialogueAwareness?.companionBriefingLine,
       fallbackStructured?.preDialogueAwareness?.companionBriefingLine,
@@ -515,7 +600,7 @@ function mergeEquivalentMessages(left: ChatHistoryItem, right: ChatHistoryItem):
           ...preferredStructured,
           projectState: mergedProjectState,
           preDialogueClosure: preferredStructured.preDialogueClosure && fallbackStructured.preDialogueClosure
-            ? {
+            ? sanitizeMergedStructuredProjectPayload({
                 ...fallbackStructured.preDialogueClosure,
                 ...preferredStructured.preDialogueClosure,
                 summaryLine: preferNonEmpty(
@@ -548,10 +633,10 @@ function mergeEquivalentMessages(left: ChatHistoryItem, right: ChatHistoryItem):
                 reasons: (preferredStructured.preDialogueClosure.reasons?.length ?? 0) >= (fallbackStructured.preDialogueClosure.reasons?.length ?? 0)
                   ? cloneValue(preferredStructured.preDialogueClosure.reasons) ?? []
                   : cloneValue(fallbackStructured.preDialogueClosure.reasons) ?? [],
-              }
-            : preferredStructured.preDialogueClosure ?? fallbackStructured.preDialogueClosure,
+              })
+            : sanitizeMergedStructuredProjectPayload(preferredStructured.preDialogueClosure ?? fallbackStructured.preDialogueClosure),
           preDialogueAwareness: preferredStructured.preDialogueAwareness && fallbackStructured.preDialogueAwareness
-            ? {
+            ? sanitizeMergedStructuredProjectPayload({
                 ...fallbackStructured.preDialogueAwareness,
                 ...preferredStructured.preDialogueAwareness,
                 summaryLine: mergedAwarenessSummaryLine ?? null,
@@ -692,8 +777,8 @@ function mergeEquivalentMessages(left: ChatHistoryItem, right: ChatHistoryItem):
                   preferredStructured.preDialogueAwareness.reasonPreview,
                   fallbackStructured.preDialogueAwareness.reasonPreview,
                 ),
-              }
-            : preferredStructured.preDialogueAwareness ?? fallbackStructured.preDialogueAwareness,
+              })
+            : sanitizeMergedStructuredProjectPayload(preferredStructured.preDialogueAwareness ?? fallbackStructured.preDialogueAwareness),
         }
       : preferredStructured ?? fallbackStructured
     mergedAssistant.categorization = primaryAssistant.categorization?.speech?.trim()

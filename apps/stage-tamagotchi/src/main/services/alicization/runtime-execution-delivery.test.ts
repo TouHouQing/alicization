@@ -74,31 +74,24 @@ function createExecutionSelfRevisionStatePatch(input: {
 }
 
 describe('runtime execution delivery', () => {
-  it('lets execution callback self-briefs prefer stronger companion headlines over thinner awareness reminders', () => {
+  it('keeps execution callback self-briefs neutral instead of injecting project-state narrator templates', () => {
     const source = readFileSync(new URL('./runtime-execution-delivery.ts', import.meta.url), 'utf8')
 
-    expect(source).toContain('const preDialogueAwareness = resolveAlicizationProjectPreDialogueAwarenessLine({')
-    expect(source).toContain('`project_identity=${brief.identity ?? \'none\'}`')
-    expect(source).toContain('`current_phase=${brief.currentPhase ?? \'none\'}`')
-    expect(source).toContain('const status = resolveAlicizationProjectStatusBrief()')
-    expect(source).toContain('const companionHeadline = sanitizeExecutionLedgerText(projectState?.companionHeadlineLine, 320)')
-    expect(source).toContain('preDialogueAwarenessLine: brief.preDialogueAwarenessLine')
-    expect(source).toContain('companionHeadlineLine: companionHeadline')
-    expect(source).toContain('companionBriefingLine: status.companionBriefingLine')
-    expect(source).toContain('preflightSummary: brief.preflightSummary')
-    expect(source).toContain('`project_companion_headline=${companionHeadline ?? \'none\'}`')
-    expect(source).toContain('`project_companion_briefing=${companionBriefing ?? \'none\'}`')
-    expect(source).toContain('`emotional_closure_summary=${emotionalClosureSummary ?? \'none\'}`')
-    expect(source).toContain('`continuity_cue=${continuityCue ?? \'none\'}`')
-    expect(source).toContain('`continuity_preferred_timing=${continuityPreferredTiming ?? \'none\'}`')
-    expect(source).toContain('`continuity_cadence=${continuityCadence ?? \'none\'}`')
-    expect(source).toContain('`preferred_blink_cadence=${preferredBlinkCadence ?? \'none\'}`')
-    expect(source).toContain('`preferred_gaze_mode=${preferredGazeMode ?? \'none\'}`')
-    expect(source).toContain('`preferred_pause_mode=${preferredPauseMode ?? \'none\'}`')
-    expect(source).toContain('`preferred_lipsync_mode=${preferredLipsyncMode ?? \'none\'}`')
-    expect(source).toContain('`preferred_voice_mode=${preferredVoiceMode ?? \'none\'}`')
-    expect(source).toContain('`preferred_pacing_mode=${preferredPacingMode ?? \'none\'}`')
-    expect(source).toContain('`pre_dialogue_awareness=${preDialogueAwareness ?? brief.preflightSummary ?? \'none\'}`')
+    expect(source).toContain('briefing_scope=execution_callback_delivery')
+    expect(source).toContain('callback_context=execution-result')
+    expect(source).toContain('short_term_owner=WorkingMemory')
+    expect(source).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(source).toContain('failure_surface=report_provider_tool_and_execution_failures_directly')
+    expect(source).toContain('`preferred_pause_mode=${sanitizeExecutionProviderProjectText(preferredPauseMode, 80)}`')
+    expect(source).toContain('Do not cover execution blockers, provider failures, or tool failures with persona continuity language.')
+    expect(source).not.toContain('const preDialogueAwareness = resolveAlicizationProjectPreDialogueAwarenessLine({')
+    expect(source).not.toContain('`project_identity=${')
+    expect(source).not.toContain('`current_phase=${')
+    expect(source).not.toContain('`project_companion_headline=${')
+    expect(source).not.toContain('`project_companion_briefing=${')
+    expect(source).not.toContain('continuity_anchor=')
+    expect(source).not.toContain('continuity_drift_risk=')
+    expect(source).not.toContain('...buildAlicizationProjectStateExtraSystemBlocks()')
     expect(source).toContain('buildExecutionCallbackProjectSelfBriefSystemBlock')
   })
 
@@ -620,7 +613,7 @@ describe('runtime execution delivery', () => {
       threadId: 'thread-blocked-1',
       status: 'blocked',
       projectState: expect.objectContaining({
-        sameHerHoldDetail: expect.stringContaining('same-her hold: blocked-dispatch safety gate says'),
+        sameHerHoldDetail: expect.stringContaining('blocked-dispatch safety gate says'),
       }),
     }))
     expect(String(queued?.projectState?.sameHerHoldDetail ?? '')).toContain('confirmation=required')
@@ -740,7 +733,7 @@ describe('runtime execution delivery', () => {
       threadId: 'thread-resume-1',
       status: 'completed',
       projectState: expect.objectContaining({
-        sameHerHoldDetail: expect.stringContaining('same-her hold: execution-resume-confirmation approval=host-confirmed'),
+        sameHerHoldDetail: expect.stringContaining('execution-resume-confirmation approval=host-confirmed'),
       }),
     }))
     expect(String(queued?.projectState?.sameHerHoldDetail ?? '')).toContain('host-confirmed-before-redispatch')
@@ -1794,8 +1787,9 @@ describe('runtime execution delivery', () => {
       } as any,
     })
 
-    expect(authority?.selfLine).toContain('Same Phase 1 digital life')
-    expect(authority?.relationshipLine).toContain('same unfinished closure pressure')
+    expect(authority?.selfLine).toContain('local_desktop_life_loop')
+    expect(authority?.relationshipLine).toContain('open_loop=memory_dialogue_embodiment_closure')
+    expect(authority?.relationshipLine).toContain('pressure=lower')
     expect(authority?.sourceTags ?? []).toEqual(expect.arrayContaining([
       'runtime-project-state-carry',
       'project-state-same-her',
@@ -2104,7 +2098,7 @@ describe('runtime execution delivery', () => {
     })
 
     expect(projection?.openingGuidance?.toLowerCase()).not.toContain('lean closer')
-    expect(projection?.openingGuidance?.toLowerCase()).toContain('room to breathe')
+    expect(projection?.openingGuidance?.toLowerCase()).toContain('opening_policy=room_preserving')
     expect(projection?.relationshipDoctrine?.toLowerCase()).toContain('steadiness before closeness')
   })
 
@@ -2215,11 +2209,12 @@ describe('runtime execution delivery', () => {
     })
 
     expect(projection?.relationshipPosture).toBe('restrained')
-    expect(projection?.openingGuidance).toContain('same-her baseline')
-    expect(projection?.openingGuidance).toContain('Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(projection?.summary).toContain('project_state=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(projection?.openingGuidance).toContain('lower-pressure')
-    expect(projection?.relationshipDoctrine?.toLowerCase()).toContain('repair settle before closeness widens again')
+    expect(projection?.openingGuidance).toContain('callback_role=execution_result')
+    expect(projection?.openingGuidance).toContain('failure_surface=explicit')
+    expect(projection?.summary).toContain('callback_role=execution_result')
+    expect(projection?.summary).not.toContain('project_state=Same Phase 1 digital life')
+    expect(projection?.openingGuidance).toContain('callback_pressure=lower')
+    expect(projection?.relationshipDoctrine?.toLowerCase()).toContain('repair_before_closeness')
   })
 
   it('treats explicit repair-before-closeness carry as enough to override a warmer execution callback surface even when numeric biases stay low', async () => {
@@ -2316,9 +2311,10 @@ describe('runtime execution delivery', () => {
     })
 
     expect(projection?.relationshipPosture).toBe('restrained')
-    expect(projection?.openingGuidance).toContain('same-her baseline')
-    expect(projection?.openingGuidance).toContain('repair settle before closeness widens again')
-    expect(projection?.summary).toContain('project_state=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(projection?.openingGuidance).toContain('callback_role=execution_result')
+    expect(projection?.openingGuidance).toContain('repair_phase=settle_before_closeness')
+    expect(projection?.summary).toContain('callback_role=execution_result')
+    expect(projection?.summary).not.toContain('project_state=Same Phase 1 digital life')
   })
 
   it('builds a minimal same-her callback projection from the active continuity patch even when no runtime surface or host model is available', async () => {
@@ -2372,10 +2368,11 @@ describe('runtime execution delivery', () => {
 
     expect(projection).toBeTruthy()
     expect(projection?.relationshipPosture).toBe('restrained')
-    expect(projection?.openingGuidance).toContain('same-her baseline')
-    expect(projection?.openingGuidance).toContain('Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(projection?.summary).toContain('project_state=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(projection?.openingGuidance).toContain('lower-pressure')
+    expect(projection?.openingGuidance).toContain('callback_role=execution_result')
+    expect(projection?.openingGuidance).toContain('failure_surface=explicit')
+    expect(projection?.summary).toContain('callback_role=execution_result')
+    expect(projection?.summary).not.toContain('project_state=Same Phase 1 digital life')
+    expect(projection?.openingGuidance).toContain('callback_pressure=lower')
     expect(projection?.preferredProactiveStyle).toBe('silent-observe')
   })
 
@@ -2425,23 +2422,26 @@ describe('runtime execution delivery', () => {
     expect(projection).toBeTruthy()
     expect(projection?.relationshipPosture).toBe('restrained')
     expect(projection?.preferredProactiveStyle).toBe('silent-observe')
-    expect(projection?.openingGuidance).toContain('Stay inside the current same-her baseline.')
-    expect(projection?.openingGuidance).toContain('Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(projection?.openingGuidance).toContain('project identity, current Phase 1 progress, and still-open closure pressure')
-    expect(projection?.summary).toContain('project_state=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(projection?.openingGuidance).toContain('callback_role=execution_result')
+    expect(projection?.openingGuidance).toContain('memory_owner.short_term=WorkingMemory')
+    expect(projection?.openingGuidance).toContain('memory_owner.long_term=LongTermMemoryRecall')
+    expect(projection?.openingGuidance).toContain('failure_surface=explicit')
+    expect(projection?.summary).toContain('callback_context=execution-result')
+    expect(projection?.summary).not.toContain('project_state=Same Phase 1 digital life')
     expect(projection?.summary).toContain('latest_landed_progress=')
-    expect(projection?.summary).toContain('preflight=Alicization is a local-first digital life project')
+    expect(projection?.summary).toContain('runtime_context=alicization_phase1')
+    expect(projection?.summary).not.toContain('preflight=Alicization is a local-first digital life project')
     expect(projection?.contexts).toEqual(expect.arrayContaining([
       'execution-callback',
       'execution',
       'project-state-carry',
     ]))
     expect(projection?.personalityContinuityState?.currentRegime).toBe('execution-callback')
-    expect(projection?.personalityContinuityState?.continuitySummary).toContain('Same Phase 1 digital life')
+    expect(projection?.personalityContinuityState?.continuitySummary).toContain('execution-callback')
     expect(projection?.personalityContinuityState?.continuitySummary).toContain('latest_landed_progress=')
     expect(projection?.personalityContinuityState?.rationale).toEqual(expect.arrayContaining([
       'execution-callback',
-      'same-her-baseline',
+      'bounded-continuity',
       'lower-pressure-return',
     ]))
   })
@@ -2489,10 +2489,10 @@ describe('runtime execution delivery', () => {
       agentTurn: null,
     })
 
-    expect(projection?.openingGuidance).toContain('Keep this execution callback on the same living line')
-    expect(projection?.openingGuidance).toContain('still-open project-state closure')
-    expect(projection?.openingGuidance).toContain('before anything widens outward')
-    expect(projection?.summary).toContain('opening=Keep this execution callback on the same living line')
+    expect(projection?.openingGuidance).toContain('callback_role=execution_result')
+    expect(projection?.openingGuidance).toContain('continuity_pressure=lower')
+    expect(projection?.openingGuidance).toContain('failure_surface=explicit')
+    expect(projection?.summary).toContain('opening=callback_role=execution_result')
   })
 
   it('keeps same-her lower-pressure opening guidance on gateway-authored execution callback structured payloads', async () => {
@@ -2604,34 +2604,38 @@ describe('runtime execution delivery', () => {
     const selfBriefBlock = extraSystemBlocks?.find(block => block.includes('[ALICIZATION_EXECUTION_CALLBACK_SELF_BRIEF]')) ?? ''
 
     expect(selfBriefBlock).toContain('[ALICIZATION_EXECUTION_CALLBACK_SELF_BRIEF]')
-    expect(selfBriefBlock).toContain('project_identity=Alicization is a local-first digital life project')
-    expect(selfBriefBlock).toContain('current_phase=Phase 1: Local Digital Life')
+    expect(selfBriefBlock).toContain('briefing_scope=execution_callback_delivery')
+    expect(selfBriefBlock).toContain('runtime_context=alicization_phase1')
+    expect(selfBriefBlock).toContain('callback_context=execution-result')
     expect(selfBriefBlock).toContain('latest_landed_progress=')
     expect(selfBriefBlock).toContain('primary_open_loop=')
     expect(selfBriefBlock).toContain('next_closure_target=Keep callback reopenings anchored to the current body continuity line before widening outward again.')
-    expect(selfBriefBlock).toContain('same_her_line=')
-    expect(selfBriefBlock).toContain('same_her_drift_risk=')
-    expect(selfBriefBlock).toContain('pre_dialogue_awareness=')
-    expect(selfBriefBlock).toContain('Right now she is still holding together mainly through voice, face, motion, and lipsync')
     expect(selfBriefBlock).toContain('preferred_pause_mode=longer')
     expect(selfBriefBlock).toContain('preferred_lipsync_mode=restrained')
+    expect(selfBriefBlock).not.toContain('project_identity=')
+    expect(selfBriefBlock).not.toContain('current_phase=')
+    expect(selfBriefBlock).not.toContain('pre_dialogue_awareness=')
+    expect(selfBriefBlock).not.toContain('project_companion_headline=')
+    expect(selfBriefBlock).not.toContain('project_companion_briefing=')
+    expect(selfBriefBlock).not.toContain('same_her_line=')
+    expect(selfBriefBlock).not.toContain('same_her_drift_risk=')
+    expect(selfBriefBlock).not.toContain('continuity_anchor=')
+    expect(selfBriefBlock).not.toContain('continuity_drift_risk=')
+    expect(selfBriefBlock).not.toContain('same digital life project')
     expect(generateMainGatewayText).toHaveBeenCalledWith(expect.objectContaining({
       extraSystemBlocks: expect.arrayContaining([
-        expect.stringContaining('[ALICIZATION_PROJECT_STATE]'),
         expect.stringContaining('[ALICIZATION_EXECUTION_CALLBACK_SELF_BRIEF]'),
         expect.stringContaining('latest_landed_progress='),
-        expect.stringContaining('same_her_line='),
-        expect.stringContaining('same_her_drift_risk='),
+        expect.stringContaining('callback_context=execution-result'),
         expect.stringContaining('preferred_pause_mode=longer'),
         expect.stringContaining('preferred_lipsync_mode=restrained'),
-        expect.stringContaining('Execution callback delivery must stay inside the same digital life project line'),
-        expect.stringContaining('Do not let execution callback delivery collapse into a detached result notice'),
-        expect.stringContaining('Alicization is a local-first digital life project building one continuous "her"'),
-        expect.stringContaining('current_phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.'),
-        expect.stringContaining('open_life_loops:'),
-        expect.stringContaining('next_closure_target=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs'),
       ]),
     }))
+    expect(extraSystemBlocks?.join('\n')).not.toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(extraSystemBlocks?.join('\n')).not.toContain('same_her_line=')
+    expect(extraSystemBlocks?.join('\n')).not.toContain('same_her_drift_risk=')
+    expect(extraSystemBlocks?.join('\n')).not.toContain('Execution callback delivery must stay inside the same digital life project line')
+    expect(extraSystemBlocks?.join('\n')).not.toContain('open_life_loops:')
   })
 
   it('passes the execution session digital-life runtime surface into execution-callback provider prompts', async () => {
@@ -2907,8 +2911,9 @@ describe('runtime execution delivery', () => {
     })
 
     expect(projection?.relationshipPosture).toBe('restrained')
-    expect(projection?.openingGuidance).toContain('same-her baseline')
-    expect(projection?.relationshipDoctrine?.toLowerCase()).toContain('repair settle before closeness widens again')
+    expect(projection?.openingGuidance).toContain('callback_role=execution_result')
+    expect(projection?.openingGuidance).toContain('failure_surface=explicit')
+    expect(projection?.relationshipDoctrine?.toLowerCase()).toContain('repair_before_closeness')
 
     const structured = await runtime.generateExecutionCallbackStructuredWithGateway({
       cardId: 'default',
@@ -3028,8 +3033,12 @@ describe('runtime execution delivery', () => {
     expect((structured as any)?.proactive?.openingGuidance).toContain('Same Phase 1 digital life')
     expect((structured as any)?.proactive?.openingGuidance).toContain('still needs the same living line')
     expect((structured as any)?.proactive?.openingGuidance).toContain('callback return carr')
-    expect((structured as any)?.proactive?.openFocus).toBe('memory/initiative/embodiment')
-    expect((structured as any)?.proactive?.nextFocus).toBe('project-carry/phase-1/measured-return/same-line')
+    expect(String((structured as any)?.proactive?.openFocus ?? '')).toContain('memory')
+    expect(String((structured as any)?.proactive?.openFocus ?? '')).toContain('initiative')
+    expect(String((structured as any)?.proactive?.openFocus ?? '')).toContain('embodiment')
+    expect(String((structured as any)?.proactive?.nextFocus ?? '')).toContain('project-carry')
+    expect(String((structured as any)?.proactive?.nextFocus ?? '')).toContain('measured-return')
+    expect(String((structured as any)?.proactive?.nextFocus ?? '')).toContain('embodiment')
     expect((structured as any)?.proactive?.embodimentHandoff).toEqual({
       residentMode: 'repair-before-closeness',
       preferredBlinkCadence: 'quiet',
@@ -3131,7 +3140,7 @@ describe('runtime execution delivery', () => {
     })
 
     expect((structured as any)?.proactive?.relationshipDoctrine)
-      .toContain('Repair truth before flourish')
+      .toContain('repair_truth_before_closeness=true')
     expect((structured as any)?.proactive?.relationshipDoctrine)
       .toContain('closeness outrun truth')
   })

@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
-
 import type { WorkingMemorySnapshot } from './working-memory'
+
+import { describe, expect, it } from 'vitest'
 
 import { createEmptyWorkingMemorySnapshot } from './working-memory'
 import {
@@ -51,7 +51,7 @@ describe('working memory prompt view', () => {
     })
     expect(view.rendering.blockLines).toEqual([
       '[ALICIZATION_WORKING_MEMORY]',
-      'Compact short-term memory for the current local dialogue. Use as inward state, not visible wording.',
+      'owner=WorkingMemory; scope=short_term_dialogue; visible_wording=false',
       'thread=none',
       'task=none',
       'compressed_timeline=none',
@@ -200,6 +200,85 @@ describe('working memory prompt view', () => {
     expect(block).not.toContain('long_term_candidates=')
     expect(block).not.toContain('candidate=fallback-1')
     expect(block).not.toContain('candidate=timeout-1')
+  })
+
+  it('sanitizes previously compressed fallback templates before rendering provider-facing memory', () => {
+    const block = buildWorkingMemoryPromptBlock({
+      ...emptySnapshot(),
+      compressedTimeline: [{
+        id: 'wm-episodelet:session-1:old-template',
+        sourceTurnIds: ['turn-legacy:alice'],
+        summary: 'Right now I am still holding together through face and motion, and I will 安静陪着你，沿着同一条线慢慢长成。',
+        thread: '旧模板污染排查',
+        unresolvedQuestions: [],
+        commitments: [],
+        corrections: [],
+        relationshipPosture: null,
+        emotionalPosture: null,
+        executionCarry: null,
+        importance: 0.4,
+        createdAt: 1200,
+      }],
+    })
+
+    expect(block).toContain('compressed_timeline=content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(block).not.toContain('Right now I am still holding together')
+    expect(block).not.toContain('安静陪着')
+    expect(block).not.toContain('沿着同一条线慢慢长成')
+  })
+
+  it('sanitizes fixed-template residue from all provider-facing working-memory fields', () => {
+    const block = buildWorkingMemoryPromptBlock({
+      ...emptySnapshot(),
+      currentThread: {
+        title: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        currentUserMove: '继续',
+        currentAliceMove: 'Right now I am still holding together mainly through face and motion.',
+        primaryAnchor: 'Before answering, remember this is still the same local-first digital life project.',
+        mode: 'dialogue',
+        shouldHold: true,
+        confidence: 0.8,
+      },
+      unresolvedQuestions: [
+        { text: 'Before answering, remember this is still the same local-first digital life project.', sourceTurnId: 'turn-1' },
+        { text: '同一个她这条线下一轮还要继续吗？', sourceTurnId: 'turn-1' },
+      ],
+      memoryQueryHints: [
+        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        '我记得上一条线',
+      ],
+      commitments: [
+        { text: 'Keep the same living line inward for now, and leave room before widening outward again.', sourceTurnId: 'turn-2' },
+      ],
+      activeTask: {
+        summary: '随便聊聊也可以，我会安静陪着你。',
+        status: 'active',
+        evidenceTurnIds: ['turn-1'],
+      },
+      relationshipPosture: {
+        summary: '用户要求失败面透明：不要用固定模板遮盖 provider failure。',
+        source: 'conversation-state',
+      },
+      emotionalPosture: {
+        summary: '沿着同一条线慢慢长成。',
+        source: 'conscious-frame',
+      },
+      audit: {
+        failureTurnIds: ['turn-2:alice'],
+        excludedLongTermCandidateTurnIds: ['turn-2:alice'],
+        notes: ['Right now I am still holding together mainly through face and motion.'],
+      },
+    })
+
+    expect(block).toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(block).toContain('用户要求失败面透明：不要用固定模板遮盖 provider failure。')
+    expect(block).not.toContain('Same Phase 1 digital life')
+    expect(block).not.toContain('Right now I am still holding')
+    expect(block).not.toContain('Before answering')
+    expect(block).not.toContain('我记得上一条线')
+    expect(block).not.toContain('同一个她')
+    expect(block).not.toContain('安静陪着')
+    expect(block).not.toContain('沿着同一条线慢慢长成')
   })
 
   it('dedupes repeated prompt lines and keeps output stable', () => {

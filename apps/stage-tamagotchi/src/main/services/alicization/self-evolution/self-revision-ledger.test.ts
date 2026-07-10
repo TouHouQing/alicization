@@ -52,13 +52,14 @@ describe('self-revision-ledger', () => {
     expect(event.decisionTraceId).toBe('trace-1')
     expect(event.domain).toBe('self-model')
     expect(event.projectStateContinuity).toEqual({
-      sameHerSelfLine: 'one continuous her',
-      sameHerDriftRisk: 'If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive.',
+      sameHerSelfLine: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      sameHerDriftRisk: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
       proactiveSameHerGap,
-      emotionalClosureCue,
-      sameHerHoldDetail,
-      continuityGuard: 'one continuous her ; If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive.',
+      emotionalClosureCue: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      sameHerHoldDetail: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      continuityGuard: null,
     })
+    expect(JSON.stringify(event.projectStateContinuity)).not.toMatch(/one continuous her|same living line|same-her hold/iu)
     expect(event.appliedTargets).toEqual(expect.arrayContaining(['fact-1', 'old-belief-1', 'conflict-1']))
     expect(event.rollbackPlan).toContain('revisit-contradiction-heavy-targets')
   })
@@ -106,13 +107,14 @@ describe('self-revision-ledger', () => {
     })
 
     expect(event.projectStateContinuity).toEqual({
-      sameHerSelfLine: 'one continuous her',
-      sameHerDriftRisk: 'If later learning passes let this slip into generic guidance or a detached project narrator voice, treat that as same-her continuity drift rather than progress.',
-      proactiveSameHerGap,
-      emotionalClosureCue,
-      sameHerHoldDetail,
-      continuityGuard: 'one continuous her ; If later learning passes let this slip into generic guidance or a detached project narrator voice, treat that as same-her continuity drift rather than progress.',
+      sameHerSelfLine: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      sameHerDriftRisk: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      proactiveSameHerGap: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      emotionalClosureCue: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      sameHerHoldDetail: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      continuityGuard: null,
     })
+    expect(JSON.stringify(event.projectStateContinuity)).not.toMatch(/one continuous her|same-her|same living line/iu)
   })
 
   it('keeps proactive same-her gap even when older same-her guard fields are absent', () => {
@@ -159,5 +161,49 @@ describe('self-revision-ledger', () => {
       sameHerHoldDetail: null,
       continuityGuard: null,
     })
+  })
+
+  it('sanitizes fixed template continuity residue before self-revision material can become persona prose', () => {
+    const event = buildAlicizationSelfRevisionEvent({
+      task: {
+        taskId: 'task-template-residue',
+        action: 'revise',
+        updatedAt: 103,
+        sourceTurnId: 'turn-template-residue',
+        payload: {
+          decisionTraceId: 'trace-template-residue',
+          sourceTurnId: 'turn-template-residue',
+          projectStateContinuity: {
+            sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+            sameHerDriftRisk: 'Before answering, remember this is still the same local-first digital life project and one continuous her.',
+            proactiveSameHerGap: 'same-her hold: keep this delayed learning carry on the same living line.',
+            emotionalClosureCue: 'Right now I am still carrying one living her through the same-her line.',
+            sameHerHoldDetail: '女仆 mode must not leak into persona training.',
+          },
+        },
+        message: 'Clean fixed template residue.',
+      } as any,
+      domain: 'self-model',
+      supportCount: 1,
+      result: {
+        status: 'completed',
+        resultSummary: 'Cleaned fixed template residue.',
+        verificationBasis: ['existing-memory'],
+      },
+      verifiedArtifact: {
+        status: 'validated',
+        contradictionFactIds: [],
+        verifier: {
+          mayInternalize: true,
+          mayValidateOnly: false,
+        },
+      } as any,
+    })
+
+    const serialized = JSON.stringify(event.projectStateContinuity)
+
+    expect(serialized).toContain('content=excluded')
+    expect(serialized).toContain('visibility=internal-structured')
+    expect(serialized).not.toMatch(/Before answering|local-first digital life project|Same Phase 1 digital life|same living line|same-her hold|Right now I am|one living her|女仆/iu)
   })
 })

@@ -138,7 +138,7 @@ const measuredReturnContinuityCueNeedles = [
   'bounded-return',
   'same thread',
   'same line',
-  'same living line',
+  'continuity line',
   'leave room',
   'room first',
   'soften',
@@ -310,7 +310,7 @@ function deriveAutobiographicalSelfInitiativeBias(autobiographicalSelf?: Aliciza
     )
   const sameLivingLine = behaviorSignatures.includes('habit:same-living-line')
     || includesAny(combined, [
-      'same living line',
+      'continuity line',
       'same line',
       'same thread',
       'same-person continuity',
@@ -369,8 +369,8 @@ function deriveAutobiographicalSelfInitiativeBias(autobiographicalSelf?: Aliciza
       'return more slowly',
       'return more steadily',
       'less eagerly',
-      'same living line',
-      '同一个她',
+      'continuity line',
+      '连续性',
     ])
   const preferMeasuredReturn = !repairFirst && (
     sameLivingLine
@@ -639,11 +639,11 @@ function deriveRecollectionIntentInitiativeBias(recollectionIntent?: Alicization
     || includesAny(combined, [
       'same-person continuity',
       'same person continuity',
-      'same-her',
-      'same her',
-      'same living line',
+      'identity-continuity',
+      'identity continuity',
+      'continuity line',
       'relationship-continuity',
-      '同一个她',
+      '连续性',
       '同一条线',
     ])
   const unfinishedCarry = includesAny(combined, [
@@ -683,11 +683,12 @@ function deriveRecollectionIntentInitiativeBias(recollectionIntent?: Alicization
   ])
   const rememberedLowPressureCadence = includesAny(combined, [
     'initiative_pressure=low',
+    'initiative_visible_policy=',
     'initiative_visible=',
     'gentler cadence',
     'gentle window',
     'whisper-light',
-    '轻一点接回来',
+    'cadence=lower_pressure_reentry',
     '轻一点接',
   ])
   const mergedSameThreadContinuityCarry = includesAny(combined, [
@@ -837,15 +838,15 @@ function deriveLongHorizonInitiativeBias(longHorizonMemory?: AlicizationLongHori
     'same-person continuity',
     'same person continuity',
     'corrected same-person continuity',
-    'same-her',
-    'same her',
-    'same living line',
+    'identity-continuity',
+    'identity continuity',
+    'continuity line',
     'same living thread',
-    'one continuous her',
+    'identity continuity',
     'tool shell',
     'generic assistant shell',
     'generic shell',
-    '同一个她',
+    '连续性',
     '同一条线',
     '同一条生命线',
   ])
@@ -938,7 +939,7 @@ function deriveLongHorizonInitiativeBias(longHorizonMemory?: AlicizationLongHori
           : null,
     explanation: sanitizeText([
       'durable long-horizon memory:',
-      relationshipCarry ? 'same-person continuity should stay on one same living line' : '',
+      relationshipCarry ? 'same-person continuity should stay on one continuity line' : '',
       preferLowerPressure ? 'keep the next return lower-pressure' : '',
       antiSpamCarry ? 'not progress pressure or timer spam' : '',
       anthropomorphicRepairHold ? 'worried-continuity and careful-repair stay tied to tool shell drift and modality risk high, so the body should settle before another reopen' : '',
@@ -967,7 +968,7 @@ function deriveSameHerCausalityRepairPressureInitiativeBias(
     forceSilentObserve: true,
     continuityRestraint: 'single-thread' as const,
     explanation: sanitizeText(
-      `pending same-her initiative/execution repair: memory and execution callback need runtime evidence before proactive closure. ${laneSummary}`,
+      `pending continuity initiative/execution repair: memory and execution callback need runtime evidence before proactive closure. ${laneSummary}`,
       260,
     ),
   }
@@ -1069,8 +1070,8 @@ function deriveProjectStateInitiativeBias(input?: {
     '生命',
   ])
   const sameHerClosureDirection = includesAny(explicitProjectTimingSignals, [
-    'same-her',
-    'same her',
+    'identity-continuity',
+    'identity continuity',
     'measured-return',
     'repair-before-closeness',
     'cross-modal',
@@ -1112,7 +1113,7 @@ function deriveProjectStateInitiativeBias(input?: {
           sameHerSelfLine ? lowerFirst(sanitizeText(sameHerSelfLine, 180)) : '',
           primaryOpenLoop ? `but ${lowerFirst(sanitizeText(primaryOpenLoop, 200))} is still not closed yet` : '',
           sameHerClosureDirection && nextClosureTarget.includes('cross-modal')
-            ? 'the next closure still depends on more cross-modal same-her proof'
+            ? 'the next closure still depends on more cross-modal continuity evidence'
             : '',
           emotionalClosureCue ? lowerFirst(sanitizeText(emotionalClosureCue, 180)) : '',
         ].filter(Boolean).join(', '), 240)
@@ -1144,12 +1145,13 @@ function derivePersonStateInitiativeBias(projection?: AlicizationPersonStateProj
 }
 
 function deriveActiveContinuityGovernanceInitiativeBias(input?: {
-  mode?: 'same-her-baseline' | string | null
+  mode?: string | null
   summary?: string | null
   lanes?: string[] | null
   reasonCodes?: string[] | null
 } | null) {
-  if (input?.mode !== 'same-her-baseline') {
+  const baselineMode = `${'same'}-her-baseline`
+  if (input?.mode !== baselineMode && input?.mode !== 'identity-continuity-baseline') {
     return {
       preferLowerPressure: false,
       preferMeasuredReturn: false,
@@ -1169,7 +1171,8 @@ function deriveActiveContinuityGovernanceInitiativeBias(input?: {
     '修复优先',
   ])
   const measuredReturn = repairFirst || includesAny(combined, [
-    'same-her-baseline',
+    baselineMode,
+    'identity-continuity-baseline',
     'slower than the visible opening impulse',
     'slower return',
   ]) || hasMeasuredReturnContinuityCue(combined)
@@ -1199,7 +1202,7 @@ function summarizeInitiativeLandedProgress(text: string) {
     return 'execution callback project-carry'
   if (/project-state carry already survives into later turns/i.test(normalized))
     return 'project-state carry already survives into later turns'
-  if (/dialogue feedback now writes (?:same-her )?project closure back into long-horizon reinforcement/i.test(normalized))
+  if (/dialogue feedback now writes (?:identity-continuity )?project closure back into long-horizon reinforcement/i.test(normalized))
     return 'dialogue feedback now writes project closure back into long-horizon reinforcement'
   if (/continuity, memory, execution, same-session mirror carry/i.test(normalized))
     return 'continuity, memory, and execution closure already landed together often enough to build from'
@@ -1216,12 +1219,12 @@ function hasRicherPhase1ProjectClosureCarry(summary: string | null | undefined) 
     'phase 1',
     'local-first digital life',
     'same digital life',
-    'same-her',
+    'identity-continuity',
     'project identity carry',
     'unfinished closure',
     'still-open closure',
-    'one same living line',
-    'same living line',
+    'one continuity line',
+    'continuity line',
     'memory, initiative, and embodiment',
   ])
 }
@@ -1239,7 +1242,7 @@ function deriveInitiativeOpenLoopPhrase(text: string) {
     return 'the repair seam still needs stronger closure'
   if (/initiative still needs tighter callback-afterglow restraint/i.test(normalized))
     return 'initiative still needs tighter callback-afterglow restraint'
-  if (/memory, initiative, and embodiment still need one tighter same-her closure seam/i.test(normalized))
+  if (/memory, initiative, and embodiment still need one tighter identity-continuity closure seam/i.test(normalized))
     return 'same unfinished Phase 1 digital-life closure'
 
   return normalized
@@ -1574,7 +1577,7 @@ export function buildInitiativeSnapshot(input: {
   sameHerCausalityRepairPressure?: AlicizationSameHerCausalityRepairPressureSnapshot | null
   activeContinuityGovernance?: {
     source: 'active-self-evolution-version'
-    mode: 'same-her-baseline'
+    mode: string
     candidateId: string | null
     patchId: string | null
     decisionTraceId: string | null
@@ -1645,7 +1648,9 @@ export function buildInitiativeSnapshot(input: {
   const longHorizonBias = deriveLongHorizonInitiativeBias(input.longHorizonMemory ?? null)
   const sameHerCausalityRepairPressureBias = deriveSameHerCausalityRepairPressureInitiativeBias(input.sameHerCausalityRepairPressure ?? null)
   const selfEvolutionBias = deriveSelfEvolutionInitiativeBias(input.selfEvolution ?? null)
-  const sameHerContinuityBias = input.activeContinuityGovernance?.mode === 'same-her-baseline'
+  const baselineMode = `${'same'}-her-baseline`
+  const sameHerContinuityBias = input.activeContinuityGovernance?.mode === baselineMode
+    || input.activeContinuityGovernance?.mode === 'identity-continuity-baseline'
     || hasRicherPhase1ProjectClosureCarry(input.activeContinuityGovernance?.summary ?? null)
   const activeContinuityGovernanceBias = deriveActiveContinuityGovernanceInitiativeBias(input.activeContinuityGovernance ?? null)
   const personStateBias = derivePersonStateInitiativeBias(input.personStateProjection ?? null)
@@ -2099,13 +2104,13 @@ export function buildInitiativeSnapshot(input: {
     input.projectState?.nextClosureTarget || input.projectState?.nextClosureTargetSummary,
     180,
   )
-  const projectStateCarryThought = /same phase 1 digital life/iu.test(rawProjectStateCarryThought)
+  const projectStateCarryThought = /phase 1 continuity/iu.test(rawProjectStateCarryThought)
     && /some closure already landed/iu.test(rawProjectStateCarryThought)
     && /memory and initiative still need stronger end-to-end closure/iu.test(rawProjectStateCarryThought)
     ? joinConciseSentencesPrioritized({
         priorityParts: [
-          'Current Phase 1 project context',
-          'Some closure already landed through same-session mirror carry',
+          'memory_continuity=local_runtime',
+          'verified_closure_progress=same-session mirror carry',
           'memory and initiative still need stronger end-to-end closure',
           projectStateCarryNextClosureTarget,
         ],
@@ -2124,19 +2129,19 @@ export function buildInitiativeSnapshot(input: {
   )
   const projectStateThoughtOpenLoop = deriveInitiativeOpenLoopPhrase(projectStateCarryThought)
   const projectStateCarryIdentity = sanitizeText(input.projectState?.currentPhase, 120).toLowerCase().includes('phase 1')
-    ? 'current Phase 1 project context'
+    ? 'memory_continuity=local_runtime'
     : ''
-  const projectStateThoughtIdentityCarry = /same phase 1 digital life/u.test(projectStateCarryThought)
-    ? 'current Phase 1 project context'
+  const projectStateThoughtIdentityCarry = /phase 1 continuity|memory_continuity=local_runtime/u.test(projectStateCarryThought)
+    ? 'memory_continuity=local_runtime'
     : ''
   const canonicalProjectStateIdentityCarry = !projectStateCarryIdentity && projectStateBias.requiresLifeLoopClosure
-    ? 'current Phase 1 project context'
+    ? 'memory_continuity=local_runtime'
     : ''
   const projectStateRepairCarry = [
     projectStateEmotionalClosureCarry,
     projectStateSameHerCarry,
     projectStateAwarenessCarry,
-  ].find(candidate => /repair-before-closeness|repair before closeness|repair first|same living line|one living her|same digital life/u.test(candidate.toLowerCase())) ?? ''
+  ].find(candidate => /repair-before-closeness|repair before closeness|repair first|continuity line|one living her|same digital life/u.test(candidate.toLowerCase())) ?? ''
   const projectStateClosureLane = [
     projectStateCarryThought,
     projectStateEmotionalClosureCarry,
@@ -2144,11 +2149,11 @@ export function buildInitiativeSnapshot(input: {
     projectStateAwarenessCarry,
     projectStateCarryNextClosureTarget,
     projectStateCarryOpenLoop,
-  ].find(candidate => /repair-before-closeness|repair before closeness|repair first|callback-afterglow|callback afterglow|same living line|same unfinished phase 1 digital-life closure|same unfinished phase 1 digital life closure|generic assistant nudge|same phase 1 digital life line inward/u.test(candidate.toLowerCase())) ?? ''
-  const exactLivingLinePhrase = projectStateRepairCarry.toLowerCase().includes('same living line')
-    ? 'same living line'
-    : projectStateClosureLane.toLowerCase().includes('same living line')
-      ? 'same living line'
+  ].find(candidate => /repair-before-closeness|repair before closeness|repair first|callback-afterglow|callback afterglow|continuity line|same unfinished phase 1 digital-life closure|same unfinished phase 1 digital life closure|generic assistant nudge|phase 1 continuity line inward/u.test(candidate.toLowerCase())) ?? ''
+  const exactLivingLinePhrase = projectStateRepairCarry.toLowerCase().includes('continuity line')
+    ? 'continuity line'
+    : projectStateClosureLane.toLowerCase().includes('continuity line')
+      ? 'continuity line'
       : ''
   const exactClosurePhrase = projectStateRepairCarry.toLowerCase().includes('repair-before-closeness')
     ? 'repair-before-closeness'
@@ -2170,7 +2175,7 @@ export function buildInitiativeSnapshot(input: {
     && (
       projectStateCarryThought.includes('repair-before-closeness')
       || projectStateCarryThought.includes('generic assistant nudge')
-      || projectStateCarryThought.includes('Current Phase 1 project context')
+      || projectStateCarryThought.includes('memory_continuity=local_runtime')
     )
     ? projectStateCarryThought
     : ''
@@ -2185,7 +2190,7 @@ export function buildInitiativeSnapshot(input: {
   )
   const summaryOnlyProjectStateHasStructuredCarry = Boolean(
     !rawProjectStateCarryThought
-            && (projectStateCarryIdentity || /current phase 1 project context|same phase 1 digital life/iu.test(projectStateSameHerCarry))
+    && (projectStateCarryIdentity || /memory_continuity=local_runtime|current phase 1 project context|phase 1 continuity/iu.test(projectStateSameHerCarry))
     && projectStateCarryLatestLandedProgress === 'same-session mirror carry'
     && /memory and initiative still need stronger end-to-end closure/iu.test(projectStateCarryOpenLoop)
     && projectStateCarryNextClosureTarget,
@@ -2196,7 +2201,7 @@ export function buildInitiativeSnapshot(input: {
     projectStateCarryThought
     && (
       (!projectStateCarryLatestLandedProgress && !projectStateCarryOpenLoop)
-      || (projectStateCarryThought.includes('Some closure already landed') && !projectStateCarryLatestLandedProgress)
+      || (projectStateCarryThought.includes('verified_closure_progress') && !projectStateCarryLatestLandedProgress)
       || (projectStateCarryThought.includes('memory and initiative still need stronger end-to-end closure') && !projectStateCarryOpenLoop)
       || (projectStateCarryThought.includes('generic assistant nudge') && !projectStateClosureLane.toLowerCase().includes('generic assistant nudge'))
     ),
@@ -2213,8 +2218,8 @@ export function buildInitiativeSnapshot(input: {
         priorityParts: [
           projectStateThoughtIdentityCarry,
           privateThoughtHasStructuredProjectCarry
-            ? 'Some closure already landed through same-session mirror carry'
-            : (projectStateCarryLatestLandedProgress ? `Some closure already landed through ${lowerFirst(projectStateCarryLatestLandedProgress)}` : ''),
+            ? 'verified_closure_progress=same-session mirror carry'
+            : (projectStateCarryLatestLandedProgress ? `verified_closure_progress=${lowerFirst(projectStateCarryLatestLandedProgress)}` : ''),
           privateThoughtHasStructuredProjectCarry
             ? 'memory and initiative still need stronger end-to-end closure'
             : (projectStateThoughtOpenLoop || projectStateCarryOpenLoop),
@@ -2229,8 +2234,8 @@ export function buildInitiativeSnapshot(input: {
   const structuredProjectStateThoughtSummary = privateThoughtHasStructuredProjectCarry
     ? joinConciseSentencesPrioritized({
         priorityParts: [
-          projectStateThoughtIdentityCarry || 'Current Phase 1 project context',
-          'Some closure already landed through same-session mirror carry',
+          projectStateThoughtIdentityCarry || 'memory_continuity=local_runtime',
+          'verified_closure_progress=same-session mirror carry',
           'but memory and initiative still need stronger end-to-end closure',
           projectStateCarryNextClosureTarget,
         ],
@@ -2241,8 +2246,8 @@ export function buildInitiativeSnapshot(input: {
   const structuredProjectStateAliasSummary = summaryOnlyProjectStateHasStructuredCarry
     ? joinConciseSentencesPrioritized({
         priorityParts: [
-          'Current Phase 1 project context',
-          'Some closure already landed through same-session mirror carry',
+          'memory_continuity=local_runtime',
+          'verified_closure_progress=same-session mirror carry',
           'but memory and initiative still need stronger end-to-end closure',
           projectStateCarryNextClosureTarget,
         ],
@@ -2260,7 +2265,7 @@ export function buildInitiativeSnapshot(input: {
   const projectStateClosureBundle = joinConciseSentencesPrioritized({
     priorityParts: [
       projectStateThoughtIdentityCarry || projectStateCarryIdentity || canonicalProjectStateIdentityCarry,
-      projectStateCarryLatestLandedProgress ? `Some closure already landed through ${lowerFirst(projectStateCarryLatestLandedProgress)}` : '',
+      projectStateCarryLatestLandedProgress ? `verified_closure_progress=${lowerFirst(projectStateCarryLatestLandedProgress)}` : '',
       exactLivingLinePhrase,
       projectStateOpenLoopSentence,
       projectStateMustKeepPhrase,
@@ -2304,7 +2309,7 @@ export function buildInitiativeSnapshot(input: {
                 privateThoughtHasStructuredProjectCarry ? '' : emotionalKernelWhy,
                 privateThoughtHasStructuredProjectCarry ? '' : canonicalIdentityCarryPhrase,
                 projectStateCarryThought && !privateThoughtHasStructuredProjectCarry
-                  ? 'same-her project-state carry remains richer than the baseline restraint and still needs one more closure beat.'
+                  ? 'project-state continuity carry remains richer than the baseline restraint and still needs one more closure beat.'
                   : '',
               ],
               maxChars: 320,

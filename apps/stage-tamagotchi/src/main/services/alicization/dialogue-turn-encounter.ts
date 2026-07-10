@@ -51,7 +51,7 @@ function buildProjectStateContinuitySummary(input: {
   if (!input.semantics.reasonTags.includes('project-state-continuity-question'))
     return null
 
-  const continuityLine = 'from one continuous her line.'
+  const continuityLine = 'from current project continuity facts.'
   const baseSummary = sanitizeText(
     input.focus.focusSummary
     || input.obligation.summary
@@ -59,11 +59,11 @@ function buildProjectStateContinuitySummary(input: {
     160,
   ) || 'The host is asking Alicization to answer what this project is, what has landed, and what still remains open.'
 
-  if (/one continuous her line/i.test(baseSummary))
+  if (/current project continuity facts/i.test(baseSummary))
     return baseSummary
 
   return sanitizeText(`${baseSummary.replace(/[.?!]\s*$/, '')} ${continuityLine}`, 180)
-    || 'The host is asking Alicization to answer what this project is, what has landed, and what still remains open from one continuous her line.'
+    || 'The host is asking Alicization to answer what this project is, what has landed, and what still remains open from current project continuity facts.'
 }
 
 export interface AlicizationDialogueTurnEncounter extends AlicizationDialogueTurnEncounterSnapshot {

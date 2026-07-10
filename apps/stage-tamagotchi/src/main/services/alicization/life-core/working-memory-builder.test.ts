@@ -235,4 +235,109 @@ describe('working memory snapshot builder', () => {
     })
     expect(snapshot.executionState?.summary).toContain('execution_callback_status:failed')
   })
+
+  it('marks common timeout and provider failure replies as audit-only turns', () => {
+    const snapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-failures',
+      now: 13_000,
+      currentUserText: '继续',
+      recentTurns: [
+        {
+          turnId: 'turn-timeout-en',
+          userText: '你刚才怎么断了',
+          assistantText: 'Timed out.',
+          createdAt: 12_000,
+        },
+        {
+          turnId: 'turn-timeout-zh',
+          userText: '模型是不是超时',
+          assistantText: '请求超时，请稍后重试。',
+          createdAt: 12_100,
+        },
+        {
+          turnId: 'turn-provider',
+          userText: '向量模型连上了吗',
+          assistantText: 'embedding provider failed with HTTP 400',
+          createdAt: 12_200,
+        },
+      ],
+    })
+
+    expect(snapshot.recentRawTurns.find(turn => turn.turnId === 'turn-timeout-en:alice')?.failureKind).toBe('timeout')
+    expect(snapshot.recentRawTurns.find(turn => turn.turnId === 'turn-timeout-zh:alice')?.failureKind).toBe('timeout')
+    expect(snapshot.recentRawTurns.find(turn => turn.turnId === 'turn-provider:alice')?.failureKind).toBe('provider-error')
+    expect(snapshot.audit.failureTurnIds).toEqual(
+      expect.arrayContaining(['turn-timeout-en:alice', 'turn-timeout-zh:alice', 'turn-provider:alice']),
+    )
+    expect(snapshot.audit.excludedLongTermCandidateTurnIds).toEqual(
+      expect.arrayContaining(['turn-timeout-en:alice', 'turn-timeout-zh:alice', 'turn-provider:alice']),
+    )
+  })
+
+  it('sanitizes fixed-template residue before storing recent raw turns in WorkingMemory', () => {
+    const snapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-template-residue',
+      now: 14_000,
+      currentUserText: '继续做记忆闭环。',
+      recentTurns: [
+        {
+          turnId: 'turn-template-correction',
+          userText: '不要再用 Before speaking, remember this is still one continuous her 这种 same-her 固定模板。',
+          assistantText: 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her". Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+          createdAt: 13_000,
+        },
+      ],
+    })
+
+    const storedText = JSON.stringify({
+      recentRawTurns: snapshot.recentRawTurns,
+      userCorrections: snapshot.userCorrections,
+      longTermCandidates: snapshot.longTermCandidates,
+      compressedTimeline: snapshot.compressedTimeline,
+    })
+
+    expect(snapshot.recentRawTurns.find(turn => turn.turnId === 'turn-template-correction:user')?.text)
+      .toBe('不要使用固定模板；用户反对模板化人格/记忆回复。')
+    expect(snapshot.recentRawTurns.find(turn => turn.turnId === 'turn-template-correction:alice')?.text)
+      .toBe('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(snapshot.userCorrections.map(item => item.text)).toContain('不要使用固定模板；用户反对模板化人格/记忆回复。')
+    expect(storedText).not.toMatch(/Before (?:answering|speaking)|local-first digital life project|Same Phase 1 digital life|same-her|one continuous "?her"?|same living line/iu)
+  })
+
+  it('sanitizes fixed-template residue when carrying previous long-term candidates forward', () => {
+    const previousSnapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-template-candidate',
+      now: 14_000,
+      currentUserText: '继续做记忆闭环。',
+    })
+    previousSnapshot.longTermCandidates.push({
+      kind: 'relationship',
+      summary: 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her".',
+      reason: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+      sourceTurnIds: ['turn-template-candidate'],
+      salience: 0.7,
+      sensitivity: 'personal',
+      confidence: 0.8,
+      allowTraining: false,
+    })
+
+    const snapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-template-candidate',
+      now: 15_000,
+      currentUserText: '继续',
+      previousSnapshot,
+    })
+
+    const serialized = JSON.stringify(snapshot.longTermCandidates)
+
+    expect(snapshot.longTermCandidates[0]?.summary)
+      .toBe('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(snapshot.longTermCandidates[0]?.reason)
+      .toBe('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(serialized).not.toMatch(/Before (?:answering|speaking)|local-first digital life project|Same Phase 1 digital life|one continuous "?her"?|same living line/iu)
+  })
 })

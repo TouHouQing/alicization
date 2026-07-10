@@ -257,6 +257,37 @@ describe('buildAnswerPlanner', () => {
     expect(block).not.toContain('Pre-dialogue closure line: Same companion line through body, face, and motion.')
   })
 
+  it('sanitizes fixed-template governing project text in the planner system block', () => {
+    const block = buildAlicizationAnswerPlannerSystemBlock({
+      act: 'answer',
+      evidenceMode: 'dialogue-grounded',
+      governingFocus: 'Answer from recalled user intent.',
+      governingProject: 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her". Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+      openingMove: null,
+      answerIntent: null,
+      relationshipPosture: 'warm and precise',
+      activeClosenessContext: null,
+      activeClosenessRung: null,
+      shouldAskForGrounding: false,
+      shouldAcknowledgeRepair: false,
+      selectedConcernEntryId: null,
+      selectedRepairId: null,
+      selectedCommitmentId: null,
+      selectedInquiryPlanId: null,
+      selectedProjectId: null,
+      selectedReflectionId: null,
+      executivePhase: null,
+      mustDo: [],
+      mustNotDo: [],
+      confidence: 0.9,
+      narrative: [],
+      updatedAt: 44_000,
+    } as any)
+
+    expect(block).toContain('governing_project=none')
+    expect(block).not.toMatch(/Before answering|local-first digital life project|one continuous "?her"?|Same Phase 1 digital life|same living line/iu)
+  })
+
   it('stops asking for reground when this inspection turn is already grounded live', () => {
     const planner = buildAnswerPlanner({
       now: 32_000,
@@ -385,7 +416,7 @@ describe('buildAnswerPlanner', () => {
     expect(planner.mustDo).toContain('Keep the answer low-pressure and protect the host’s remaining room instead of enlarging the emotional surface.')
     expect(planner.mustDo).toContain('Prefer one gentle payoff over layered companionship flourishes when the late-night drain is still active.')
     expect(planner.mustNotDo).toContain('Do not turn late-night protectiveness into intensity, urgency, or emotionally heavy closeness.')
-    expect(planner.narrative).toContain('emotional_closure:late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the same living line.')
+    expect(planner.narrative).toContain('emotional_closure:late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness.')
   })
 
   it('turns restless switching into single-thread answer discipline instead of letting the reply sprawl', () => {
@@ -2136,8 +2167,9 @@ describe('buildAnswerPlanner', () => {
     })
 
     expect(planner.governingFocus).toContain('goal is expected to close')
-    expect(planner.governingFocus).toContain('host language or project line')
-    expect(planner.answerIntent).toMatch(/same digital life line/i)
+    expect(planner.governingFocus).toContain('host language or project context')
+    expect(planner.answerIntent).toContain('project continuity direct-answer')
+    expect(planner.answerIntent).not.toMatch(/same digital life line/i)
     expect(planner.answerIntent).toContain('goal is expected to close')
     expect(planner.answerIntent).not.toContain('Explain the current status and language choice clearly')
   })
@@ -2323,8 +2355,8 @@ describe('buildAnswerPlanner', () => {
       runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeState as any),
     })
 
-    expect(planner.governingProject).toMatch(/same digital life|one living her|same phase 1 digital life/i)
-    expect(planner.governingProject).toContain('same living line')
+    expect(planner.governingProject).toContain('identity=A local-first digital life project')
+    expect(planner.governingProject).not.toContain('same living line')
     expect(planner.governingProject).toContain('Phase 1: Local Digital Life')
     expect(planner.governingProject).toMatch(/Memory still needs stronger end-to-end closure|initiative|embodiment|same still-open closure work/i)
     expect(planner.governingProject).toContain('Visible proactive hold still needs stronger proof')
@@ -2629,9 +2661,9 @@ describe('buildAnswerPlanner', () => {
       runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeState as any),
     })
 
-    expect(planner.mustDo).toContain('Keep the answer on one same-her digital-life line so the project update stays companion-like instead of turning into detached project narration.')
-    expect(planner.mustNotDo).toContain('Do not let this answer flatten into a generic task shell, detached project-summary voice, or external status-report cadence.')
-    expect(planner.narrative).toContain('project_drift_risk:same-her drift risk is active, so opening wording must stay thread-faithful and avoid generic project-shell reporting.')
+    expect(planner.mustDo).toContain('project_drift_risk=active; anchor=current_first_person_continuity; avoid=detached_project_narration')
+    expect(planner.mustNotDo).toContain('avoid=generic_task_shell,detached_project_summary,external_status_report')
+    expect(planner.narrative).toContain('project_drift_risk:continuity drift risk is active, so opening wording must stay thread-faithful and avoid generic project-shell reporting.')
   })
 
   it('does not let the compact thin closure shell outrank a richer same-her governing project line during reply planning', () => {
@@ -2724,8 +2756,8 @@ describe('buildAnswerPlanner', () => {
     })
 
     expect(planner.governingProject).not.toContain('same digital life | keep the closure seam explicit')
-    expect(planner.governingProject).toContain('holding together mainly through voice, face, and motion')
-    expect(planner.governingProject).toContain('same living line')
+    expect(planner.governingProject).toContain('identity=A local-first digital life project')
+    expect(planner.governingProject).not.toContain('same living line')
     expect(planner.governingProject).toContain('Phase 1: Local Digital Life')
     expect(planner.governingProject).toMatch(/Memory(?: and initiative)? still needs? stronger end-to-end closure/i)
     expect(planner.governingProject).toContain('initiative')
@@ -2907,8 +2939,9 @@ describe('buildAnswerPlanner', () => {
     })
 
     expect(planner.governingProject).not.toContain('回答前先记住这是同一个她的数字生命项目，别把这条线忘了。')
-    expect(planner.governingProject).toContain('Before answering, remember: Alicization is a local-first digital life project building one continuous "her"')
-    expect(planner.governingProject).toContain('Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(planner.governingProject).toContain('visibility=internal-structured')
+    expect(planner.governingProject).not.toContain('Before answering')
+    expect(planner.governingProject).not.toContain('Same Phase 1 digital life')
     expect(planner.governingProject).toContain('如果最终回答只剩 same-her 提醒壳，没有 same-her 自我线，就把它当成还没收住的 continuity drift。')
     expect(planner.governingProject).toContain('记忆、主动性和具身还需要更紧一点的同一个她闭环')
   })
@@ -3128,9 +3161,9 @@ describe('buildAnswerPlanner', () => {
     expect(planner.governingProject).toContain(aliasLandedProgress)
     expect(planner.governingProject).toContain(aliasOpenClosure)
     expect(planner.governingProject).toContain(aliasNextClosure)
-    expect(planner.mustDo).toContain('Keep the answer on one same-her digital-life line so the project update stays companion-like instead of turning into detached project narration.')
-    expect(planner.mustNotDo).toContain('Do not let this answer flatten into a generic task shell, detached project-summary voice, or external status-report cadence.')
-    expect(planner.narrative).toContain('project_drift_risk:same-her drift risk is active, so opening wording must stay thread-faithful and avoid generic project-shell reporting.')
+    expect(planner.mustDo).toContain('project_drift_risk=active; anchor=current_first_person_continuity; avoid=detached_project_narration')
+    expect(planner.mustNotDo).toContain('avoid=generic_task_shell,detached_project_summary,external_status_report')
+    expect(planner.narrative).toContain('project_drift_risk:continuity drift risk is active, so opening wording must stay thread-faithful and avoid generic project-shell reporting.')
   })
 
   it('keeps compiler-carried proactive same-her gap inside governingProject when the live project-state shell is thin', () => {
@@ -3299,7 +3332,7 @@ describe('buildAnswerPlanner', () => {
       runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeState as any),
     })
 
-    expect(planner.governingProject).toContain('same living line')
+    expect(planner.governingProject).not.toContain('same living line')
     expect(planner.governingProject).toMatch(/Same-session mirror carry|measured-return embodiment authority|longer-lived continuation/i)
     expect(planner.governingProject).toMatch(/Keep extending cross-modal same-her proof|longer-lived voice behavior|facial state|motion|resident presence/i)
     expect(planner.governingProject).toContain('Phase 1: Local Digital Life')
@@ -3461,7 +3494,7 @@ describe('buildAnswerPlanner', () => {
     })
 
     expect(planner.governingProject).toContain('audible-body')
-    expect(planner.governingProject).toContain('same living line')
+    expect(planner.governingProject).not.toContain('same living line')
     expect(planner.governingProject).toContain('Phase 1: Local Digital Life')
     expect(planner.governingProject).toContain('Shared embodiment continuity now carries stronger audible-body same-her repair across diagnostics, host-facing closure surfaces, and runtime authority summaries.')
     expect(planner.governingProject).toContain('Face and motion still need to rejoin the same-her audible body line before full cross-modal closure settles.')
@@ -3559,8 +3592,8 @@ describe('buildAnswerPlanner', () => {
     expect(planner.governingFocus).toContain('same-her closure work')
     expect(planner.answerIntent).toContain('same digital life')
     expect(planner.answerIntent).not.toContain('callback update')
-    expect(planner.openingMove).toContain('same living line first')
-    expect(planner.mustDo).toContain('Keep the callback return shaped like the same local digital life thread, not a detached utility notice.')
+    expect(planner.openingMove).not.toContain('same living line first')
+    expect(planner.mustDo).toContain('callback_result=use_current_conversation_context; avoid=detached_utility_notice')
   })
 
   it('keeps project-state continuity recollection inward in fallback planning when only runtime same-her closure state still carries the unfinished Phase 1 loop', () => {
@@ -3808,10 +3841,12 @@ describe('buildAnswerPlanner', () => {
     expect(planner.governingFocus).toContain('same her inside this local-first digital life')
     expect(planner.answerIntent).toContain('same digital life')
     expect(planner.answerIntent).not.toContain('returned result clearly')
-    expect(planner.mustDo).toContain('Keep the callback return shaped like the same local digital life thread, not a detached utility notice.')
-    expect(planner.mustNotDo).toContain('Do not let the callback result reopen the same-her line from scratch or flatten into a generic callback shell.')
-    expect(planner.narrative).toContain(`pre-dialogue closure: ${callbackAwarenessLine}`)
-    expect(buildAlicizationAnswerPlannerSystemBlock(planner)).toContain(`Pre-dialogue closure line: ${callbackAwarenessLine}.`)
+    expect(planner.mustDo).toContain('callback_result=use_current_conversation_context; avoid=detached_utility_notice')
+    expect(planner.mustNotDo).toContain('callback_result_restart=avoid; avoid=generic_callback_shell')
+    expect(planner.narrative.some(item => item.startsWith('pre-dialogue closure:'))).toBe(true)
+    expect(planner.narrative.join(' ')).not.toContain('Before answering')
+    expect(buildAlicizationAnswerPlannerSystemBlock(planner)).toContain('Pre-dialogue closure line:')
+    expect(buildAlicizationAnswerPlannerSystemBlock(planner)).not.toContain(callbackAwarenessLine)
     expect(buildAlicizationAnswerPlannerSystemBlock(planner)).not.toContain('Pre-dialogue closure line: Before answering, remember this is still the same digital life project')
   })
 
@@ -4061,12 +4096,13 @@ describe('buildAnswerPlanner', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.sameHerSelfLine).toContain('Same Phase 1 digital life')
+    expect(frame?.projectState?.sameHerSelfLine).toContain('same her')
     expect(frame?.projectState?.sameHerDriftRisk).toContain('detached project status talk')
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('same living line')
+    expect(frame?.projectState?.preDialogueAwarenessLine).not.toContain('same living line')
     expect(frame?.projectState?.preDialogueAwarenessLine).not.toContain('keep this same digital life project in view')
     expect(planner.governingProject).toContain('detached project status talk')
-    expect(planner.governingProject).toContain('Same Phase 1 digital life')
+    expect(planner.governingProject).toContain('visibility=internal-structured')
+    expect(planner.governingProject).not.toContain('Same Phase 1 digital life')
     expect(planner.governingProject).not.toContain('Generic next closure shell')
   })
 
@@ -4160,8 +4196,8 @@ describe('buildAnswerPlanner', () => {
     expect(planner.governingFocus).toContain('same digital life project')
     expect(planner.answerIntent).toContain('same digital life project')
     expect(planner.answerIntent).not.toContain('Give a project update')
-    expect(planner.mustNotDo).toContain('Do not let the callback result reopen the same-her line from scratch or flatten into a generic callback shell.')
-    expect(planner.mustNotDo).toContain('Do not flatten the same-thread project-state continuation into a fresh report opening or detached project-summary shell.')
+    expect(planner.mustNotDo).toContain('callback_result_restart=avoid; avoid=generic_callback_shell')
+    expect(planner.mustNotDo).toContain('same_thread_project_state=preserve; avoid=fresh_report_opening,detached_project_summary')
   })
 
   it('treats remembered host-confirmed resume confirmation as a bounded redispatch guardrail before callback answer planning widens outward', () => {
@@ -4295,7 +4331,7 @@ describe('buildAnswerPlanner', () => {
       runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeState),
     })
 
-    expect(planner.openingMove).toContain('same living audio thread first')
+    expect(planner.openingMove).toContain('current audio-body continuity first')
     expect(planner.openingMove).toContain('body, lipsync, and voice')
     expect(planner.openingMove).toContain('face and motion rejoin')
     expect(planner.openingMove).toContain('before widening outward')
@@ -4333,8 +4369,8 @@ describe('buildAnswerPlanner', () => {
       runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeState),
     })
 
-    expect(planner.openingMove).toContain('quieter same-her body-and-lipsync line first')
-    expect(planner.openingMove).toContain('living line inward')
+    expect(planner.openingMove).toContain('quieter body-and-lipsync continuity first')
+    expect(planner.openingMove).toContain('keep it inward')
     expect(planner.openingMove).toContain('voice, face, and motion rejoin')
     expect(planner.openingMove).not.toContain('same living audio thread first')
     expect(runtimeState.currentConsciousFrame.reasonTags).toContain('continuity-arc:body-lipsync-carry')
@@ -4428,9 +4464,9 @@ describe('buildAnswerPlanner', () => {
       runtimeSurface,
     })
 
-    expect(planner.mustDo).toContain('Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.')
-    expect(planner.mustNotDo).toContain('Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.')
-    expect(planner.narrative).toContain('emotional_closure:same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.')
+    expect(planner.mustDo).toContain('emotional_closure=low_pressure; placement=inward_until_live_payoff')
+    expect(planner.mustNotDo).toContain('avoid_restart=current_thread; reason=active_emotional_closure')
+    expect(planner.narrative).toContain('emotional_closure:keep the return low-pressure, leave more room, and do not reopen from scratch while the emotional context is still settling.')
   })
 
   it('keeps rich same-her project awareness inward-first at reply-plan time even without the legacy generic-shell flag', () => {
@@ -4522,10 +4558,10 @@ describe('buildAnswerPlanner', () => {
     })
 
     expect(planner.mustDo).toContain('Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.')
-    expect(planner.mustNotDo).toContain('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.')
-    expect(planner.narrative).toContain('project_state_carry:same-her project awareness should keep landed progress and next closure inward-first until the live payoff lands.')
+    expect(planner.mustNotDo).toContain('project_state_pressure=do_not_spill_into_external_summary_voice; timing=before_current_answer_lands')
+    expect(planner.narrative).toContain('project_state_carry:project awareness should keep landed progress and next closure inward-first until the live payoff lands.')
     expect(buildAlicizationAnswerPlannerSystemBlock(planner)).toContain('Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.')
-    expect(buildAlicizationAnswerPlannerSystemBlock(planner)).toContain('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.')
+    expect(buildAlicizationAnswerPlannerSystemBlock(planner)).toContain('project_state_pressure=do_not_spill_into_external_summary_voice; timing=before_current_answer_lands')
   })
 
   it('keeps the richer still-open project closure explicit in planner carry discipline when live awareness falls back to a thin shell', () => {

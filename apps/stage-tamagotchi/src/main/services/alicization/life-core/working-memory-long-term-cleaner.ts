@@ -5,6 +5,11 @@ import type {
 import type { WorkingMemoryLongTermQueueItem } from './working-memory-long-term-queue'
 
 import {
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+
+import {
   normalizeWorkingMemoryText,
   uniqueWorkingMemoryTexts,
 } from './working-memory'
@@ -21,6 +26,17 @@ const relationshipCuePattern = /关系|边界|修复|出错|超时|直接说明|
 
 const minimumAutomaticConfidence = 0.7
 const minimumAutomaticSalience = 0.6
+
+const cleanedFixedTemplateReplacement
+  = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+
+function sanitizeCleanerText(raw: unknown, maxChars = 260, replacement = '') {
+  return sanitizeAlicizationProviderFacingText(
+    normalizeWorkingMemoryText(raw, maxChars),
+    maxChars,
+    replacement,
+  )
+}
 
 function candidateText(item: WorkingMemoryLongTermQueueItem) {
   return [
@@ -39,46 +55,46 @@ function buildRetrievalCues(input: {
       '固定模板',
       '数字生命人格',
       '人格纠正',
-      input.item.summary,
+      sanitizeCleanerText(input.item.summary, 120, ''),
     ], 8, 80)
   }
 
   if (input.item.kind === 'preference') {
     return uniqueWorkingMemoryTexts([
       '用户偏好',
-      input.item.summary,
-      ...input.item.evidenceSnippets,
+      sanitizeCleanerText(input.item.summary, 120, ''),
+      ...input.item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 120, cleanedFixedTemplateReplacement)),
     ], 8, 80)
   }
 
   if (input.item.kind === 'episode') {
     return uniqueWorkingMemoryTexts([
       '共同经历',
-      input.item.summary,
-      ...input.item.evidenceSnippets,
+      sanitizeCleanerText(input.item.summary, 120, ''),
+      ...input.item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 120, cleanedFixedTemplateReplacement)),
     ], 8, 80)
   }
 
   if (input.item.kind === 'procedure') {
     return uniqueWorkingMemoryTexts([
       '可复用流程',
-      input.item.summary,
-      ...input.item.evidenceSnippets,
+      sanitizeCleanerText(input.item.summary, 120, ''),
+      ...input.item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 120, cleanedFixedTemplateReplacement)),
     ], 8, 80)
   }
 
   if (input.item.kind === 'relationship') {
     return uniqueWorkingMemoryTexts([
       '关系边界',
-      input.item.summary,
-      ...input.item.evidenceSnippets,
+      sanitizeCleanerText(input.item.summary, 120, ''),
+      ...input.item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 120, cleanedFixedTemplateReplacement)),
     ], 8, 80)
   }
 
   return uniqueWorkingMemoryTexts([
-    input.item.summary,
-    input.item.reason,
-    ...input.item.evidenceSnippets,
+    sanitizeCleanerText(input.item.summary, 120, ''),
+    sanitizeCleanerText(input.item.reason, 120, ''),
+    ...input.item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 120, cleanedFixedTemplateReplacement)),
   ], 8, 80)
 }
 
@@ -104,10 +120,14 @@ function buildCleanedCandidate(input: {
     kind: item.kind,
     cardId: input.transaction.cardId,
     sessionId: input.transaction.sessionId,
-    summary: item.summary,
-    reason: item.reason,
+    summary: sanitizeCleanerText(item.summary, 260, cleanedFixedTemplateReplacement) || cleanedFixedTemplateReplacement,
+    reason: sanitizeCleanerText(item.reason, 260, cleanedFixedTemplateReplacement) || cleanedFixedTemplateReplacement,
     sourceTurnIds: item.sourceTurnIds,
-    evidenceSnippets: item.evidenceSnippets,
+    evidenceSnippets: uniqueWorkingMemoryTexts(
+      item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 260, cleanedFixedTemplateReplacement)),
+      8,
+      260,
+    ),
     retrievalCues: buildRetrievalCues({
       item,
       personaCorrection: input.personaCorrection,
@@ -157,7 +177,7 @@ function rejectionReasonsFor(input: {
     reasons.push('missing-evidence')
   if (fixedFallbackTemplatePattern.test(input.text))
     reasons.push('fixed-fallback-template')
-  if (promptResiduePattern.test(input.text))
+  if (promptResiduePattern.test(input.text) || containsAlicizationFixedTemplateResidue(input.text))
     reasons.push('prompt-residue')
 
   return uniqueWorkingMemoryTexts(reasons, 12, 180)

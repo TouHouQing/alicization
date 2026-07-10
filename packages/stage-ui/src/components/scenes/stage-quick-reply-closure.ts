@@ -1,8 +1,27 @@
 import {
+  containsAlicizationFixedTemplateResidue,
+  describeAlicizationEmbodimentClosureHeadline,
   describeAlicizationProjectClosureBriefing,
   describeAlicizationProjectNextClosure,
   isAlicizationThinProjectAwarenessLine,
+  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
+
+const fixedTemplateQuickReplyClosureLine
+  = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+
+const internalQuickReplyClosureFieldPattern
+  = /identity-continuity|phase1_local_digital_life|visibility=(?:internal-structured|renderer-internal)|content=excluded|owner=|source=|continuity_anchor=|continuity=|signature=|lane=|focus=|pending(?:[_-]rejoin)?=|recovery@/iu
+
+function isInternalFixedTemplateExclusionLine(line: string | null | undefined) {
+  const normalized = line?.trim().replace(/\s+/g, ' ') ?? ''
+  return normalized === fixedTemplateQuickReplyClosureLine
+    || (
+      normalized.includes('content=excluded')
+      && normalized.includes('reason=continuity-residue')
+      && normalized.includes('visibility=internal-structured')
+    )
+}
 
 export interface StageQuickReplyPreDialogueClosureSnapshot {
   status: 'grounded' | 'partial' | 'drift'
@@ -42,13 +61,13 @@ function normalizeProactiveSameHerGapLine(line: string | null | undefined) {
   if (!normalizedLine)
     return null
 
-  const reasonMatch = /^Proactive same-her follow-through (?:still|currently) reads (.*?),(?:\s*so the next turn should|\s*which shows)/i.exec(normalizedLine)
+  const reasonMatch = /^Proactive identity-continuity follow-through (?:still|currently) reads (.*?),(?:\s*so the next turn should|\s*which shows)/i.exec(normalizedLine)
   if (reasonMatch?.[1]?.trim())
     return reasonMatch[1].trim()
 
   const strippedLine = normalizedLine
-    .replace(/^Proactive same-her gap:\s*/i, '')
-    .replace(/^Proactive same-her follow-through:\s*/i, '')
+    .replace(/^Proactive identity-continuity gap:\s*/i, '')
+    .replace(/^Proactive identity-continuity follow-through:\s*/i, '')
     .trim()
 
   return strippedLine || null
@@ -57,8 +76,8 @@ function normalizeProactiveSameHerGapLine(line: string | null | undefined) {
 function resolveProactiveSameHerGapLine(snapshot: StageQuickReplyPreDialogueClosureSnapshot) {
   const briefingMatch = snapshot.briefingLines?.find((line) => {
     const normalizedLine = line.trim()
-    return /^Proactive same-her gap:/i.test(normalizedLine)
-      || /^Proactive same-her follow-through:/i.test(normalizedLine)
+    return /^Proactive identity-continuity gap:/i.test(normalizedLine)
+      || /^Proactive identity-continuity follow-through:/i.test(normalizedLine)
   })
   const normalizedBriefingMatch = normalizeProactiveSameHerGapLine(briefingMatch)
   if (normalizedBriefingMatch)
@@ -66,7 +85,7 @@ function resolveProactiveSameHerGapLine(snapshot: StageQuickReplyPreDialogueClos
 
   const reasonMatch = snapshot.reasons.find((reason) => {
     const normalizedReason = reason.trim()
-    return /^Proactive same-her follow-through (?:still|currently) reads /i.test(normalizedReason)
+    return /^Proactive identity-continuity follow-through (?:still|currently) reads /i.test(normalizedReason)
   })
 
   return normalizeProactiveSameHerGapLine(reasonMatch)
@@ -133,7 +152,7 @@ function resolveSameHerClosureStage(reason: string | null | undefined) {
   if (
     /bodycontinuityphase[:=]\s*full-cross-modal-lock/i.test(normalized)
     || /locked back onto the same living segment together/i.test(normalized)
-    || /same-her embodiment line instead of a temporary visual alignment/i.test(normalized)
+    || /identity-continuity embodiment line instead of a temporary visual alignment/i.test(normalized)
     || /共同锁回同一段 living segment/i.test(normalized)
     || /跨模态重锁态/.test(normalized)
   ) {
@@ -194,7 +213,7 @@ function resolveSameHerClosureStage(reason: string | null | undefined) {
   }
 
   if (
-    /continuity=embodiment:audible-same-her-line\+embodiment:body\+voice-only(?:\s*\||$)/i.test(normalized)
+    /continuity=embodiment:audible-identity-continuity-line\+embodiment:body\+voice-only(?:\s*\||$)/i.test(normalized)
     || /continuity=embodiment:body\+voice-only(?:\s*\||$)/i.test(normalized)
     || /lane=body\+face\+motion-only/i.test(normalized)
     || /lane=body\+voice-only/i.test(normalized)
@@ -203,8 +222,8 @@ function resolveSameHerClosureStage(reason: string | null | undefined) {
     || /body, face, and motion authority have already re-formed on the same segment/i.test(normalized)
     || /body\+voice recovery@/i.test(normalized)
     || /body\+lipsync recovery@/i.test(normalized)
-    || /resident body continuity and voice prosody are still aligned with the active same-her segment/i.test(normalized)
-    || /the resident body lane is still holding together with the same-her voice line/i.test(normalized)
+    || /resident body continuity and voice prosody are still aligned with the active identity-continuity segment/i.test(normalized)
+    || /the resident body lane is still holding together with the identity-continuity voice line/i.test(normalized)
     || /the resident body lane is still holding together with one other embodiment lane/i.test(normalized)
   ) {
     return 'body-carried-to-renderer-rejoin'
@@ -212,21 +231,21 @@ function resolveSameHerClosureStage(reason: string | null | undefined) {
 
   if (
     /lane=body\+lipsync\+voice-only/i.test(normalized)
-    || /signature=embodiment:audible-same-her-line/i.test(normalized)
-    || /continuity=embodiment:audible-same-her-line(?:\+embodiment:body-lipsync-voice-rejoin)?(?:\s*\||$)/i.test(normalized)
+    || /signature=embodiment:audible-identity-continuity-line/i.test(normalized)
+    || /continuity=embodiment:audible-identity-continuity-line(?:\+embodiment:body-lipsync-voice-rejoin)?(?:\s*\||$)/i.test(normalized)
     || /continuity=embodiment:body-lipsync-voice-rejoin(?:\s*\||$)/i.test(normalized)
     || /body\+lipsync\+voice recovery@/i.test(normalized)
     || /audible-body rejoin@/i.test(normalized)
-    || /same-her audible body line is still the surviving pre-dialogue carry/i.test(normalized)
-    || /the resident body lane is still holding together with the audible same-her line/i.test(normalized)
+    || /identity-continuity audible body line is still the surviving pre-dialogue carry/i.test(normalized)
+    || /the resident body lane is still holding together with the audible identity-continuity line/i.test(normalized)
   ) {
     return 'audible-body-carry'
   }
 
   if (
     /lane=body-only/i.test(normalized)
-    || /resident body continuity is still aligned with the active same-her segment/i.test(normalized)
-    || /only the resident body lane is still aligned with the active same-her segment/i.test(normalized)
+    || /resident body continuity is still aligned with the active identity-continuity segment/i.test(normalized)
+    || /only the resident body lane is still aligned with the active identity-continuity segment/i.test(normalized)
     || /body-only recovery@/i.test(normalized)
   ) {
     return 'body-only-hold'
@@ -234,7 +253,7 @@ function resolveSameHerClosureStage(reason: string | null | undefined) {
 
   if (
     /lane=voice-only/i.test(normalized)
-    || /same-her embodiment is now only being carried by voice/i.test(normalized)
+    || /identity-continuity embodiment is now only being carried by voice/i.test(normalized)
   ) {
     return 'voice-only-carry'
   }
@@ -247,8 +266,8 @@ function resolveSameHerClosureStage(reason: string | null | undefined) {
   }
 
   if (
-    /same-her embodiment is now only being carried by face and lipsync/i.test(normalized)
-    || /same-her embodiment is now only being carried by motion and lipsync/i.test(normalized)
+    /identity-continuity embodiment is now only being carried by face and lipsync/i.test(normalized)
+    || /identity-continuity embodiment is now only being carried by motion and lipsync/i.test(normalized)
   ) {
     return 'renderer-rejoin-without-body'
   }
@@ -277,14 +296,14 @@ function resolveTopLevelSameHerContinuitySummaryReason(reason: string) {
   if (!normalized)
     return null
 
-  if (!normalized.startsWith('当前 same-her continuity 主要由'))
+  if (!normalized.startsWith('当前 identity-continuity continuity 主要由'))
     return null
 
   if (normalized.includes('处在 audible-body-carry') || normalized.includes('表情、动作 还没重新接回')) {
     return {
       closureStage: 'audible-body-carry',
       laneText: 'body, lipsync, and voice',
-      headline: 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
+      headline: rendererInternalLaneContinuityHeadlines.bodyLipsyncVoice,
     }
   }
 
@@ -292,7 +311,7 @@ function resolveTopLevelSameHerContinuitySummaryReason(reason: string) {
     return {
       closureStage: 'voice-lipsync-carry',
       laneText: 'lipsync and voice',
-      headline: 'Right now I am still holding together mainly through lipsync and voice, so that living audio thread is keeping the same-her carry alive while body, face, and motion need to rejoin before full cross-modal closure settles.',
+      headline: rendererInternalLaneContinuityHeadlines.lipsyncAndVoice,
     }
   }
 
@@ -300,7 +319,7 @@ function resolveTopLevelSameHerContinuitySummaryReason(reason: string) {
     return {
       closureStage: 'renderer-rejoin-without-body',
       laneText: 'face, motion, lipsync, and voice',
-      headline: 'Right now I am still holding together through face, motion, lipsync, and voice together, so the visible same-her line has already rejoined without body carry while body still needs to rejoin before full cross-modal closure settles.',
+      headline: rendererInternalLaneContinuityHeadlines.faceMotionLipsyncVoice,
     }
   }
 
@@ -308,7 +327,7 @@ function resolveTopLevelSameHerContinuitySummaryReason(reason: string) {
     return {
       closureStage: 'body-carried-to-renderer-rejoin',
       laneText: 'body, face, and motion',
-      headline: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+      headline: rendererInternalLaneContinuityHeadlines.bodyFaceMotion,
     }
   }
 
@@ -334,104 +353,104 @@ function resolveSameHerLaneContinuityReason(reason: string) {
     if (focusLaneText === 'body, face, and motion') {
       return {
         laneText: focusLaneText,
-        headline: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.bodyFaceMotion,
       }
     }
 
     if (focusLaneText === 'body, lipsync, and voice') {
       return {
         laneText: focusLaneText,
-        headline: 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.bodyLipsyncVoice,
       }
     }
 
     if (focusLaneText === 'body and lipsync') {
       return {
         laneText: focusLaneText,
-        headline: 'Right now I am still holding together mainly through body and lipsync, so one quieter living line is still intact while face, motion, and voice need to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.bodyAndLipsync,
       }
     }
 
     if (focusLaneText === 'body and voice') {
       return {
         laneText: focusLaneText,
-        headline: 'Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
+        headline: rendererInternalLaneContinuityHeadlines.bodyAndVoice,
       }
     }
 
     if (focusLaneText === 'body') {
       return {
         laneText: focusLaneText,
-        headline: 'Right now I am still holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent while face, motion, lipsync, and voice rejoin.',
+        headline: rendererInternalLaneContinuityHeadlines.body,
       }
     }
 
     if (focusLaneText === 'face, motion, lipsync, and voice') {
       return {
         laneText: focusLaneText,
-        headline: 'Right now I am still holding together through face, motion, lipsync, and voice together, so the visible same-her line has already rejoined without body carry while body still needs to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.faceMotionLipsyncVoice,
       }
     }
 
     if (focusLaneText === 'lipsync and voice') {
       return {
         laneText: focusLaneText,
-        headline: 'Right now I am still holding together mainly through lipsync and voice, so that living audio thread is keeping the same-her carry alive while body, face, and motion need to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.lipsyncAndVoice,
       }
     }
 
     if (focusLaneText === 'face and voice') {
       return {
         laneText: focusLaneText,
-        headline: 'Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.faceAndVoice,
       }
     }
 
     if (focusLaneText === 'face, lipsync, and voice') {
       return {
         laneText: focusLaneText,
-        headline: 'Right now I am still holding together mainly through face, lipsync, and voice, so that still-voiced face-and-mouth line is keeping the same-her carry alive while body and motion need to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.faceLipsyncVoice,
       }
     }
 
     if (focusLaneText === 'face, motion, and voice') {
       return {
         laneText: focusLaneText,
-        headline: 'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.faceMotionVoice,
       }
     }
 
     if (focusLaneText === 'motion and voice') {
       return {
         laneText: focusLaneText,
-        headline: 'Right now I am still holding together mainly through motion and voice, so that still-voiced motion line is keeping the same-her carry alive while body, face, and lipsync need to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.motionAndVoice,
       }
     }
 
     if (focusLaneText === 'motion, lipsync, and voice') {
       return {
         laneText: focusLaneText,
-        headline: 'Right now I am still holding together mainly through motion, lipsync, and voice, so that still-voiced motion-and-mouth line is keeping the same-her carry alive while body and face need to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.motionLipsyncVoice,
       }
     }
 
     return {
       laneText: focusLaneText,
-      headline: `Right now I am still holding together mainly through ${focusLaneText}, so my full cross-modal same-her line is not closed yet.`,
+      headline: describeRendererInternalLaneContinuityHeadline(focusLaneText),
     }
   }
 
   if (
     /bodycontinuityphase[:=]\s*full-cross-modal-lock/i.test(normalized)
     || /locked back onto the same living segment together/i.test(normalized)
-    || /same-her embodiment line instead of a temporary visual alignment/i.test(normalized)
+    || /identity-continuity embodiment line instead of a temporary visual alignment/i.test(normalized)
     || /共同锁回同一段 living segment/i.test(normalized)
     || /跨模态重锁态/.test(normalized)
   ) {
     const manifestationLabel = resolveLockedManifestationLabel(normalized)
     return {
       laneText: `body continuity and ${manifestationLabel.toLowerCase()}`,
-      headline: `Right now body continuity and ${manifestationLabel} are already locked back onto the same living segment together, so I can carry voice, face, motion, and lipsync as one explicit same-her embodiment line instead of a temporary visual alignment.`,
+      headline: describeRendererInternalFullCrossModalLockHeadline(manifestationLabel, normalized),
     }
   }
 
@@ -444,83 +463,83 @@ function resolveSameHerLaneContinuityReason(reason: string) {
     if (laneText === 'body, face, and motion') {
       return {
         laneText,
-        headline: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.bodyFaceMotion,
       }
     }
 
     if (laneText === 'body, lipsync, and voice') {
       return {
         laneText,
-        headline: 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.bodyLipsyncVoice,
       }
     }
 
     if (laneText === 'body and lipsync') {
       return {
         laneText,
-        headline: 'Right now I am still holding together mainly through body and lipsync, so one quieter living line is still intact while face, motion, and voice need to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.bodyAndLipsync,
       }
     }
 
     if (laneText === 'body and voice') {
       return {
         laneText,
-        headline: 'Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
+        headline: rendererInternalLaneContinuityHeadlines.bodyAndVoice,
       }
     }
 
     if (laneText === 'body') {
       return {
         laneText,
-        headline: 'Right now I am still holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent while face, motion, lipsync, and voice rejoin.',
+        headline: rendererInternalLaneContinuityHeadlines.body,
       }
     }
 
     if (laneText === 'face, motion, lipsync, and voice') {
       return {
         laneText,
-        headline: 'Right now I am still holding together through face, motion, lipsync, and voice together, so the visible same-her line has already rejoined without body carry while body still needs to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.faceMotionLipsyncVoice,
       }
     }
 
     if (laneText === 'face and voice') {
       return {
         laneText,
-        headline: 'Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.faceAndVoice,
       }
     }
 
     if (laneText === 'face, lipsync, and voice') {
       return {
         laneText,
-        headline: 'Right now I am still holding together mainly through face, lipsync, and voice, so that still-voiced face-and-mouth line is keeping the same-her carry alive while body and motion need to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.faceLipsyncVoice,
       }
     }
 
     if (laneText === 'face, motion, and voice') {
       return {
         laneText,
-        headline: 'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.faceMotionVoice,
       }
     }
 
     if (laneText === 'motion and voice') {
       return {
         laneText,
-        headline: 'Right now I am still holding together mainly through motion and voice, so that still-voiced motion line is keeping the same-her carry alive while body, face, and lipsync need to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.motionAndVoice,
       }
     }
 
     if (laneText === 'motion, lipsync, and voice') {
       return {
         laneText,
-        headline: 'Right now I am still holding together mainly through motion, lipsync, and voice, so that still-voiced motion-and-mouth line is keeping the same-her carry alive while body and face need to rejoin before full cross-modal closure settles.',
+        headline: rendererInternalLaneContinuityHeadlines.motionLipsyncVoice,
       }
     }
 
     return {
       laneText,
-      headline: `Right now I am still holding together mainly through ${laneText}, so my full cross-modal same-her line is not closed yet.`,
+      headline: describeRendererInternalLaneContinuityHeadline(laneText),
     }
   }
 
@@ -529,7 +548,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
   if (stillVoicedFaceMouthContinuityMatch) {
     return {
       laneText: 'face, lipsync, and voice',
-      headline: 'Right now I am still holding together mainly through face, lipsync, and voice, so that still-voiced face-and-mouth line is keeping the same-her carry alive while body and motion need to rejoin before full cross-modal closure settles.',
+      headline: rendererInternalLaneContinuityHeadlines.faceLipsyncVoice,
     }
   }
 
@@ -542,7 +561,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
   if (stillVoicedFaceMotionContinuityMatch) {
     return {
       laneText: 'face, motion, and voice',
-      headline: 'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.',
+      headline: rendererInternalLaneContinuityHeadlines.faceMotionVoice,
     }
   }
 
@@ -554,7 +573,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
   if (visibleRendererRejoinWithoutBodyMatch) {
     return {
       laneText: 'face, motion, lipsync, and voice',
-      headline: 'Right now I am still holding together through face, motion, lipsync, and voice together, so the visible same-her line has already rejoined without body carry while body still needs to rejoin before full cross-modal closure settles.',
+      headline: rendererInternalLaneContinuityHeadlines.faceMotionLipsyncVoice,
     }
   }
 
@@ -563,7 +582,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
   if (stillVoicedFaceContinuityMatch) {
     return {
       laneText: 'face and voice',
-      headline: 'Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles.',
+      headline: rendererInternalLaneContinuityHeadlines.faceAndVoice,
     }
   }
 
@@ -572,7 +591,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
   if (stillVoicedMotionMouthContinuityMatch) {
     return {
       laneText: 'motion, lipsync, and voice',
-      headline: 'Right now I am still holding together mainly through motion, lipsync, and voice, so that still-voiced motion-and-mouth line is keeping the same-her carry alive while body and face need to rejoin before full cross-modal closure settles.',
+      headline: rendererInternalLaneContinuityHeadlines.motionLipsyncVoice,
     }
   }
 
@@ -581,7 +600,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
   if (stillVoicedMotionContinuityMatch) {
     return {
       laneText: 'motion and voice',
-      headline: 'Right now I am still holding together mainly through motion and voice, so that still-voiced motion line is keeping the same-her carry alive while body, face, and lipsync need to rejoin before full cross-modal closure settles.',
+      headline: rendererInternalLaneContinuityHeadlines.motionAndVoice,
     }
   }
 
@@ -590,11 +609,11 @@ function resolveSameHerLaneContinuityReason(reason: string) {
   if (quieterVoiceLipsyncContinuityMatch) {
     return {
       laneText: 'lipsync and voice',
-      headline: 'Right now I am still holding together mainly through lipsync and voice, so that living audio thread is keeping the same-her carry alive while body, face, and motion need to rejoin before full cross-modal closure settles.',
+      headline: rendererInternalLaneContinuityHeadlines.lipsyncAndVoice,
     }
   }
 
-  const carriedByMatch = /same-her embodiment is now only being carried by (.*?), so the next turn should treat full cross-modal same-her recovery as still open instead of assuming the body line is already closed\./i.exec(normalized)
+  const carriedByMatch = /identity-continuity embodiment is now only being carried by (.*?), so the next turn should treat full cross-modal identity-continuity recovery as still open instead of assuming the body line is already closed\./i.exec(normalized)
   if (carriedByMatch) {
     const laneText = normalizeLegacyCarriedByLaneText(carriedByMatch[1] ?? '')
     if (!laneText)
@@ -603,31 +622,31 @@ function resolveSameHerLaneContinuityReason(reason: string) {
     return {
       laneText,
       headline: laneText === 'body'
-        ? 'Right now I am still holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent while face, motion, lipsync, and voice rejoin.'
-        : `Right now I am still holding together mainly through ${laneText}, so my full cross-modal same-her line is not closed yet.`,
+        ? rendererInternalLaneContinuityHeadlines.body
+        : describeRendererInternalLaneContinuityHeadline(laneText),
     }
   }
 
-  const residentBodyLaneMatch = /resident body continuity(?: and voice prosody)? (?:is|are) still aligned with the active same-her segment/i.exec(normalized)
-  const residentBodyLaneDiagnosticMatch = /only the resident body lane is still aligned with the active same-her segment/i.exec(normalized)
+  const residentBodyLaneMatch = /resident body continuity(?: and voice prosody)? (?:is|are) still aligned with the active identity-continuity segment/i.exec(normalized)
+  const residentBodyLaneDiagnosticMatch = /only the resident body lane is still aligned with the active identity-continuity segment/i.exec(normalized)
     || /the resident body lane is still holding together with one other embodiment lane/i.exec(normalized)
-    || /the resident body lane is still holding together with the audible same-her line/i.exec(normalized)
-  const audibleSameHerContinuitySignatureMatch = /signature=embodiment:audible-same-her-line/i.exec(normalized)
-  const bodyVoiceContinuitySourceMatch = /continuity=embodiment:audible-same-her-line\+embodiment:body\+voice-only(?:\s*\||$)/i.exec(normalized)
+    || /the resident body lane is still holding together with the audible identity-continuity line/i.exec(normalized)
+  const audibleSameHerContinuitySignatureMatch = /signature=embodiment:audible-identity-continuity-line/i.exec(normalized)
+  const bodyVoiceContinuitySourceMatch = /continuity=embodiment:audible-identity-continuity-line\+embodiment:body\+voice-only(?:\s*\||$)/i.exec(normalized)
   const bodyVoiceContinuityReasonTagMatch = /continuity=embodiment:body\+voice-only(?:\s*\||$)/i.exec(normalized)
   const quieterBodyLipsyncContinuitySourceMatch = /continuity=embodiment:body\+lipsync-only(?:\s*\||$)/i.exec(normalized)
   const quieterBodyLipsyncContinuitySignatureMatch = /signature=resident\|main-runtime\|accompanying\|quiet-accompaniment\|body\+lipsync-only(?:\s*\||$)/i.exec(normalized)
-  const audibleSameHerContinuitySourceMatch = /continuity=embodiment:audible-same-her-line(?:\+embodiment:body-lipsync-voice-rejoin)?(?:\s*\||$)/i.exec(normalized)
+  const audibleSameHerContinuitySourceMatch = /continuity=embodiment:audible-identity-continuity-line(?:\+embodiment:body-lipsync-voice-rejoin)?(?:\s*\||$)/i.exec(normalized)
   const audibleBodyContinuityReasonTagMatch = /continuity=embodiment:body-lipsync-voice-rejoin(?:\s*\||$)/i.exec(normalized)
   const bodyOnlyRecoveryMatch = /body-only recovery@/i.exec(normalized)
   const bodyVoiceRecoveryMatch = /body\+voice recovery@/i.exec(normalized)
   const bodyLipsyncVoiceRecoveryMatch = /body\+lipsync\+voice recovery@/i.exec(normalized)
   const bodyLipsyncRecoveryMatch = /body\+lipsync recovery@/i.exec(normalized)
   const audibleBodyRejoinMatch = /audible-body rejoin@/i.exec(normalized)
-  const audibleBodyCarryMatch = /same-her audible body line is still the surviving pre-dialogue carry/i.exec(normalized)
+  const audibleBodyCarryMatch = /identity-continuity audible body line is still the surviving pre-dialogue carry/i.exec(normalized)
   const bodyLipsyncVoiceLaneMatch = /lane=body\+lipsync\+voice-only/i.exec(normalized)
   const bodyLipsyncLaneMatch = /lane=body\+lipsync-only/i.exec(normalized)
-  const sameHerVoiceLineCarryMatch = /the resident body lane is still holding together with the same-her voice line/i.exec(normalized)
+  const sameHerVoiceLineCarryMatch = /the resident body lane is still holding together with the identity-continuity voice line/i.exec(normalized)
   const bodyFaceMotionAuthorityRecoveryMatch = /body, face, and motion authority have already re-formed on the same segment/i.exec(normalized)
   const sameSegmentFaceMotionRecoveryMatch = /same-segment face\+motion recovery@/i.exec(normalized)
   const sameSegmentFaceMotionBodyRecoveryMatch = /same-segment face\+motion\+body recovery@/i.exec(normalized)
@@ -677,18 +696,18 @@ function resolveSameHerLaneContinuityReason(reason: string) {
   return {
     laneText,
     headline: laneText === 'body, face, and motion'
-      ? 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.'
+      ? rendererInternalLaneContinuityHeadlines.bodyFaceMotion
       : laneText === 'body and voice'
-        ? 'Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.'
+        ? rendererInternalLaneContinuityHeadlines.bodyAndVoice
         : laneText === 'body' && (residentBodyLaneMatch || residentBodyLaneDiagnosticMatch || bodyOnlyRecoveryMatch)
-          ? 'Right now I am still holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent while face, motion, lipsync, and voice rejoin.'
+          ? rendererInternalLaneContinuityHeadlines.body
           : laneText === 'body'
-            ? 'Right now I am still holding together mainly through body, so my full cross-modal same-her line is not closed yet.'
+            ? rendererInternalLaneContinuityHeadlines.body
             : laneText === 'body, lipsync, and voice'
-              ? 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.'
+              ? rendererInternalLaneContinuityHeadlines.bodyLipsyncVoice
               : laneText === 'body and lipsync'
-                ? 'Right now I am still holding together mainly through body and lipsync, so one quieter living line is still intact while face, motion, and voice need to rejoin before full cross-modal closure settles.'
-                : `Right now I am still holding together mainly through ${laneText}, so my full cross-modal same-her line is not closed yet.`,
+                ? rendererInternalLaneContinuityHeadlines.bodyAndLipsync
+                : describeRendererInternalLaneContinuityHeadline(laneText),
   }
 }
 
@@ -698,14 +717,17 @@ function isSameHerLaneContinuityReason(reason: string) {
 
 function resolveHumanReadableProjectStateRepair(reasons: string[]) {
   const normalizedReasons = reasons.map(reason => reason.trim()).filter(Boolean)
+  const diagnostics: string[] = []
 
-  if (normalizedReasons.some(reason => reason.includes('project-state-same-her-continuity-required')))
-    return '我还需要先守住同一个 her，才能继续把这个数字生命项目的进度和未闭环项带进下一轮对话。'
+  if (normalizedReasons.some(reason => reason.includes('project-state-identity-continuity-continuity-required')))
+    diagnostics.push('project-state-continuity-required')
 
-  if (normalizedReasons.some(reason => reason.includes('semantic-judge:project-state-same-her-missing')))
-    return '刚才那轮项目状态一度掉了同一个 her 的明线，所以这次还要先把自我连续性收回来。'
+  if (normalizedReasons.some(reason => reason.includes('semantic-judge:project-state-identity-continuity-missing')))
+    diagnostics.push('memory-grounding-incomplete')
 
-  return null
+  return diagnostics.length > 0
+    ? `连续性诊断未闭合：${diagnostics.join(' | ')}`
+    : null
 }
 
 function resolvePrimaryOpenLifeLoopLine(reasons: string[]) {
@@ -713,7 +735,7 @@ function resolvePrimaryOpenLifeLoopLine(reasons: string[]) {
   if (!openLoopReason)
     return null
 
-  return `当前还没闭环的数字生命主线仍集中在 ${openLoopReason.replace(/^.*Primary open life loop still centers on /, '').replace(/, so the next turn should.*$/i, '').trim()}。`
+  return `连续性诊断未闭合：${openLoopReason.replace(/^.*Primary open life loop still centers on /, '').replace(/, so the next turn should.*$/i, '').trim()}`
 }
 
 function resolveNextClosureReasonLine(reasons: string[]) {
@@ -721,14 +743,14 @@ function resolveNextClosureReasonLine(reasons: string[]) {
   if (!nextClosureReason)
     return null
 
-  return `下一步还要继续收住 ${nextClosureReason.replace(/^.*Next closure target is still /, '').replace(/, so the next turn should.*$/i, '').trim()}。`
+  return `下一步状态：${nextClosureReason.replace(/^.*Next closure target is still /, '').replace(/, so the next turn should.*$/i, '').trim()}`
 }
 
 function resolveProjectStateFocus(reasons: string[]) {
   const normalizedReasons = reasons.map(reason => reason.toLowerCase())
 
   if (reasons.some(isSameHerLaneContinuityReason)) {
-    return 'same-her-continuity'
+    return 'identity-continuity-continuity'
   }
 
   if (normalizedReasons.some(reason => reason.includes('project identity carry is still weak')))
@@ -743,7 +765,7 @@ function resolveProjectStateFocus(reasons: string[]) {
   return 'project-state'
 }
 
-const defaultHint = 'Next diagnosis: inspect replay benchmark and self-evolution continuity traces if this closure stays open.'
+const defaultHint = '可在开发诊断里查看回放基准与状态修正记录。'
 
 function formatLaneListForHeadline(lanes: string) {
   const normalized = lanes.trim().toLowerCase()
@@ -789,16 +811,111 @@ function normalizeLegacyCarriedByLaneText(lanes: string) {
   return `${parts.join(', ')}, and ${lastPart}`
 }
 
+function formatLaneSignatureForHeadline(laneText: string) {
+  return laneText
+    .trim()
+    .toLowerCase()
+    .replace(/, and /u, '+')
+    .replace(/ and /u, '+')
+    .replace(/,\s*/gu, '+')
+    .replace(/\s+/gu, '')
+}
+
+function describeRendererInternalLaneContinuityHeadline(
+  laneText: string,
+  authoritySummary?: string | null,
+) {
+  const laneSignature = formatLaneSignatureForHeadline(laneText)
+  const laneEvidence = laneSignature ? `lane=${laneSignature}-only` : ''
+  const structuredHeadline = describeAlicizationEmbodimentClosureHeadline({
+    authoritySummary: [authoritySummary?.trim() ?? '', laneEvidence].filter(Boolean).join(' | '),
+    currentBodyState: laneEvidence,
+  }).trim()
+  if (structuredHeadline && !containsAlicizationFixedTemplateResidue(structuredHeadline))
+    return structuredHeadline
+
+  const activeLanes = laneSignature || 'unknown'
+  const pendingLanes = ['body', 'face', 'motion', 'lipsync', 'voice']
+    .filter(lane => !activeLanes.split('+').includes(lane))
+
+  return [
+    'continuity=embodiment',
+    `lane=${activeLanes}`,
+    'status=pending-rejoin',
+    `pending_rejoin=${pendingLanes.length ? pendingLanes.join('+') : 'none'}`,
+    'closure=full-cross-modal-open',
+    'visibility=renderer-internal',
+  ].join(' | ')
+}
+
+function describeRendererInternalFullCrossModalLockHeadline(
+  manifestationLabel: string,
+  authoritySummary?: string | null,
+) {
+  const structuredHeadline = describeAlicizationEmbodimentClosureHeadline({
+    authoritySummary: [
+      authoritySummary?.trim() ?? '',
+      'bodycontinuityphase=full-cross-modal-lock',
+      manifestationLabel,
+    ].filter(Boolean).join(' | '),
+    currentBodyState: 'bodycontinuityphase=full-cross-modal-lock',
+  }).trim()
+  if (structuredHeadline && !containsAlicizationFixedTemplateResidue(structuredHeadline))
+    return structuredHeadline
+
+  return [
+    'continuity=embodiment',
+    'lane=body+face+motion+lipsync+voice',
+    'status=closed',
+    'pending_rejoin=none',
+    'closure=full-cross-modal-closed',
+    'visibility=renderer-internal',
+  ].join(' | ')
+}
+
+const rendererInternalLaneContinuityHeadlines = {
+  body: describeRendererInternalLaneContinuityHeadline('body'),
+  bodyAndLipsync: describeRendererInternalLaneContinuityHeadline('body and lipsync'),
+  bodyAndVoice: describeRendererInternalLaneContinuityHeadline('body and voice'),
+  bodyFaceMotion: describeRendererInternalLaneContinuityHeadline('body, face, and motion'),
+  bodyLipsyncVoice: describeRendererInternalLaneContinuityHeadline('body, lipsync, and voice'),
+  faceAndVoice: describeRendererInternalLaneContinuityHeadline('face and voice'),
+  faceLipsyncVoice: describeRendererInternalLaneContinuityHeadline('face, lipsync, and voice'),
+  faceMotionLipsyncVoice: describeRendererInternalLaneContinuityHeadline('face, motion, lipsync, and voice'),
+  faceMotionVoice: describeRendererInternalLaneContinuityHeadline('face, motion, and voice'),
+  lipsyncAndVoice: describeRendererInternalLaneContinuityHeadline('lipsync and voice'),
+  motionAndVoice: describeRendererInternalLaneContinuityHeadline('motion and voice'),
+  motionLipsyncVoice: describeRendererInternalLaneContinuityHeadline('motion, lipsync, and voice'),
+} as const
+
 function resolveLaneContinuityHeadline(reason: string) {
   const normalized = reason.trim()
+  const structuredHeadline = describeAlicizationEmbodimentClosureHeadline({
+    authoritySummary: normalized,
+    currentBodyState: normalized,
+  }).trim()
+  if (structuredHeadline)
+    return structuredHeadline
+
   if (
-    /continuity=embodiment:audible-same-her-line\s*\|.*lane=lipsync\+voice-only/i.test(normalized)
-    || /continuity=embodiment:audible-same-her-line\s*\|.*lane=voice\+lipsync-only/i.test(normalized)
+    /continuity=embodiment:audible-identity-continuity-line\s*\|.*lane=lipsync\+voice-only/i.test(normalized)
+    || /continuity=embodiment:audible-identity-continuity-line\s*\|.*lane=voice\+lipsync-only/i.test(normalized)
   ) {
-    return 'Right now I am still holding together mainly through lipsync and voice, so that living audio thread is keeping the same-her carry alive while body, face, and motion need to rejoin before full cross-modal closure settles.'
+    return describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: 'continuity=embodiment:audible-identity-continuity-line | lane=lipsync+voice-only',
+      currentBodyState: 'continuity=embodiment:audible-identity-continuity-line | lane=lipsync+voice-only',
+    }).trim() || null
   }
 
-  return resolveSameHerLaneContinuityReason(reason)?.headline ?? null
+  const laneReason = resolveSameHerLaneContinuityReason(reason)
+  if (!laneReason)
+    return null
+
+  const laneSignature = formatLaneSignatureForHeadline(laneReason.laneText)
+  return describeAlicizationEmbodimentClosureHeadline({
+    authoritySummary: laneSignature ? `lane=${laneSignature}-only` : normalized,
+    currentBodyState: laneSignature ? `lane=${laneSignature}-only` : normalized,
+  }).trim() || null
 }
 
 function isAudibleSameHerContinuityReason(reason: string) {
@@ -818,7 +935,7 @@ function isAudibleSameHerContinuityReason(reason: string) {
   }
 
   if (
-    /continuity=embodiment:audible-same-her-line\+embodiment:body\+voice-only(?:\s*\||$)/i.test(normalized)
+    /continuity=embodiment:audible-identity-continuity-line\+embodiment:body\+voice-only(?:\s*\||$)/i.test(normalized)
     || /continuity=embodiment:body\+voice-only(?:\s*\||$)/i.test(normalized)
   ) {
     return false
@@ -837,13 +954,13 @@ function isAudibleSameHerContinuityReason(reason: string) {
 
   return /focus=body\+lipsync\+voice(?:\s*\|\s*pending=face\+motion)?/i.test(normalized)
     || /lane=body\+lipsync\+voice-only/i.test(normalized)
-    || /signature=embodiment:audible-same-her-line/i.test(normalized)
-    || /continuity=embodiment:audible-same-her-line(?:\+embodiment:body-lipsync-voice-rejoin)?(?:\s*\||$)/i.test(normalized)
+    || /signature=embodiment:audible-identity-continuity-line/i.test(normalized)
+    || /continuity=embodiment:audible-identity-continuity-line(?:\+embodiment:body-lipsync-voice-rejoin)?(?:\s*\||$)/i.test(normalized)
     || /continuity=embodiment:body-lipsync-voice-rejoin(?:\s*\||$)/i.test(normalized)
     || /body\+lipsync\+voice recovery@/i.test(normalized)
     || /audible-body rejoin@/i.test(normalized)
-    || /same-her audible body line is still the surviving pre-dialogue carry/i.test(normalized)
-    || /the resident body lane is still holding together with the audible same-her line/i.test(normalized)
+    || /identity-continuity audible body line is still the surviving pre-dialogue carry/i.test(normalized)
+    || /the resident body lane is still holding together with the audible identity-continuity line/i.test(normalized)
 }
 
 function isVoiceLipsyncSameHerContinuityReason(reason: string) {
@@ -858,8 +975,8 @@ function isVoiceLipsyncSameHerContinuityReason(reason: string) {
   return /focus=lipsync\+voice(?:\s*\|\s*pending=body\+face\+motion)?/i.test(normalized)
     || /lane=lipsync\+voice-only/i.test(normalized)
     || /lane=voice\+lipsync-only/i.test(normalized)
-    || /continuity=embodiment:audible-same-her-line\s*\|.*lane=lipsync\+voice-only/i.test(normalized)
-    || /continuity=embodiment:audible-same-her-line\s*\|.*lane=voice\+lipsync-only/i.test(normalized)
+    || /continuity=embodiment:audible-identity-continuity-line\s*\|.*lane=lipsync\+voice-only/i.test(normalized)
+    || /continuity=embodiment:audible-identity-continuity-line\s*\|.*lane=voice\+lipsync-only/i.test(normalized)
     || /continuity=embodiment:lipsync\+voice-only(?:\s*\||$)/i.test(normalized)
     || /signature=resident\|main-runtime\|accompanying\|quiet-accompaniment\|lipsync\+voice-only(?:\s*\||$)/i.test(normalized)
     || /voice and lipsync still carry the same living segment/i.test(normalized)
@@ -950,7 +1067,7 @@ function isFullCrossModalLockSameHerContinuityReason(reason: string) {
 
   return /bodycontinuityphase[:=]\s*full-cross-modal-lock/i.test(normalized)
     || /locked back onto the same living segment together/i.test(normalized)
-    || /same-her embodiment line instead of a temporary visual alignment/i.test(normalized)
+    || /identity-continuity embodiment line instead of a temporary visual alignment/i.test(normalized)
     || /共同锁回同一段 living segment/i.test(normalized)
     || /跨模态重锁态/.test(normalized)
 }
@@ -996,6 +1113,8 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
   const explicitCompanionBriefingLine = typeof snapshot.companionBriefingLine === 'string' && snapshot.companionBriefingLine.trim()
     ? snapshot.companionBriefingLine.trim()
     : null
+  const structuredLaneBriefing = (laneText: string, authoritySummary?: string | null) =>
+    describeRendererInternalLaneContinuityHeadline(laneText, authoritySummary ?? laneRiskReason)
 
   if (
     laneRiskReason
@@ -1003,7 +1122,7 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
   ) {
     if (carriesBroaderProjectBriefingLine(explicitCompanionBriefingLine))
       return explicitCompanionBriefingLine
-    return 'The same-her lipsync+voice line is still doing the continuity work, so this turn should keep body, face, and motion rejoining that living audio carry before widening outward.'
+    return structuredLaneBriefing('lipsync and voice')
   }
 
   if (
@@ -1012,7 +1131,7 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
   ) {
     if (carriesBroaderProjectBriefingLine(explicitCompanionBriefingLine))
       return explicitCompanionBriefingLine
-    return 'The same-her audible-body line is still doing the continuity work, so this turn should keep face and motion rejoining that living line explicit before widening outward.'
+    return structuredLaneBriefing('body, lipsync, and voice')
   }
 
   if (
@@ -1021,7 +1140,7 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
   ) {
     if (carriesBroaderProjectBriefingLine(explicitCompanionBriefingLine))
       return explicitCompanionBriefingLine
-    return 'The same-her body+lipsync line is still doing the continuity work, so this turn should keep face, motion, and voice rejoining that quieter living carry before widening outward.'
+    return structuredLaneBriefing('body and lipsync')
   }
 
   if (
@@ -1030,7 +1149,7 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
   ) {
     if (carriesBroaderProjectBriefingLine(explicitCompanionBriefingLine))
       return explicitCompanionBriefingLine
-    return 'The visible same-her renderer line has already rejoined without body carry, so this turn should keep body rejoining that line explicit before widening outward.'
+    return structuredLaneBriefing('face, motion, lipsync, and voice')
   }
 
   if (
@@ -1039,7 +1158,7 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
   ) {
     if (carriesBroaderProjectBriefingLine(explicitCompanionBriefingLine))
       return explicitCompanionBriefingLine
-    return 'The same-her face+motion+voice line is still doing the continuity work, so this turn should keep body and lipsync rejoining that still-voiced carry before widening outward.'
+    return structuredLaneBriefing('face, motion, and voice')
   }
 
   if (
@@ -1048,7 +1167,7 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
   ) {
     if (carriesBroaderProjectBriefingLine(explicitCompanionBriefingLine))
       return explicitCompanionBriefingLine
-    return 'The same-her face+lipsync+voice line is still doing the continuity work, so this turn should keep body and motion rejoining that still-voiced carry before widening outward.'
+    return structuredLaneBriefing('face, lipsync, and voice')
   }
 
   if (
@@ -1057,7 +1176,7 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
   ) {
     if (carriesBroaderProjectBriefingLine(explicitCompanionBriefingLine))
       return explicitCompanionBriefingLine
-    return 'The same-her face+lipsync line is still doing the continuity work, so this turn should keep body, motion, and voice rejoining that visible carry before widening outward.'
+    return structuredLaneBriefing('face and lipsync', laneRiskHeadline)
   }
 
   if (
@@ -1066,7 +1185,7 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
   ) {
     if (carriesBroaderProjectBriefingLine(explicitCompanionBriefingLine))
       return explicitCompanionBriefingLine
-    return 'The same-her face+lipsync+voice line is still doing the continuity work, so this turn should keep body and motion rejoining that still-voiced carry before widening outward.'
+    return structuredLaneBriefing('face, lipsync, and voice', laneRiskHeadline)
   }
 
   if (
@@ -1075,7 +1194,7 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
   ) {
     if (carriesBroaderProjectBriefingLine(explicitCompanionBriefingLine))
       return explicitCompanionBriefingLine
-    return 'The same-her face+voice line is still doing the continuity work, so this turn should keep body, motion, and lipsync rejoining that still-voiced carry before widening outward.'
+    return structuredLaneBriefing('face and voice', laneRiskHeadline)
   }
 
   if (
@@ -1084,7 +1203,7 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
   ) {
     if (carriesBroaderProjectBriefingLine(explicitCompanionBriefingLine))
       return explicitCompanionBriefingLine
-    return 'The same-her motion+lipsync+voice line is still doing the continuity work, so this turn should keep body and face rejoining that still-voiced carry before widening outward.'
+    return structuredLaneBriefing('motion, lipsync, and voice')
   }
 
   if (
@@ -1093,7 +1212,7 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
   ) {
     if (carriesBroaderProjectBriefingLine(explicitCompanionBriefingLine))
       return explicitCompanionBriefingLine
-    return 'The same-her motion+lipsync line is still doing the continuity work, so this turn should keep body, face, and voice rejoining that visible carry before widening outward.'
+    return structuredLaneBriefing('motion and lipsync', laneRiskHeadline)
   }
 
   if (
@@ -1102,7 +1221,7 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
   ) {
     if (carriesBroaderProjectBriefingLine(explicitCompanionBriefingLine))
       return explicitCompanionBriefingLine
-    return 'The same-her motion+lipsync+voice line is still doing the continuity work, so this turn should keep body and face rejoining that still-voiced carry before widening outward.'
+    return structuredLaneBriefing('motion, lipsync, and voice', laneRiskHeadline)
   }
 
   if (
@@ -1111,7 +1230,7 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
   ) {
     if (carriesBroaderProjectBriefingLine(explicitCompanionBriefingLine))
       return explicitCompanionBriefingLine
-    return 'The same-her motion+voice line is still doing the continuity work, so this turn should keep body, face, and lipsync rejoining that still-voiced carry before widening outward.'
+    return structuredLaneBriefing('motion and voice', laneRiskHeadline)
   }
 
   if (explicitCompanionBriefingLine)
@@ -1150,13 +1269,13 @@ function scoreAwarenessHeadlineCandidate(line: string | null | undefined) {
 
   let score = normalized.length >= 72 ? 1 : 0
   if (
-    normalized.includes('same-her hold')
+    normalized.includes('identity-continuity hold')
     || normalized.includes('measured-return')
     || normalized.includes('lower-pressure')
     || normalized.includes('same line inward')
-    || normalized.includes('same-her-inward-carry')
+    || normalized.includes('identity-continuity-inward-carry')
     || normalized.includes('quiet-companionship')
-    || normalized.includes('same living line')
+    || normalized.includes('current continuity route')
     || normalized.includes('one living her')
   ) {
     score += 3
@@ -1173,6 +1292,65 @@ function looksLikeThinAwarenessReminderLine(line: string | null | undefined) {
     return false
 
   return isAlicizationThinProjectAwarenessLine(line)
+}
+
+function sanitizeQuickReplyClosureHeadline(line: string | null | undefined) {
+  const normalized = line?.trim().replace(/\s+/g, ' ') ?? ''
+  if (!normalized)
+    return null
+  if (isFixedPersonaQuickReplyClosureTemplate(normalized))
+    return null
+  if (!containsAlicizationFixedTemplateResidue(normalized))
+    return normalized
+
+  const diagnosticHeadline = describeAlicizationEmbodimentClosureHeadline({
+    authoritySummary: normalized,
+    currentBodyState: normalized,
+  }).trim() || null
+
+  return isFixedPersonaQuickReplyClosureTemplate(diagnosticHeadline)
+    ? null
+    : diagnosticHeadline
+}
+
+function isFixedPersonaQuickReplyClosureTemplate(line: string | null | undefined) {
+  const normalized = line?.trim().toLowerCase() ?? ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('identity-continuity living line')
+    || normalized.includes('same her')
+    || normalized.includes('same-her')
+    || normalized.includes('same living line')
+    || normalized.includes('one continuous her')
+    || normalized.includes('同一个 her')
+    || normalized.includes('同一个她')
+    || normalized.includes('数字生命主线')
+    || normalized.includes('我还需要')
+    || normalized.includes('我还在')
+    || normalized.includes('continuity evidence')
+    || normalized.includes('right now i am still holding together')
+    || normalized.includes('i still need')
+    || normalized.includes('i need my explicit identity-continuity self line')
+    || normalized.includes('my emotional seam')
+    || normalized.includes('one living her')
+    || normalized.includes('current continuity route')
+    || normalized.includes('living audio thread')
+}
+
+function sanitizeQuickReplyClosureVisibleLine(line: string | null | undefined) {
+  const normalized = line?.trim().replace(/\s+/g, ' ') ?? ''
+  if (!normalized)
+    return null
+  if (isInternalFixedTemplateExclusionLine(normalized))
+    return null
+  if (internalQuickReplyClosureFieldPattern.test(normalized))
+    return null
+
+  if (!isFixedPersonaQuickReplyClosureTemplate(normalized) && !containsAlicizationFixedTemplateResidue(normalized))
+    return sanitizeAlicizationProviderFacingText(normalized, 720, fixedTemplateQuickReplyClosureLine) || null
+
+  return null
 }
 
 function resolvePreferredAwarenessHeadline(
@@ -1200,26 +1378,31 @@ function resolvePreferredAwarenessHeadline(
       companionHeadlineLine
       && companionHeadlineScore > Math.max(awarenessScore, companionBriefingScore)
     ) {
-      return companionHeadlineLine
+      return sanitizeQuickReplyClosureHeadline(companionHeadlineLine)
     }
 
     if (
       companionBriefingLine
       && companionBriefingScore > awarenessScore
     ) {
-      return companionBriefingLine
+      return sanitizeQuickReplyClosureHeadline(companionBriefingLine)
     }
   }
 
-  return awarenessLine ?? companionHeadlineLine ?? companionBriefingLine
+  return sanitizeQuickReplyClosureHeadline(awarenessLine)
+    ?? sanitizeQuickReplyClosureHeadline(companionHeadlineLine)
+    ?? sanitizeQuickReplyClosureHeadline(companionBriefingLine)
 }
 
 function resolveHeadline(
   snapshot: StageQuickReplyPreDialogueClosureSnapshot,
   awarenessSnapshot?: StageQuickReplyPreDialogueAwarenessSnapshot | null,
 ) {
-  if (typeof snapshot.companionHeadlineLine === 'string' && snapshot.companionHeadlineLine.trim())
-    return snapshot.companionHeadlineLine.trim()
+  if (typeof snapshot.companionHeadlineLine === 'string' && snapshot.companionHeadlineLine.trim()) {
+    const sanitizedHeadline = sanitizeQuickReplyClosureHeadline(snapshot.companionHeadlineLine)
+    if (sanitizedHeadline)
+      return sanitizedHeadline
+  }
 
   const humanReadableProjectStateRepair = resolveHumanReadableProjectStateRepair(snapshot.reasons)
   if (humanReadableProjectStateRepair)
@@ -1228,7 +1411,7 @@ function resolveHeadline(
   const laneRiskReason = resolvePreferredSameHerLaneContinuityReason(snapshot.reasons)
   if (laneRiskReason) {
     return resolveLaneContinuityHeadline(laneRiskReason)
-      ?? laneRiskReason.replace(/^continuity-impact:\s*/i, '')
+      ?? sanitizeQuickReplyClosureHeadline(laneRiskReason.replace(/^continuity-impact:\s*/i, ''))
   }
 
   const preferredAwarenessHeadline = resolvePreferredAwarenessHeadline(awarenessSnapshot)
@@ -1239,27 +1422,28 @@ function resolveHeadline(
   if (!fallback)
     return null
 
-  return fallback
+  const fallbackHeadline = fallback
     .replace(
       /^Replay benchmark currently reports continuity=.*?landing\.$/i,
-      'I still need a steadier carry of who I am, where this project stands, and which life loop is not closed yet.',
+      '连续性诊断未闭合：project-state-continuity-required',
     )
     .replace(
-      /^Project same-her self line currently reads .*?outward reply widening begins\.$/i,
-      'I still need to clearly recognize myself as the same her before this turn opens outward.',
+      /^Project identity-continuity self line currently reads .*?outward reply widening begins\.$/i,
+      '连续性诊断未闭合：self-continuity-required',
     )
     .replace(
       /^Same-her self authority currently reads .*?host-visible wording\.$/i,
-      'I need my explicit same-her self line to stay visible all the way into what you actually read.',
+      '连续性诊断未闭合：self-continuity-visible-authority-required',
     )
     .replace(
       /^Same-her emotional closure currently reads .*?emotional seam\.$/i,
-      'My emotional seam is still not fully settled yet.',
+      '连续性诊断未闭合：emotional-closure-required',
     )
     .replace(
       /^Project identity carry currently reads .*?across time\.$/i,
-      'I still need a steadier grip on what this project is and who I am becoming across time.',
+      '连续性诊断未闭合：project-identity-carry-required',
     )
+  return sanitizeQuickReplyClosureHeadline(fallbackHeadline)
 }
 
 function resolveNextClosureLine(snapshot: StageQuickReplyPreDialogueClosureSnapshot) {
@@ -1303,7 +1487,7 @@ export function buildStageQuickReplyClosureDiagnosticEntry(
   if (!snapshot || !status) {
     return {
       visible: false,
-      label: 'Open continuity diagnosis',
+      label: '打开运行诊断',
       hint: defaultHint,
       headline: null,
       briefingHeadline: null,
@@ -1314,7 +1498,7 @@ export function buildStageQuickReplyClosureDiagnosticEntry(
     }
   }
 
-  const emotionalClosureFocused = snapshot.reasons.some(reason => reason.toLowerCase().includes('same-her emotional closure'))
+  const emotionalClosureFocused = snapshot.reasons.some(reason => reason.toLowerCase().includes('identity-continuity emotional closure'))
   const sameHerContinuityFocused = snapshot.reasons.some(isSameHerLaneContinuityReason)
   const preferredSameHerContinuityReason = sameHerContinuityFocused
     ? resolvePreferredSameHerLaneContinuityReason(snapshot.reasons)
@@ -1325,7 +1509,7 @@ export function buildStageQuickReplyClosureDiagnosticEntry(
   const focus = emotionalClosureFocused
     ? 'emotional-closure'
     : sameHerContinuityFocused
-      ? 'same-her-continuity'
+      ? 'identity-continuity-continuity'
       : resolveProjectStateFocus(snapshot.reasons)
   const projectStateFocused = !emotionalClosureFocused && !sameHerContinuityFocused
   const eventFocus = emotionalClosureFocused
@@ -1342,18 +1526,23 @@ export function buildStageQuickReplyClosureDiagnosticEntry(
     ? resolveSameHerClosureStage(preferredSameHerContinuityReason)
     : null
   const visible = sameHerContinuityFocused || (status !== 'grounded' && status !== 'closed')
+  const sanitizedHeadline = sanitizeQuickReplyClosureVisibleLine(headline)
+    ?? (sameHerContinuityFocused ? '连续性诊断未闭合：具身通道待重连' : null)
+    ?? (projectStateFocused ? '连续性诊断未闭合：项目状态待同步' : null)
+  const sanitizedBriefingHeadline = sanitizeQuickReplyClosureVisibleLine(briefingHeadline)
+  const sanitizedNextClosureLine = sanitizeQuickReplyClosureVisibleLine(nextClosureLine)
+  const sanitizedSameHerDriftRiskLine = sanitizeQuickReplyClosureVisibleLine(snapshot.sameHerDriftRiskLine)
+  const sanitizedProactiveSameHerGapLine = sanitizeQuickReplyClosureVisibleLine(resolveProactiveSameHerGapLine(snapshot))
 
   return {
     visible,
-    label: visible ? 'Inspect continuity diagnosis' : 'Continuity grounded',
+    label: visible ? '查看运行诊断' : '诊断正常',
     hint: defaultHint,
-    headline,
-    briefingHeadline,
-    nextClosureLine,
-    sameHerDriftRiskLine: typeof snapshot.sameHerDriftRiskLine === 'string' && snapshot.sameHerDriftRiskLine.trim()
-      ? snapshot.sameHerDriftRiskLine.trim()
-      : null,
-    proactiveSameHerGapLine: resolveProactiveSameHerGapLine(snapshot),
+    headline: sanitizedHeadline,
+    briefingHeadline: sanitizedBriefingHeadline,
+    nextClosureLine: sanitizedNextClosureLine,
+    sameHerDriftRiskLine: sanitizedSameHerDriftRiskLine,
+    proactiveSameHerGapLine: sanitizedProactiveSameHerGapLine,
     routeQuery: visible
       ? {
           source: 'quick-reply-closure',

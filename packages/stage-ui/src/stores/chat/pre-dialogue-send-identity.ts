@@ -5,10 +5,12 @@ import type {
 } from '../alicization-bridge'
 
 import {
+  containsAlicizationFixedTemplateResidue,
   describeAlicizationEmbodimentClosureHeadline,
   isAlicizationThinProjectAwarenessLine,
   isAlicizationThinSamePhaseCarryLine as isThinSamePhaseCarryLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
+  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
 type AlicizationPreDialogueAwarenessSnapshot = AlicizationProjectStateContinuitySnapshot['preDialogueAwareness']
@@ -38,6 +40,115 @@ type AlicizationLegacyAwareProjectStateContinuitySnapshot
     latestProgress?: string | null
     landedProgressSummary?: string | null
   }
+
+const fixedTemplateWithheldSendIdentityLine = ''
+
+function isBlockedSendIdentityReplacement(value: string) {
+  const normalized = value.trim()
+  return normalized === fixedTemplateWithheldSendIdentityLine
+    || normalized.includes('content=excluded')
+    || normalized.includes('visibility=internal-structured')
+    || normalized.includes('phase1_local_digital_life')
+    || normalized.includes('local_desktop_life_loop')
+}
+
+function sanitizeSendIdentityText(
+  value: string | null | undefined,
+  maxChars = 420,
+) {
+  const sanitized = sanitizeAlicizationProviderFacingText(value, maxChars, fixedTemplateWithheldSendIdentityLine)
+  if (!sanitized)
+    return null
+  if (isBlockedSendIdentityReplacement(sanitized))
+    return null
+  return sanitized
+}
+
+function sanitizeSendIdentityProjectIdentityText(value: string | null | undefined) {
+  return sanitizeSendIdentityText(value, 220)
+}
+
+function sanitizeSendIdentityProjectPhaseText(value: string | null | undefined) {
+  const sanitized = sanitizeSendIdentityText(value, 180)
+  if (!sanitized)
+    return null
+  if (/\bphase\s*1\b|第一阶段|阶段一|project_phase=life_core/iu.test(sanitized))
+    return null
+  return sanitized
+}
+
+function sanitizeSendIdentityReasonPreview(values: string[] | null | undefined) {
+  const sanitizeReasonPreviewValue = (value: string | null | undefined) => {
+    if (containsAlicizationFixedTemplateResidue(value))
+      return null
+
+    const direct = sanitizeSendIdentityText(value)
+    if (direct && !isBlockedSendIdentityReplacement(direct))
+      return direct
+    return direct
+  }
+
+  return (values ?? [])
+    .map(value => sanitizeReasonPreviewValue(value))
+    .filter((value, index, list): value is string =>
+      typeof value === 'string'
+      && Boolean(value)
+      && value !== fixedTemplateWithheldSendIdentityLine
+      && !isBlockedSendIdentityReplacement(value)
+      && value !== 'phase1_local_digital_life'
+      && value !== 'local_desktop_life_loop'
+      && value !== 'continuity_review_required'
+      && list.indexOf(value) === index)
+}
+
+function sanitizeSendIdentityProjectState(
+  projectState: AlicizationRuntimeProjectStateDigest | null,
+): AlicizationRuntimeProjectStateDigest | null {
+  if (!projectState)
+    return null
+
+  return {
+    ...projectState,
+    preflightSummary: sanitizeSendIdentityText(projectState.preflightSummary),
+    preDialogueAwarenessLine: sanitizeSendIdentityText(projectState.preDialogueAwarenessLine),
+    preDialogueAwarenessSummary: sanitizeSendIdentityText(projectState.preDialogueAwarenessSummary),
+    awarenessLine: sanitizeSendIdentityText(projectState.awarenessLine),
+    companionHeadlineLine: sanitizeSendIdentityText(projectState.companionHeadlineLine),
+    companionBriefingLine: sanitizeSendIdentityText(projectState.companionBriefingLine),
+    identity: sanitizeSendIdentityProjectIdentityText(projectState.identity),
+    currentPhase: sanitizeSendIdentityProjectPhaseText(projectState.currentPhase),
+    latestLandedProgress: sanitizeSendIdentityText(projectState.latestLandedProgress),
+    memoryClosureSummary: sanitizeSendIdentityText(projectState.memoryClosureSummary),
+    primaryOpenLoop: sanitizeSendIdentityText(projectState.primaryOpenLoop, 420),
+    nextClosureTarget: sanitizeSendIdentityText(projectState.nextClosureTarget, 420),
+    sameHerSelfLine: sanitizeSendIdentityText(projectState.sameHerSelfLine, 420),
+    sameHerHoldDetail: sanitizeSendIdentityText(projectState.sameHerHoldDetail, 420),
+    sameHerDriftRisk: sanitizeSendIdentityText(projectState.sameHerDriftRisk, 420),
+    emotionalClosureCue: sanitizeSendIdentityText(projectState.emotionalClosureCue, 420),
+    ...(projectState.continuityCue
+      ? { continuityCue: sanitizeSendIdentityText(projectState.continuityCue) }
+      : {}),
+    ...(projectState.proactiveSameHerGap
+      ? { proactiveSameHerGap: sanitizeSendIdentityText(projectState.proactiveSameHerGap) }
+      : {}),
+  }
+}
+
+export function sanitizePreDialogueSendIdentity(
+  awareness: AlicizationPreDialogueSendIdentity,
+): AlicizationPreDialogueSendIdentity {
+  return {
+    ...awareness,
+    summaryLine: sanitizeSendIdentityText(awareness.summaryLine),
+    companionHeadlineLine: sanitizeSendIdentityText(awareness.companionHeadlineLine),
+    companionBriefingLine: sanitizeSendIdentityText(awareness.companionBriefingLine),
+    companionNextClosureLine: sanitizeSendIdentityText(awareness.companionNextClosureLine, 420),
+    awarenessLine: sanitizeSendIdentityText(awareness.awarenessLine),
+    emotionalClosureCue: sanitizeSendIdentityText(awareness.emotionalClosureCue, 420),
+    projectState: sanitizeSendIdentityProjectState(awareness.projectState ?? null),
+    reasonPreview: sanitizeSendIdentityReasonPreview(awareness.reasonPreview),
+  }
+}
 
 function pushUniqueLine(lines: string[], value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim() : ''
@@ -122,34 +233,28 @@ function preferClosureAwareProjectLine(input: {
 
   const lowerHeadline = normalizedCompanionHeadlineLine.toLowerCase()
   const lowerProjectAwareLine = preferredProjectAwareLine.toLowerCase()
+  const projectAwareLineCarriesFixedTemplateResidue = containsAlicizationFixedTemplateResidue(preferredProjectAwareLine)
+  const headlineCarriesFixedTemplateResidue = containsAlicizationFixedTemplateResidue(normalizedCompanionHeadlineLine)
   const projectAwareLineCarriesBroaderPhaseClosure = (
-    lowerProjectAwareLine.includes('phase 1')
-    || lowerProjectAwareLine.includes('digital life project')
-    || lowerProjectAwareLine.includes('this digital life')
-    || lowerProjectAwareLine.includes('what has landed')
+    lowerProjectAwareLine.includes('what has landed')
     || lowerProjectAwareLine.includes('life loop that remains open')
     || lowerProjectAwareLine.includes('life loop is still open')
     || lowerProjectAwareLine.includes('still-open life loop')
     || lowerProjectAwareLine.includes('the project still needs')
     || lowerProjectAwareLine.includes('project still needs')
-  ) && (
-    lowerProjectAwareLine.includes('before speaking')
-    || lowerProjectAwareLine.includes('remember')
-    || lowerProjectAwareLine.includes('keep ')
     || lowerProjectAwareLine.includes('explicit pre-dialogue carry path')
-    || lowerProjectAwareLine.includes('same-her')
+  ) && (
+    lowerProjectAwareLine.includes('explicit pre-dialogue carry path')
     || lowerProjectAwareLine.includes('embodiment closure')
-    || lowerProjectAwareLine.includes('widening outward')
     || lowerProjectAwareLine.includes('flatten back')
     || lowerProjectAwareLine.includes('generic assistant')
-  )
+  ) && !projectAwareLineCarriesFixedTemplateResidue
   const headlineLooksEmbodimentOnly = lowerHeadline.includes('body')
     || lowerHeadline.includes('face')
     || lowerHeadline.includes('motion')
     || lowerHeadline.includes('lipsync')
     || lowerHeadline.includes('voice')
-    || lowerHeadline.includes('full cross-modal same-her line is not closed yet')
-    || lowerHeadline.includes('this one living her')
+    || lowerHeadline.includes('full cross-modal continuity line is not closed yet')
   const headlineLooksGenericClosureStatus = lowerHeadline.includes('closure is still incomplete')
     || lowerHeadline.includes('closure line is still settling')
   const briefingLooksSpecificCarryGap = lowerProjectAwareLine.includes('explicit pre-dialogue carry path')
@@ -160,6 +265,10 @@ function preferClosureAwareProjectLine(input: {
     return preferredProjectAwareLine
   if (briefingLooksSpecificCarryGap && headlineLooksGenericClosureStatus)
     return preferredProjectAwareLine
+  if (headlineCarriesFixedTemplateResidue && !projectAwareLineCarriesFixedTemplateResidue)
+    return preferredProjectAwareLine
+  if (projectAwareLineCarriesFixedTemplateResidue && !headlineCarriesFixedTemplateResidue)
+    return normalizedCompanionHeadlineLine
   if (headlineLooksEmbodimentOnly || headlineLooksGenericClosureStatus)
     return normalizedCompanionHeadlineLine
 
@@ -228,19 +337,21 @@ function looksLikeProjectAwareBriefingReminder(value: string | null | undefined)
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return false
 
-  return normalized.startsWith('before speaking')
-    && (
-      normalized.includes('digital life project')
-      || normalized.includes('same digital life project')
-      || normalized.includes('one living digital life project')
-    )
-    && (
+  return (
+    normalized.includes('project_state_awareness=')
+    || normalized.includes('project_state_continuity=')
+    || normalized.includes('life_loop_continuity=')
+    || normalized.includes('continuity_context=')
+    || (
       normalized.includes('what has landed')
       || normalized.includes('life loop is still open')
       || normalized.includes('which life loop is still open')
       || normalized.includes('still-open life loop')
     )
+  )
 }
 
 function looksLikeLivedInSameHerHoldDetail(value: string | null | undefined) {
@@ -290,21 +401,21 @@ function resolveContinuityBehaviorMode(input: {
 
 function deriveSameHerHoldDetailFromContinuityBehavior(mode: string | null) {
   if (mode === 'repair-before-closeness')
-    return 'repair-before-closeness is still owning this callback line before closeness widens again.'
+    return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens'
   if (mode === 'rest-protective')
-    return 'rest-protective companionship is still keeping this return inward and fatigue-aware.'
+    return 'continuity_hold=rest_protective; timing=fatigue_aware'
   if (mode === 'measured-return')
-    return 'measured-return is still keeping this callback line lower-pressure before it widens again.'
+    return 'continuity_hold=measured_return; pressure=lower'
   return null
 }
 
 function deriveContinuityCueFromBehavior(mode: string | null) {
   if (mode === 'repair-before-closeness')
-    return 'Keep this return repair-before-closeness until repair settles.'
+    return 'continuity_cue=repair_before_closeness; until=repair_settles'
   if (mode === 'rest-protective')
-    return 'Keep this return rest-protective and inward before widening outward.'
+    return 'continuity_cue=rest_protective; direction=inward'
   if (mode === 'measured-return')
-    return 'Keep this return measured-return before widening outward.'
+    return 'continuity_cue=measured_return; direction=measured'
   return null
 }
 
@@ -323,8 +434,8 @@ function resolveEffectiveContinuityReopenCarry(
     || ''
 
   return {
-    sameHerHoldDetail,
-    continuityCue,
+    sameHerHoldDetail: sanitizeSendIdentityText(sameHerHoldDetail, 420) ?? '',
+    continuityCue: sanitizeSendIdentityText(continuityCue, 420) ?? '',
   }
 }
 
@@ -333,18 +444,14 @@ function isSameHerInwardLowPressureHeadline(value: string | null | undefined) {
   if (!normalized)
     return false
 
-  return normalized.includes('holding together mainly through')
-    && normalized.includes('low-pressure')
-    && (
-      normalized.includes('same line inward')
-      || normalized.includes('same living line')
-      || normalized.includes('same-her-inward-carry')
-      || normalized.includes('quiet-companionship')
-    )
+  return (
+    normalized.includes('continuity=embodiment')
+    && normalized.includes('low-pressure-inward-carry')
+  )
 }
 
-function buildCompactSameHerInwardLowPressureAwarenessLine(companionBriefingLine: string) {
-  return `${companionBriefingLine} Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.`
+function buildCompactSameHerInwardLowPressureAwarenessLine() {
+  return 'continuity_context=runtime_carry; source=companion_briefing; continuity=embodiment; status=pending-rejoin; pending_rejoin=lipsync+voice; evidence=low-pressure-inward-carry; visibility=internal'
 }
 
 function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undefined) {
@@ -353,12 +460,12 @@ function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undef
     return false
 
   return normalized.includes('anthropomorphic emotional closure')
-    && normalized.includes('same-her inward-carry observability')
+    && normalized.includes('continuity inward-carry observability')
     && normalized.includes('measured-return')
 }
 
-function buildCompactAnthropomorphicHostFacingAwarenessLine(companionBriefingLine: string) {
-  return `${companionBriefingLine} Right now this one living her still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line before anything reopens outward.`
+function buildCompactAnthropomorphicHostFacingAwarenessLine() {
+  return 'continuity_context=runtime_carry; source=companion_briefing; affective_closure=anthropomorphic-emotional-closure; observability=continuity-inward-carry; timing=measured-return; visibility=internal'
 }
 
 function compactSameHerInwardLowPressureFallbackAwareness(
@@ -383,7 +490,7 @@ function compactSameHerInwardLowPressureFallbackAwareness(
 
   return {
     ...awareness,
-    awarenessLine: buildCompactSameHerInwardLowPressureAwarenessLine(companionBriefingLine),
+    awarenessLine: buildCompactSameHerInwardLowPressureAwarenessLine(),
   }
 }
 
@@ -409,7 +516,7 @@ function compactAnthropomorphicHostFacingFallbackAwareness(
 
   return {
     ...awareness,
-    awarenessLine: buildCompactAnthropomorphicHostFacingAwarenessLine(companionBriefingLine),
+    awarenessLine: buildCompactAnthropomorphicHostFacingAwarenessLine(),
   }
 }
 
@@ -872,7 +979,7 @@ export function buildPreDialogueSendIdentityFromSnapshots(
   if (!summaryLine && !companionHeadlineLine && !companionBriefingLine && !companionNextClosureLine && !awarenessLine && reasonPreview.length === 0)
     return null
 
-  return {
+  return sanitizePreDialogueSendIdentity({
     status: resolvedFallbackAwareness?.status ?? closure?.status ?? 'partial',
     summaryLine,
     companionHeadlineLine,
@@ -889,7 +996,7 @@ export function buildPreDialogueSendIdentityFromSnapshots(
       emotionalClosureCue,
     }),
     reasonPreview,
-  }
+  })
 }
 
 export function buildPreDialogueSendIdentityFromInspectorSnapshots(input: {

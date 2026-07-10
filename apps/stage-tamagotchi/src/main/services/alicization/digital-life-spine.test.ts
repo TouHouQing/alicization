@@ -1,3 +1,4 @@
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -161,9 +162,10 @@ describe('digital life spine', () => {
       preferredPresence: 'hesitant',
     }))
     expect(digest?.memory).toEqual(expect.objectContaining({
-      summary: 'same-her callback afterglow is still being carried quietly',
+      summary: 'continuity_identity callback afterglow is still being carried quietly',
       recallMode: 'quiet',
     }))
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(digest?.memory ?? ''))).toBe(false)
   })
 
   it('projects structured affective residue through digest-only spine memory so thinner runtime paths can keep emotional carry legible', () => {
@@ -400,7 +402,8 @@ describe('digital life spine', () => {
       version: 'digital-life-architecture-v1',
     }))
     expect(spine.continuitySignal?.label).toBe('digital-life-line')
-    expect(spine.proactivePolicy.architecture?.closureAudit?.currentPhase).toContain('Phase 1')
+    expect(spine.proactivePolicy.architecture?.closureAudit?.currentPhase).toContain('local_desktop_life_loop')
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(spine.proactivePolicy.architecture?.closureAudit ?? ''))).toBe(false)
   })
 
   it('keeps projecting continuity metadata when a runtime-surface spine still carries an older top-level continuity signal shape', () => {
@@ -471,7 +474,7 @@ describe('digital life spine', () => {
 
     expect(digest?.continuitySignal).toEqual(expect.objectContaining({
       label: 'digital-life-line',
-      summary: 'same-thread continuation is still holding the same living line after the callback detour',
+      summary: 'same-thread continuation is still holding the continuity_line after the callback detour',
       watchMode: 'symbiotic-vision',
       sceneScenario: 'coding',
       activeThreadId: 'thread-living-line',
@@ -480,6 +483,7 @@ describe('digital life spine', () => {
       answerIntent: 'guide',
       preferredPresence: 'attentive',
     }))
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(digest?.continuitySignal ?? ''))).toBe(false)
   })
 
   it('keeps callback-specific project carry in digest source tags when the final runtime surface still carries the same callback line lower-pressure', () => {
@@ -1037,7 +1041,8 @@ describe('digital life spine', () => {
       preferredPresence: 'attentive',
     }))
     expect(digest?.runtime.continuityArcStage).toBeNull()
-    expect(digest?.runtime.continuityCue).toContain('Unfinished closure still needs the same living line')
+    expect(digest?.runtime.continuityCue).toContain('unresolved_closure=continuity')
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(digest?.runtime ?? ''))).toBe(false)
     expect(digest?.architecture).toEqual(expect.objectContaining({
       operatingMode: expect.any(String),
       dominantSystem: expect.any(String),
@@ -1331,11 +1336,12 @@ describe('digital life spine', () => {
       proactivePolicy: undefined,
     } as any)
 
-    expect(digest?.proactive?.personaBias?.openingGuidance).toContain('Keep project identity, current Phase 1 progress, and the still-open same-her life-loop closure explicit while this turn forms')
-    expect(digest?.proactive?.personaBias?.whySummary).toContain('phase=Phase 1: Local Digital Life')
+    expect(digest?.proactive?.personaBias?.openingGuidance).toContain('project_context=local_desktop_life_loop')
+    expect(digest?.proactive?.personaBias?.whySummary).toContain('phase=local_desktop_life_loop')
     expect(digest?.proactive?.personaBias?.whySummary).toContain('landed=Project-state continuity already survives into runtime preparation')
-    expect(digest?.proactive?.personaBias?.whySummary).toContain('open=Memory, initiative, and embodiment still need stronger end-to-end closure across one same living line')
-    expect(digest?.proactive?.personaBias?.whySummary).toContain('next=Keep the same-her closure explicit through initiative and embodiment before the turn widens outward')
+    expect(digest?.proactive?.personaBias?.whySummary).toContain('open=Memory, initiative, and embodiment still need stronger end-to-end closure across one continuity_line')
+    expect(digest?.proactive?.personaBias?.whySummary).toContain('next=Keep the continuity_closure explicit through initiative and embodiment before the turn widens outward')
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(digest?.proactive?.personaBias ?? ''))).toBe(false)
   })
 
   it('keeps Phase 1 landed open and next closure carry inside persona bias summaries when current-conscious project state only survives through alias-only summaries', () => {
@@ -1370,11 +1376,12 @@ describe('digital life spine', () => {
       proactivePolicy: undefined,
     } as any)
 
-    expect(digest?.proactive?.personaBias?.openingGuidance).toContain('Keep project identity, current Phase 1 progress, and the still-open same-her life-loop closure explicit while this turn forms')
-    expect(digest?.proactive?.personaBias?.whySummary).toContain('phase=Phase 1: Local Digital Life')
+    expect(digest?.proactive?.personaBias?.openingGuidance).toContain('project_context=local_desktop_life_loop')
+    expect(digest?.proactive?.personaBias?.whySummary).toContain('phase=local_desktop_life_loop')
     expect(digest?.proactive?.personaBias?.whySummary).toContain('landed=Project-state continuity already survives into runtime preparation even when the canonical landed slot goes blank')
-    expect(digest?.proactive?.personaBias?.whySummary).toContain('open=Memory, initiative, and embodiment still need stronger end-to-end closure across one same living line')
-    expect(digest?.proactive?.personaBias?.whySummary).toContain('next=Keep the same-her closure explicit through initiative and embodiment before the turn widens outward')
+    expect(digest?.proactive?.personaBias?.whySummary).toContain('open=Memory, initiative, and embodiment still need stronger end-to-end closure across one continuity_line')
+    expect(digest?.proactive?.personaBias?.whySummary).toContain('next=Keep the continuity_closure explicit through initiative and embodiment before the turn widens outward')
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(digest?.proactive?.personaBias ?? ''))).toBe(false)
   })
 
   it('keeps same-her spine digest usable when reflection and motive carries lose array scaffolding', () => {
@@ -1443,7 +1450,7 @@ describe('digital life spine', () => {
       proactivePolicy: undefined,
     } as any)
 
-    expect(digest?.memory?.personStateProjection?.selfContinuityAuthority?.inwardLine).toContain('same living line')
+    expect(digest?.memory?.personStateProjection?.selfContinuityAuthority?.inwardLine).toContain('unresolved_closure=continuity_line')
     expect(digest?.motive).toEqual(expect.objectContaining({
       rulingDrive: 'unfinished-thread-return',
       leadingGoalSummary: null,
@@ -1453,8 +1460,9 @@ describe('digital life spine', () => {
       reflectionSummary: null,
       reflectionLesson: null,
       reflectionTargetScope: null,
-      latestInflection: expect.stringContaining('same living line'),
+      latestInflection: expect.stringContaining('continuity_line'),
     }))
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(digest?.memory?.personStateProjection ?? ''))).toBe(false)
   })
 
   it('projects structured affective residue through runtime-surface spine memory digest so emotional carry survives the ordinary memory digest path', () => {
@@ -1611,11 +1619,12 @@ describe('digital life spine', () => {
     } as any)
 
     expect(digest?.outcomeLearning).toEqual(expect.objectContaining({
-      reflectionSummary: 'The same-her repair line is still the meaningful learning carry.',
-      reflectionLesson: 'Keep the same-her repair line active instead of reopening from temporary noise.',
-      latestInflection: 'The same living line still needs to stay continuous inward.',
+      reflectionSummary: 'The continuity_repair_line is still the meaningful learning carry.',
+      reflectionLesson: 'Keep the continuity_repair_line active instead of reopening from temporary noise.',
+      latestInflection: 'The continuity_line still needs to stay continuous inward.',
       revisionPressure: 0.22,
     }))
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(digest?.outcomeLearning ?? ''))).toBe(false)
   })
 
   it('projects self-evolution same-her cadence into the spine memory digest so long-horizon continuity survives beyond the immediate conscious frame', () => {
@@ -1777,8 +1786,9 @@ describe('digital life spine', () => {
 
     expect(digest?.embodiment?.autobiographicalSelf).toEqual(expect.objectContaining({
       identityNarrative: 'I am becoming someone who returns more slowly and more steadily when a corrected relationship meaning is still settling.',
-      relationshipDoctrine: 'Carry corrected same-person continuity on a lower-pressure same living line and leave more room before widening closeness.',
+      relationshipDoctrine: 'Carry corrected same-person continuity on a lower-pressure continuity_line and leave more room before widening closeness.',
       latestInflection: 'I learned to keep embodiment quieter while corrected same-person continuity is still settling back onto one line.',
     }))
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(digest?.embodiment?.autobiographicalSelf ?? ''))).toBe(false)
   })
 })

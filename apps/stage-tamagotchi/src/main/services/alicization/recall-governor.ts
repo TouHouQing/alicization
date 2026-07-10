@@ -19,6 +19,12 @@ import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
+import {
+  alicizationFixedTemplateReplacement,
+  formatAlicizationProjectStateAwarenessFields,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+
 import { buildAutobiographicalContinuityLines } from './autobiographical-self'
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
 import { buildMemoryRecollectionIntent } from './memory-recollection-intent'
@@ -228,9 +234,9 @@ function buildProjectStateCarryLine(
     return null
 
   return sanitizeText([
-    carriesProjectIdentity ? 'Current Phase 1 project context.' : '',
-    carriesLandedProgress ? 'Some closure already landed.' : '',
-    carriesOpenClosure ? 'Unfinished closure still needs continuity.' : '',
+    carriesProjectIdentity ? 'memory_continuity=local_runtime.' : '',
+    carriesLandedProgress ? 'verified_closure_progress=partial.' : '',
+    carriesOpenClosure ? 'unresolved_closure=continuity.' : '',
   ].filter(Boolean).join(' '), 220) || null
 }
 
@@ -242,13 +248,13 @@ function buildProjectPreflightRecallFallbackProjectState(
     return null
 
   return {
-    identity: 'Alicization is a local-first digital life project',
-    currentPhase: 'Phase 1: Local Digital Life',
-    latestLandedProgress: projectStateCarryLine.includes('Some closure already landed.')
-      ? 'Some closure already landed.'
+    identity: 'local_desktop_life_loop',
+    currentPhase: 'local_desktop_life_loop',
+    latestLandedProgress: projectStateCarryLine.includes('verified_closure_progress=partial.')
+      ? 'verified_closure_progress=partial.'
       : '',
-    primaryOpenLoop: projectStateCarryLine.includes('Unfinished closure still needs continuity.')
-      ? 'Unfinished closure still needs continuity.'
+    primaryOpenLoop: projectStateCarryLine.includes('unresolved_closure=continuity.')
+      ? 'unresolved_closure=continuity.'
       : '',
     preflightSummary: projectStateCarryLine,
     preDialogueAwarenessLine: projectStateCarryLine,
@@ -256,6 +262,55 @@ function buildProjectPreflightRecallFallbackProjectState(
     companionBriefingLine: projectStateCarryLine,
     sameHerSelfLine: projectStateCarryLine,
   }
+}
+
+function sanitizeRecallProjectAnchorText(raw: unknown, maxChars = 720) {
+  const sanitized = sanitizeAlicizationProviderFacingText(raw, maxChars)
+  if (!sanitized || sanitized === alicizationFixedTemplateReplacement)
+    return null
+  if (
+    /local-first digital life project|Same Phase 1 digital life|Before (?:answering|speaking|acting)|one continuous "?her"?|same living line|same-her|same her|one living her/iu.test(sanitized)
+  ) {
+    return null
+  }
+  return sanitized
+}
+
+function isStructuredRecallProjectAnchorText(raw: unknown) {
+  const sanitized = sanitizeRecallProjectAnchorText(raw, 720)
+  return sanitized
+    && /\b(?:phase1_local_digital_life|local_desktop_life_loop)\b/iu.test(sanitized)
+    && (
+      /\bidentity=phase1_local_digital_life\b/iu.test(sanitized)
+      || /\bcontinuity_anchor=phase1_local_digital_life\b/iu.test(sanitized)
+      || sanitized === 'phase1_local_digital_life'
+      || /\bidentity=local_desktop_life_loop\b/iu.test(sanitized)
+      || /\bcontinuity_anchor=local_desktop_life_loop\b/iu.test(sanitized)
+      || sanitized === 'local_desktop_life_loop'
+    )
+    ? sanitized
+    : null
+}
+
+function buildStructuredRecallProjectAnchor(input: {
+  raw?: unknown
+  fallbackProjectState?: ReturnType<typeof resolveAlicizationProjectStateBrief> | ReturnType<typeof buildProjectPreflightRecallFallbackProjectState> | null
+}) {
+  const fallbackProjectState = input.fallbackProjectState ?? null
+  const formatted = formatAlicizationProjectStateAwarenessFields({
+    identity: fallbackProjectState?.identity ?? input.raw ?? 'local_desktop_life_loop',
+    currentPhase: fallbackProjectState?.currentPhase ?? 'local_desktop_life_loop',
+    latestLandedProgress: fallbackProjectState?.latestLandedProgress,
+    primaryOpenLoop: fallbackProjectState?.primaryOpenLoop,
+    nextClosureTarget: fallbackProjectState?.nextClosureTarget,
+    sameHerSelfLine: fallbackProjectState?.sameHerSelfLine ?? 'local_desktop_life_loop',
+    status: 'project_recall_anchor_sanitized',
+    maxChars: 720,
+  })
+
+  return formatted.includes('identity=')
+    ? formatted
+    : `identity=local_desktop_life_loop | ${formatted}`.trim()
 }
 
 function buildProjectPreflightRecallAnchor(input: {
@@ -269,6 +324,7 @@ function buildProjectPreflightRecallAnchor(input: {
   if (!summary && !longHorizonProjectFallback)
     return null
 
+  const fallbackProjectState = longHorizonProjectFallback ?? resolveAlicizationProjectStateBrief()
   const canonicalSummary = sanitizeText(
     resolveAlicizationProjectPreDialogueAwarenessLine({
       runtimeProjectState: summary
@@ -277,9 +333,9 @@ function buildProjectPreflightRecallAnchor(input: {
             preflightSummary: summary,
           }
         : null,
-      fallbackProjectState: longHorizonProjectFallback ?? resolveAlicizationProjectStateBrief(),
+      fallbackProjectState,
     }) ?? '',
-    220,
+    720,
   )
 
   const resolvedSummary = !summary
@@ -291,14 +347,36 @@ function buildProjectPreflightRecallAnchor(input: {
   if (!resolvedSummary)
     return null
 
-  return `project:${resolvedSummary}`
+  const providerSafeSummary = isStructuredRecallProjectAnchorText(resolvedSummary)
+  if (providerSafeSummary && !isAlicizationThinProjectAwarenessLine(providerSafeSummary))
+    return `project:${providerSafeSummary}`
+
+  return `project:${buildStructuredRecallProjectAnchor({
+    raw: resolvedSummary,
+    fallbackProjectState,
+  })}`
 }
 
 function buildProjectEmotionalClosureRecallAnchor(raw: unknown) {
   const summary = sanitizeText(raw, 220)
   if (!summary)
     return null
-  return `project-emotion:${summary}`
+  const sanitized = sanitizeAlicizationProviderFacingText(summary, 220)
+  if (
+    sanitized
+    && sanitized !== alicizationFixedTemplateReplacement
+    && !/same-her|same her|same living line|one living her|one continuous "?her"?|Before (?:answering|speaking|acting)|local-first digital life project/iu.test(sanitized)
+  ) {
+    return `project-emotion:${sanitized}`
+  }
+
+  const tags = [
+    /low-pressure|lower-pressure|measured-return/iu.test(summary) ? 'tone=low_pressure' : null,
+    /repair-before-closeness|repair first|repair-first/iu.test(summary) ? 'repair=before_closeness' : null,
+    /rest-protective|rest protection|fatigue|休息/u.test(summary) ? 'rest_protection=true' : null,
+    'visibility=internal-structured',
+  ].filter(Boolean).join('; ')
+  return `project-emotion:emotional_closure=content_sanitized; ${tags}`
 }
 
 function pickRecallAnchor(...values: unknown[]) {
@@ -314,6 +392,46 @@ function clamp01(value: number) {
   if (!Number.isFinite(value))
     return 0
   return Math.max(0, Math.min(1, Number(value.toFixed(2))))
+}
+
+function formatRecallGovernorRationale(input: {
+  mode: AlicizationRecallGovernorSnapshot['mode']
+  dialogueFirstBound: boolean
+  restProtectiveEmotionalKernel: boolean
+  autobiographicalContinuityPresent: boolean
+  selfAuthorityPresent: boolean
+  projectAnchorPresent: boolean
+  emotionalClosurePresent: boolean
+}) {
+  if (input.mode === 'scene')
+    return 'reason=scene_grounding_priority; recall_scope=live_grounding_or_repair; associative_recall=constrained; visibility=internal-structured'
+
+  if (input.mode === 'thread' && input.dialogueFirstBound)
+    return 'reason=current_turn_anchor_priority; recall_scope=current_turn_anchor; associative_recall=suppressed; visibility=internal-structured'
+
+  if (input.mode === 'thread')
+    return 'reason=thread_knot_priority; recall_scope=current_dialogue_and_unresolved_loops; associative_recall=suppressed; visibility=internal-structured'
+
+  if (input.mode === 'emotional-resonance')
+    return 'reason=emotional_resonance_allowed; recall_scope=affective_continuity; associative_recall=bounded; visibility=internal-structured'
+
+  if (input.mode === 'self-continuity') {
+    if (input.restProtectiveEmotionalKernel) {
+      return 'reason=self_continuity_rest_protection; recall_scope=narrow_self_continuity; rest_protection=active; associative_recall=bounded; visibility=internal-structured'
+    }
+
+    return [
+      'reason=self_continuity_authorized',
+      `autobiographical_continuity=${input.autobiographicalContinuityPresent ? 'present' : 'absent'}`,
+      `self_authority=${input.selfAuthorityPresent ? 'present' : 'absent'}`,
+      `project_anchor=${input.projectAnchorPresent ? 'present' : 'absent'}`,
+      `emotional_closure=${input.emotionalClosurePresent ? 'present' : 'absent'}`,
+      'scene_claim=fresh_screen_not_assumed',
+      'visibility=internal-structured',
+    ].join('; ')
+  }
+
+  return 'reason=memory_not_admitted; recall_scope=none; associative_recall=suppressed; visibility=internal-structured'
 }
 
 function buildRecalledFragmentSourceBudget(mode: AlicizationRecallGovernorSnapshot['mode']): Array<{
@@ -715,31 +833,15 @@ export function buildRecallGovernor(input: {
     ...relationshipAnchors,
   ], 10).join(' | ')
 
-  const rationale = resolvedMode === 'scene'
-    ? 'Keep recall tightly constrained because live grounding or repair has priority over association.'
-    : resolvedMode === 'thread' && (input.dialogueEncounter?.dialogueFirst === true || input.dialogueEncounter?.screenReferenceMode === 'avoid')
-      ? 'Stay bound to the current turn anchor; old self/scene carry should not outrank what the host just asked.'
-      : resolvedMode === 'thread'
-        ? 'Carry only the current dialogue seam and unresolved loops; associative recall would dilute the knot.'
-        : resolvedMode === 'emotional-resonance'
-          ? 'Allow memory with matching emotional color because the host is still inside a felt continuity.'
-          : resolvedMode === 'self-continuity'
-            ? restProtectiveEmotionalKernel
-              ? 'Carry only a narrow same-self line under rest protection so care, memory, and inward continuity stay believable without turning fatigue into wider associative spill.'
-              : autobiographicalContinuityLines.length > 0
-                ? projectPreflightAnchor
-                  ? projectEmotionalClosureAnchor
-                    ? 'Carry autobiographical continuity, the remembered self-line, the current Phase 1 digital-life closure seam, and its active emotional closure seam because this turn is genuinely about Alicization or the bond, not a fresh screen claim.'
-                    : 'Carry autobiographical continuity, the remembered self-line, and the current Phase 1 digital-life closure seam because this turn is genuinely about Alicization or the bond, not a fresh screen claim.'
-                  : 'Carry autobiographical continuity and remembered self-line because this turn is genuinely about Alicization or the bond, not a fresh screen claim.'
-                : selfAuthorityAnchors.length > 0
-                  ? projectPreflightAnchor
-                    ? projectEmotionalClosureAnchor
-                      ? 'Carry the projected self-authority lines together with the current Phase 1 digital-life closure seam and emotional closure seam because this turn is about the same living self or bond, not a fresh screen claim.'
-                      : 'Carry the projected self-authority lines together with the current Phase 1 digital-life closure seam because this turn is about the same living self or bond, not a fresh screen claim.'
-                    : 'Carry the projected self-authority lines because this turn is about the same living self or bond, not a fresh screen claim.'
-                  : 'Carry dialogue/self continuity without pretending old scene residue is live.'
-            : 'Do not admit memory unless the living turn explicitly earns it.'
+  const rationale = formatRecallGovernorRationale({
+    mode: resolvedMode,
+    dialogueFirstBound: input.dialogueEncounter?.dialogueFirst === true || input.dialogueEncounter?.screenReferenceMode === 'avoid',
+    restProtectiveEmotionalKernel,
+    autobiographicalContinuityPresent: autobiographicalContinuityLines.length > 0,
+    selfAuthorityPresent: selfAuthorityAnchors.length > 0,
+    projectAnchorPresent: Boolean(projectPreflightAnchor),
+    emotionalClosurePresent: Boolean(projectEmotionalClosureAnchor),
+  })
 
   return {
     mode: resolvedMode,
@@ -788,28 +890,36 @@ export function buildRecallGovernorSystemBlock(state: AlicizationRecallGovernorS
   if (!state)
     return ''
 
+  const sourceBudget = state.recalledFragmentSourceBudget && state.recalledFragmentSourceBudget.length > 0
+    ? state.recalledFragmentSourceBudget.map(item => `${item.sourceKind}:${item.maxItems}`).join(',')
+    : 'none'
+
   return [
     '[ALICIZATION_RECALL_GOVERNOR]',
-    'This block decides whether old memory may enter the current answer at all.',
-    `Mode: ${state.mode}.`,
-    `Recall seed: ${state.recallSeed || 'none'}.`,
-    `Thread anchors: ${state.threadAnchors && state.threadAnchors.length > 0 ? state.threadAnchors.join(', ') : 'none'}.`,
-    `Affect anchors: ${state.affectAnchors && state.affectAnchors.length > 0 ? state.affectAnchors.join(', ') : 'none'}.`,
-    `Relationship anchors: ${state.relationshipAnchors && state.relationshipAnchors.length > 0 ? state.relationshipAnchors.join(', ') : 'none'}.`,
-    `Salience bias: ${(state.salienceBias ?? 0.5).toFixed(2)}.`,
-    `Scene anchor: ${state.sceneAnchor || 'none'}.`,
-    `Scene familiarity hint: ${typeof state.sceneFamiliarityHint === 'number' ? state.sceneFamiliarityHint.toFixed(2) : 'none'}.`,
-    `Affective carry: ${state.affectiveCarry?.summary || 'none'}.`,
-    `Embodied carry: ${state.embodiedCarry?.summary || 'none'}.`,
-    `Recollection intent: ${state.recollectionIntent ? `${state.recollectionIntent.mode} / ${state.recollectionIntent.temporalFocus} / ${state.recollectionIntent.rationale}` : 'none'}.`,
-    `Suppress associative recall: ${state.suppressAssociativeRecall ? 'yes' : 'no'}.`,
-    `Allow active thoughts: ${state.allowActiveThoughts ? 'yes' : 'no'}.`,
-    `Allow recalled fragments: ${state.allowRecalledFragments ? 'yes' : 'no'}.`,
-    `Recalled fragment cap: ${state.recalledFragmentCap ?? 0}.`,
-    `Recalled fragment source budget: ${state.recalledFragmentSourceBudget && state.recalledFragmentSourceBudget.length > 0
-      ? state.recalledFragmentSourceBudget.map(item => `${item.sourceKind}:${item.maxItems}`).join(', ')
-      : 'none'}.`,
-    `Carry as memory: ${state.carryAsMemory ? 'yes' : 'no'}.`,
-    `Rationale: ${state.rationale}.`,
+    'block_role=recall_gate; old_memory_entry=policy_gated',
+    `mode=${state.mode}`,
+    `recall_seed_present=${state.recallSeed ? 'yes' : 'no'}`,
+    `thread_anchor_count=${state.threadAnchors?.length ?? 0}`,
+    `affect_anchor_count=${state.affectAnchors?.length ?? 0}`,
+    `relationship_anchor_count=${state.relationshipAnchors?.length ?? 0}`,
+    `salience_bias=${(state.salienceBias ?? 0.5).toFixed(2)}`,
+    `scene_anchor_present=${state.sceneAnchor ? 'yes' : 'no'}`,
+    `scene_familiarity_hint=${typeof state.sceneFamiliarityHint === 'number' ? state.sceneFamiliarityHint.toFixed(2) : 'none'}`,
+    `affective_carry=${state.affectiveCarry ? 'present' : 'none'}`,
+    `affective_mood=${sanitizeAlicizationProviderFacingText(state.affectiveCarry?.moodLabel, 64, '') || 'none'}`,
+    `affective_tension=${sanitizeAlicizationProviderFacingText(state.affectiveCarry?.emotionalTension, 64, '') || 'none'}`,
+    `embodied_carry=${state.embodiedCarry ? 'present' : 'none'}`,
+    `embodied_presence=${sanitizeAlicizationProviderFacingText(state.embodiedCarry?.presence, 64, '') || 'none'}`,
+    `embodied_style=${sanitizeAlicizationProviderFacingText(state.embodiedCarry?.suggestedStyle, 64, '') || 'none'}`,
+    `recollection_intent=${state.recollectionIntent ? 'present' : 'none'}`,
+    `recollection_mode=${sanitizeAlicizationProviderFacingText(state.recollectionIntent?.mode, 64, '') || 'none'}`,
+    `recollection_temporal_focus=${sanitizeAlicizationProviderFacingText(state.recollectionIntent?.temporalFocus, 64, '') || 'none'}`,
+    `suppress_associative_recall=${state.suppressAssociativeRecall ? 'yes' : 'no'}`,
+    `allow_active_thoughts=${state.allowActiveThoughts ? 'yes' : 'no'}`,
+    `allow_recalled_fragments=${state.allowRecalledFragments ? 'yes' : 'no'}`,
+    `recalled_fragment_cap=${state.recalledFragmentCap ?? 0}`,
+    `recalled_fragment_source_budget=${sourceBudget}`,
+    `carry_as_memory=${state.carryAsMemory ? 'yes' : 'no'}`,
+    `rationale=${sanitizeAlicizationProviderFacingText(state.rationale, 360, 'reason=withheld; visibility=internal-structured')}`,
   ].join('\n')
 }

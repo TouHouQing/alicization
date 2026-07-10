@@ -4,6 +4,11 @@ import type {
 } from './working-memory'
 
 import {
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+
+import {
   clampWorkingMemoryScore,
   normalizeWorkingMemoryText,
   uniqueWorkingMemoryTexts,
@@ -30,6 +35,17 @@ export interface WorkingMemoryLongTermQueueItem {
 }
 
 const fixedFallbackTemplatePattern = /我在。同一条本地数字生命的线还在|同一条本地数字生命的线还在|我先轻一点留在这里|你想说什么，我就接住/u
+
+const fixedTemplateEvidenceReplacement
+  = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+
+function sanitizeQueueText(raw: unknown, maxChars = 260, replacement = '') {
+  return sanitizeAlicizationProviderFacingText(
+    normalizeWorkingMemoryText(raw, maxChars),
+    maxChars,
+    replacement,
+  )
+}
 
 function stableQueueId(input: {
   sessionId: string
@@ -68,15 +84,23 @@ function collectContaminationFlags(input: {
     flags.push('failure-turn')
   if (input.sourceTurnIds.some(turnId => input.excludedTurnIds.has(turnId)))
     flags.push('excluded-turn')
-  if (fixedFallbackTemplatePattern.test(candidateText(input.candidate)))
+  if (
+    fixedFallbackTemplatePattern.test(candidateText(input.candidate))
+    || containsAlicizationFixedTemplateResidue(candidateText(input.candidate))
+  ) {
     flags.push('fixed-fallback-template')
+  }
   return uniqueWorkingMemoryTexts(flags, 6, 80)
 }
 
 function evidenceForCandidate(snapshot: WorkingMemorySnapshot, sourceTurnIds: string[]) {
   const byTurnId = new Map(snapshot.recentRawTurns.map(turn => [turn.turnId, turn.text]))
   return uniqueWorkingMemoryTexts(
-    sourceTurnIds.map(turnId => byTurnId.get(turnId) ?? ''),
+    sourceTurnIds.map(turnId => sanitizeQueueText(
+      byTurnId.get(turnId) ?? '',
+      260,
+      fixedTemplateEvidenceReplacement,
+    )),
     6,
     260,
   )
@@ -88,8 +112,8 @@ export function buildWorkingMemoryLongTermCandidateQueue(snapshot: WorkingMemory
   const queue: WorkingMemoryLongTermQueueItem[] = []
 
   for (const candidate of snapshot.longTermCandidates) {
-    const summary = normalizeWorkingMemoryText(candidate.summary, 260)
-    const reason = normalizeWorkingMemoryText(candidate.reason, 260)
+    const summary = sanitizeQueueText(candidate.summary, 260, '')
+    const reason = sanitizeQueueText(candidate.reason, 260, '')
     const sourceTurnIds = uniqueWorkingMemoryTexts(candidate.sourceTurnIds, 12, 120)
     if (!summary || !reason || sourceTurnIds.length === 0)
       continue

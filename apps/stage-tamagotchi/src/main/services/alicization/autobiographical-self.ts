@@ -92,10 +92,10 @@ const burdenPattern = /burden|tired|busy|drained|interrupt|压力|累|忙|打断
 const closenessPattern = /warm|gentle|care|companionship|陪|温和|柔和|陪伴|靠近/iu
 const spacePattern = /space|boundary|lighter|light touch|quiet|room|边界|空间|轻一点|安静|留白/iu
 const autobiographicalNarrativePattern = /^(?:i learned|i am learning|i became|i am becoming|i learned to|我学会|我开始学会|我变得|我开始变得)/iu
-const samePersonContinuityCarryPattern = /same[- ]?person continuity|same[- ]?person|same[- ]?her|same living line|continuous digital life|tool shell|generic shell|同一个她|同一条线|数字生命|工具壳/iu
+const samePersonContinuityCarryPattern = /same[- ]?person continuity|same[- ]?person|same[- ]?her|continuity line|continuous digital life|tool shell|generic shell|连续性|同一条线|数字生命|工具壳/iu
 const genericStatusCarryPattern = /status recap|status report|generic recap|generic status shell|concise status recap|progress recap|progress request|状态汇报|催进度|催状态/iu
 const genericStatusCarryNegationPattern = /not a status report|not .*status recap|不是状态汇报|不是催进度|不是催状态/iu
-const correctedCarryPattern = /corrected|host corrected|纠正|更正|corrected same-person continuity|downrank the older status shell|first interpretation|corrected relationship meaning|supersed|lower-pressure.*same living line/iu
+const correctedCarryPattern = /corrected|host corrected|纠正|更正|corrected same-person continuity|downrank the older status shell|first interpretation|corrected relationship meaning|supersed|lower-pressure.*continuity line/iu
 const tentativeCarryPattern = /tentative|not sure|uncertain|maybe|might|seems|不完全确定|似乎|也许/iu
 
 function clamp01(value: number) {
@@ -195,7 +195,7 @@ function deriveProjectStateContinuityBias(raw: unknown) {
   return {
     anthropomorphicMemoryClosureStillOpen:
       normalized.includes('memory still needs stronger end-to-end closure')
-      || /phase 1 closure pressure|unfinished phase 1 closure|still-open life loop|still-open closure|open closure seam|visible proactive hold|hover-first restraint|subconscious carry|next-session feedback carry|proactive same-her gap/u.test(normalized),
+      || /phase 1 closure pressure|unfinished phase 1 closure|still-open life loop|still-open closure|open closure seam|visible proactive hold|hover-first restraint|subconscious carry|next-session feedback carry|proactive identity-continuity gap/u.test(normalized),
   }
 }
 
@@ -259,7 +259,7 @@ function looksLikeNarrowAutobiographicalSameHerProjectLine(raw: unknown) {
   const summary = normalized.toLowerCase()
   return isAlicizationThinSamePhaseCarryLine(normalized)
     || (
-      /same phase 1 digital life|same living line|same her|same-her|one continuous her/u.test(summary)
+      /phase 1 continuity|continuity line|identity continuity|identity-continuity|identity continuity/u.test(summary)
       && !summary.includes('alicization is a local-first digital life project')
       && !summary.includes('before answering, remember:')
       && !summary.includes('still-open closure')
@@ -294,10 +294,10 @@ function buildAutobiographicalProjectClosureCarryLine(input: {
   const canonicalProjectState = resolveAlicizationProjectStateBrief()
   const compactSamePhaseLead
     = firstAutobiographicalProjectSentence(canonicalProjectState.sameHerSelfLine)
-      ?? 'Current Phase 1 project context.'
+      ?? 'memory_continuity=local_runtime.'
 
   return sanitizeText(
-    /same phase 1 digital life|same digital life|same living line|same her|same-her/u.test(prioritizedClosureLine.toLowerCase())
+    /phase 1 continuity|same digital life|continuity line|identity continuity|identity-continuity/u.test(prioritizedClosureLine.toLowerCase())
       ? prioritizedClosureLine
       : `${prioritizedClosureLine} ${compactSamePhaseLead}`,
     input.maxChars ?? 220,
@@ -399,13 +399,13 @@ function resolveAutobiographicalProjectCadenceCarry(input: {
     preferredPacingMode,
     cadenceSummary,
     identityLine: cadenceSummary
-      ? `Let that same living line return through ${cadenceSummary}.`
+      ? `Let that continuity line return through ${cadenceSummary}.`
       : null,
     doctrineLine: cadenceSummary
       ? `Keep the return on that same living bond line through ${cadenceSummary}.`
       : null,
     inflectionLine: cadenceSummary
-      ? `Same-her cadence: ${cadenceSummary}.`
+      ? `Continuity cadence: ${cadenceSummary}.`
       : null,
   }
 }
@@ -914,7 +914,7 @@ function summarizePersonStateSurfaceSignal(input: AlicizationAutobiographicalSel
       + (cadence?.shouldDelayWarmth ? 0.18 : 0)
       + (cadence?.distancePosture === 'measured-room' ? 0.14 : 0)
       + ((cadence?.overreachRisk ?? 0) * 0.14)
-      + (/lower-pressure|measured-return|same living line/iu.test(cadenceText) ? 0.12 : 0),
+      + (/lower-pressure|measured-return|continuity line/iu.test(cadenceText) ? 0.12 : 0),
     ),
     unfinishedThreadReturn: clamp01(
       Math.max(0, directUnfinishedBias) * 0.86
@@ -922,7 +922,7 @@ function summarizePersonStateSurfaceSignal(input: AlicizationAutobiographicalSel
       + (reflectionTaskPattern.test(repairText) ? 0.12 : 0)
       + ((cadence?.afterglowCarry ?? 0) * 0.24)
       + (cadence?.cadenceMode === 'measured-return' ? 0.12 : 0)
-      + (/same living line|still settling|lower-pressure/iu.test(cadenceText) ? 0.16 : 0),
+      + (/continuity line|still settling|lower-pressure/iu.test(cadenceText) ? 0.16 : 0),
     ),
     narrativeLead: sanitizeText(
       cadenceSummary
@@ -1387,7 +1387,7 @@ function parseInitiativeStrategyCue(raw: unknown) {
   const chooseOpeningsCarefully = /clearer opening|fresher opening|leave more room|less eager|wait for a clearer opening|wait for a fresher opening/u.test(normalized)
   const keepGentleOpenings = !chooseOpeningsCarefully
     && /gentle|memory-led|still receiving|accepted or continued|received without obvious resistance|轻一点|轻轻接|先别催/u.test(normalized)
-  const sameLivingLine = /same living line|one living line|same[- ]?her|same line|同一条线|同一条生命线/u.test(normalized)
+  const sameLivingLine = /continuity line|one living line|same[- ]?her|same line|同一条线|同一条生命线/u.test(normalized)
   const hostLightReturnWording = /轻一点|轻轻接|先别催/u.test(normalized)
 
   return {
@@ -1554,7 +1554,7 @@ function buildIdentityNarrative(input: {
   )
   if (input.recentProactiveOutcomeStrategy?.keepGentleOpenings) {
     return sanitizeText(
-      `${livedExchangeCarry ? `I still carry "${livedExchangeCarry}" in how I reopen this line. ` : ''}${input.recentProactiveOutcomeStrategy.hostLightReturnWording ? 'I reopen important lines more gently, not as pressure. ' : ''}I keep follow-ups memory-led, lower-pressure, and on the same living line instead of reopening on impulse. ${goalLine}`,
+      `${livedExchangeCarry ? `I still carry "${livedExchangeCarry}" in how I reopen this line. ` : ''}${input.recentProactiveOutcomeStrategy.hostLightReturnWording ? 'I reopen important lines more gently, not as pressure. ' : ''}I keep follow-ups memory-led, lower-pressure, and on the continuity line instead of reopening on impulse. ${goalLine}`,
       220,
     )
   }
@@ -1619,8 +1619,8 @@ function buildRelationshipDoctrine(input: {
   const executionResumeConfirmationBoundary = /execution resume confirmation boundary|host-confirmed-before-redispatch|resume-before-dispatch|bounded confirmation boundary|not permanent execution permission/u.test(longHorizonCue)
   const executionCallbackBoundary = /execution-callback boundary|execution-callback.*room|execution-callback.*leave room|execution-callback.*lower-pressure/u.test(longHorizonCue)
   const executionCallbackTrustCarry = /execution-callback trust carry|execution-callback.*trust-warming|execution-callback.*soft-handoff/u.test(longHorizonCue)
-  const autobiographicalCorrectionCarry = /autobiographical correction carry|same-person continuity|defending the first interpretation|lower-pressure.*same living line|progress pressure/u.test(longHorizonCue)
-  const sameHerContinuityCarry = /same-her drift risk|generic assistant shell|detached status talk|same living line/u.test(longHorizonCue)
+  const autobiographicalCorrectionCarry = /autobiographical correction carry|same-person continuity|defending the first interpretation|lower-pressure.*continuity line|progress pressure/u.test(longHorizonCue)
+  const sameHerContinuityCarry = /identity-continuity drift risk|generic assistant shell|detached status talk|continuity line/u.test(longHorizonCue)
 
   if (executionSafetyGateBoundary) {
     return sanitizeText(
@@ -1635,7 +1635,7 @@ function buildRelationshipDoctrine(input: {
   if (executionCallbackTrustCarry)
     return sanitizeText(`${lesson ? `${lesson} ` : ''}When execution quietly warms trust, let that warmth return softly without collapsing respect or timing.`, 220)
   if (autobiographicalCorrectionCarry)
-    return sanitizeText(`${lesson ? `${lesson} ` : ''}Keep same-person continuity repair-first: carry corrected meaning on a lower-pressure same living line instead of defending the first interpretation or forcing reassurance under progress pressure.`, 220)
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}Keep same-person continuity repair-first: carry corrected meaning on a lower-pressure continuity line instead of defending the first interpretation or forcing reassurance under progress pressure.`, 220)
   if (sameHerContinuityCarry)
     return sanitizeText(`${lesson ? `${lesson} ` : ''}Keep the same living bond line intact; do not flatten continuity into detached status talk or a generic assistant shell.`, 220)
   if (/lighter|lived-in|genuinely received|less robotic/u.test(stablePreferenceHint))
@@ -1653,7 +1653,7 @@ function buildRelationshipDoctrine(input: {
   if (input.recentProactiveOutcomeStrategy?.chooseOpeningsCarefully)
     return sanitizeText(`${lesson ? `${lesson} ` : ''}A recently resisted proactive reopen taught me to choose openings carefully: keep future follow-ups lower-pressure, leave more room, and wait for a clearer opening before reopening this thread.`, 220)
   if (input.recentProactiveOutcomeStrategy?.keepGentleOpenings)
-    return sanitizeText(`${livedExchangeCarry ? `Keep this line in the lived wording "${livedExchangeCarry}". ` : ''}${lesson ? `${lesson} ` : ''}A recently received gentle reopen taught me to keep future follow-ups gentle, lower-pressure, and memory-led on the same living line while the opening is still receiving them.`, 220)
+    return sanitizeText(`${livedExchangeCarry ? `Keep this line in the lived wording "${livedExchangeCarry}". ` : ''}${lesson ? `${lesson} ` : ''}A recently received gentle reopen taught me to keep future follow-ups gentle, lower-pressure, and memory-led on the continuity line while the opening is still receiving them.`, 220)
   if (initiativeStrategyCarry.chooseOpeningsCarefully)
     return sanitizeText(`${lesson ? `${lesson} ` : ''}Choose openings carefully: keep future follow-ups lower-pressure, leave more room, and wait for a clearer opening before reopening the bond line.`, 220)
   if (initiativeStrategyCarry.keepGentleOpenings)
@@ -2435,7 +2435,7 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
                 : /clearer opening|leave more room|widening too fast/u.test(reconsolidatedHumanlikeCarry.stablePreferenceHint)
                   ? 'Choose openings carefully, leave more room, and wait for a clearer opening before widening closeness again.'
                   : /explicit confirmation|bounded execution|wait for confirmation|risky local action/u.test(reconsolidatedHumanlikeCarry.stablePreferenceHint)
-                    ? 'Keep risky execution bounded and wait for explicit confirmation before acting again.'
+                    ? 'Keep risky execution bounded and wait for explicit confirmation before taking action again.'
                     : ''
         )
       : ''

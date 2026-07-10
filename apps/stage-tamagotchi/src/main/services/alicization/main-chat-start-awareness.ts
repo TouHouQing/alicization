@@ -1,6 +1,9 @@
 import type { AlicizationChatStartPayload } from '../../../shared/eventa'
 
-import { describeAlicizationEmbodimentClosureHeadline } from '@proj-alicization/stage-shared'
+import {
+  describeAlicizationEmbodimentClosureHeadline,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
 
 import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import {
@@ -33,7 +36,26 @@ function sanitizeStartAwarenessText(raw: unknown, maxChars = 220) {
   if (!normalized || START_AWARENESS_PLACEHOLDER_VALUES.has(normalized.toLowerCase()))
     return ''
 
-  return upgradeLegacySameLifeSeamText(normalized).slice(0, maxChars)
+  const providerSafe = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
+  if (!providerSafe)
+    return ''
+
+  const upgraded = upgradeLegacySameLifeSeamText(providerSafe)
+  return normalizeStartAwarenessTemplateShells(
+    migrateLegacyStartAwarenessTemplate(upgraded) || upgraded,
+  ).slice(0, maxChars)
+}
+
+function normalizeStartAwarenessTemplateShells(text: string) {
+  return text
+    .replace(
+      /\bAlicization is (?:a |still the same )?local-first digital life project(?: building one continuous "her"(?: on the host computer rather than a better chat wrapper)?)?\.?/giu,
+      'local_desktop_life_loop',
+    )
+    .replace(
+      /\bPhase 1:\s*Local Digital Life(?:\. The primary proving ground is apps\/stage-tamagotchi\.)?/giu,
+      'local_desktop_life_loop',
+    )
 }
 
 function upgradeLegacySameLifeSeamText(text: string) {
@@ -53,6 +75,58 @@ function upgradeLegacySameLifeSeamText(text: string) {
     .replace(/(?<!情绪、)记忆、主动性、具身/g, '情绪、记忆、主动性、具身')
     .replace(/(?<![Ee]motion,\s)Memory, initiative, and embodiment/g, 'Emotion, memory, initiative, and embodiment')
     .replace(/(?<![Ee]motion,\s)memory, initiative, and embodiment/g, 'emotion, memory, initiative, and embodiment')
+}
+
+function containsLegacyStartAwarenessTemplate(text: string) {
+  return /^Before (?:answering|speaking),\s*(?:remember|keep|stay on)\b/iu.test(text)
+    || /\bWhat has already landed is\b/iu.test(text)
+    || /\bThe still-open closure is\b/iu.test(text)
+    || /\bThis reply should keep moving toward\b/iu.test(text)
+    || /\bSame Phase 1 digital life\b/iu.test(text)
+    || /\bRight now (?:I am|her|this one living her)\b/iu.test(text)
+    || /\bsame digital life\s*\|\s*keep the closure seam explicit\b/iu.test(text)
+}
+
+function readLegacyStartAwarenessSentenceAfterMarker(text: string, marker: RegExp) {
+  const match = marker.exec(text)
+  if (!match?.index && match?.index !== 0)
+    return ''
+
+  return text
+    .slice(match.index + match[0].length)
+    .split(/(?<=[.!?。！？])\s+/u)[0]
+    ?.trim()
+    ?? ''
+}
+
+function migrateLegacyStartAwarenessTemplate(text: string) {
+  if (!containsLegacyStartAwarenessTemplate(text))
+    return ''
+
+  const embodimentHeadline = describeAlicizationEmbodimentClosureHeadline({
+    authoritySummary: text,
+  })
+  if (embodimentHeadline && !containsLegacyStartAwarenessTemplate(embodimentHeadline))
+    return embodimentHeadline
+
+  const projectStateBrief = resolveAlicizationProjectStateBrief()
+  return buildAlicizationProjectPreDialogueAwarenessLine({
+    identity: projectStateBrief.identity,
+    currentPhase: projectStateBrief.currentPhase,
+    latestLandedProgress:
+      readLegacyStartAwarenessSentenceAfterMarker(text, /\b(?:What has already landed is|Landed:|Latest landed progress:)\s*/iu)
+      || projectStateBrief.continuityProgressSummary
+      || projectStateBrief.latestProgress
+      || null,
+    primaryOpenLoop:
+      readLegacyStartAwarenessSentenceAfterMarker(text, /\b(?:The still-open closure is|Still-open closure gap:|Open:)\s*/iu)
+      || projectStateBrief.openLoops[0]
+      || null,
+    nextClosureTarget:
+      readLegacyStartAwarenessSentenceAfterMarker(text, /\b(?:This reply should keep moving toward|The next closure target is|Next closure target:)\s*/iu)
+      || projectStateBrief.nextClosureTarget,
+    sameHerSelfLine: projectStateBrief.sameHerSelfLine,
+  }) ?? ''
 }
 
 function sanitizeStructuredProjectStateField(raw: unknown, maxChars = 320) {
@@ -174,21 +248,21 @@ function looksLikeEmbodimentNarrowingHeadline(line: string | null) {
   if (!line)
     return false
 
-  return /face and motion|face, motion|lipsync|voice|body line|living her|具身|面部|动作|唇同步|声音/u.test(line)
+  return /continuity=embodiment|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|face and motion|face, motion|lipsync|voice|body line|living her|具身|面部|动作|唇同步|声音/u.test(line)
 }
 
 function looksLikeStrongEmbodimentClosureHeadline(line: string | null) {
   if (!line)
     return false
 
-  return /living audio thread is still intact|holding together mainly through body and voice|being carried mainly through body and voice|resident body line is still keeping this one living her coherent|holding together mainly through body, lipsync, and voice|being carried mainly through body, lipsync, and voice|holding together mainly through motion and voice|being carried mainly through motion and voice|holding together mainly through face and voice|being carried mainly through face and voice|holding together through face, lipsync, and voice together|holding together through motion, lipsync, and voice together|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent/u.test(line)
+  return /continuity=embodiment|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|living audio thread is still intact|holding together mainly through body and voice|being carried mainly through body and voice|resident body line is still keeping this one living her coherent|holding together mainly through body, lipsync, and voice|being carried mainly through body, lipsync, and voice|holding together mainly through motion and voice|being carried mainly through motion and voice|holding together mainly through face and voice|being carried mainly through face and voice|holding together through face, lipsync, and voice together|holding together through motion, lipsync, and voice together|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent/u.test(line)
 }
 
 function looksLikeStrongSameHerEmbodimentClosureHeadline(line: string | null) {
   if (!line)
     return false
 
-  return /holding together mainly through|holding together through|being carried mainly through|being carried through|full cross-modal same-her line is not closed yet|next reply has to keep proving this is still one living her|this one living her still needs|lipsync and voice to rejoin|without splitting her continuity/u.test(line)
+  return /continuity=embodiment|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|holding together mainly through|holding together through|being carried mainly through|being carried through|full cross-modal same-her line is not closed yet|next reply has to keep proving this is still one living her|this one living her still needs|lipsync and voice to rejoin|without splitting her continuity/u.test(line)
     && /same-her|same her|same living line|one living her|lipsync|voice|face|motion|body/u.test(line.toLowerCase())
 }
 
@@ -358,8 +432,6 @@ function prefersExplicitProjectAwarenessLine(primary: string | null, fallback: s
   if (looksLikeThinProjectAwarenessShell(primary) && !looksLikeThinProjectAwarenessShell(fallback))
     return fallback
   if (looksLikeThinSamePhaseProjectCarry(primary) && looksLikeProjectAwareBriefingReminder(fallback))
-    return fallback
-  if (/before answering, remember/iu.test(fallback) && !/before answering, remember/iu.test(primary))
     return fallback
   return primary
 }
@@ -638,10 +710,10 @@ function buildCanonicalPreDialogueSendIdentity(): NonNullable<AlicizationChatSta
   const canonicalSameHerSelfLine = sanitizeStartAwarenessText(projectStatusBrief.sameHerSelfLine || projectStateBrief.sameHerSelfLine, 220) || null
   const canonicalSameHerDriftRisk = sanitizeStartAwarenessText(projectStatusBrief.sameHerDriftRisk || projectStateBrief.sameHerDriftRisk, 220) || null
   const canonicalSameHerReason = canonicalSameHerSelfLine
-    ? `Same-her self anchor: ${canonicalSameHerSelfLine}`
+    ? `continuity_anchor=${canonicalSameHerSelfLine}`
     : null
   const canonicalSameHerDriftReason = canonicalSameHerDriftRisk
-    ? `Do not let this opening drift into ${canonicalSameHerDriftRisk}`
+    ? `drift_risk=${canonicalSameHerDriftRisk}`
     : null
 
   const canonicalProjectState = {
@@ -699,7 +771,7 @@ function buildCanonicalPreDialogueSendIdentity(): NonNullable<AlicizationChatSta
       ...(awareness?.reasonPreview ?? []),
       canonicalSameHerDriftReason,
     ]
-      .map(reason => sanitizeStartAwarenessText(reason, 220))
+      .map(reason => normalizePreDialogueReasonPreviewLine(reason))
       .filter(Boolean),
   }
 }
@@ -710,6 +782,7 @@ function isSameHerAnchorPreDialogueReasonPreviewLine(line: string) {
     return false
 
   return normalized.startsWith('same-her self anchor:')
+    || normalized.startsWith('continuity_anchor=')
 }
 
 function readSameHerAnchorPreDialogueReasonPreviewPayload(line: string | null | undefined) {
@@ -720,7 +793,9 @@ function readSameHerAnchorPreDialogueReasonPreviewPayload(line: string | null | 
     return null
 
   return sanitizeStartAwarenessText(
-    normalized.replace(/^same-her self anchor:\s*/iu, ''),
+    normalized
+      .replace(/^same-her self anchor:\s*/iu, '')
+      .replace(/^continuity_anchor=/iu, ''),
     220,
   ) || null
 }
@@ -730,7 +805,8 @@ function isNextClosurePreDialogueReasonPreviewLine(line: string) {
   if (!normalized)
     return false
 
-  return normalized.startsWith('next closure target is still ')
+  return normalized.startsWith('next=')
+    || normalized.startsWith('next closure target is still ')
 }
 
 function isOpenLoopPreDialogueReasonPreviewLine(line: string) {
@@ -738,8 +814,13 @@ function isOpenLoopPreDialogueReasonPreviewLine(line: string) {
   if (!normalized)
     return false
 
+  if (normalized.startsWith('open='))
+    return true
+
   return !isSameHerAnchorPreDialogueReasonPreviewLine(normalized)
     && !isNextClosurePreDialogueReasonPreviewLine(normalized)
+    && !normalized.startsWith('landed=')
+    && !normalized.startsWith('drift_risk=')
     && !normalized.startsWith('do not let this opening drift into')
     && /still needs stronger|still need one stronger|still needs .* closure|still need .* closure|still-open closure|same-life closure line|same life closure line|life loop|还没完全收住|还没有真正收稳/u.test(normalized)
 }
@@ -758,7 +839,8 @@ function isDriftGuardPreDialogueReasonPreviewLine(line: string) {
   if (!normalized)
     return false
 
-  return normalized.startsWith('do not let this opening drift into')
+  return normalized.startsWith('drift_risk=')
+    || normalized.startsWith('do not let this opening drift into')
 }
 
 function isEmbodimentEvidencePreDialogueReasonPreviewLine(line: string) {
@@ -784,7 +866,8 @@ function isLatestProgressPreDialogueReasonPreviewLine(line: string) {
   if (!normalized)
     return false
 
-  return normalized.startsWith('latest landed progress:')
+  return normalized.startsWith('landed=')
+    || normalized.startsWith('latest landed progress:')
 }
 
 function scoreSupplementalPreDialogueReasonPreviewLine(line: string) {
@@ -870,7 +953,7 @@ function preferSameHerAnchorPreDialogueReasonPreviewLine(
 
 function synthesizeReasonPreviewEmbodimentClosureHeadline(reasonPreview: Array<string | null | undefined>) {
   const closureEvidence = reasonPreview
-    .map(reason => sanitizeStartAwarenessText(reason, 220))
+    .map(reason => normalizePreDialogueReasonPreviewLine(reason))
     .filter(Boolean)
     .join(' | ')
 
@@ -895,6 +978,33 @@ function trimReasonPreviewSentenceEnding(line: string | null) {
   return sanitizeStartAwarenessText(line, 220).replace(/[.。!！?？;；:：]+$/u, '').trim()
 }
 
+function normalizePreDialogueReasonPreviewLine(raw: unknown) {
+  const normalized = sanitizeStartAwarenessText(raw, 220)
+  if (!normalized)
+    return ''
+
+  const sentence = normalized.replace(/[.。!！?？;；:：]+$/u, '').trim()
+  const lowerCased = sentence.toLowerCase()
+  if (/^(?:continuity_anchor|open|landed|next|drift_risk)=/iu.test(sentence))
+    return sentence
+  if (lowerCased.startsWith('latest landed progress:')) {
+    return `landed=${sentence.replace(/^latest landed progress:\s*/iu, '').trim()}`
+  }
+  if (lowerCased.startsWith('next closure target is still ')) {
+    return `next=${sentence.replace(/^next closure target is still\s*/iu, '').trim()}`
+  }
+  if (lowerCased.startsWith('do not let this opening drift into ')) {
+    return `drift_risk=${sentence.replace(/^do not let this opening drift into\s*/iu, '').trim()}`
+  }
+  if (
+    !isSameHerAnchorPreDialogueReasonPreviewLine(sentence)
+    && /still needs stronger|still need one stronger|still needs .* closure|still need .* closure|still-open closure|same-life closure line|same life closure line|life loop|还没完全收住|还没有真正收稳/iu.test(sentence)
+  ) {
+    return `open=${sentence}`
+  }
+  return sentence
+}
+
 function buildProjectStateReasonPreviewLines(projectState: Record<string, unknown> | null | undefined) {
   if (!projectState)
     return []
@@ -916,13 +1026,13 @@ function buildProjectStateReasonPreviewLines(projectState: Record<string, unknow
   const sameHerDriftRisk = sanitizeStructuredProjectStateField(projectState.sameHerDriftRisk, 220)
 
   return [
-    sameHerSelfLine ? `Same-her self anchor: ${sameHerSelfLine}` : '',
-    primaryOpenLoop ?? '',
-    latestLandedProgress ? `Latest landed progress: ${latestLandedProgress}` : '',
-    nextClosureTarget ? `Next closure target is still ${nextClosureTarget}.` : '',
-    sameHerDriftRisk ? `Do not let this opening drift into ${sameHerDriftRisk}` : '',
+    sameHerSelfLine ? `continuity_anchor=${sameHerSelfLine}` : '',
+    primaryOpenLoop ? `open=${primaryOpenLoop}` : '',
+    latestLandedProgress ? `landed=${latestLandedProgress}` : '',
+    nextClosureTarget ? `next=${nextClosureTarget}` : '',
+    sameHerDriftRisk ? `drift_risk=${sameHerDriftRisk}` : '',
   ]
-    .map(reason => sanitizeStartAwarenessText(reason, 220))
+    .map(reason => normalizePreDialogueReasonPreviewLine(reason))
     .filter(Boolean)
 }
 
@@ -932,17 +1042,17 @@ function mergePreDialogueReasonPreview(
   projectStateReasonPreview: Array<string | null | undefined> = [],
 ) {
   const existingReasonPreviewReasons = (Array.isArray(existing?.reasonPreview) ? existing.reasonPreview : [])
-    .map(reason => sanitizeStartAwarenessText(reason, 220))
+    .map(reason => normalizePreDialogueReasonPreviewLine(reason))
     .filter(Boolean)
   const existingProjectStateReasons = projectStateReasonPreview
-    .map(reason => sanitizeStartAwarenessText(reason, 220))
+    .map(reason => normalizePreDialogueReasonPreviewLine(reason))
     .filter(Boolean)
   const existingReasons = [
     ...existingProjectStateReasons,
     ...existingReasonPreviewReasons,
   ]
   const canonicalReasons = (Array.isArray(canonical.reasonPreview) ? canonical.reasonPreview : [])
-    .map(reason => sanitizeStartAwarenessText(reason, 220))
+    .map(reason => normalizePreDialogueReasonPreviewLine(reason))
     .filter(Boolean)
   const projectStateSameHerAnchorReason
     = existingProjectStateReasons.find(isSameHerAnchorPreDialogueReasonPreviewLine) ?? null
@@ -1458,7 +1568,7 @@ export function summarizeAlicizationPreDialogueSendIdentityForDebug(
 
   const reasonPreview = Array.isArray(identity.reasonPreview)
     ? identity.reasonPreview
-        .map(reason => sanitizeStartAwarenessText(reason, 220))
+        .map(reason => normalizePreDialogueReasonPreviewLine(reason))
         .filter(Boolean)
         .slice(0, PRE_DIALOGUE_REASON_PREVIEW_LIMIT)
     : []

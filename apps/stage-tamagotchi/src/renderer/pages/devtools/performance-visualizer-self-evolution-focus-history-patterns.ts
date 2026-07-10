@@ -115,14 +115,14 @@ function inferSurvivingVisibleLaneFromText(
 
   if (
     value.includes('lane=face+lipsync-only')
-    || value.includes('当前只有 face 和 lipsync 这条 same-her 生命线')
+    || value.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
   ) {
     return 'face+lipsync-only'
   }
 
   if (
     value.includes('lane=motion+lipsync-only')
-    || value.includes('当前只有 motion 和 lipsync 这条 same-her 生命线')
+    || value.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
   ) {
     return 'motion+lipsync-only'
   }

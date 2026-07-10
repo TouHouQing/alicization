@@ -19,7 +19,11 @@ import { randomUUID } from 'node:crypto'
 import { env, platform } from 'node:process'
 
 import { errorMessageFrom } from '@moeru/std'
-import { analyzeAlicizationExecutionSemanticSignals } from '@proj-alicization/stage-shared'
+import {
+  alicizationFixedTemplateReplacement,
+  analyzeAlicizationExecutionSemanticSignals,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
 
 import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import { locateAlicizationExecutionBinary } from './execution-command-env'
@@ -37,6 +41,11 @@ import {
 import { createTaskExecutionGovernor } from './task-execution-governor'
 
 type CapabilityManifestSnapshotSource = 'runtime-default-probe' | 'runtime-plan-payload'
+
+function sanitizeExecutorProviderContextText(raw: unknown, maxChars = 320) {
+  const normalized = sanitizeAlicizationProviderFacingText(raw, maxChars)
+  return normalized && normalized !== alicizationFixedTemplateReplacement ? normalized : ''
+}
 
 type AlicizationExecutorRuntimeDbPort = Pick<AlicizationDbService, 'appendExecutionEvents'
   | 'getTaskThread'
@@ -1163,33 +1172,34 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     const projectCompanionBriefing = options.sanitizeText(normalizedProjectBriefing.companionBriefingLine)
       || options.sanitizeText((storedProjectBriefing as { companionBriefingLine?: unknown } | null)?.companionBriefingLine)
       || ''
+    const providerLatestLandedProgress = sanitizeExecutorProviderContextText(latestLandedProgress)
+    const providerPrimaryOpenLoop = sanitizeExecutorProviderContextText(primaryOpenLoop)
+    const providerNextClosureTarget = sanitizeExecutorProviderContextText(nextClosureTarget)
+    const providerProactiveContinuityGap = sanitizeExecutorProviderContextText(proactiveSameHerGap)
+    const providerExecutionContinuity = sanitizeExecutorProviderContextText(projectContinuity)
+    const providerExecutionEmotionalContext = sanitizeExecutorProviderContextText(emotionalClosureSummary)
     const projectBriefingLines = [
-      'Keep this execution inside Alicization\'s current project identity and still-open Phase 1 closure work.',
-      projectIdentity ? `project_identity=${projectIdentity}` : '',
-      projectPhase ? `project_phase=${projectPhase}` : '',
-      latestLandedProgress ? `latest_landed_progress=${latestLandedProgress}` : '',
-      primaryOpenLoop ? `primary_open_loop=${primaryOpenLoop}` : '',
-      nextClosureTarget ? `next_closure_target=${nextClosureTarget}` : '',
-      sameHerSelfLine ? `same_her_line=${sameHerSelfLine}` : '',
-      sameHerHoldDetail ? `same_her_hold=${sameHerHoldDetail}` : '',
-      sameHerDriftRisk ? `same_her_drift_risk=${sameHerDriftRisk}` : '',
-      continuityArcStage ? `project_continuity_arc_stage=${continuityArcStage}` : '',
-      proactiveSameHerGap ? `proactive_same_her_gap=${proactiveSameHerGap}` : '',
-      continuityRestraint ? `project_continuity_restraint=${continuityRestraint}` : '',
-      projectContinuity ? `project_continuity=${projectContinuity}` : '',
-      emotionalClosureSummary ? `project_emotional_closure=${emotionalClosureSummary}` : '',
-      continuityPreferredTiming ? `project_continuity_preferred_timing=${continuityPreferredTiming}` : '',
-      continuityCadence ? `project_continuity_cadence=${continuityCadence}` : '',
-      preferredBlinkCadence ? `project_preferred_blink_cadence=${preferredBlinkCadence}` : '',
-      preferredGazeMode ? `project_preferred_gaze_mode=${preferredGazeMode}` : '',
-      preferredPauseMode ? `project_pause_mode=${preferredPauseMode}` : '',
-      preferredLipsyncMode ? `project_lipsync_mode=${preferredLipsyncMode}` : '',
-      preferredVoiceMode ? `project_voice_mode=${preferredVoiceMode}` : '',
-      preferredPacingMode ? `project_pacing_mode=${preferredPacingMode}` : '',
-      projectPreflight ? `project_preflight=${projectPreflight}` : '',
-      projectAwareness ? `project_awareness=${projectAwareness}` : '',
-      projectCompanionBriefing ? `project_companion_briefing=${projectCompanionBriefing}` : '',
-      'Execution guidance must stay inside the same digital life project, the same Phase 1 proving ground, and the same still-open closure work.',
+      'runtime_context=alicization_phase1',
+      providerLatestLandedProgress ? `latest_landed_progress=${providerLatestLandedProgress}` : '',
+      providerPrimaryOpenLoop ? `primary_open_loop=${providerPrimaryOpenLoop}` : '',
+      providerNextClosureTarget ? `next_closure_target=${providerNextClosureTarget}` : '',
+      continuityArcStage ? `execution_continuity_arc_stage=${continuityArcStage}` : '',
+      providerProactiveContinuityGap ? `proactive_continuity_gap=${providerProactiveContinuityGap}` : '',
+      continuityRestraint ? `execution_continuity_restraint=${continuityRestraint}` : '',
+      providerExecutionContinuity ? `execution_continuity=${providerExecutionContinuity}` : '',
+      providerExecutionEmotionalContext ? `execution_emotional_context=${providerExecutionEmotionalContext}` : '',
+      continuityPreferredTiming ? `execution_continuity_preferred_timing=${continuityPreferredTiming}` : '',
+      continuityCadence ? `execution_continuity_cadence=${continuityCadence}` : '',
+      preferredBlinkCadence ? `execution_preferred_blink_cadence=${preferredBlinkCadence}` : '',
+      preferredGazeMode ? `execution_preferred_gaze_mode=${preferredGazeMode}` : '',
+      preferredPauseMode ? `execution_pause_mode=${preferredPauseMode}` : '',
+      preferredLipsyncMode ? `execution_lipsync_mode=${preferredLipsyncMode}` : '',
+      preferredVoiceMode ? `execution_voice_mode=${preferredVoiceMode}` : '',
+      preferredPacingMode ? `execution_pacing_mode=${preferredPacingMode}` : '',
+      projectPreflight || projectAwareness || projectCompanionBriefing
+        ? 'template_awareness=withheld_from_executor_prompt'
+        : '',
+      'Report execution blockers, tool failures, and uncertainty directly; do not cover them with persona continuity language.',
     ].filter(Boolean).join('\n')
     if (resumeChannel === 'codex') {
       return {

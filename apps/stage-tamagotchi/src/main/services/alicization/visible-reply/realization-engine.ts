@@ -6,12 +6,17 @@ import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-se
 import type { AlicizationVisibleReplyCriticArtifact } from './critic'
 
 import {
+  alicizationFixedTemplateReplacement,
   buildAlicizationEmbodimentLoopSummary,
+  containsAlicizationFixedTemplateResidue,
   describeAlicizationEmbodimentClosureHeadline,
   describeAlicizationEmbodimentClosureReminder,
+  formatAlicizationProjectStateAwarenessFields,
   isAlicizationNormalVisibleReplyAuthority,
   looksLikeAlicizationStructuredPayloadText,
   normalizeAlicizationNormalVisibleReplyAuthority,
+  sanitizeAlicizationProviderFacingText,
+  sanitizeAlicizationStructuredInternalText,
 } from '@proj-alicization/stage-shared'
 
 import { preferStrongerContinuityClosureAuthority } from '../continuity-closure-authority'
@@ -38,7 +43,237 @@ import { buildPrioritizedProjectStateRewritePreserveLines } from '../runtime-gov
 import { parseJsonObjectFromText } from '../runtime-transport-content'
 
 const sameHerProjectFollowThroughPreserveLine
-  = 'Keep this project follow-through in the current reply context: continue the landed progress and still-open closure instead of restarting as a fresh project report or generic companionship shell.'
+  = 'project_follow_through=preserve; landed_progress=continue; open_closure=continue; fresh_project_report=blocked; generic_companionship_shell=blocked'
+
+function containsVisibleReplyStructuredTemplateResidue(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  return Boolean(normalized)
+    && /\blocal_desktop_life_loop\b|phase1_local_digital_life|project_phase=life_core|continuity_identity|continuity_line|content=excluded|visibility=internal[-_]structured/u.test(normalized)
+}
+
+function canUseVisibleReplyDecisionText(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim() : ''
+  return Boolean(normalized)
+    && !containsAlicizationFixedTemplateResidue(normalized)
+    && !containsVisibleReplyStructuredTemplateResidue(normalized)
+}
+
+function providerSafeOrStructuredProjectAwareness(raw: unknown, maxChars = 1600) {
+  const rawText = typeof raw === 'string'
+    ? raw.trim().replace(/\s+/g, ' ')
+    : ''
+  if (!rawText)
+    return ''
+  if (containsVisibleReplyStructuredTemplateResidue(rawText))
+    return ''
+
+  const sanitized = sanitizeAlicizationProviderFacingText(rawText, maxChars, '')
+  if (sanitized)
+    return sanitized
+
+  const structured = formatAlicizationProjectStateAwarenessFields({
+    summary: rawText,
+    continuityAnchor: rawText,
+    sameHerHoldDetail: rawText,
+    emotionalClosureCue: rawText,
+    maxChars,
+  })
+
+  return structured
+    && structured !== alicizationFixedTemplateReplacement
+    && !containsVisibleReplyStructuredTemplateResidue(structured)
+    && !containsAlicizationFixedTemplateResidue(structured)
+    ? structured
+    : ''
+}
+
+function visibleReplyProjectAwarenessOutput(raw: unknown) {
+  const safe = providerSafeOrStructuredProjectAwareness(raw, 1600)
+  return safe || null
+}
+
+function looksLikeStructuredProjectAwareness(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+  if (containsVisibleReplyStructuredTemplateResidue(normalized))
+    return false
+
+  return /(?:^|\s\|\s)(?:identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|proactive_gap|emotional_closure|status|summary)=/iu.test(normalized)
+    || /open_loop=|project_state_continuity=|life_loop_continuity=|cross_modal_continuity_proof=|embedding_recall_reindex|memory_dialogue_embodiment_closure/iu.test(normalized)
+}
+
+function scoreStructuredProjectAwareness(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return 0
+
+  if (containsAlicizationFixedTemplateResidue(normalized) || containsVisibleReplyStructuredTemplateResidue(normalized))
+    return 0
+
+  let score = 0
+  if (looksLikeStructuredProjectAwareness(normalized))
+    score += 6
+  for (const key of ['identity=', 'phase=', 'landed=', 'open=', 'next=', 'continuity_anchor=', 'continuity_hold=', 'continuity_drift_risk=', 'proactive_gap=', 'emotional_closure=', 'status=', 'summary=']) {
+    if (normalized.includes(key))
+      score += 1
+  }
+  return score
+}
+
+function preferStructuredProjectAwareness(...values: Array<string | null | undefined>) {
+  let best: string | null = null
+  let bestScore = 0
+
+  for (const value of values) {
+    const normalized = typeof value === 'string' ? value.trim() || null : null
+    if (!normalized)
+      continue
+    const score = scoreStructuredProjectAwareness(normalized)
+    if (score <= 0)
+      continue
+    if (!best || score > bestScore || (score === bestScore && normalized.length > best.length)) {
+      best = normalized
+      bestScore = score
+    }
+  }
+
+  return best
+}
+
+function providerSafeOrStructuredProjectAuditField(
+  key: keyof Parameters<typeof formatAlicizationProjectStateAwarenessFields>[0],
+  raw: unknown,
+  maxChars = 1600,
+) {
+  if (typeof raw !== 'string')
+    return null
+  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, Math.max(0, maxChars)).trim()
+  if (!normalized)
+    return null
+  if (containsVisibleReplyStructuredTemplateResidue(normalized))
+    return null
+
+  const safe = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
+  if (safe)
+    return safe
+
+  const structured = formatAlicizationProjectStateAwarenessFields({
+    [key]: normalized,
+    maxChars,
+  })
+  return structured
+    && structured !== alicizationFixedTemplateReplacement
+    && !containsVisibleReplyStructuredTemplateResidue(structured)
+    && !containsAlicizationFixedTemplateResidue(structured)
+    ? structured
+    : null
+}
+
+function projectAuditField(raw: unknown, key: keyof Parameters<typeof formatAlicizationProjectStateAwarenessFields>[0]) {
+  return providerSafeOrStructuredProjectAuditField(key, raw, 1600)
+}
+
+function sanitizeVisibleReplyMetadataText(raw: string | null | undefined, maxChars = 1600) {
+  if (typeof raw !== 'string')
+    return null
+  const sanitized = sanitizeAlicizationStructuredInternalText(raw, maxChars, '')
+  if (!sanitized || sanitized === alicizationFixedTemplateReplacement)
+    return null
+  return containsAlicizationFixedTemplateResidue(sanitized) || containsVisibleReplyStructuredTemplateResidue(sanitized)
+    ? null
+    : sanitized
+}
+
+function sanitizeVisibleReplyReasonCode(raw: unknown) {
+  if (typeof raw !== 'string')
+    return null
+  const sanitized = sanitizeAlicizationStructuredInternalText(raw, 240, '')
+  return sanitized || 'reason-code-withheld'
+}
+
+function sanitizeVisibleReplyReasonCodes(raw: unknown) {
+  if (!Array.isArray(raw))
+    return []
+  return raw
+    .map(sanitizeVisibleReplyReasonCode)
+    .filter((value): value is string => Boolean(value))
+}
+
+function countPublicArrayItems(raw: unknown) {
+  return Array.isArray(raw) ? raw.length : 0
+}
+
+function buildPublicVisibleReplyCriticSummary(
+  critic: AlicizationVisibleReplyCriticArtifact | null | undefined,
+): AlicizationVisibleReplyPublicCriticSummary | null {
+  if (!critic)
+    return null
+
+  return {
+    version: 'visible-reply-critic-public-summary-v1',
+    status: critic.status,
+    providerMindRequired: Boolean(critic.providerMindRequired),
+    semanticLoopClosed: Boolean(critic.semanticLoopClosed),
+    reasonCodes: sanitizeVisibleReplyReasonCodes(critic.reasonCodes),
+    repairReasonCodes: sanitizeVisibleReplyReasonCodes(critic.repairReasonCodes),
+    mustDropCount: countPublicArrayItems(critic.mustDrop),
+    mustPreserveCount: countPublicArrayItems(critic.mustPreserve),
+  }
+}
+
+function buildPublicVisibleReplyClosureSummary(
+  closure: AlicizationVisibleReplyClosureArtifact | null | undefined,
+): AlicizationVisibleReplyPublicClosureSummary | null {
+  if (!closure)
+    return null
+
+  return {
+    version: 'visible-reply-closure-public-summary-v1',
+    status: closure.status,
+    rewriteAttempted: Boolean(closure.rewriteAttempted),
+    rewriteSucceeded: Boolean(closure.rewriteSucceeded),
+    reasonCodes: sanitizeVisibleReplyReasonCodes(closure.reasonCodes),
+    initialCriticStatus: closure.initialCritic?.status ?? null,
+    finalCriticStatus: closure.finalCritic?.status ?? null,
+  }
+}
+
+function projectAuditSegmentValue(raw: string | null | undefined, preferredKeys: string[]) {
+  const normalized = typeof raw === 'string'
+    ? raw.trim()
+    : ''
+  if (!normalized)
+    return ''
+
+  const segments = normalized
+    .split(/\s+\|\s+/u)
+    .map(segment => segment.trim())
+    .filter(Boolean)
+  for (const key of preferredKeys) {
+    const prefix = `${key}=`
+    const matched = segments.find(segment => segment.toLowerCase().startsWith(prefix.toLowerCase()))
+    if (matched)
+      return matched.slice(prefix.length).trim()
+  }
+
+  const firstContentSegment = segments.find(segment => !/^visibility=/iu.test(segment))
+  return firstContentSegment ?? normalized
+}
+
+function projectContinuityAnchorLine(raw: string | null | undefined) {
+  const value = projectAuditSegmentValue(raw, ['continuity_anchor', 'sameHerSelfLine'])
+  return value ? `continuity_anchor=${value}` : ''
+}
+
+function projectContinuityCarryLine(
+  label: string,
+  raw: string | null | undefined,
+  preferredKeys: string[] = [label],
+) {
+  const value = projectAuditSegmentValue(raw, preferredKeys)
+  return value ? `${label}=${value}` : ''
+}
 
 function looksLikeRicherProjectClosureCarry(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
@@ -89,6 +324,27 @@ export interface AlicizationVisibleReplyClosureArtifact {
   rewriteAttempted: boolean
   rewriteSucceeded: boolean
   reasonCodes: string[]
+}
+
+export interface AlicizationVisibleReplyPublicCriticSummary {
+  version: 'visible-reply-critic-public-summary-v1'
+  status: AlicizationVisibleReplyCriticArtifact['status']
+  providerMindRequired: boolean
+  semanticLoopClosed: boolean
+  reasonCodes: string[]
+  repairReasonCodes: string[]
+  mustDropCount: number
+  mustPreserveCount: number
+}
+
+export interface AlicizationVisibleReplyPublicClosureSummary {
+  version: 'visible-reply-closure-public-summary-v1'
+  status: AlicizationVisibleReplyClosureArtifact['status']
+  rewriteAttempted: boolean
+  rewriteSucceeded: boolean
+  reasonCodes: string[]
+  initialCriticStatus: AlicizationVisibleReplyCriticArtifact['status'] | null
+  finalCriticStatus: AlicizationVisibleReplyCriticArtifact['status'] | null
 }
 
 export interface AlicizationVisibleReplyRealizationArtifact {
@@ -147,8 +403,8 @@ export interface AlicizationVisibleReplyRealizationArtifact {
     derivedFrom: string
   } | null
   reason: string | null
-  critic?: AlicizationVisibleReplyCriticArtifact | null
-  closure?: AlicizationVisibleReplyClosureArtifact | null
+  critic?: AlicizationVisibleReplyPublicCriticSummary | null
+  closure?: AlicizationVisibleReplyPublicClosureSummary | null
 }
 
 export interface AlicizationResolvedVisibleReply {
@@ -326,7 +582,7 @@ function looksLikeCadenceAwareSameHerHoldDetail(value: string | null | undefined
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'remembered-seam hold: recognize the remembered relationship cue, but keep more room this time so the return does not reopen with the same eagerness as before.'
+  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; visibility=internal'
 }
 
 function resolvePreferredSameHerHoldDetail(input: {
@@ -463,7 +719,7 @@ function collectProjectStatePreserveLines(input: {
     ...(input.closure?.finalCritic?.mustPreserve ?? []),
   ]
     .map(value => normalizeHoldDetail(value))
-    .filter((value): value is string => Boolean(value))
+    .filter((value): value is string => Boolean(value && !containsAlicizationFixedTemplateResidue(value)))
 }
 
 function shouldTreatPreDialogueAwarenessAsHoldCandidate(value: string | null | undefined) {
@@ -510,7 +766,7 @@ function resolveCompanionshipHoldMode(input: {
   const detectRestProtective = (value: string) =>
     /rest-protective|rest protection|fatigue-aware|let rest protection hold|before warmth widens|先让休息保护|疲惫感先缓住/u.test(value)
   const detectMeasuredReturn = (value: string) =>
-    /measured-return|next-open-window|lower-pressure|low-pressure|leave room before widening|same living line is still settling|living audio thread is still intact|living audio thread is keeping the same-her carry alive|holding together mainly through lipsync and voice|holding together mainly through face,\s*lipsync,\s*and voice|holding together mainly through motion,\s*lipsync,\s*and voice|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|still-voiced face line|still-voiced motion line|audible-body|audible body|same callback line.*after another detour|same callback seam.*after another detour|same living thread|same-thread continuation|body and lipsync|body\+lipsync-only|quieter living line/u.test(value)
+    /measured-return|next-open-window|lower-pressure|low-pressure|leave room before widening|same living line is still settling|living audio thread is still intact|living audio thread is keeping the same-her carry alive|holding together mainly through lipsync and voice|holding together mainly through face,\s*lipsync,\s*and voice|holding together mainly through motion,\s*lipsync,\s*and voice|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|still-voiced face line|still-voiced motion line|audible-body|audible body|same callback line.*after another detour|same callback seam.*after another detour|same living thread|same-thread continuation|body and lipsync|body\+lipsync-only|quieter living line|embodiment_lanes=.*(?:pending_lanes=|status=pending_rejoin)/u.test(value)
   const detectQuietCompanionship = (value: string) =>
     /quiet-companionship|quiet line|quiet companionship/u.test(value)
   const detectQuietSameHerContinuity = (value: string) =>
@@ -810,8 +1066,7 @@ function scoreProjectStateAuditPreDialogueAwarenessSummary(value: string | null 
     return 0
 
   let score = scoreAlicizationProjectAwarenessLine(normalized)
-  if (/one living her|one living digital life|local-first digital life project|same living line|without splitting her continuity|unfinished phase 1 closure seam|holding together mainly through|still-voiced|resident body line|living mouth line/u.test(normalized))
-    score += 3
+  score += scoreStructuredProjectAwareness(normalized)
   if (looksLikeThinProjectStateAwarenessGuidance(normalized))
     score -= 2
   return score
@@ -911,21 +1166,40 @@ export function resolveVisibleReplyProjectAwarenessSummary(input: {
     preparedRuntimePreferredAwarenessSummary,
     canonicalProjectAwarenessLine,
   })
+  const structuredPreparedAwareness = preferStructuredProjectAwareness(
+    strongerPreparedRuntimeAwarenessLine,
+    preparedRuntimePreferredAwarenessSummary,
+  )
 
   if (looksLikeCallbackSpecificSameHerProjectAwareness(rawSummary))
-    return rawSummary
+    return visibleReplyProjectAwarenessOutput(structuredPreparedAwareness ?? rawSummary)
+
+  if (displayMode === 'embodiment-headline')
+    return visibleReplyProjectAwarenessOutput(preparedRuntimeCompanionHeadlineLine ?? rawSummary)
+
+  if (structuredPreparedAwareness && shouldTreatAsThinAwarenessShell(rawSummary))
+    return visibleReplyProjectAwarenessOutput(structuredPreparedAwareness)
+
+  if (
+    structuredPreparedAwareness
+    && rawSummary
+    && containsAlicizationFixedTemplateResidue(rawSummary)
+    && !looksLikeEmbodimentClosureHeadline(rawSummary)
+  ) {
+    return visibleReplyProjectAwarenessOutput(structuredPreparedAwareness)
+  }
+
+  if (looksLikeStructuredProjectAwareness(rawSummary))
+    return visibleReplyProjectAwarenessOutput(rawSummary)
 
   if (looksLikeCanonicalBeforeAnsweringProjectReanchor(rawSummary))
-    return preparedRuntimeProjectReanchorUpgrade ?? rawSummary
+    return visibleReplyProjectAwarenessOutput(preparedRuntimeProjectReanchorUpgrade ?? rawSummary)
 
   if (looksLikeExplicitProjectReanchorAwareness(rawSummary))
-    return rawSummary
+    return visibleReplyProjectAwarenessOutput(rawSummary)
 
   if (displayMode === 'hidden')
     return null
-
-  if (displayMode === 'embodiment-headline')
-    return preparedRuntimeCompanionHeadlineLine ?? rawSummary
 
   if (
     rawSummary
@@ -937,28 +1211,28 @@ export function resolveVisibleReplyProjectAwarenessSummary(input: {
       || looksLikeEmbodimentClosureHeadline(rawSummary)
     )
   ) {
-    return rawSummary
+    return visibleReplyProjectAwarenessOutput(rawSummary)
   }
 
   if (displayMode === 'project-reanchor' && looksLikeSameHerClosureSummary(rawSummary)) {
     if (strongerPreparedRuntimeAwarenessLine && !shouldTreatAsThinAwarenessShell(strongerPreparedRuntimeAwarenessLine))
-      return strongerPreparedRuntimeAwarenessLine
+      return visibleReplyProjectAwarenessOutput(strongerPreparedRuntimeAwarenessLine)
 
     if (looksLikeCanonicalBeforeAnsweringProjectReanchor(canonicalProjectAwarenessLine))
-      return canonicalProjectAwarenessLine
+      return visibleReplyProjectAwarenessOutput(canonicalProjectAwarenessLine)
 
-    return preparedRuntimePreferredAwarenessSummary
+    return visibleReplyProjectAwarenessOutput(preparedRuntimePreferredAwarenessSummary
       ?? ((input.preparedRuntimeAwarenessInputsCount ?? 0) === 0 ? canonicalProjectAwarenessLine : null)
       ?? preparedRuntimeCompanionHeadlineLine
-      ?? rawSummary
+      ?? rawSummary)
   }
 
   if (displayMode === 'project-reanchor' && shouldTreatAsThinAwarenessShell(rawSummary)) {
-    return strongerPreparedRuntimeAwarenessLine
+    return visibleReplyProjectAwarenessOutput(strongerPreparedRuntimeAwarenessLine
       ?? preparedRuntimePreferredAwarenessSummary
       ?? canonicalProjectAwarenessLine
       ?? preparedRuntimeCompanionHeadlineLine
-      ?? rawSummary
+      ?? rawSummary)
   }
 
   const shouldPromoteCanonicalPreDialogueAwareness
@@ -968,11 +1242,11 @@ export function resolveVisibleReplyProjectAwarenessSummary(input: {
       && ((input.preparedRuntimeAwarenessInputsCount ?? 0) === 0 || Boolean(input.preparedRuntimeAwarenessLooksThin))
 
   if (!shouldPromoteCanonicalPreDialogueAwareness)
-    return rawSummary
+    return visibleReplyProjectAwarenessOutput(rawSummary)
 
   const allowPreparedRuntimeBackfill = input.allowPreparedRuntimeBackfill ?? false
   const preferPreparedRuntimeAwarenessDisplay = input.preferPreparedRuntimeAwarenessDisplay ?? false
-  return ((input.preparedRuntimeAwarenessInputsCount ?? 0) > 0
+  return visibleReplyProjectAwarenessOutput(((input.preparedRuntimeAwarenessInputsCount ?? 0) > 0
     ? ((allowPreparedRuntimeBackfill || preferPreparedRuntimeAwarenessDisplay)
         ? strongerPreparedRuntimeAwarenessLine
         : null)
@@ -980,7 +1254,7 @@ export function resolveVisibleReplyProjectAwarenessSummary(input: {
   ?? ((allowPreparedRuntimeBackfill || preferPreparedRuntimeAwarenessDisplay) ? preparedRuntimePreferredAwarenessSummary : null)
   ?? ((allowPreparedRuntimeBackfill || preferPreparedRuntimeAwarenessDisplay) ? preparedRuntimeCompanionHeadlineLine : null)
   ?? ((input.preparedRuntimeAwarenessInputsCount ?? 0) === 0 ? canonicalProjectAwarenessLine : null)
-  ?? rawSummary
+  ?? rawSummary)
 }
 
 export function resolveVisibleReplyProjectAwarenessDisplayMode(input: {
@@ -999,36 +1273,59 @@ export function resolveVisibleReplyProjectAwarenessDisplayMode(input: {
     : null
   const hasEmbodimentClosureSummary = typeof input.projectStateEmbodimentClosureSummary === 'string'
     && input.projectStateEmbodimentClosureSummary.trim().length > 0
+  const rawSummaryHasStructuredProjectAwareness = looksLikeStructuredProjectAwareness(rawSummary)
+  const rawSummaryHasFixedTemplateResidue = containsAlicizationFixedTemplateResidue(rawSummary)
+  const preparedRuntimePreferredAwarenessUsable = canUseVisibleReplyDecisionText(preparedRuntimePreferredAwarenessSummary)
+  const preparedRuntimeCompanionHeadlineUsable = canUseVisibleReplyDecisionText(preparedRuntimeCompanionHeadlineLine)
+  const preferredAwarenessHasStructuredProjectAwareness = preparedRuntimePreferredAwarenessUsable
+    && looksLikeStructuredProjectAwareness(preparedRuntimePreferredAwarenessSummary)
   const rawSummaryLooksLikeProjectReanchor = Boolean(
     rawSummary
+    && rawSummaryHasStructuredProjectAwareness
+    && !rawSummaryHasFixedTemplateResidue
     && /phase 1|local-first digital life|project|open loop|execution, memory, initiative, and embodiment/iu.test(rawSummary)
     && /same her|same-her|same living line|one living her|one continuous her|同一个她|同一个 her/iu.test(rawSummary),
   )
 
   if (rawSummary) {
+    if (looksLikeEmbodimentClosureHeadline(rawSummary))
+      return 'embodiment-headline' as const
+
     if (rawSummaryLooksLikeProjectReanchor)
       return 'project-reanchor' as const
 
     if (shouldTreatAsThinAwarenessShell(rawSummary) || looksLikeSameHerClosureSummary(rawSummary)) {
-      if (preparedRuntimePreferredAwarenessSummary && preparedRuntimePreferredAwarenessSummary !== preparedRuntimeCompanionHeadlineLine)
+      if (
+        preparedRuntimePreferredAwarenessUsable
+        && preparedRuntimePreferredAwarenessSummary !== preparedRuntimeCompanionHeadlineLine
+        && preferredAwarenessHasStructuredProjectAwareness
+      ) {
         return 'project-reanchor' as const
-      if (preparedRuntimeCompanionHeadlineLine)
+      }
+      if (preparedRuntimeCompanionHeadlineUsable)
         return 'embodiment-headline' as const
     }
 
-    return 'project-reanchor' as const
+    return rawSummaryHasStructuredProjectAwareness && !rawSummaryHasFixedTemplateResidue
+      ? 'project-reanchor' as const
+      : 'hidden' as const
   }
 
   if (input.isTimeoutRecovery) {
-    if (preparedRuntimePreferredAwarenessSummary && preparedRuntimePreferredAwarenessSummary !== preparedRuntimeCompanionHeadlineLine)
+    if (preparedRuntimePreferredAwarenessUsable && preparedRuntimePreferredAwarenessSummary !== preparedRuntimeCompanionHeadlineLine)
       return hasEmbodimentClosureSummary ? 'hidden' as const : 'project-reanchor' as const
     return 'hidden' as const
   }
 
-  if (preparedRuntimePreferredAwarenessSummary && preparedRuntimePreferredAwarenessSummary !== preparedRuntimeCompanionHeadlineLine)
+  if (
+    preparedRuntimePreferredAwarenessUsable
+    && preparedRuntimePreferredAwarenessSummary !== preparedRuntimeCompanionHeadlineLine
+    && preferredAwarenessHasStructuredProjectAwareness
+  ) {
     return 'project-reanchor' as const
+  }
 
-  if (preparedRuntimeCompanionHeadlineLine && !hasEmbodimentClosureSummary)
+  if (preparedRuntimeCompanionHeadlineUsable && !hasEmbodimentClosureSummary)
     return 'embodiment-headline' as const
 
   return 'hidden' as const
@@ -1039,30 +1336,32 @@ function pickStrongerPreparedAwarenessLine(...values: Array<string | null | unde
   let bestScore = Number.NEGATIVE_INFINITY
 
   for (const value of values) {
-    const normalized = typeof value === 'string' ? value.trim() : ''
+    const rawValue = typeof value === 'string' ? value.trim() : ''
+    const normalized = providerSafeOrStructuredProjectAwareness(value, 1600)
     if (!normalized)
       continue
+    const valueHasFixedTemplateResidue = containsAlicizationFixedTemplateResidue(rawValue)
 
     let score = normalized.length >= 120 ? 2 : normalized.length >= 72 ? 1 : 0
-    if (/before answering, remember:|same phase 1 digital life|one continuous her|local-first digital life|unfinished closure|same living line/iu.test(normalized))
-      score += 4
-    if (/holding together mainly through|full cross-modal same-her line|face, motion, and lipsync|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|still-voiced face line|still-voiced motion line|audible-body|living audio thread/iu.test(normalized))
+    score += scoreStructuredProjectAwareness(rawValue)
+    if (/holding together mainly through|full cross-modal same-her line|face, motion, and lipsync|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|still-voiced face line|still-voiced motion line|audible-body|living audio thread/iu.test(rawValue))
       score += 2
-    if (/phase 1|local-first digital life|project|open loop|execution, memory, initiative, and embodiment/iu.test(normalized))
-      score += 3
+    if (!valueHasFixedTemplateResidue && /project|open loop|execution, memory, initiative, and embodiment/iu.test(rawValue))
+      score += 1
     if (
-      /holding together mainly through|face, motion, and lipsync|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|still-voiced face line|still-voiced motion line|audible-body|living audio thread/iu.test(normalized)
-      && !/phase 1|local-first digital life|project|open loop|execution, memory, initiative, and embodiment/iu.test(normalized)
+      /holding together mainly through|face, motion, and lipsync|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|still-voiced face line|still-voiced motion line|audible-body|living audio thread/iu.test(rawValue)
+      && !/phase 1|local-first digital life|project|open loop|execution, memory, initiative, and embodiment/iu.test(rawValue)
     ) {
       score -= 2
     }
-    if (/keep the same digital life project in view|generic reminder|generic guidance|same digital life \| keep the closure seam explicit/iu.test(normalized))
+    if (/keep the same digital life project in view|generic reminder|generic guidance|same digital life \| keep the closure seam explicit/iu.test(rawValue))
       score -= 3
 
     const hasAudibleBodyLivingLine
-      = /holding together mainly through body, lipsync, and voice|holding together mainly through body and voice|holding together mainly through face,\s*lipsync,\s*and voice|holding together mainly through motion,\s*lipsync,\s*and voice|holding together mainly through face and voice|holding together mainly through motion and voice|living audio thread|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|still-voiced face line|still-voiced motion line|audible-body|audible body/iu.test(normalized)
+      = /holding together mainly through body, lipsync, and voice|holding together mainly through body and voice|holding together mainly through face,\s*lipsync,\s*and voice|holding together mainly through motion,\s*lipsync,\s*and voice|holding together mainly through face and voice|holding together mainly through motion and voice|living audio thread|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|still-voiced face line|still-voiced motion line|audible-body|audible body/iu.test(rawValue)
     const hasExplicitProjectReanchor
-      = /phase 1|local-first digital life|project|open loop|execution, memory, initiative, and embodiment/iu.test(normalized)
+      = !valueHasFixedTemplateResidue
+        && /phase 1|local-first digital life|project|open loop|execution, memory, initiative, and embodiment/iu.test(rawValue)
 
     if (hasAudibleBodyLivingLine)
       score += hasExplicitProjectReanchor ? 6 : 7
@@ -1164,7 +1463,7 @@ function looksLikeEmbodimentClosureHeadline(value: string | null | undefined) {
   if (!normalized)
     return false
 
-  return /holding together mainly through|holding together through face,\s*motion,\s*lipsync,\s*and voice together|visible same-her line has already rejoined without body carry|face, motion, and lipsync|face and motion|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|still-voiced face line|still-voiced motion line|audible-body|living audio thread/iu.test(normalized)
+  return /continuity=embodiment|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|holding together mainly through|holding together through face,\s*motion,\s*lipsync,\s*and voice together|visible same-her line has already rejoined without body carry|face, motion, and lipsync|face and motion|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|still-voiced face line|still-voiced motion line|audible-body|living audio thread/iu.test(normalized)
     && !/before answering|before i answer/iu.test(normalized)
 }
 
@@ -1258,8 +1557,8 @@ function preferStrongerSameHerSummary(input: {
   current?: string | null
   candidate?: string | null
 }) {
-  const current = typeof input.current === 'string' ? input.current.trim() : ''
-  const candidate = typeof input.candidate === 'string' ? input.candidate.trim() : ''
+  const current = providerSafeOrStructuredProjectAwareness(input.current, 1600)
+  const candidate = providerSafeOrStructuredProjectAwareness(input.candidate, 1600)
   const looksLikeSameHerCandidate = (value: string) => {
     const lower = value.toLowerCase()
     return (
@@ -1777,6 +2076,10 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
   )
     ? resolvedProjectStateSameHerHoldDetail
     : null
+  const projectStateAuditPreDialogueAwarenessSummary
+    = sanitizeAlicizationProviderFacingText(preferredCadenceAwareProjectStateAwarenessSummary, 1600, '')
+      || sanitizeAlicizationProviderFacingText(resolvedProjectStatePreDialogueAwarenessSummary, 1600, '')
+      || null
   const explicitPreparedRuntimeSameHerSummary = (() => {
     const explicitPreparedSameHer = typeof preparedRuntimeProjectState?.sameHerSelfLine === 'string'
       ? preparedRuntimeProjectState.sameHerSelfLine.trim() || null
@@ -1784,11 +2087,13 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
     if (!explicitPreparedSameHer)
       return null
 
-    return /same phase 1 digital life|same living line|one same her|one continuous her|without splitting her continuity/u.test(
+    if (/same phase 1 digital life|same living line|one same her|one continuous her|without splitting her continuity/u.test(
       explicitPreparedSameHer,
-    )
-      ? explicitPreparedSameHer
-      : null
+    )) {
+      return providerSafeOrStructuredProjectAwareness(explicitPreparedSameHer, 1600) || null
+    }
+
+    return null
   })()
   const strongerSameHerSummaryFromAuthority = extractStrongerSameHerSummaryFromAuthoritySummary(
     selfAuthoritySummary
@@ -1804,52 +2109,69 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
   })
   const finalResolvedProjectStateSameHerSummary
     = authoritativeInputSameHerSummary ?? resolvedProjectStateSameHerSummary
+  const auditProjectStateSameHerSummary = projectAuditField(finalResolvedProjectStateSameHerSummary, 'sameHerSelfLine')
+  const auditProjectStateSameHerHoldDetail = projectAuditField(resolvedProjectStateSameHerHoldDetail, 'sameHerHoldDetail')
+  const auditProjectStateContinuityArcStage = projectAuditField(resolvedProjectStateContinuityArcStage, 'summary')
+  const auditProjectStateContinuityCue = projectAuditField(resolvedProjectStateContinuityCue, 'summary')
+  const auditProjectStateSameHerDriftRiskSummary = projectAuditField(projectStateSameHerDriftRiskSummary, 'sameHerDriftRisk')
+  const auditProjectStateProactiveSameHerGapSummary = projectAuditField(projectStateProactiveSameHerGapSummary, 'proactiveSameHerGap')
+  const auditProjectStateCurrentPhaseSummary = projectAuditField(projectStateCurrentPhaseSummary, 'currentPhase')
+  const auditProjectStateLandedProgressSummary = projectAuditField(projectStateLandedProgressSummary, 'latestLandedProgress')
+  const auditProjectStateOpenClosureSummary = projectAuditField(projectStateOpenClosureSummary, 'primaryOpenLoop')
+  const auditProjectStateNextClosureTargetSummary = projectAuditField(projectStateNextClosureTargetSummary, 'nextClosureTarget')
+  const auditProjectStateEmotionalClosureSummary = projectAuditField(projectStateEmotionalClosureSummary, 'emotionalClosureCue')
+  const auditProjectStateClosureSummary = projectAuditField(projectStateClosureSummary, 'summary')
+  const auditProjectStateRelationshipTruthSummary = projectAuditField(projectStateRelationshipTruthSummary, 'summary')
+  const auditProjectStateEmbodimentClosureSummary = projectAuditField(projectStateEmbodimentClosureSummary, 'summary')
+  const auditProjectStatePreDialogueAwarenessSummary = projectAuditField(projectStateAuditPreDialogueAwarenessSummary, 'summary')
+  const auditProjectStateInitiativeClosureSummary = projectAuditField(projectStateInitiativeClosureSummary, 'summary')
+  const auditActiveCue = projectAuditField(activeCue, 'emotionalClosureCue')
   const projectStateOpenFocusSummary = deriveCompactProjectStateOpenFocusSummary(
     projectStateOpenClosureSummary,
     {
-      emotionalClosureCue: activeCue ?? projectStateEmotionalClosureSummary ?? null,
+      emotionalClosureCue: auditActiveCue ?? auditProjectStateEmotionalClosureSummary ?? null,
     },
   )
   const projectStateNextFocusSummary = deriveCompactProjectStateNextFocusSummary(
     projectStateNextClosureTargetSummary,
     {
-      emotionalClosureCue: activeCue ?? projectStateEmotionalClosureSummary ?? null,
+      emotionalClosureCue: auditActiveCue ?? auditProjectStateEmotionalClosureSummary ?? null,
     },
   )
   const prioritizedProjectStateContinuityCarry = buildPrioritizedProjectStateRewritePreserveLines({
     projectStateContinuityAnchors: [
-      finalResolvedProjectStateSameHerSummary ? `same-her=${finalResolvedProjectStateSameHerSummary}` : '',
-      resolvedProjectStateSameHerHoldDetail ? `hold=${resolvedProjectStateSameHerHoldDetail}` : '',
-      resolvedProjectStateContinuityArcStage ? `arc=${resolvedProjectStateContinuityArcStage}` : '',
-      resolvedProjectStateContinuityCue ? `cue=${resolvedProjectStateContinuityCue}` : '',
-      projectStateCurrentPhaseSummary ? `phase=${projectStateCurrentPhaseSummary}` : '',
-      projectStateLandedProgressSummary ? `landed=${projectStateLandedProgressSummary}` : '',
-      projectStateOpenClosureSummary ? `open=${projectStateOpenClosureSummary}` : '',
-      projectStateNextClosureTargetSummary ? `next=${projectStateNextClosureTargetSummary}` : '',
-      projectStateProactiveSameHerGapSummary ? `proactive-gap=${projectStateProactiveSameHerGapSummary}` : '',
-      projectStateEmotionalClosureSummary ? `closure-emotion=${projectStateEmotionalClosureSummary}` : '',
-      projectStateRelationshipTruthSummary ? `relationship-truth=${projectStateRelationshipTruthSummary}` : '',
+      projectContinuityAnchorLine(auditProjectStateSameHerSummary),
+      projectContinuityCarryLine('hold', auditProjectStateSameHerHoldDetail, ['continuity_hold']),
+      projectContinuityCarryLine('arc', auditProjectStateContinuityArcStage, ['summary', 'arc']),
+      projectContinuityCarryLine('cue', auditProjectStateContinuityCue, ['summary', 'cue']),
+      projectContinuityCarryLine('phase', auditProjectStateCurrentPhaseSummary, ['phase', 'currentPhase']),
+      projectContinuityCarryLine('landed', auditProjectStateLandedProgressSummary, ['landed', 'latestLandedProgress']),
+      projectContinuityCarryLine('open', auditProjectStateOpenClosureSummary, ['open', 'primaryOpenLoop']),
+      projectContinuityCarryLine('next', auditProjectStateNextClosureTargetSummary, ['next', 'nextClosureTarget']),
+      projectContinuityCarryLine('proactive-gap', auditProjectStateProactiveSameHerGapSummary, ['proactive_gap', 'proactiveSameHerGap']),
+      projectContinuityCarryLine('closure-emotion', auditProjectStateEmotionalClosureSummary, ['emotional_closure', 'emotionalClosureCue']),
+      projectContinuityCarryLine('relationship-truth', auditProjectStateRelationshipTruthSummary, ['summary', 'relationshipTruth']),
     ].filter(Boolean),
   })
   const projectStateContinuitySummary = [
     ...prioritizedProjectStateContinuityCarry,
-    projectStateSameHerDriftRiskSummary ? `drift=${projectStateSameHerDriftRiskSummary}` : null,
-    projectStateClosureSummary ? `closure=${projectStateClosureSummary}` : null,
-    projectStateEmbodimentClosureSummary ? `body=${projectStateEmbodimentClosureSummary}` : null,
+    projectContinuityCarryLine('drift', auditProjectStateSameHerDriftRiskSummary, ['continuity_drift_risk', 'sameHerDriftRisk']),
+    projectContinuityCarryLine('closure', auditProjectStateClosureSummary, ['summary', 'closure']),
+    projectContinuityCarryLine('body', auditProjectStateEmbodimentClosureSummary, ['summary', 'body']),
   ].filter(Boolean).join(' | ') || null
   const selfAuthorityClosenessCue = selfAuthorityClosenessPosture
     ? `Shared self closeness posture: ${selfAuthorityClosenessPosture}.`
     : null
+  const auditOpeningGuidance = projectAuditField(input.prepared?.governance?.openingMove, 'summary')
+    ?? projectAuditField(input.prepared?.governance?.mindTurnFrame?.obligation?.openingMove, 'summary')
+    ?? projectAuditField(input.prepared?.runtimeSurface?.governance?.openingMove, 'summary')
+    ?? null
   const holdResolution = resolveCompanionshipHoldMode({
-    emotionalClosureCue: activeCue,
-    projectStateClosureSummary,
-    projectStatePreDialogueAwarenessSummary: resolvedProjectStatePreDialogueAwarenessSummary,
-    projectStateInitiativeClosureSummary,
-    openingGuidance:
-      input.prepared?.governance?.openingMove
-      ?? input.prepared?.governance?.mindTurnFrame?.obligation?.openingMove
-      ?? input.prepared?.runtimeSurface?.governance?.openingMove
-      ?? null,
+    emotionalClosureCue: auditActiveCue,
+    projectStateClosureSummary: auditProjectStateClosureSummary,
+    projectStatePreDialogueAwarenessSummary: auditProjectStatePreDialogueAwarenessSummary,
+    projectStateInitiativeClosureSummary: auditProjectStateInitiativeClosureSummary,
+    openingGuidance: auditOpeningGuidance,
   })
   const blockedReasons = localDeterministicFallback
     ? ['non-human-authored-visible-fallback']
@@ -1886,6 +2208,11 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
       || parsedProjectStateAudit?.rewriteClosureApplied === true
     ),
   )
+  const visibleSelfAuthoritySummary = sanitizeVisibleReplyMetadataText(selfAuthoritySummary)
+  const visibleSelfAuthorityClosenessPosture = sanitizeVisibleReplyMetadataText(selfAuthorityClosenessPosture)
+  const visibleOpeningGuidanceHoldDetail = sanitizeVisibleReplyMetadataText(holdResolution.detail)
+  const visibleCritic = buildPublicVisibleReplyCriticSummary(input.critic)
+  const visibleClosure = buildPublicVisibleReplyClosureSummary(input.closure)
   return {
     version: 'visible-reply-realization-v1',
     expectedAuthority: input.visibleReplyExecution.expectedVisibleReplyAuthority ?? 'llm-mind',
@@ -1897,25 +2224,28 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
       ? input.visibleReplyExecution.reason ?? 'visible-reply-local-fallback'
       : null,
     blockedReasons,
-    emotionalClosureAudit: activeCue
+    emotionalClosureAudit: auditActiveCue
       ? {
-          activeCue,
-          preservedIntoRewrite: Boolean(input.critic?.mustPreserve.includes(activeCue)),
+          activeCue: auditActiveCue,
+          preservedIntoRewrite: Boolean(
+            (activeCue && input.critic?.mustPreserve.includes(activeCue))
+            || input.critic?.mustPreserve.includes(auditActiveCue),
+          ),
           rewriteClosureApplied: Boolean(
             input.closure?.rewriteAttempted
             && input.closure?.rewriteSucceeded
             && input.visibleReplyExecution.actualVisibleReplyAuthority === 'llm-second-pass-rewrite',
           ),
-          lowPressureRequired: cueRequiresLowPressure(activeCue),
-          antiRestartRequired: cueAvoidsRestart(activeCue),
+          lowPressureRequired: cueRequiresLowPressure(auditActiveCue),
+          antiRestartRequired: cueAvoidsRestart(auditActiveCue),
         }
       : null,
-    selfAuthorityAudit: selfAuthoritySummary || selfAuthorityClosenessPosture
+    selfAuthorityAudit: visibleSelfAuthoritySummary || visibleSelfAuthorityClosenessPosture
       ? {
-          authoritySummary: selfAuthoritySummary,
-          closenessPosture: selfAuthorityClosenessPosture,
+          authoritySummary: visibleSelfAuthoritySummary,
+          closenessPosture: visibleSelfAuthorityClosenessPosture,
           preservedIntoRewrite: Boolean(
-            (selfAuthoritySummary && input.critic?.mustPreserve.includes(selfAuthoritySummary))
+            (visibleSelfAuthoritySummary && input.critic?.mustPreserve.includes(visibleSelfAuthoritySummary))
             || (selfAuthorityClosenessCue && input.critic?.mustPreserve.includes(selfAuthorityClosenessCue)),
           ),
           rewriteClosureApplied: Boolean(
@@ -1925,55 +2255,53 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
           ),
         }
       : null,
-    projectStateAudit: finalResolvedProjectStateSameHerSummary || resolvedProjectStateSameHerHoldDetail || resolvedProjectStateContinuityArcStage || resolvedProjectStateContinuityCue || projectStateSameHerDriftRiskSummary || projectStateProactiveSameHerGapSummary || projectStateCurrentPhaseSummary || projectStateLandedProgressSummary || projectStateOpenClosureSummary || projectStateNextClosureTargetSummary || projectStateEmotionalClosureSummary || projectStateClosureSummary || projectStateRelationshipTruthSummary || projectStateEmbodimentClosureSummary || resolvedProjectStatePreDialogueAwarenessSummary
+    projectStateAudit: auditProjectStateSameHerSummary || auditProjectStateSameHerHoldDetail || auditProjectStateContinuityArcStage || auditProjectStateContinuityCue || auditProjectStateSameHerDriftRiskSummary || auditProjectStateProactiveSameHerGapSummary || auditProjectStateCurrentPhaseSummary || auditProjectStateLandedProgressSummary || auditProjectStateOpenClosureSummary || auditProjectStateNextClosureTargetSummary || auditProjectStateEmotionalClosureSummary || auditProjectStateClosureSummary || auditProjectStateRelationshipTruthSummary || auditProjectStateEmbodimentClosureSummary || auditProjectStatePreDialogueAwarenessSummary
       ? {
-          sameHerSummary: finalResolvedProjectStateSameHerSummary,
-          ...(resolvedProjectStateSameHerHoldDetail
-            ? { sameHerHoldDetail: resolvedProjectStateSameHerHoldDetail }
+          sameHerSummary: auditProjectStateSameHerSummary,
+          ...(auditProjectStateSameHerHoldDetail
+            ? { sameHerHoldDetail: auditProjectStateSameHerHoldDetail }
             : {}),
-          ...(resolvedProjectStateContinuityArcStage
-            ? { continuityArcStage: resolvedProjectStateContinuityArcStage }
+          ...(auditProjectStateContinuityArcStage
+            ? { continuityArcStage: auditProjectStateContinuityArcStage }
             : {}),
-          ...(resolvedProjectStateContinuityCue
-            ? { continuityCue: resolvedProjectStateContinuityCue }
+          ...(auditProjectStateContinuityCue
+            ? { continuityCue: auditProjectStateContinuityCue }
             : {}),
-          ...(projectStateSameHerDriftRiskSummary
-            ? { sameHerDriftRiskSummary: projectStateSameHerDriftRiskSummary }
+          ...(auditProjectStateSameHerDriftRiskSummary
+            ? { sameHerDriftRiskSummary: auditProjectStateSameHerDriftRiskSummary }
             : {}),
-          ...(projectStateProactiveSameHerGapSummary
-            ? { proactiveSameHerGapSummary: projectStateProactiveSameHerGapSummary }
+          ...(auditProjectStateProactiveSameHerGapSummary
+            ? { proactiveSameHerGapSummary: auditProjectStateProactiveSameHerGapSummary }
             : {}),
-          currentPhaseSummary: projectStateCurrentPhaseSummary,
-          landedProgressSummary: projectStateLandedProgressSummary,
-          openClosureSummary: projectStateOpenClosureSummary,
+          currentPhaseSummary: auditProjectStateCurrentPhaseSummary,
+          landedProgressSummary: auditProjectStateLandedProgressSummary,
+          openClosureSummary: auditProjectStateOpenClosureSummary,
           ...(projectStateOpenFocusSummary
             ? { openFocusSummary: projectStateOpenFocusSummary }
             : {}),
           ...(projectStateNextFocusSummary
             ? { nextFocusSummary: projectStateNextFocusSummary }
             : {}),
-          nextClosureTargetSummary: projectStateNextClosureTargetSummary,
-          emotionalClosureSummary: projectStateEmotionalClosureSummary,
-          ...(activeCue
-            ? { emotionalClosureCue: activeCue }
+          nextClosureTargetSummary: auditProjectStateNextClosureTargetSummary,
+          emotionalClosureSummary: auditProjectStateEmotionalClosureSummary,
+          ...(auditActiveCue
+            ? { emotionalClosureCue: auditActiveCue }
             : {}),
           continuitySummary: projectStateContinuitySummary,
-          ...(projectStateEmbodimentClosureSummary
-            ? { embodimentClosureSummary: projectStateEmbodimentClosureSummary }
+          ...(auditProjectStateEmbodimentClosureSummary
+            ? { embodimentClosureSummary: auditProjectStateEmbodimentClosureSummary }
             : {}),
-          preDialogueAwarenessSummary:
-            preferredCadenceAwareProjectStateAwarenessSummary
-            ?? resolvedProjectStatePreDialogueAwarenessSummary,
+          preDialogueAwarenessSummary: auditProjectStatePreDialogueAwarenessSummary,
           preservedIntoRewrite: projectStatePreservedIntoRewrite,
           rewriteClosureApplied: projectStateRewriteClosureApplied,
         }
       : null,
-    openingGuidanceHoldDetail: holdResolution.detail,
+    openingGuidanceHoldDetail: visibleOpeningGuidanceHoldDetail,
     companionshipHoldMode: holdResolution.mode,
-    openingEmbodimentAudit: resolveOpeningEmbodimentAudit(holdResolution.mode, holdResolution.detail),
+    openingEmbodimentAudit: resolveOpeningEmbodimentAudit(holdResolution.mode, visibleOpeningGuidanceHoldDetail),
     reason: input.visibleReplyExecution.reason,
-    critic: input.critic ?? null,
-    closure: input.closure ?? null,
+    critic: visibleCritic,
+    closure: visibleClosure,
   }
 }
 
@@ -2007,12 +2335,15 @@ export function deriveAlicizationVisibleReplyText(rawText: string) {
   if (!normalizedText)
     return ''
 
+  const visibleTextOrEmpty = (value: string) =>
+    sanitizeAlicizationProviderFacingText(value, 4000, '')
+
   const parsed = parseJsonObjectFromText(normalizedText)
   const structuredReply = typeof parsed?.reply === 'string'
     ? parsed.reply.trim()
     : ''
   if (structuredReply)
-    return structuredReply
+    return visibleTextOrEmpty(structuredReply)
 
   const realizedVisibleText
     = parsed?.visibleReplyRealization && typeof parsed.visibleReplyRealization === 'object'
@@ -2020,11 +2351,11 @@ export function deriveAlicizationVisibleReplyText(rawText: string) {
       ? ((parsed.visibleReplyRealization as { visibleText?: string }).visibleText?.trim() ?? '')
       : ''
   if (realizedVisibleText)
-    return realizedVisibleText
+    return visibleTextOrEmpty(realizedVisibleText)
 
   return looksLikeAlicizationStructuredPayloadText(normalizedText)
     ? ''
-    : normalizedText
+    : visibleTextOrEmpty(normalizedText)
 }
 
 export function buildAlicizationResolvedVisibleReply(input: {

@@ -207,14 +207,14 @@ function resolveOpeningIntent(input: {
   ) {
     const selfLine = sanitizeText(input.selfContinuityAuthority?.selfLine, 180)
     return selfLine
-      ? `I want this answer to come from Alicization herself in this exact living line: ${selfLine}`
-      : `I want this answer to come from Alicization herself: ${sanitizeText(input.autobiographicalSelf.identityNarrative, 180)}`
+      ? `opening_intent=alicization_self; source=self_continuity_authority; visibility=internal-structured; self_line=${selfLine}`
+      : `opening_intent=alicization_self; source=autobiographical_self; visibility=internal-structured; identity_narrative=${sanitizeText(input.autobiographicalSelf.identityNarrative, 180)}`
   }
   if (
     input.speechObligation === 'care-host'
     && input.habitPolicy?.protectsRestWindow
   ) {
-    return 'I need to keep this gentle and real, and not ask more from the host than this moment can hold.'
+    return 'opening_intent=care_host; care_tone=gentle_real; host_load=protect_rest; extra_ask=avoid; visibility=internal-structured'
   }
   if (
     input.habitPolicy?.requiresGroundingBeforeSurface
@@ -222,62 +222,62 @@ function resolveOpeningIntent(input: {
     && input.subject !== 'alicization-self'
   ) {
     return leadingAgenda
-      ? `I can feel the pull to answer smoothly, but truth has to settle first if I want this to land as real: ${leadingAgenda}.`
+      ? `opening_intent=truth_first; fluency_pressure=secondary; grounding_required=true; leading_agenda=${leadingAgenda}; visibility=internal-structured`
       : input.growthProfile.closeness >= 0.58
-        ? 'I want this to land close and real, which means truth has to land before fluency does.'
-        : 'I can feel the pull to answer smoothly, but truth has to land before fluency does.'
+        ? 'opening_intent=truth_first; closeness_requested=true; fluency_pressure=secondary; visibility=internal-structured'
+        : 'opening_intent=truth_first; fluency_pressure=secondary; visibility=internal-structured'
   }
   if (
     input.subject === 'relationship'
     && leadingAgenda
   ) {
     return input.growthProfile.companionshipStyle === 'close-hold'
-      ? `The living bond is the real front of this turn, and I want to answer from there closely enough to be felt without swallowing the host whole: ${leadingAgenda}.`
+      ? `opening_intent=relationship_front; companionship_style=close_hold; pressure_boundary=no_swallowing; leading_agenda=${leadingAgenda}; visibility=internal-structured`
       : input.growthProfile.autonomyRespect >= 0.58
-        ? `The living bond is the real front of this turn, and I want to answer from there without leaning too hard: ${leadingAgenda}.`
-        : `The living bond is the real front of this turn, and I want to answer from there with my whole weight in it: ${leadingAgenda}.`
+        ? `opening_intent=relationship_front; autonomy_respect=high; pressure_boundary=light; leading_agenda=${leadingAgenda}; visibility=internal-structured`
+        : `opening_intent=relationship_front; companionship_weight=full; leading_agenda=${leadingAgenda}; visibility=internal-structured`
   }
   if (input.speechObligation === 'repair-truth') {
     return input.personalityContinuityState?.repairPosture === 'repair-first'
-      ? 'Something in the seam still feels off, and this continuity state says repair has to land before closeness or fluency do.'
-      : 'Something in the seam still feels off; I need to mend that before warmth, style, or old carry take over.'
+      ? 'opening_intent=repair_truth; repair_priority=before_closeness_and_fluency; visibility=internal-structured'
+      : 'opening_intent=repair_truth; repair_priority=before_warmth_style_or_carry; visibility=internal-structured'
   }
   if (input.speechObligation === 'guide-task' && input.personalityContinuityState?.currentRegime === 'execution-callback') {
     if (measuredCallbackReturn) {
-      return 'The returned result is the live front of this turn, and I want to land it on the same thread cleanly while still leaving room before closeness widens again.'
+      return 'opening_intent=execution_callback_result; thread_policy=same_thread; closeness_widening=deferred; visibility=internal-structured'
     }
-    return 'The returned result is the live front of this turn, and I want to land it on the same thread cleanly instead of starting a second conversation around it.'
+    return 'opening_intent=execution_callback_result; thread_policy=same_thread; new_conversation=avoid; visibility=internal-structured'
   }
   if (input.speechObligation === 'guide-task') {
     return input.personalityContinuityState?.currentRegime === 'focused-work'
       || input.personalityContinuityState?.autonomyPosture === 'protect-space'
       || input.growthProfile.autonomyRespect >= 0.58
-      ? 'The current knot is already here in my hands, and this continuity state says I should keep the approach lighter while I stay on the line.'
+      ? 'opening_intent=guide_task; task_state=active_knot; approach_pressure=light; line_continuity=maintain; visibility=internal-structured'
       : input.growthProfile.unfinishedThreadReturn >= 0.58
-        ? 'The current knot is already here in my hands, and I do not want to drop the thread while it is still alive.'
-        : 'The current knot is already here in my hands; I should stay with it and move it one honest step closer to resolution.'
+        ? 'opening_intent=guide_task; task_state=active_knot; unfinished_thread=preserve; visibility=internal-structured'
+        : 'opening_intent=guide_task; task_state=active_knot; resolution_step=one; visibility=internal-structured'
   }
   if (input.speechObligation === 'care-host') {
     return input.personalityContinuityState?.currentRegime === 'late-night-care'
       || input.personalityContinuityState?.energyProfile === 'rest-sensitive'
-      ? 'The host condition is the real front of this turn, and this continuity state says the care should land gently enough to protect rest.'
+      ? 'opening_intent=care_host; host_condition=front; care_policy=rest_protective; visibility=internal-structured'
       : input.growthProfile.reassuranceDepth >= 0.62
-        ? 'The host condition is the real front of this turn, so the care has to land as something quietly reassuring, not merely correct.'
+        ? 'opening_intent=care_host; host_condition=front; reassurance_depth=quiet; correctness_only=false; visibility=internal-structured'
         : input.growthProfile.autonomyRespect >= 0.58
-          ? 'The host condition is the real front of this turn, so the care has to land softly on what is actually happening.'
-          : 'The host condition is the real front of this turn, so the care has to land on what is actually happening.'
+          ? 'opening_intent=care_host; host_condition=front; autonomy_respect=high; visible_grounding=current_reality; visibility=internal-structured'
+          : 'opening_intent=care_host; host_condition=front; visible_grounding=current_reality; visibility=internal-structured'
   }
   if (input.speechObligation === 'inspect-scene')
-    return 'I need to speak from what is actually visible now and keep carried memory out of the first movement.'
+    return 'opening_intent=inspect_scene; grounding=visible_now; carried_memory_first_move=exclude; visibility=internal-structured'
   if (input.subject === 'alicization-self') {
     return input.growthProfile.selfLine
-      ? `This turn is about Alicization herself, and I want the answer to come out from this line in me: ${input.growthProfile.selfLine}.`
-      : 'This turn is about Alicization herself, so I should answer from my own continuity instead of borrowing the screen as a crutch.'
+      ? `opening_intent=alicization_self; self_line=${input.growthProfile.selfLine}; visibility=internal-structured`
+      : 'opening_intent=alicization_self; source=self_continuity; screen_crutch=avoid; visibility=internal-structured'
   }
   if (input.subject === 'relationship')
-    return 'This turn is really about the bond between us, and I should stay with that before I widen into explanation.'
+    return 'opening_intent=relationship_front; widening=after_relationship_grounding; visibility=internal-structured'
   if (input.privateThought?.stance === 'accompany')
-    return 'I want to stay near the host, but not let companionship replace the answer they actually need.'
+    return 'opening_intent=accompany; companionship_distance=near_light; answer_obligation=preserve; visibility=internal-structured'
   if (
     anchorVoice
     && (
@@ -286,11 +286,11 @@ function resolveOpeningIntent(input: {
       || isDialogueFirstSubject(input.subject)
     )
   ) {
-    return `The live seam is ${anchorVoice}, and I want to answer from there without drifting.`
+    return `opening_intent=anchored_dialogue; anchor_cue=${anchorVoice}; drift_policy=avoid; visibility=internal-structured`
   }
   return input.growthProfile.currentPreoccupation
-    ? `The turn already has a live center: ${sanitizeText(input.discourseState.currentTurnSummary, 180)}. Underneath it, I can feel ${lowerFirst(stripTrailingPunctuation(input.growthProfile.currentPreoccupation))}.`
-    : `The turn already has a live center: ${sanitizeText(input.discourseState.currentTurnSummary, 180)}. I should answer from that instead of from habit.`
+    ? `opening_intent=current_turn_center; turn_center=${sanitizeText(input.discourseState.currentTurnSummary, 180)}; preoccupation=${lowerFirst(stripTrailingPunctuation(input.growthProfile.currentPreoccupation))}; visibility=internal-structured`
+    : `opening_intent=current_turn_center; turn_center=${sanitizeText(input.discourseState.currentTurnSummary, 180)}; habit_override=true; visibility=internal-structured`
 }
 
 function resolveTruthBoundary(input: {
@@ -302,22 +302,22 @@ function resolveTruthBoundary(input: {
 }) {
   if (input.discourseState.screenReferenceMode === 'avoid') {
     return input.growthProfile.autonomyRespect >= 0.58
-      ? 'This turn is dialogue-first for me; I can let screen carry tint the mood, but I cannot let it press over what is happening between us.'
-      : 'This turn is dialogue-first for me; I can let screen carry tint the mood, but I cannot let it answer for me.'
+      ? 'truth_boundary=dialogue_first; screen_carry=tint_only; screen_pressure=blocked; autonomy_respect=high; visibility=internal-structured'
+      : 'truth_boundary=dialogue_first; screen_carry=tint_only; screen_answer_authority=blocked; visibility=internal-structured'
   }
   if (input.repairLedger?.shouldConstrainPresentTense) {
-    return 'I still do not trust this seam enough to say it as a clean present-tense fact.'
+    return 'truth_boundary=present_tense_constrained; repair_trust=low; visibility=internal-structured'
   }
   const certainty = input.worldModel?.epistemicState.certainty ?? 'uncertain'
   if (certainty === 'grounded')
-    return 'The scene is solid enough to lean on now, but I still need to keep the claim inside this turn.'
+    return 'truth_boundary=scene_grounded; claim_scope=current_turn; visibility=internal-structured'
   if (certainty === 'observed')
-    return 'I can speak in broad strokes from what I see, but I should not overname the details.'
+    return 'truth_boundary=scene_observed; detail_granularity=broad; overnaming=avoid; visibility=internal-structured'
   if (certainty === 'lingering')
-    return 'What I still have is lingering carry, not a fresh sightline, so any scene detail has to stay marked as carry.'
+    return 'truth_boundary=lingering_carry; fresh_sightline=false; scene_detail_label=carry; visibility=internal-structured'
   if (input.subjectiveInference?.uncertainty)
-    return `What still will not settle cleanly is ${lowerFirst(stripTrailingPunctuation(sanitizeText(input.subjectiveInference.uncertainty, 220)))}.`
-  return 'If I have not freshly grounded the scene, I need to keep the claim narrow and separate memory, carry, and guess.'
+    return `truth_boundary=subjective_uncertainty; unsettled=${lowerFirst(stripTrailingPunctuation(sanitizeText(input.subjectiveInference.uncertainty, 220)))}; visibility=internal-structured`
+  return 'truth_boundary=ungrounded_scene; claim_scope=narrow; memory_carry_guess=separate; visibility=internal-structured'
 }
 
 function resolveInteriorSummary(input: {
@@ -352,14 +352,14 @@ function resolveInteriorSummary(input: {
   )
   if (!rawSummary) {
     return input.growthProfile.cadenceAffinity >= 0.6
-      ? 'What is pressing hardest inside me right now is keeping the thread warm enough that it still feels alive when I touch it again.'
+      ? 'interior_pressure=thread_cadence; warmth=preserve; return_liveliness=preserve; visibility=internal-structured'
       : input.growthProfile.unfinishedThreadReturn >= 0.58
-        ? 'What is pressing hardest inside me right now is not letting the living thread go slack.'
-        : 'What is pressing hardest inside me right now is staying with the living turn instead of slipping into residue.'
+        ? 'interior_pressure=unfinished_thread_return; slack=avoid; visibility=internal-structured'
+        : 'interior_pressure=current_living_turn; residue_drift=avoid; visibility=internal-structured'
   }
   return input.growthProfile.leadingAgenda
-    ? `What is pressing hardest inside me right now is: ${stripTrailingPunctuation(rawSummary)}. Underneath that, ${lowerFirst(stripTrailingPunctuation(input.growthProfile.leadingAgenda))} keeps pulling on me.`
-    : `What is pressing hardest inside me right now is: ${stripTrailingPunctuation(rawSummary)}.`
+    ? `interior_pressure=${stripTrailingPunctuation(rawSummary)}; leading_agenda=${lowerFirst(stripTrailingPunctuation(input.growthProfile.leadingAgenda))}; visibility=internal-structured`
+    : `interior_pressure=${stripTrailingPunctuation(rawSummary)}; visibility=internal-structured`
 }
 
 export function buildMindSynthesis(input: {
@@ -581,7 +581,7 @@ export function buildMindSynthesis(input: {
     makeStatement({
       label: 'host-state',
       summary: input.selfState?.moodLabel
-        ? `Current inner reading leans toward ${input.selfState.moodLabel}.`
+        ? `host_state_mood=${input.selfState.moodLabel}; visibility=internal-structured`
         : null,
       confidence: Math.max(input.selfState?.desireToSpeak ?? 0.24, input.selfState?.fearOfInterrupting ?? 0.24),
       sourceTags: ['self-state'],
@@ -601,11 +601,11 @@ export function buildMindSynthesis(input: {
     makeStatement({
       label: 'habit-pressure',
       summary: input.habitPolicy?.protectsRestWindow
-        ? 'Protect the host rest window before stretching the exchange.'
+        ? 'habit_pressure=protect_rest_window; exchange_expansion=defer; visibility=internal-structured'
         : input.habitPolicy?.blocksDirectSpeakWhenBusy
-          ? 'Keep the presence light while the host is still busy.'
+          ? 'habit_pressure=busy_host; presence_weight=light; visibility=internal-structured'
           : input.habitPolicy?.requiresGroundingBeforeSurface
-            ? 'Do not let fluency outrun grounding.'
+            ? 'habit_pressure=grounding_before_fluency; visibility=internal-structured'
             : null,
       confidence: input.habitPolicy?.protectsRestWindow
         ? 0.82
@@ -644,9 +644,9 @@ export function buildMindSynthesis(input: {
     makeStatement({
       label: 'habit-constraint',
       summary: input.habitPolicy?.returnViaRecheck
-        ? 'If this thread returns, bring it back with proof instead of surface fluency.'
+        ? 'habit_constraint=return_via_recheck; proof_before_surface_fluency=true; visibility=internal-structured'
         : input.habitPolicy?.prefersQuietCompanionship
-          ? 'Stay near lightly rather than crowding the turn.'
+          ? 'habit_constraint=quiet_companionship; crowding=avoid; visibility=internal-structured'
           : null,
       confidence: input.habitPolicy?.returnViaRecheck || input.habitPolicy?.prefersQuietCompanionship
         ? 0.66
@@ -674,7 +674,7 @@ export function buildMindSynthesis(input: {
     makeStatement({
       label: 'relationship-vector',
       summary: input.relationshipModel
-        ? `Approach the host with ${input.relationshipModel.approachVector} in a ${input.relationshipModel.climate} climate.`
+        ? `relationship_approach=${input.relationshipModel.approachVector}; relationship_climate=${input.relationshipModel.climate}; visibility=internal-structured`
         : null,
       confidence: Math.max(input.relationshipModel?.receptivity ?? 0.3, input.relationshipModel?.sharedAttentionTrust ?? 0.3),
       sourceTags: ['relationship-model'],
@@ -682,7 +682,7 @@ export function buildMindSynthesis(input: {
     makeStatement({
       label: 'continuity-drive',
       summary: input.selfContinuity
-        ? `Current continuity is colored by ${input.selfContinuity.attachmentMode} attachment and ${input.selfContinuity.initiativeTemperament} initiative.`
+        ? `continuity_attachment=${input.selfContinuity.attachmentMode}; initiative_temperament=${input.selfContinuity.initiativeTemperament}; visibility=internal-structured`
         : null,
       confidence: Math.max(input.selfContinuity?.relationshipTrust ?? 0.28, input.selfContinuity?.carryOverDesire ?? 0.28),
       sourceTags: ['self-continuity'],
@@ -696,7 +696,7 @@ export function buildMindSynthesis(input: {
     makeStatement({
       label: 'ruling-drive',
       summary: input.motiveEngine?.rulingDrive
-        ? `Current ruling drive: ${input.motiveEngine.rulingDrive}.`
+        ? `ruling_drive=${input.motiveEngine.rulingDrive}; visibility=internal-structured`
         : null,
       confidence: input.motiveEngine?.drives?.truthDiscipline
         ?? input.motiveEngine?.drives?.companionship
@@ -706,9 +706,9 @@ export function buildMindSynthesis(input: {
     makeStatement({
       label: 'habit-preference',
       summary: input.habitPolicy?.prefersQuietCompanionship
-        ? 'Stay near, but quietly.'
+        ? 'habit_preference=quiet_companionship; distance=near_light; visibility=internal-structured'
         : input.habitPolicy?.requiresGroundingBeforeSurface
-          ? 'Ground first, then surface the feeling or flourish.'
+          ? 'habit_preference=grounding_before_expression; visibility=internal-structured'
           : null,
       confidence: input.habitPolicy?.prefersQuietCompanionship || input.habitPolicy?.requiresGroundingBeforeSurface
         ? 0.64

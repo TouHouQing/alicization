@@ -114,13 +114,13 @@ function deriveProjectStateAutonomyBias(projectState?: {
     return null
 
   const sameHerClosureDirection
-    = nextClosureTarget.includes('same-her')
-      || nextClosureTarget.includes('same her')
+    = nextClosureTarget.includes('identity-continuity')
+      || nextClosureTarget.includes('identity continuity')
       || nextClosureTarget.includes('measured-return')
       || nextClosureTarget.includes('repair-before-closeness')
-      || emotionalClosureSummary.includes('same-her')
-      || emotionalClosureSummary.includes('same her')
-      || emotionalClosureSummary.includes('same living line')
+      || emotionalClosureSummary.includes('identity-continuity')
+      || emotionalClosureSummary.includes('identity continuity')
+      || emotionalClosureSummary.includes('continuity line')
       || emotionalClosureSummary.includes('measured-return')
       || emotionalClosureSummary.includes('repair-before-closeness')
       || emotionalClosureSummary.includes('low-pressure')
@@ -142,13 +142,13 @@ function deriveProjectStateAutonomyBias(projectState?: {
     prioritizeWhySuffix: sameHerClosureDirection,
     executionIntentPrefix: sameHerClosureDirection
       ? (
-          nextClosureTarget.includes('same living line')
-            ? 'keep gathering the cross-modal same-her closure that is still open on one same living line'
-            : 'keep gathering the cross-modal same-her closure that is still open'
+          nextClosureTarget.includes('continuity line')
+            ? 'keep gathering cross-modal continuity evidence for the open closure'
+            : 'keep gathering cross-modal continuity evidence for the open closure'
         )
       : 'keep gathering the open digital-life closure without widening too early',
     whySuffix: sameHerClosureDirection
-      ? 'project-phase1 same-her closure keeps the action one step more reversible so visible initiative stays lower-pressure, measured-return / repair-before-closeness while cross-modal same-her personhood is still being earned.'
+      ? 'project-phase1 continuity closure keeps the action one step more reversible so visible initiative stays lower-pressure, measured-return / repair-before-closeness while cross-modal continuity evidence is still being earned.'
       : 'project-phase1-life-loop keeps the action one step more reversible until the digital-life closure is more earned.',
   }
 }
@@ -185,7 +185,7 @@ function deriveHabitNarrativeAutonomyBias(habitPolicy?: AlicizationHabitPolicySn
 
 function carriesProjectStateInwardLine(initiativeWhy: string) {
   const normalized = sanitizeText(initiativeWhy, 220).toLowerCase()
-  return normalized.includes('same phase 1 digital life')
+  return normalized.includes('phase 1 continuity')
     || normalized.includes('some closure already landed')
     || normalized.includes('unfinished closure')
 }
@@ -574,6 +574,7 @@ export function buildAutonomySnapshot(input: {
   const executionIntentSummaryWithCarry = projectStateAutonomyBias
     && carriesProjectStateInwardLine(input.initiative.why)
     && !executionIntentSummary.toLowerCase().includes('some closure already landed')
+    && !executionIntentSummary.toLowerCase().includes('verified_closure_progress')
     ? sanitizeText(`${executionIntentSummary}; ${lowerFirst(sanitizeText(input.initiative.why, 140))}`, 220) || executionIntentSummary
     : executionIntentSummary
   const whyNow = sanitizeText(
@@ -604,7 +605,7 @@ export function buildAutonomySnapshot(input: {
     : personaWhyNow
   const finalWhyNowWithCarry = projectStateAutonomyBias
     && carriesProjectStateInwardLine(input.initiative.why)
-    && !finalWhyNow.toLowerCase().includes('same phase 1 digital life')
+    && !finalWhyNow.toLowerCase().includes('phase 1 continuity')
     ? sanitizeText(`${finalWhyNow} ${sanitizeText(input.initiative.why, 120)}`, 220) || finalWhyNow
     : finalWhyNow
 

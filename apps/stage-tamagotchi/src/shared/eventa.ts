@@ -227,8 +227,7 @@ import type {
 } from '@proj-alicization/stage-ui-three/trace'
 
 import type { AlicizationPersonStateProjection } from '../main/services/alicization/person-state-projection'
-import type { AlicizationVisibleReplyCriticArtifact } from '../main/services/alicization/visible-reply/critic'
-import type { AlicizationVisibleReplyClosureArtifact, AlicizationVisibleReplyRealizationArtifact } from '../main/services/alicization/visible-reply/realization-engine'
+import type { AlicizationVisibleReplyRealizationArtifact } from '../main/services/alicization/visible-reply/realization-engine'
 
 import { defineEventa, defineInvokeEventa } from '@moeru/eventa'
 import {
@@ -647,16 +646,16 @@ export interface AlicizationMemoryMigrationResult {
 }
 
 export type AlicizationMemoryWorkbenchStatus = 'ok' | 'degraded' | 'error'
-export type AlicizationMemoryWorkbenchKind =
-  | 'fact'
-  | 'episode'
-  | 'reflection'
-  | 'consolidation'
-  | 'procedure'
-  | 'relationship'
-  | 'preference'
-  | 'correction'
-  | 'candidate'
+export type AlicizationMemoryWorkbenchKind
+  = | 'fact'
+    | 'episode'
+    | 'reflection'
+    | 'consolidation'
+    | 'procedure'
+    | 'relationship'
+    | 'preference'
+    | 'correction'
+    | 'candidate'
 
 export type AlicizationMemoryWorkbenchSensitivity = 'public' | 'personal' | 'private' | 'secret'
 export type AlicizationMemoryWorkbenchVisibility = 'explicit' | 'inward-only'
@@ -1318,7 +1317,7 @@ export type AlicizationProactiveStaticReasonCode
     | 'held-autonomy-carry'
     | 'presence-only-hold'
     | 'project-phase1-life-loop-open'
-    | 'project-same-her-pressure'
+    | 'project-continuity-pressure'
     | 'project-measured-return-pressure'
     | 'project-next-closure-pressure'
     | 'relationship-cadence-residue'
@@ -3609,13 +3608,41 @@ export interface AlicizationChatMetaEvent {
   runtimeDigest?: AlicizationRuntimeDigest | null
 }
 
+export interface AlicizationVisibleReplyPublicCriticSummary extends Record<string, unknown> {
+  version: 'visible-reply-critic-public-summary-v1'
+  status?: string | null
+  providerMindRequired?: boolean | null
+  semanticLoopClosed?: boolean | null
+  reasonCodes: string[]
+  repairReasonCodes: string[]
+  mustDropCount: number
+  mustPreserveCount: number
+}
+
+export interface AlicizationVisibleReplyPublicClosureSummary extends Record<string, unknown> {
+  version: 'visible-reply-closure-public-summary-v1'
+  status?: string | null
+  providerMindRequired?: boolean | null
+  semanticLoopClosed?: boolean | null
+  rewriteAttempted?: boolean | null
+  rewriteSucceeded?: boolean | null
+  reasonCodes: string[]
+  repairReasonCodes?: string[]
+  initialCriticStatus?: string | null
+  finalCriticStatus?: string | null
+  initialCriticMustPreserveCount?: number
+  initialCriticMustDropCount?: number
+  finalCriticMustPreserveCount?: number
+  finalCriticMustDropCount?: number
+}
+
 export interface AlicizationChatFinishEvent {
   cardId: string
   turnId: string
   status: 'completed' | 'aborted' | 'failed'
   visibleReplyExecution?: AlicizationVisibleReplyExecution | null
-  visibleReplyCritic?: AlicizationVisibleReplyCriticArtifact | null
-  visibleReplyClosure?: AlicizationVisibleReplyClosureArtifact | null
+  visibleReplyCritic?: AlicizationVisibleReplyPublicCriticSummary | null
+  visibleReplyClosure?: AlicizationVisibleReplyPublicClosureSummary | null
   finishReason?: string
   fullText?: string
   error?: string

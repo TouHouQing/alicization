@@ -1,4 +1,8 @@
-import { readRecollectionIntentFromDerivedMindStateBundle } from '@proj-alicization/stage-shared'
+import {
+  alicizationFixedTemplateReplacement,
+  readRecollectionIntentFromDerivedMindStateBundle,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
 
 import { derivePostPolicyQuietHoldRuntimeSnapshot } from './alicization-runtime-architecture'
 import { buildAutobiographicalEpisodeFragment } from './autobiographical-episodes'
@@ -92,15 +96,126 @@ function hasRememberedSeamMoreRoomCarry(text: string | null | undefined) {
     return false
 
   const rememberedSeamPresent
-    = /remembered seam|same remembered relationship seam|same remembered seam|relationship seam|same line|same thread|callback line|同一条线|关系线|记住的关系缝|留白/u.test(normalized)
+    = /remembered seam|same remembered relationship seam|same remembered seam|relationship seam|relationship_cadence=remembered_boundary|same line|same thread|callback line|同一条线|关系线|记住的关系缝|留白/u.test(normalized)
   if (!rememberedSeamPresent)
     return false
 
-  return /reopened too eagerly|too eagerly before|more room this time|this time keep more room|keep more room this time|leave more room|do not reopen it with the same eagerness|before leaning in again|这次更要留白|这次要更慢一点|不要重开得太快|上次太急/u.test(normalized)
+  return /reopened too eagerly|too eagerly before|more room this time|this time keep more room|keep more room this time|leave more room|room=more|reentry=slower|do not reopen it with the same eagerness|before leaning in again|这次更要留白|这次要更慢一点|不要重开得太快|上次太急/u.test(normalized)
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'Recognize the remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
+  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; visibility=internal-structured'
+}
+
+function joinPresenceOnlyStructuredTokens(tokens: string[]) {
+  const uniqueTokens = Array.from(new Set(tokens
+    .map(token => token.trim())
+    .filter(Boolean)))
+  if (!uniqueTokens.length)
+    return ''
+  if (!uniqueTokens.some(token => token.startsWith('visibility=')))
+    uniqueTokens.push('visibility=internal-structured')
+  return uniqueTokens.join('; ')
+}
+
+function resolvePresenceOnlyHoldStructuredTokens(raw: string) {
+  const normalized = raw.trim().replace(/\s+/g, ' ')
+  const tokens: string[] = []
+
+  const carriesExecutionSafetyGate
+    = /execution-safety-gate|blocked-dispatch-restraint|blocked dispatch safety gate|blocked-dispatch safety gate|blocked-before-dispatch|execution safety restraint|safety gate/iu.test(normalized)
+      && /confirmation=required|implicit-or-explicit-confirmation-required|no-process-started|no process started|interrupt=no-process-started|permission=none|wait for confirmation|等待确认/iu.test(normalized)
+      || /execution_safety_gate=blocked_dispatch/iu.test(normalized)
+  if (carriesExecutionSafetyGate) {
+    tokens.push(
+      'execution_safety_gate=blocked_dispatch',
+      'confirmation=required',
+      'interrupt=no-process-started',
+      'permission=none',
+    )
+  }
+
+  const carriesExecutionResumeConfirmation
+    = /execution-resume-confirmation|host-confirmed-before-redispatch|resume-before-dispatch|resume confirmation|resumeMemoryMode/iu.test(normalized)
+      && /host-confirmed|approval=host-confirmed|process-not-yet-restarted|interrupt=process-not-yet-restarted|bounded confirmation boundary|not permanent|not permanent execution permission|not permanent autonomous permission|permission=bounded|永久权限/iu.test(normalized)
+      || /execution_resume_confirmation=host-confirmed-before-redispatch/iu.test(normalized)
+  if (carriesExecutionResumeConfirmation) {
+    tokens.push(
+      'execution_resume_confirmation=host-confirmed-before-redispatch',
+      'audit=resume-before-dispatch',
+      'interrupt=process-not-yet-restarted',
+      'permission=bounded',
+    )
+  }
+
+  const carriesRememberedSeamMoreRoom = hasRememberedSeamMoreRoomCarry(normalized)
+    || /relationship_cadence=remembered_boundary|room=more|reentry=slower/iu.test(normalized)
+  if (carriesRememberedSeamMoreRoom) {
+    tokens.push(
+      'relationship_cadence=remembered_boundary',
+      'room=more',
+      'reentry=slower',
+      'widening=deferred',
+    )
+  }
+
+  const carriesRepairBeforeCloseness
+    = /repair-before-closeness|repair before closeness|repair-first|repair first|continuity_hold=repair_before_closeness|before_closeness_widens|先修复|修复优先/iu.test(normalized)
+  if (carriesRepairBeforeCloseness) {
+    tokens.push(
+      'continuity_hold=repair_before_closeness',
+      'timing=before_closeness_widens',
+    )
+  }
+
+  const carriesRestProtective
+    = /rest-protective|rest protective|rest protection|rest-guard|quiet-companionship|quiet companionship|fatigue-aware|continuity_hold=rest_protective|fatigue_aware=true|protect rest|protecting rest|late-night-drain|line holds inward|holds inward|quietly inward|stay inward|body stay inward|休息保护|先收住|先往内收|别把身体再往外推/iu.test(normalized)
+  if (carriesRestProtective) {
+    tokens.push(
+      'continuity_hold=rest_protective',
+      'direction=inward',
+      'fatigue_aware=true',
+    )
+  }
+
+  const explicitMeasuredReturn = !carriesRememberedSeamMoreRoom
+    && /measured-return|lower-pressure|continuity_hold=measured_return|pressure=lower|same remembered|remembered seam|relationship seam|without reopening from scratch|reopen from scratch|leave more room|more room|room-making|余韵|留白|接回去|不要.*温度放大|不要重开得太快|上次太急/iu.test(normalized)
+  const implicitMeasuredReturn = !carriesRepairBeforeCloseness
+    && !carriesRestProtective
+    && !carriesExecutionSafetyGate
+    && !carriesExecutionResumeConfirmation
+    && /callback line|same callback|same-thread|same thread|before widening outward/iu.test(normalized)
+  if (explicitMeasuredReturn || implicitMeasuredReturn) {
+    tokens.push(
+      'continuity_hold=measured_return',
+      'pressure=lower',
+      'reopen_from_scratch=false',
+    )
+  }
+
+  if (/emotion,\s*memory,\s*initiative,?\s*and\s*embodiment|memory,\s*emotion,?\s*and\s*embodiment|memory.*emotion.*embodiment|emotion\+memory\+initiative\+embodiment|情绪.*记忆.*主动性.*具身/u.test(normalized)) {
+    tokens.push('lanes=emotion+memory+initiative+embodiment')
+  }
+
+  if (/ordinary proactive closeness|proactive closeness|visible impulse/iu.test(normalized))
+    tokens.push('proactive_closeness=blocked')
+
+  if (/generic assistant shell|generic helper shell|assistant shell|project-summary voice|project summary voice|detached summary|generic project guidance|generic status|generic.*(?:guidance|assistant|shell|project)|flatten|collapse into a generic|same-her drift|continuity drift|closure drift/iu.test(normalized))
+    tokens.push('generic_shell=blocked')
+
+  if (/permanent permission|permanent autonomous permission|permanent execution permission|永久权限/iu.test(normalized))
+    tokens.push('permission_scope=bounded')
+
+  if (/Alicization|local_desktop_life_loop|local-first digital life project|Phase\s*1|Local Digital Life|本地优先数字生命项目|数字生命项目/iu.test(normalized))
+    tokens.push('identity=local_desktop_life_loop')
+
+  if (/visible reply|voice|facial state|face|motion|lipsync|resident presence|embodiment|body|mouth|语音|表情|动作|唇形|身体/u.test(normalized))
+    tokens.push('cover=visible_reply,voice,face,motion,lipsync,resident_presence')
+
+  if (/^(?:do not|don't|stay|keep|before answering|before speaking|speak from|hold|leave|protect|remember|recognize)\b/iu.test(normalized) && !tokens.length)
+    tokens.push('fixed_template=excluded')
+
+  return joinPresenceOnlyStructuredTokens(tokens)
 }
 
 function looksLikeGenericMeasuredReturnHoldDetail(text: string | null | undefined) {
@@ -113,6 +228,7 @@ function looksLikeGenericMeasuredReturnHoldDetail(text: string | null | undefine
 
   return normalized.includes('measured-return hold')
     || normalized.includes('callback line lower-pressure before it widens again')
+    || (normalized.includes('continuity_hold=measured_return') && normalized.includes('pressure=lower'))
 }
 
 function hasGenericContinuityModeMenu(text: string | null | undefined) {
@@ -189,7 +305,7 @@ function hasExplicitRepairBeforeClosenessAuthority(text: string | null | undefin
     return false
 
   const mentionsRepairBeforeCloseness
-    = /repair-before-closeness|repair before closeness|repair-first|repair first|先修复|修复优先|先把身体收稳|先让修复落稳|别一下子贴太近|let repair settle|repair settle first|repair settles first/u.test(normalized)
+    = /repair-before-closeness|repair before closeness|repair-first|repair first|continuity_hold=repair_before_closeness|continuity_mode=repair_before_closeness|before_closeness_widens|先修复|修复优先|先把身体收稳|先让修复落稳|别一下子贴太近|let repair settle|repair settle first|repair settles first/u.test(normalized)
   if (!mentionsRepairBeforeCloseness)
     return false
 
@@ -200,9 +316,27 @@ function hasExplicitRepairBeforeClosenessAuthority(text: string | null | undefin
 }
 
 function normalizePresenceOnlyHoldCarryText(raw: unknown, maxChars = 420) {
-  return typeof raw === 'string'
-    ? raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-    : ''
+  if (typeof raw !== 'string')
+    return ''
+  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  if (!normalized)
+    return ''
+  const structuredTokens = resolvePresenceOnlyHoldStructuredTokens(normalized)
+  if (structuredTokens)
+    return structuredTokens.slice(0, maxChars)
+  const sanitized = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
+  if (sanitized)
+    return sanitized
+  const fragments = normalized
+    .split(/\s*(?:[。!?！？]\s+|\s\|\s+|;\s+)/u)
+    .map((fragment) => {
+      const fragmentTokens = resolvePresenceOnlyHoldStructuredTokens(fragment)
+      if (fragmentTokens)
+        return fragmentTokens
+      return sanitizeAlicizationProviderFacingText(fragment, Math.min(260, maxChars), '')
+    })
+    .filter((fragment): fragment is string => Boolean(fragment))
+  return fragments.join(' | ')
 }
 
 function appendPresenceOnlyHoldCarryText(base: unknown, addition: unknown, maxChars = 420) {
@@ -217,6 +351,63 @@ function appendPresenceOnlyHoldCarryText(base: unknown, addition: unknown, maxCh
   if (normalizedAddition.includes(normalizedBase))
     return normalizedAddition
   return normalizePresenceOnlyHoldCarryText(`${normalizedBase} ${normalizedAddition}`, maxChars)
+}
+
+function normalizePresenceOnlyHoldDisplayText(raw: unknown, maxChars = 420) {
+  const normalized = normalizePresenceOnlyHoldCarryText(raw, maxChars)
+  if (!normalized || normalized === alicizationFixedTemplateReplacement)
+    return ''
+  return normalized
+}
+
+function normalizePresenceOnlyHoldMetadataText(raw: unknown, maxChars = 420) {
+  return normalizePresenceOnlyHoldCarryText(raw, maxChars) || null
+}
+
+function preferPresenceOnlyDeferredSummaryAuthority(candidates: Array<string | null | undefined>) {
+  const normalizedCandidates = candidates
+    .map(candidate => normalizePresenceOnlyHoldDisplayText(candidate, 560))
+    .filter(Boolean)
+  if (!normalizedCandidates.length)
+    return ''
+
+  const score = (candidate: string) => {
+    let value = 0
+    if (/execution_safety_gate=|execution_resume_confirmation=/u.test(candidate))
+      value += 60
+    if (/continuity_hold=repair_before_closeness|continuity_mode=repair_before_closeness/u.test(candidate))
+      value += 50
+    if (/continuity_hold=rest_protective|continuity_mode=rest_protective/u.test(candidate))
+      value += 48
+    if (/relationship_cadence=remembered_boundary/u.test(candidate))
+      value += 46
+    if (/lanes=emotion\+memory\+initiative\+embodiment/u.test(candidate))
+      value += 20
+    if (/generic_shell=blocked/u.test(candidate))
+      value += 16
+    if (/cover=visible_reply,voice,face,motion,lipsync,resident_presence/u.test(candidate))
+      value += 8
+    if (/fixed_template=excluded/u.test(candidate))
+      value -= 24
+    if (/content=excluded/u.test(candidate))
+      value -= 32
+    return value
+  }
+
+  return normalizedCandidates.reduce((best, candidate) => {
+    const bestScore = score(best)
+    const candidateScore = score(candidate)
+    if (candidateScore !== bestScore)
+      return candidateScore > bestScore ? candidate : best
+    return candidate.length > best.length ? candidate : best
+  })
+}
+
+function preferPresenceOnlyMetadataAuthority(candidates: Array<string | null | undefined>, maxChars = 560) {
+  const preferred = preferPresenceOnlyDeferredSummaryAuthority(candidates)
+  if (preferred)
+    return preferred.slice(0, maxChars)
+  return null
 }
 
 type PresenceOnlyPersistedEmotionalKernelInput = Parameters<typeof buildAlicizationEmotionalKernel>[0]
@@ -296,7 +487,7 @@ function hasPresenceOnlyHoldSameHerProjectCue(text: unknown) {
   if (!normalized)
     return false
 
-  return /same digital life|same living line|memory|initiative|embodiment|same-her|same her|one continuous her/u.test(normalized)
+  return /identity=local_desktop_life_loop|lanes=emotion\+memory\+initiative\+embodiment|execution_safety_gate=|execution_resume_confirmation=|relationship_cadence=remembered_boundary|continuity_mode=repair_before_closeness|continuity_mode=rest_protective|cover=visible_reply,voice,face,motion,lipsync,resident_presence/u.test(normalized)
 }
 
 function preferPresenceOnlyHoldSameHerSelfLine(input: {
@@ -372,7 +563,7 @@ function resolvePresenceOnlyHoldSameHerHoldDetail(input: {
 
   return current
     || candidate
-    || 'measured-return is still keeping this callback line lower-pressure before it widens again.'
+    || 'continuity_hold=measured_return; pressure=lower; visibility=internal-structured'
 }
 
 export function buildPresenceOnlyHoldContinuityProjection(input: {
@@ -400,10 +591,10 @@ export function buildPresenceOnlyHoldContinuityProjection(input: {
 
   const previousProjection = input.previousProjection ?? null
   const synthesizedOpeningGuidance = input.continuityRestraint === 'repair-before-closeness'
-    ? 'Stay on the same line and hold repair-before-closeness a little longer before widening the return.'
+    ? 'continuity_mode=repair_before_closeness; timing=before_widening; visibility=internal-structured'
     : input.continuityRestraint === 'rest-protective'
-      ? 'Stay on the same line, keep care present, and let rest protection hold the return inward before any outward widening.'
-      : 'Stay on the same line and keep the return lower-pressure; this callback opening should continue without reopening from scratch.'
+      ? 'continuity_mode=rest_protective; direction=inward; visibility=internal-structured'
+      : 'continuity_mode=measured_return; pressure=lower; reopening=fresh_start_blocked; visibility=internal-structured'
   const guidanceCandidates = [
     String(input.openingGuidance ?? '').trim(),
     String(previousProjection?.openingGuidance ?? '').trim(),
@@ -418,16 +609,15 @@ export function buildPresenceOnlyHoldContinuityProjection(input: {
     return /(same-her|callback|lower-pressure|reopen|repair|line)/i.test(candidate)
       || hasThinAffectiveResidueRoomMakingCue(candidate)
   })
-  const openingGuidance = meaningfullySpecificGuidance
-    ? /(same|callback|line|opening)/i.test(meaningfullySpecificGuidance)
-      ? meaningfullySpecificGuidance
-      : `${meaningfullySpecificGuidance} Stay on the same line and keep this callback opening lower-pressure.`
-    : synthesizedOpeningGuidance
+  const openingGuidance = normalizePresenceOnlyHoldCarryText(
+    meaningfullySpecificGuidance ?? synthesizedOpeningGuidance,
+    320,
+  ) || synthesizedOpeningGuidance
   const manifestationCadenceSummary = input.continuityRestraint === 'repair-before-closeness'
-    ? 'repair-before-closeness still holds while the same line keeps settling before widening closeness on the same-thread continuation.'
+    ? 'cadence=repair_before_closeness; timing=before_closeness_widens; thread=continuation'
     : input.continuityRestraint === 'rest-protective'
-      ? 'rest-protective companionship still holds while the same line keeps caring quietly inward on the same-thread continuation.'
-      : 'measured-return still holds while the same line keeps continuing lower-pressure on the same-thread continuation.'
+      ? 'cadence=rest_protective; direction=inward; thread=continuation'
+      : 'cadence=measured_return; pressure=lower; thread=continuation'
   const rememberedSeamMoreRoomCarry = hasRememberedSeamMoreRoomCarry([
     openingGuidance,
     input.projectContinuityCue,
@@ -437,14 +627,14 @@ export function buildPresenceOnlyHoldContinuityProjection(input: {
   const sameHerHoldDetail = rememberedSeamMoreRoomCarry
     ? resolveRememberedSeamMoreRoomHoldDetail()
     : input.continuityRestraint === 'repair-before-closeness'
-      ? 'repair-before-closeness is still owning this callback line before closeness widens again.'
+      ? 'continuity_hold=repair_before_closeness; timing=before_closeness_widens'
       : input.continuityRestraint === 'rest-protective'
-        ? 'rest-protective companionship is still keeping this return inward and fatigue-aware.'
-        : 'measured-return is still keeping this callback line lower-pressure before it widens again.'
+        ? 'continuity_hold=rest_protective; timing=fatigue_aware'
+        : 'continuity_hold=measured_return; pressure=lower'
   const inwardLine = [
-    String(previousProjection?.selfContinuityAuthority?.inwardLine ?? '').trim(),
-    String(input.projectContinuityCue ?? '').trim(),
-    String(input.initiativeWhy ?? '').trim(),
+    normalizePresenceOnlyHoldCarryText(previousProjection?.selfContinuityAuthority?.inwardLine, 240),
+    normalizePresenceOnlyHoldCarryText(input.projectContinuityCue, 240),
+    normalizePresenceOnlyHoldCarryText(input.initiativeWhy, 240),
     sameHerHoldDetail,
     openingGuidance,
   ].filter(Boolean).join(' | ')
@@ -559,18 +749,18 @@ export function preserveResidentSameLineProjection(input: {
       ? nextSummary
       : previousSummary.includes('project_continuity=')
         ? previousSummary
-        : `project_continuity=${carrySummary || carryNarrative || 'the same callback line is already continuing lower-pressure after another detour, so keep it on the same living thread'}`,
+        : `project_continuity=${carrySummary || carryNarrative || 'continuation_state=active; cadence=lower_pressure; restart_policy=context_preserving'}`,
     openingGuidance: shouldPreferNextRepairBeforeCloseness || shouldPreferNextRestProtective
       ? nextOpeningGuidance
       : shouldPreferNextOpeningGuidance
         ? nextOpeningGuidance
         : previousOpeningGuidance
           || nextOpeningGuidance
-          || 'Stay on the same callback line and keep continuing lower-pressure; this line is already continuing and should not cool back into a fresh reopening wait.',
+          || 'callback_cadence=lower_pressure; continuation_state=active; restart_policy=context_preserving; visibility=internal-structured',
     manifestationCadenceSummary: shouldPreferNextRepairBeforeCloseness || shouldPreferNextRestProtective
       ? nextCadenceSummary
       : previousCadenceSummary
-        || 'measured-return still holds while the same callback line keeps continuing after another detour',
+        || 'manifestation_cadence=measured_return; continuation_state=active; visibility=internal-structured',
     selfContinuityAuthority: mergedSelfContinuityAuthority,
   }
 }
@@ -646,7 +836,7 @@ export function buildPresenceOnlyHoldInitiativeFallback(input: {
     String(input.decision?.whyNow ?? '').trim(),
     String(input.projectContinuityCue ?? '').trim(),
     String(input.privateThought?.thoughtText ?? '').trim(),
-  ].filter(Boolean)[0] || 'The same line is still active, so the return should stay lower-pressure before widening outward.'
+  ].filter(Boolean)[0] || 'continuity_state=active; cadence=lower_pressure; visibility=internal-structured'
 
   const preferredPresence = continuityRestraint === 'repair-before-closeness'
     ? 'concerned'
@@ -784,10 +974,15 @@ export function buildPresenceOnlyHoldProjectStateSameHerCarryTag(input: {
   if (!merged)
     return ''
 
-  const hasSameHerIdentity = /same phase 1 digital life|same digital life|same-her|same her|one living her|continuous her|one continuous her|同一个她|同一个 her/u.test(merged)
-  const hasLivingLineClosure = /same living line|without reopening from scratch|repair-before-closeness|repair before closeness|repair first|callback repair seam|同一条线|同一生命线|接回去|继续沿着这条线|回线/u.test(merged)
+  const hasSameHerIdentity = /same phase 1 digital life|same digital life|same-her|same her|one living her|continuous her|one continuous her|continuity_identity|identity=local_desktop_life_loop|同一个她|同一个 her/u.test(merged)
+  const hasLivingLineClosure = /same living line|without reopening from scratch|reopen_from_scratch=false|continuity_hold=|repair-before-closeness|repair before closeness|repair first|callback repair seam|rest_protective|measured_return|relationship_cadence=remembered_boundary|同一条线|同一生命线|接回去|继续沿着这条线|回线/u.test(merged)
 
-  return hasSameHerIdentity && hasLivingLineClosure ? 'same-her-inward-carry' : ''
+  const hasStructuredContinuityRestraint
+    = continuityRestraint === 'measured-return'
+      || continuityRestraint === 'repair-before-closeness'
+      || continuityRestraint === 'rest-protective'
+
+  return (hasSameHerIdentity || hasStructuredContinuityRestraint) && hasLivingLineClosure ? 'same-her-inward-carry' : ''
 }
 
 export function buildDeferredAutonomyContinuitySignalFallback(input: {
@@ -883,12 +1078,20 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
       ? null
       : preferredProjectStateCompanionHeadlineLine
   ) ?? null
-  const projectStateEmotionalClosureCue = String(normalizedProjectState.emotionalClosureCue ?? projectState?.emotionalClosureCue ?? '').trim() || null
-  const projectStateEmotionalClosureSummary = String(normalizedProjectState.emotionalClosureSummary ?? projectState?.emotionalClosureSummary ?? '').trim() || null
-  const rawProjectIdentity = String(normalizedProjectState.identity ?? projectState?.identity ?? '').trim() || null
-  const rawProjectPhase = String(normalizedProjectState.currentPhase ?? projectState?.currentPhase ?? '').trim() || null
-  const rawProjectPrimaryOpenLoop = String(normalizedProjectState.primaryOpenLoop ?? projectState?.primaryOpenLoop ?? '').trim() || null
-  const rawProjectNextClosureTarget = String(normalizedProjectState.nextClosureTarget ?? projectState?.nextClosureTarget ?? '').trim() || null
+  const projectStateEmotionalClosureCue = preferPresenceOnlyMetadataAuthority([
+    projectState?.emotionalClosureCue ?? null,
+    normalizedProjectState.emotionalClosureCue ?? null,
+  ])
+  const projectStateEmotionalClosureSummary = preferPresenceOnlyMetadataAuthority([
+    projectState?.emotionalClosureSummary ?? null,
+    projectState?.emotionalClosureCue ?? null,
+    normalizedProjectState.emotionalClosureSummary ?? null,
+    normalizedProjectState.emotionalClosureCue ?? null,
+  ])
+  const rawProjectIdentity = String(projectState?.identity ?? normalizedProjectState.identity ?? '').trim() || null
+  const rawProjectPhase = String(projectState?.currentPhase ?? normalizedProjectState.currentPhase ?? '').trim() || null
+  const rawProjectPrimaryOpenLoop = String(projectState?.primaryOpenLoop ?? normalizedProjectState.primaryOpenLoop ?? '').trim() || null
+  const rawProjectNextClosureTarget = String(projectState?.nextClosureTarget ?? normalizedProjectState.nextClosureTarget ?? '').trim() || null
   const projectIdentity = (() => {
     const normalized = rawProjectIdentity?.toLowerCase() ?? ''
     if (!normalized || normalized === 'project' || normalized === 'digital life' || normalized === 'same digital life')
@@ -905,12 +1108,18 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
     const normalized = rawProjectPrimaryOpenLoop?.toLowerCase() ?? ''
     if (!normalized || normalized === 'open closure' || normalized === 'open loop' || normalized === 'closure')
       return canonicalProjectState.openLoops[0] ?? null
-    return rawProjectPrimaryOpenLoop
+    return preferPresenceOnlyMetadataAuthority([
+      rawProjectPrimaryOpenLoop,
+      canonicalProjectState.openLoops[0] ?? null,
+    ])
   })()
   const projectNextClosureTarget = (() => {
     if (looksLikeThinProjectClosureShell(rawProjectNextClosureTarget, 'next'))
       return canonicalProjectState.nextClosureTarget
-    return rawProjectNextClosureTarget
+    return preferPresenceOnlyMetadataAuthority([
+      rawProjectNextClosureTarget,
+      canonicalProjectState.nextClosureTarget,
+    ])
   })()
   const preferredProjectStateSameHerAuthorityLine = String(normalizedProjectState.sameHerSelfLine ?? projectState?.sameHerSelfLine ?? '').trim() || null
   const projectStateSameHerAuthorityLine = (
@@ -921,11 +1130,15 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
   // Deferred fallback metadata keeps the stable Phase 1 same-her baseline,
   // while richer initiative-specific closure detail stays in cue/summary slots.
   const projectStateSameHerSelfLine = canonicalProjectState.sameHerSelfLine ?? null
-  const projectStateSameHerDriftRisk = preferPresenceOnlyHoldSameHerDriftRisk({
-    current: projectState?.sameHerDriftRisk ?? null,
-    candidate: normalizedProjectState.sameHerDriftRisk ?? canonicalProjectState.sameHerDriftRisk,
-  }) || null
-  const projectStateSameHerHoldDetail = String(normalizedProjectState.sameHerHoldDetail ?? projectState?.sameHerHoldDetail ?? '').trim() || null
+  const projectStateSameHerDriftRisk = preferPresenceOnlyMetadataAuthority([
+    projectState?.sameHerDriftRisk ?? null,
+    normalizedProjectState.sameHerDriftRisk ?? null,
+    canonicalProjectState.sameHerDriftRisk,
+  ])
+  const projectStateSameHerHoldDetail = preferPresenceOnlyMetadataAuthority([
+    projectState?.sameHerHoldDetail ?? null,
+    normalizedProjectState.sameHerHoldDetail ?? null,
+  ])
   const crossModalSameHerProjectAuthorityCandidates = [
     projectStateCompanionHeadlineLine,
     projectStatePreDialogueAwarenessLine,
@@ -957,6 +1170,7 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
     projectStateSameHerHoldDetail,
     projectStateEmotionalClosureCue,
     projectNextClosureTarget,
+    projectStateSameHerDriftRisk,
     projectStateSameHerAuthorityLine,
     looksLikeBroadProjectStateAwarenessExpansion(projectStatePreDialogueAwarenessLine)
       ? null
@@ -966,18 +1180,19 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
   const repairBeforeClosenessSummaryLead = repairBeforeClosenessProjectAuthority
     ? /same living line|one living her|same line|same-her|同一条线|同一生命线/u.test(repairBeforeClosenessProjectAuthority)
       ? repairBeforeClosenessProjectAuthority
-      : `${repairBeforeClosenessProjectAuthority} Keep this return repair-before-closeness before widening outward.`
+      : `${repairBeforeClosenessProjectAuthority}; continuity_mode=repair_before_closeness; widening=deferred`
     : null
   const restProtectiveProjectAuthority = [
     projectStateSameHerHoldDetail,
     projectStateEmotionalClosureSummary,
     projectStateEmotionalClosureCue,
     projectNextClosureTarget,
+    projectStateSameHerDriftRisk,
     projectStateSameHerAuthorityLine,
     looksLikeBroadProjectStateAwarenessExpansion(projectStatePreDialogueAwarenessLine)
       ? null
       : projectStatePreDialogueAwarenessLine,
-  ].find(candidate => /rest-protective|rest protective|rest protection|quiet-companionship|quiet companionship|fatigue-aware|protect rest|protecting rest|late-night-drain|line holds inward|holds inward|quietly inward|休息保护|先往内收/u.test(candidate ?? ''))
+  ].find(candidate => /rest-protective|rest protective|rest protection|quiet-companionship|quiet companionship|fatigue-aware|continuity_hold=rest_protective|continuity_mode=rest_protective|fatigue_aware=true|protect rest|protecting rest|late-night-drain|line holds inward|holds inward|quietly inward|休息保护|先往内收/u.test(candidate ?? ''))
   ?? null
   const restProtectiveLineAuthority = [
     projectNextClosureTarget,
@@ -989,16 +1204,16 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
   ?? null
   const restProtectiveSummaryLead = restProtectiveProjectAuthority
     ? (() => {
-        const base = /rest-protective|rest protective|rest protection|quiet-companionship|quiet companionship|fatigue-aware/u.test(restProtectiveProjectAuthority)
+        const base = /rest-protective|rest protective|rest protection|quiet-companionship|quiet companionship|fatigue-aware|continuity_hold=rest_protective|continuity_mode=rest_protective|fatigue_aware=true/u.test(restProtectiveProjectAuthority)
           ? restProtectiveProjectAuthority
-          : `${restProtectiveProjectAuthority} Keep this return rest-protective and fatigue-aware.`
+          : `${restProtectiveProjectAuthority}; continuity_mode=rest_protective; fatigue_aware=true`
 
         if (/same living line|same line|同一条线|同一生命线/u.test(base))
           return base
 
         return appendPresenceOnlyHoldCarryText(
           base,
-          restProtectiveLineAuthority ?? 'Keep this return rest-protective until rest protection settles.',
+          restProtectiveLineAuthority ?? 'continuity_mode=rest_protective; until=rest_protection_settles',
           420,
         )
       })()
@@ -1008,6 +1223,7 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
     projectStateEmotionalClosureSummary,
     projectStateEmotionalClosureCue,
     projectNextClosureTarget,
+    projectStateSameHerDriftRisk,
     looksLikeBroadProjectStateAwarenessExpansion(projectStatePreDialogueAwarenessLine)
       ? null
       : projectStatePreDialogueAwarenessLine,
@@ -1022,28 +1238,35 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
   const crossModalSameHerSummaryLead = crossModalSameHerProjectAuthority
     ? /cross-modal same-her proof|cross-modal same-her closure|visible reply|voice|face|motion|lipsync|resident presence/u.test(crossModalSameHerProjectAuthority)
       ? crossModalSameHerProjectAuthority
-      : `${crossModalSameHerProjectAuthority} Keep this deferred return carrying cross-modal same-her closure across visible reply, voice, face, motion, and resident presence.`
+      : `${crossModalSameHerProjectAuthority} continuity_context=deferred-return; closure=cross-modal; cover=visible_reply,voice,face,motion,lipsync,resident_presence.`
     : null
   const sameHerDriftRiskSummaryLead = projectStateSameHerDriftRisk
     && /same-her|same her|generic assistant shell|project-summary voice|generic project guidance|detached project|continuity drift|closure drift/u.test(projectStateSameHerDriftRisk)
     ? projectStateSameHerDriftRisk
     : null
-  const preferredDeferredSummaryAuthority = repairBeforeClosenessSummaryLead
-    || restProtectiveSummaryLead
-    || crossModalSameHerSummaryLead
-    || rememberedSeamMoreRoomSummaryLead
-    || (
-      sameHerDriftRiskSummaryLead
-      && !repairBeforeClosenessSummaryLead
-      && !restProtectiveSummaryLead
-      && !rememberedSeamMoreRoomSummaryLead
-      && !crossModalSameHerSummaryLead
-        ? sameHerDriftRiskSummaryLead
-        : null
-    )
-    || whyNow
-    || executionIntentSummary
-    || ''
+  const deferredSummaryAuthority = preferPresenceOnlyDeferredSummaryAuthority([
+    repairBeforeClosenessSummaryLead,
+    restProtectiveSummaryLead,
+    rememberedSeamMoreRoomSummaryLead,
+    sameHerDriftRiskSummaryLead,
+    crossModalSameHerSummaryLead,
+    whyNow,
+    executionIntentSummary,
+  ])
+  const deferredWhyNow = normalizePresenceOnlyHoldMetadataText(whyNow, 560)
+  const deferredExecutionIntentSummary = normalizePresenceOnlyHoldMetadataText(executionIntentSummary, 560)
+  const deferredProjectStatePreflightSummary = normalizePresenceOnlyHoldMetadataText(projectStatePreflightSummary, 560)
+  const deferredProjectStatePreDialogueAwarenessLine = normalizePresenceOnlyHoldMetadataText(projectStatePreDialogueAwarenessLine, 560)
+  const deferredProjectStateCompanionHeadlineLine = normalizePresenceOnlyHoldMetadataText(projectStateCompanionHeadlineLine, 560)
+  const deferredProjectStateEmotionalClosureCue = normalizePresenceOnlyHoldMetadataText(projectStateEmotionalClosureCue, 560)
+  const deferredProjectStateEmotionalClosureSummary = normalizePresenceOnlyHoldMetadataText(projectStateEmotionalClosureSummary, 560)
+  const deferredProjectIdentity = normalizePresenceOnlyHoldMetadataText(projectIdentity, 360)
+  const deferredProjectPhase = normalizePresenceOnlyHoldMetadataText(projectPhase, 360)
+  const deferredProjectPrimaryOpenLoop = normalizePresenceOnlyHoldMetadataText(projectPrimaryOpenLoop, 560)
+  const deferredProjectNextClosureTarget = normalizePresenceOnlyHoldMetadataText(projectNextClosureTarget, 560)
+  const deferredProjectStateSameHerSelfLine = normalizePresenceOnlyHoldMetadataText(projectStateSameHerSelfLine, 560)
+  const deferredProjectStateSameHerDriftRisk = normalizePresenceOnlyHoldMetadataText(projectStateSameHerDriftRisk, 560)
+  const deferredProjectStateSameHerHoldDetail = normalizePresenceOnlyHoldMetadataText(projectStateSameHerHoldDetail, 560)
 
   if (shouldUseDeferredProactiveLine) {
     return {
@@ -1053,10 +1276,10 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
       summary: [
         'no mind-authored visible reply was available',
         reason ? `reason=${reason}` : '',
-        preferredDeferredSummaryAuthority,
-        projectNextClosureTarget ? `next=${projectNextClosureTarget}` : '',
-        projectPhase ? `phase=${projectPhase}` : '',
-        projectPrimaryOpenLoop ? `unresolved=${projectPrimaryOpenLoop}` : '',
+        deferredSummaryAuthority,
+        deferredProjectNextClosureTarget ? `next=${deferredProjectNextClosureTarget}` : '',
+        deferredProjectPhase ? `phase=${deferredProjectPhase}` : '',
+        deferredProjectPrimaryOpenLoop ? `unresolved=${deferredProjectPrimaryOpenLoop}` : '',
         sourceThreadId ? `thread=${sourceThreadId}` : '',
         `scenario=${scenario}`,
       ].filter(Boolean).join(' | '),
@@ -1073,25 +1296,25 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
         scenario,
         reason: reason || null,
         deferReason: deferReason || null,
-        whyNow: whyNow || null,
+        whyNow: deferredWhyNow,
         sourceThreadId: sourceThreadId || null,
         sourceThoughtThreadId: sourceThoughtThreadId || null,
         sourceConcernId: sourceConcernId || null,
         executionIntentKind: null,
-        executionIntentSummary: executionIntentSummary || null,
+        executionIntentSummary: deferredExecutionIntentSummary,
         targetThreadId: targetThreadId || null,
-        projectStatePreflightSummary,
-        projectStatePreDialogueAwarenessLine,
-        projectStateCompanionHeadlineLine,
-        projectStateEmotionalClosureCue,
-        projectStateEmotionalClosureSummary,
-        projectIdentity,
-        projectPhase,
-        projectPrimaryOpenLoop,
-        projectNextClosureTarget,
-        projectStateSameHerSelfLine,
-        projectStateSameHerDriftRisk,
-        projectStateSameHerHoldDetail,
+        projectStatePreflightSummary: deferredProjectStatePreflightSummary,
+        projectStatePreDialogueAwarenessLine: deferredProjectStatePreDialogueAwarenessLine,
+        projectStateCompanionHeadlineLine: deferredProjectStateCompanionHeadlineLine,
+        projectStateEmotionalClosureCue: deferredProjectStateEmotionalClosureCue,
+        projectStateEmotionalClosureSummary: deferredProjectStateEmotionalClosureSummary,
+        projectIdentity: deferredProjectIdentity,
+        projectPhase: deferredProjectPhase,
+        projectPrimaryOpenLoop: deferredProjectPrimaryOpenLoop,
+        projectNextClosureTarget: deferredProjectNextClosureTarget,
+        projectStateSameHerSelfLine: deferredProjectStateSameHerSelfLine,
+        projectStateSameHerDriftRisk: deferredProjectStateSameHerDriftRisk,
+        projectStateSameHerHoldDetail: deferredProjectStateSameHerHoldDetail,
       },
     }
   }
@@ -1101,7 +1324,7 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
     state: 'observed',
     label: `proactive:${executionIntentKind || scenario}:held-autonomy`,
     summary: [
-      repairBeforeClosenessSummaryLead || restProtectiveSummaryLead || crossModalSameHerSummaryLead || sameHerDriftRiskSummaryLead || executionIntentSummary || whyNow || 'a proactive autonomy line was held for a better opening',
+      deferredSummaryAuthority || deferredExecutionIntentSummary || deferredWhyNow || 'proactive_state=held_for_opening; visibility=internal-structured',
       executionIntentKind ? `intent=${executionIntentKind}` : '',
       deferReason ? `defer=${deferReason}` : '',
       reason ? `reason=${reason}` : '',
@@ -1121,25 +1344,25 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
       scenario,
       reason: reason || null,
       deferReason: deferReason || null,
-      whyNow: whyNow || null,
+      whyNow: deferredWhyNow,
       sourceThreadId: sourceThreadId || null,
       sourceThoughtThreadId: sourceThoughtThreadId || null,
       sourceConcernId: sourceConcernId || null,
       executionIntentKind: executionIntentKind || null,
-      executionIntentSummary: executionIntentSummary || null,
+      executionIntentSummary: deferredExecutionIntentSummary,
       targetThreadId: targetThreadId || null,
-      projectStatePreflightSummary,
-      projectStatePreDialogueAwarenessLine,
-      projectStateCompanionHeadlineLine,
-      projectStateEmotionalClosureCue,
-      projectStateEmotionalClosureSummary,
-      projectIdentity,
-      projectPhase,
-      projectPrimaryOpenLoop,
-      projectNextClosureTarget,
-      projectStateSameHerSelfLine,
-      projectStateSameHerDriftRisk,
-      projectStateSameHerHoldDetail,
+      projectStatePreflightSummary: deferredProjectStatePreflightSummary,
+      projectStatePreDialogueAwarenessLine: deferredProjectStatePreDialogueAwarenessLine,
+      projectStateCompanionHeadlineLine: deferredProjectStateCompanionHeadlineLine,
+      projectStateEmotionalClosureCue: deferredProjectStateEmotionalClosureCue,
+      projectStateEmotionalClosureSummary: deferredProjectStateEmotionalClosureSummary,
+      projectIdentity: deferredProjectIdentity,
+      projectPhase: deferredProjectPhase,
+      projectPrimaryOpenLoop: deferredProjectPrimaryOpenLoop,
+      projectNextClosureTarget: deferredProjectNextClosureTarget,
+      projectStateSameHerSelfLine: deferredProjectStateSameHerSelfLine,
+      projectStateSameHerDriftRisk: deferredProjectStateSameHerDriftRisk,
+      projectStateSameHerHoldDetail: deferredProjectStateSameHerHoldDetail,
     },
   }
 }
@@ -1241,6 +1464,10 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
         ? projectStateBrief.preDialogueAwarenessLine
         : `${projectStateBrief.preDialogueAwarenessLine} ${preferredPreDialogueAwarenessLine}`.trim()
       : preferredPreDialogueAwarenessLine
+  const resolvedPreDialogueAwarenessLine = normalizePresenceOnlyHoldCarryText(
+    mergedPreDialogueAwarenessLine,
+    900,
+  ) || null
   const resolvedSameHerSelfLine = normalizePresenceOnlyHoldCarryText(
     input.projectStateCarry?.sameHerSummary
     ?? preferPresenceOnlyHoldSameHerSelfLine({
@@ -1279,6 +1506,7 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
   )
   const resolvedEmotionalClosureSummary = normalizePresenceOnlyHoldCarryText(
     input.projectStateCarry?.emotionalClosureSummary
+    ?? projectState.emotionalClosureCue
     ?? projectState.emotionalClosureSummary
     ?? preferredProjectState.emotionalClosureSummary
     ?? preferredProjectState.emotionalClosureCue
@@ -1288,14 +1516,17 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
   )
   const resolvedSameHerHoldDetail = normalizePresenceOnlyHoldCarryText(
     resolvePresenceOnlyHoldSameHerHoldDetail({
-      current: projectState.sameHerHoldDetail,
+      current:
+        carriesExecutionSafetyGateRestraint || carriesExecutionResumeConfirmationBoundary
+          ? null
+          : projectState.sameHerHoldDetail,
       candidate:
         input.holdDetail
         ?? (input.continuityRestraint === 'repair-before-closeness'
-          ? 'repair-before-closeness is still owning this callback line before closeness widens again.'
+          ? 'continuity_hold=repair_before_closeness; timing=before_closeness_widens'
           : input.continuityRestraint === 'rest-protective'
-            ? 'rest-protective companionship is still keeping this return inward and fatigue-aware.'
-            : 'measured-return is still keeping this callback line lower-pressure before it widens again.'),
+            ? 'continuity_hold=rest_protective; timing=fatigue_aware'
+            : 'continuity_hold=measured_return; pressure=lower'),
       continuityCue: input.projectStateCarry?.continuityCue,
       continuityRestraint: input.continuityRestraint,
     }),
@@ -1303,29 +1534,31 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
   )
   const synthesizedConsciousNeed
     = input.continuityRestraint === 'repair-before-closeness'
-      ? 'Keep repair-before-closeness until repair settles so emotion, memory, initiative, and embodiment do not widen ahead of truth.'
+      ? 'continuity_mode=repair_before_closeness; until=repair_settles; lanes=emotion+memory+initiative+embodiment'
       : input.continuityRestraint === 'rest-protective'
-        ? 'Protect rest first and keep Alicization carrying emotion, memory, initiative, and embodiment inward before warmth widens.'
-        : 'Keep Alicization lower-pressure so emotion, memory, initiative, and embodiment can keep closing before widening.'
+        ? 'continuity_mode=rest_protective; direction=inward; lanes=emotion+memory+initiative+embodiment'
+        : 'continuity_mode=measured_return; pressure=lower; lanes=emotion+memory+initiative+embodiment'
   const synthesizedSpeakingIntention
     = input.continuityRestraint === 'repair-before-closeness'
-      ? 'Speak from Alicization’s current context, keep repair-before-closeness explicit, and do not let emotion, memory, initiative, and embodiment reopen from scratch.'
+      ? 'reply_context=current; continuity_mode=repair_before_closeness; reopen_from_scratch=false; lanes=emotion+memory+initiative+embodiment'
       : input.continuityRestraint === 'rest-protective'
-        ? 'Speak from Alicization’s current context while quietly protecting rest and keeping emotion, memory, initiative, and embodiment inward.'
-        : 'Speak from Alicization’s current context carrying one still-open closure so emotion, memory, initiative, and embodiment stay coordinated before widening outward.'
-  const nextConsciousNeed = hasPresenceOnlyHoldSameHerProjectCue(frame.consciousNeed)
-    ? frame.consciousNeed
+        ? 'reply_context=current; continuity_mode=rest_protective; direction=inward; lanes=emotion+memory+initiative+embodiment'
+        : 'reply_context=current; continuity_mode=measured_return; pressure=lower; lanes=emotion+memory+initiative+embodiment'
+  const normalizedFrameConsciousNeed = normalizePresenceOnlyHoldCarryText(frame.consciousNeed, 520)
+  const nextConsciousNeed = hasPresenceOnlyHoldSameHerProjectCue(normalizedFrameConsciousNeed)
+    ? normalizedFrameConsciousNeed
     : appendPresenceOnlyHoldCarryText(
-        appendPresenceOnlyHoldCarryText(frame.consciousNeed, synthesizedConsciousNeed, 520),
+        appendPresenceOnlyHoldCarryText(normalizedFrameConsciousNeed, synthesizedConsciousNeed, 520),
         resolvedPrimaryOpenLoop || resolvedNextClosureTarget || resolvedEmotionalClosureSummary,
         520,
       )
-  const nextSpeakingIntention = hasPresenceOnlyHoldSameHerProjectCue(frame.speakingIntention)
-    ? frame.speakingIntention
+  const normalizedFrameSpeakingIntention = normalizePresenceOnlyHoldCarryText(frame.speakingIntention, 520)
+  const nextSpeakingIntention = hasPresenceOnlyHoldSameHerProjectCue(normalizedFrameSpeakingIntention)
+    ? normalizedFrameSpeakingIntention
     : appendPresenceOnlyHoldCarryText(
         appendPresenceOnlyHoldCarryText(
-          appendPresenceOnlyHoldCarryText(frame.speakingIntention, synthesizedSpeakingIntention, 520),
-          resolvedSameHerSelfLine || resolvedSameHerHoldDetail,
+          appendPresenceOnlyHoldCarryText(normalizedFrameSpeakingIntention, synthesizedSpeakingIntention, 520),
+          resolvedSameHerHoldDetail || resolvedSameHerSelfLine,
           520,
         ),
         carriesExecutionSafetyGateRestraint || carriesExecutionResumeConfirmationBoundary ? resolvedSameHerHoldDetail : null,
@@ -1334,13 +1567,13 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
 
   return {
     ...frame,
-    consciousNeed: nextConsciousNeed || frame.consciousNeed,
-    speakingIntention: nextSpeakingIntention || frame.speakingIntention,
+    consciousNeed: nextConsciousNeed || normalizedFrameConsciousNeed || frame.consciousNeed,
+    speakingIntention: nextSpeakingIntention || normalizedFrameSpeakingIntention || frame.speakingIntention,
     reasonTags: nextReasonTags,
     projectState: {
       ...projectState,
       preflightSummary: preferredProjectState.preflightSummary ?? projectStateBrief.preflightSummary ?? null,
-      preDialogueAwarenessLine: mergedPreDialogueAwarenessLine,
+      preDialogueAwarenessLine: resolvedPreDialogueAwarenessLine,
       identity: preferredProjectState.identity ?? projectStateBrief.identity,
       currentPhase: preferredProjectState.currentPhase ?? projectStateBrief.currentPhase,
       latestLandedProgress: preferredProjectState.latestLandedProgress ?? projectStateBrief.continuityProgressSummary ?? projectStateBrief.memoryAnthropomorphismProgress.at(-1) ?? null,
@@ -1362,10 +1595,13 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
         || preferredProjectState.emotionalClosureSummary
         || null,
       continuityCue:
-        input.projectStateCarry?.continuityCue
-        ?? projectState.continuityCue
-        ?? preferredProjectState.continuityCue
-        ?? null,
+        normalizePresenceOnlyHoldCarryText(
+          input.projectStateCarry?.continuityCue
+          ?? projectState.continuityCue
+          ?? preferredProjectState.continuityCue
+          ?? null,
+          320,
+        ) || null,
       continuityArcStage: 'same-thread-continuation',
       continuityPreferredTiming: 'next-open-window',
       sameHerHoldDetail: resolvedSameHerHoldDetail || null,

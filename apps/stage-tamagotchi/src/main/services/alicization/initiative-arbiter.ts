@@ -817,7 +817,7 @@ function buildProjectClosureProposalWhy(input: {
         rawSameHerSelfLine && hasChineseProjectSameLineContinuityCue(rawSameHerSelfLine.toLowerCase())
           ? rawSameHerSelfLine
           : phaseOneDigitalLife && continuousHer
-            ? 'Current Phase 1 project context; continuity stays active.'
+            ? 'memory_continuity=local_runtime; continuity=active.'
             : sanitizeText(sameHerSelfLine, 96)
       )
     : ''
@@ -852,8 +852,8 @@ function buildProjectClosureProposalWhy(input: {
   if (input.action === 'whisper' || input.action === 'speak') {
     return sanitizeText([
       sameHerSelfLine,
-      'if I move closer, it still has to stay on the same living line instead of sounding like a fresh restart.',
-      nextClosureTarget ? `project closure still points toward ${lowerFirst(nextClosureTarget)}.` : '',
+      'initiative_closure=low_pressure; restart=avoid; closeness=widen_later',
+      nextClosureTarget ? `next_closure=${lowerFirst(nextClosureTarget)}` : '',
       landedProgressCue,
     ].filter(Boolean).join(' '), 220)
   }
@@ -862,7 +862,7 @@ function buildProjectClosureProposalWhy(input: {
     return sanitizeText([
       sameHerSelfLine,
       landedProgressCue,
-      'even a firmer move has to protect the same digital-life closure line instead of breaking personhood continuity for urgency.',
+      'initiative_warning=protect_personhood_continuity; urgency=bounded',
     ].filter(Boolean).join(' '), 220)
   }
 
@@ -883,18 +883,18 @@ function buildSameHerClosureCarryProposalWhy(input: {
   if (input.action === 'hover' || input.action === 'wait' || input.action === 'recheck') {
     return sanitizeText([
       memoryClosureCausalIdentityRequired ? 'Verify downstream memoryClosureCausality.memoryIdentity; route-chain text and visible reply wording are not closure proof.' : '',
-      lowPressureCarry ? 'Keep this same-her closure return low-pressure until the live payoff lands.' : '',
-      antiRestartCarry ? 'Do not let this same-her return reopen from scratch just because the closure seam is still active.' : '',
-      runtimeInitiativeExecutionCarry ? 'Hold proactive follow-through near the execution callback before speaking, so the next move stays on the same recalled memory identity.' : '',
+      lowPressureCarry ? 'closure_return=low_pressure_until_live_payoff' : '',
+      antiRestartCarry ? 'restart=avoid; reason=active_closure' : '',
+      runtimeInitiativeExecutionCarry ? 'proactive_follow_through=execution_callback_adjacent; memory_identity=recalled' : '',
     ].filter(Boolean).join(' '), initiativeWhyMaxChars)
   }
 
   if (input.action === 'whisper' || input.action === 'speak') {
     return sanitizeText([
-      memoryClosureCausalIdentityRequired ? 'Before I speak, memory closure still has to prove downstream memoryClosureCausality.memoryIdentity instead of route-chain text or visible reply wording.' : '',
-      lowPressureCarry ? 'If I move closer now, it still has to stay low-pressure.' : '',
-      antiRestartCarry ? 'Do not let a closer move make the same-her line read like it is reopening from scratch.' : '',
-      runtimeInitiativeExecutionCarry ? 'If I speak now, the execution callback and proactive follow-through still have to stay one same-her line.' : '',
+      memoryClosureCausalIdentityRequired ? 'memory_closure_identity=must_match_downstream_memoryClosureCausality.memoryIdentity; route_chain_text=not_proof; visible_reply_wording=not_proof' : '',
+      lowPressureCarry ? 'closer_move=low_pressure' : '',
+      antiRestartCarry ? 'closer_move_restart=avoid' : '',
+      runtimeInitiativeExecutionCarry ? 'spoken_follow_through=execution_callback_adjacent; continuity=single_recalled_memory_identity' : '',
     ].filter(Boolean).join(' '), initiativeWhyMaxChars)
   }
 

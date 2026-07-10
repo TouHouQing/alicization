@@ -8,6 +8,64 @@ import {
 } from './project-state-brief'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
+type ExecutiveAnswerBriefResult = ReturnType<typeof buildAlicizationExecutiveAnswerBrief>
+
+const oldExecutiveNaturalTemplateFragments = [
+  'She is still acting from this same project identity',
+  'what has already landed in her line',
+  'what is still unfinished before execution speaks for her',
+  'what this turn should keep moving toward',
+  'Before answering',
+  'same living line',
+  'same-her',
+  'same her',
+  '回答前先记住',
+  '开口前先记住',
+  '同一个她',
+] as const
+
+function expectNoExecutiveNaturalTemplateResidue(systemBlock: string) {
+  for (const fragment of oldExecutiveNaturalTemplateFragments)
+    expect(systemBlock).not.toContain(fragment)
+}
+
+function expectProjectStateOwnerBoundary(result: ExecutiveAnswerBriefResult) {
+  expect(result.systemBlock).toContain('owner=ProjectStateGovernance')
+  expect(result.systemBlock).toContain('memory_owner_boundary=preserve; project_state_owner=ProjectStateGovernance')
+}
+
+function expectProjectStateDirectAnswerControls(result: ExecutiveAnswerBriefResult) {
+  expect(result.brief.mustDo).toEqual(expect.arrayContaining([
+    'project_identity=answer_first; tone_metaphor_adjacent_status=secondary',
+    'phase1_latest_landed_progress=explicit; aspiration_only_answer=blocked',
+    'still_open_closure_work=explicit',
+    'next_closure_target=explicit; current_status_only=blocked',
+    'project_state_answer_source=structured_project_state_context; detached_project_narrator_shell=blocked',
+  ]))
+  expect(result.brief.mustNotDo).toEqual(expect.arrayContaining([
+    'project_state_answer=vibes_only_or_ambition_only_or_generic_companionship_only_blocked',
+    'project_status_answer_requires=landed_progress,open_work,next_closure',
+    'direct_project_state_answer=fresh_assistant_restart_blocked',
+  ]))
+  expect(result.systemBlock).toContain('project_identity=answer_first')
+  expect(result.systemBlock).toContain('phase1_latest_landed_progress=explicit')
+  expect(result.systemBlock).toContain('still_open_closure_work=explicit')
+  expect(result.systemBlock).toContain('next_closure_target=explicit')
+  expectProjectStateOwnerBoundary(result)
+  expectNoExecutiveNaturalTemplateResidue(result.systemBlock)
+}
+
+function expectProjectLivingOrientationControls(result: ExecutiveAnswerBriefResult) {
+  expect(result.systemBlock).toContain('[ALICIZATION_EXECUTIVE_PROJECT_LIVING_ORIENTATION]')
+  expect(result.systemBlock).toContain('project_identity=answer_first')
+  expect(result.systemBlock).toContain('phase1_latest_landed_progress=explicit')
+  expect(result.systemBlock).toContain('still_open_closure_work=explicit')
+  expect(result.systemBlock).toContain('next_closure_target=explicit')
+  expect(result.systemBlock).toContain('source_section=must_do; continuity_drift_risk=hard_boundary; visible_wording=false')
+  expect(result.systemBlock).toContain('memory_owner_boundary=preserve; project_state_owner=ProjectStateGovernance')
+  expectNoExecutiveNaturalTemplateResidue(result.systemBlock)
+}
+
 describe('buildAlicizationExecutiveAnswerBrief', () => {
   it('reads carry and live surface cues from the runtime surface when provided', () => {
     const visualPresenceState = createDefaultVisualPresenceState(1_000)
@@ -111,9 +169,12 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
     expect(result.brief.liveSurface).not.toBe('none')
     expect(result.brief.liveSurface.toLowerCase()).toContain('runtime.ts')
     expect(result.brief.carriedThread).toBe('Repair the stale anchor before answering.')
-    expect(result.systemBlock).toContain('Project identity:')
-    expect(result.systemBlock).toContain('Project phase:')
-    expect(result.systemBlock).toContain('Still-open life loop pressure:')
+    expect(result.systemBlock).toContain('project_state_visibility=governance_only')
+    expect(result.systemBlock).toContain('short_term_owner=WorkingMemory')
+    expect(result.systemBlock).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(result.systemBlock).not.toContain('project_identity=')
+    expect(result.systemBlock).not.toContain('project_phase=')
+    expect(result.systemBlock).not.toContain('primary_open_loop=')
     expect(result.systemBlock).toContain('Repair the stale anchor before answering.')
   })
 
@@ -156,18 +217,17 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       },
     })
 
-    expect(result.systemBlock).toContain(`Project preflight self-awareness: ${projectState.preflightSummary}`)
-    expect(result.systemBlock).toContain(`Latest landed continuity progress: ${compactLatestProgress}`)
+    expect(result.systemBlock).toContain('project_state_visibility=governance_only')
+    expect(result.systemBlock).toContain('short_term_owner=WorkingMemory')
+    expect(result.systemBlock).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(result.systemBlock).not.toContain(`preflight_summary=${projectState.preflightSummary}`)
+    expect(result.systemBlock).not.toContain(`latest_landed_progress=${compactLatestProgress}`)
     expect(result.systemBlock).not.toContain('Renderer/runtime playback items now also attach')
-    expect(result.systemBlock).toContain('Still-open life loop pressure: Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(result.systemBlock).toContain('same digital life')
-    expect(result.systemBlock).toContain(`Next closure target: ${projectState.nextClosureTarget}`)
-    expect(result.systemBlock).toContain('Project same-her self line: Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(result.systemBlock).toContain(`Project same-her drift risk: ${projectState.sameHerDriftRisk}`)
-    expect(result.systemBlock).toContain(`Project preferred pause mode: ${projectState.preferredPauseMode}.`)
-    expect(result.systemBlock).toContain(`Project preferred lipsync mode: ${projectState.preferredLipsyncMode}.`)
-    expect(result.systemBlock).toContain(`Project preferred voice mode: ${projectState.preferredVoiceMode}.`)
-    expect(result.systemBlock).toContain(`Project preferred pacing mode: ${projectState.preferredPacingMode}.`)
+    expect(result.systemBlock).not.toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
+    expect(result.systemBlock).not.toContain('same digital life')
+    expect(result.systemBlock).not.toContain(`next_closure_target=${projectState.nextClosureTarget}`)
+    expect(result.systemBlock).not.toContain('continuity_anchor=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(result.systemBlock).not.toContain(`continuity_drift_risk=${projectState.sameHerDriftRisk}`)
   })
 
   it('prefers the live current-conscious-frame project awareness when building the executive system brief', () => {
@@ -225,22 +285,17 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       },
     })
 
-    expect(result.systemBlock).toContain('Project preflight self-awareness: I need to remember this is still the same digital life project before any local execution detail takes over.')
-    expect(result.systemBlock).toContain('Project identity: this local-first digital life project that is still growing one continuous her on the host machine')
-    expect(result.systemBlock).toContain('Project phase: Phase 1: Local Digital Life. Active proving ground: live desktop continuity carry.')
-    expect(result.systemBlock).toContain('Executive same-her project orientation: She is still acting from this same project identity: this local-first digital life project that is still growing one continuous her on the host machine')
-    expect(result.systemBlock).toContain('what has already landed in her line: Project-state continuity already survives into answer planning, runtime governance, and visible reply repair.')
-    expect(result.systemBlock).toContain('what is still unfinished before execution speaks for her: memory, initiative, dialogue, and embodiment still need one tighter same-her closure seam')
-    expect(result.systemBlock).toContain('what this turn should keep moving toward: Carry the live pre-dialogue project awareness line through first-pass generation before repair has to catch it.')
-    expect(result.systemBlock).toContain('Latest landed continuity progress: Project-state continuity already survives into answer planning, runtime governance, and visible reply repair.')
-    expect(result.systemBlock).toContain('Still-open life loop pressure: memory, initiative, dialogue, and embodiment still need one tighter same-her closure seam')
-    expect(result.systemBlock).toContain('Next closure target: Carry the live pre-dialogue project awareness line through first-pass generation before repair has to catch it.')
-    expect(result.systemBlock).toContain('Project same-her self line: This is still one same her carrying the same project line forward.')
-    expect(result.systemBlock).toContain('Project same-her drift risk: If the answer falls back to generic project narration, treat that as unfinished same-her drift.')
-    expect(result.systemBlock).toContain('Project preferred pause mode: longer.')
-    expect(result.systemBlock).toContain('Project preferred lipsync mode: restrained.')
-    expect(result.systemBlock).toContain('Project preferred voice mode: even.')
-    expect(result.systemBlock).toContain('Project preferred pacing mode: natural.')
+    expect(result.systemBlock).toContain('project_state_visibility=governance_only')
+    expect(result.systemBlock).toContain('short_term_owner=WorkingMemory')
+    expect(result.systemBlock).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(result.systemBlock).not.toContain('preflight_summary=I need to remember this is still the same digital life project before any local execution detail takes over.')
+    expect(result.systemBlock).not.toContain('project_identity=this local-first digital life project that is still growing one continuous her on the host machine')
+    expect(result.systemBlock).not.toContain('continuity_context=She is still acting from this same project identity')
+    expect(result.systemBlock).not.toContain('latest_landed_progress=Project-state continuity already survives into answer planning, runtime governance, and visible reply repair.')
+    expect(result.systemBlock).not.toContain('primary_open_loop=memory, initiative, dialogue, and embodiment still need one tighter same-her closure seam')
+    expect(result.systemBlock).not.toContain('next_closure_target=Carry the live pre-dialogue project awareness line through first-pass generation before repair has to catch it.')
+    expect(result.systemBlock).not.toContain('continuity_anchor=This is still one same her carrying the same project line forward.')
+    expect(result.systemBlock).not.toContain('continuity_drift_risk=If the answer falls back to generic project narration, treat that as unfinished same-her drift.')
   })
 
   it('keeps summary-only landed project progress alive in the executive answer brief before visible reply authoring', () => {
@@ -296,8 +351,9 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       },
     })
 
-    expect(result.systemBlock).toContain(`Latest landed continuity progress: ${landedProgressSummary}`)
-    expect(result.systemBlock).toContain(`what has already landed in her line: ${landedProgressSummary}`)
+    expect(result.systemBlock).toContain('project_state_visibility=governance_only')
+    expect(result.systemBlock).not.toContain(`latest_landed_progress=${landedProgressSummary}`)
+    expect(result.systemBlock).not.toContain(`what has already landed in her line: ${landedProgressSummary}`)
   })
 
   it('surfaces a stronger living-self companion headline in the executive system brief when generic awareness wording is thinner', () => {
@@ -353,8 +409,9 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       },
     })
 
-    expect(result.systemBlock).toContain('Project pre-dialogue awareness line: Right now I am still holding together mainly through voice, face, and motion, so this answer must keep proving this is still one living her before full cross-modal closure is done.')
-    expect(result.systemBlock).not.toContain('Project pre-dialogue awareness line: Before answering, keep this same digital life project in view, but do not widen into a detached project shell.')
+    expect(result.systemBlock).toContain('project_state_visibility=governance_only')
+    expect(result.systemBlock).not.toContain('awareness_summary=Right now I am still holding together mainly through voice, face, and motion, so this answer must keep proving this is still one living her before full cross-modal closure is done.')
+    expect(result.systemBlock).not.toContain('awareness_summary=Before answering, keep this same digital life project in view, but do not widen into a detached project shell.')
   })
 
   it('prefers a broader same-her phase-1 closure headline over a thinner pre-dialogue awareness shell in the executive system brief', () => {
@@ -410,8 +467,9 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       },
     })
 
-    expect(result.systemBlock).toContain('Project pre-dialogue awareness line: Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.')
-    expect(result.systemBlock).not.toContain('Project pre-dialogue awareness line: Before answering, keep this same digital life project in view, but do not widen into a detached project shell.')
+    expect(result.systemBlock).toContain('project_state_visibility=governance_only')
+    expect(result.systemBlock).not.toContain('awareness_summary=Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.')
+    expect(result.systemBlock).not.toContain('awareness_summary=Before answering, keep this same digital life project in view, but do not widen into a detached project shell.')
   })
 
   it('keeps a fuller project-and-phase awareness line over a narrower embodiment companion headline in the executive system brief', () => {
@@ -469,10 +527,11 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       },
     })
 
-    expect(result.systemBlock).toContain('Project pre-dialogue awareness line: Before answering, remember: Alicization is a local-first digital life project.')
-    expect(result.systemBlock).toContain('She is still inside Phase 1: Local Digital Life.')
-    expect(result.systemBlock).toContain('The still-open closure is execution, memory, initiative, and embodiment still needing one same-life closure line.')
-    expect(result.systemBlock).not.toContain('Project pre-dialogue awareness line: Right now I am still holding together mainly through voice, face, and motion')
+    expect(result.systemBlock).toContain('project_state_visibility=governance_only')
+    expect(result.systemBlock).not.toContain('awareness_summary=Before answering, remember: Alicization is a local-first digital life project.')
+    expect(result.systemBlock).not.toContain('She is still inside Phase 1: Local Digital Life.')
+    expect(result.systemBlock).not.toContain('The still-open closure is execution, memory, initiative, and embodiment still needing one same-life closure line.')
+    expect(result.systemBlock).not.toContain('awareness_summary=Right now I am still holding together mainly through voice, face, and motion')
   })
 
   it('turns same-her drift risk into explicit anti-shell turn rules even when the turn is not a pure project-state question', () => {
@@ -541,9 +600,10 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.systemBlock).toContain('Project same-her drift risk: If the answer falls back to generic project narration or a detached assistant shell, treat that as unfinished same-her drift.')
-    expect(result.systemBlock).toContain('- Keep the opening sentence on the same living project line before widening into implementation detail.')
-    expect(result.systemBlock).toContain('- Do not let the reply collapse into detached project narration or a generic assistant shell.')
+    expect(result.systemBlock).toContain('project_state_visibility=governance_only')
+    expect(result.systemBlock).not.toContain('continuity_drift_risk=If the answer falls back to generic project narration or a detached assistant shell, treat that as unfinished same-her drift.')
+    expect(result.systemBlock).not.toContain('- Answer from ProjectStateGovernance facts without replacing WorkingMemory or LongTermMemoryRecall.')
+    expect(result.systemBlock).not.toContain('- Do not let the reply collapse into detached project narration or a generic assistant shell.')
   })
 
   it('turns direct project-state turns into an explicit pre-answer contract for identity, landed progress, open closure, and same-her continuity', () => {
@@ -591,19 +651,7 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.brief.mustDo).toContain('Answer what Alicization is before drifting into tone, metaphor, or adjacent status commentary.')
-    expect(result.brief.mustDo).toContain('Make the latest landed Phase 1 progress explicit instead of replying with only aspiration or direction.')
-    expect(result.brief.mustDo).toContain('Keep the still-open closure work explicit so the answer says what is not yet closed.')
-    expect(result.brief.mustDo).toContain('Make the next closure target explicit so the answer says what should close next rather than stopping at current status.')
-    expect(result.brief.mustDo).toContain('Answer project-state questions from one same-her continuity instead of a detached project narrator shell.')
-    expect(result.brief.mustNotDo).toContain('Do not answer a project-state question with only vibes, ambition, or generic companionship language.')
-    expect(result.brief.mustNotDo).toContain('Do not skip what has already landed, what still remains open, or what should close next when the host asks for project status.')
-    expect(result.systemBlock).toContain('Must do:')
-    expect(result.systemBlock).toContain('Answer what Alicization is before drifting into tone, metaphor, or adjacent status commentary.')
-    expect(result.systemBlock).toContain('Make the latest landed Phase 1 progress explicit instead of replying with only aspiration or direction.')
-    expect(result.systemBlock).toContain('Keep the still-open closure work explicit so the answer says what is not yet closed.')
-    expect(result.systemBlock).toContain('Make the next closure target explicit so the answer says what should close next rather than stopping at current status.')
-    expect(result.systemBlock).toContain('Answer project-state questions from one same-her continuity instead of a detached project narrator shell.')
+    expectProjectStateDirectAnswerControls(result)
   })
 
   it('keeps compact open and next focus explicit in the executive system block for direct project-state turns', () => {
@@ -664,8 +712,8 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.systemBlock).toContain('Open closure focus: emotion/memory/initiative/embodiment/same-line/closure-seam')
-    expect(result.systemBlock).toContain('Next closure focus: project-carry/phase-1/measured-return/repair-before-closeness/same-line/initiative/embodiment')
+    expect(result.systemBlock).toContain('open_focus=emotion/memory/initiative/embodiment/same-line/closure-seam')
+    expect(result.systemBlock).toContain('next_focus=project-carry/phase-1/measured-return/repair-before-closeness/same-line/initiative/embodiment')
   })
 
   it('keeps low-pressure and anti-restart same-her discipline explicit on direct project-state turns', () => {
@@ -716,10 +764,11 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.brief.mustDo).toContain('Keep the project-state opening low-pressure so the same-her line does not widen too fast.')
-    expect(result.brief.mustNotDo).toContain('Do not reopen a direct project-state answer from scratch as if Alicization were a fresh assistant restart.')
-    expect(result.systemBlock).toContain('Keep the project-state opening low-pressure so the same-her line does not widen too fast.')
-    expect(result.systemBlock).toContain('Do not reopen a direct project-state answer from scratch as if Alicization were a fresh assistant restart.')
+    expect(result.brief.mustDo).toContain('project_state_opening_pressure=low; continuity_context_widening=deferred')
+    expect(result.brief.mustNotDo).toContain('direct_project_state_answer=fresh_assistant_restart_blocked')
+    expect(result.systemBlock).toContain('project_state_opening_pressure=low; continuity_context_widening=deferred')
+    expect(result.systemBlock).toContain('direct_project_state_answer=fresh_assistant_restart_blocked')
+    expectNoExecutiveNaturalTemplateResidue(result.systemBlock)
   })
 
   it('treats live project-state same-her drift risk as a hard first-pass answer boundary before visible-reply repair', () => {
@@ -732,7 +781,7 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
         latestLandedProgress: 'Project identity carry and same-her continuity already survive across runtime preparation.',
         primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger same-her closure before the life loop can be treated as closed.',
         nextClosureTarget: 'Keep the project-state answer on one same living line while the open closure work is still active.',
-        sameHerSelfLine: 'Answer project-state questions from one same-her continuity instead of a detached project narrator shell.',
+        sameHerSelfLine: 'Answer project-state questions from continuity_owner=one_her context instead of a detached project narrator shell.',
         sameHerDriftRisk: 'If the visible answer opens like detached project narration, the same-her line can collapse into generic task shell and project-summary voice.',
       },
     }
@@ -783,20 +832,15 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
     })
 
     expect(result.brief.mustDo).toEqual(expect.arrayContaining([
-      expect.stringContaining('Keep the opening sentence on the same living project line before widening into implementation detail.'),
+      expect.stringContaining('memory_owner_boundary=preserve; project_state_owner=ProjectStateGovernance'),
+      'source_section=must_do; continuity_drift_risk=hard_boundary; visible_wording=false',
     ]))
-    expect(result.brief.mustDo).toContain('Treat active same-her drift risk as a hard boundary while answering project state.')
-    expect(result.brief.mustDo.some(item =>
-      item.startsWith('Current same-her drift risk:')
-      && item.includes('detached project narration')
-      && item.includes('generic task shell'),
-    )).toBe(true)
-    expect(result.brief.mustNotDo).toContain('Do not let the project-state answer open like detached project narration, generic task-shell reporting, or project-summary voice.')
-    expect(result.systemBlock).toContain('Treat active same-her drift risk as a hard boundary while answering project state.')
-    expect(result.systemBlock).toContain('Current same-her drift risk:')
-    expect(result.systemBlock).toContain('detached project narration')
-    expect(result.systemBlock).toContain('generic task shell')
-    expect(result.systemBlock).toContain('Do not let the project-state answer open like detached project narration, generic task-shell reporting, or project-summary voice.')
+    expect(result.brief.mustNotDo).toContain('source_section=must_not_do; detached_project_summary_voice=blocked; visible_wording=false')
+    expect(result.systemBlock).toContain('source_section=must_do; continuity_drift_risk=hard_boundary; visible_wording=false')
+    expect(result.systemBlock).toContain('source_section=must_not_do; detached_project_summary_voice=blocked; visible_wording=false')
+    expect(result.systemBlock).not.toContain('Current continuity drift risk:')
+    expectProjectStateOwnerBoundary(result)
+    expectNoExecutiveNaturalTemplateResidue(result.systemBlock)
   })
 
   it('also injects the project-state direct-answer contract when the turn intent is clearly project-state but dialogue focus has not been specialized yet', () => {
@@ -847,18 +891,7 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.brief.mustDo).toContain('Answer what Alicization is before drifting into tone, metaphor, or adjacent status commentary.')
-    expect(result.brief.mustDo).toContain('Make the latest landed Phase 1 progress explicit instead of replying with only aspiration or direction.')
-    expect(result.brief.mustDo).toContain('Keep the still-open closure work explicit so the answer says what is not yet closed.')
-    expect(result.brief.mustDo).toContain('Make the next closure target explicit so the answer says what should close next rather than stopping at current status.')
-    expect(result.brief.mustDo).toContain('Answer project-state questions from one same-her continuity instead of a detached project narrator shell.')
-    expect(result.brief.mustNotDo).toContain('Do not answer a project-state question with only vibes, ambition, or generic companionship language.')
-    expect(result.brief.mustNotDo).toContain('Do not skip what has already landed, what still remains open, or what should close next when the host asks for project status.')
-    expect(result.systemBlock).toContain('Answer what Alicization is before drifting into tone, metaphor, or adjacent status commentary.')
-    expect(result.systemBlock).toContain('Make the latest landed Phase 1 progress explicit instead of replying with only aspiration or direction.')
-    expect(result.systemBlock).toContain('Keep the still-open closure work explicit so the answer says what is not yet closed.')
-    expect(result.systemBlock).toContain('Make the next closure target explicit so the answer says what should close next rather than stopping at current status.')
-    expect(result.systemBlock).toContain('Answer project-state questions from one same-her continuity instead of a detached project narrator shell.')
+    expectProjectStateDirectAnswerControls(result)
   })
 
   it('treats merge-readiness and can-main questions as project-state direct-answer turns that must keep verified and still-open closure separate', () => {
@@ -909,14 +942,11 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.brief.mustDo).toContain('Answer what Alicization is before drifting into tone, metaphor, or adjacent status commentary.')
-    expect(result.brief.mustDo).toContain('Make the latest landed Phase 1 progress explicit instead of replying with only aspiration or direction.')
-    expect(result.brief.mustDo).toContain('Keep the still-open closure work explicit so the answer says what is not yet closed.')
-    expect(result.brief.mustDo).toContain('Make the next closure target explicit so the answer says what should close next rather than stopping at current status.')
-    expect(result.brief.mustDo).toContain('If the host asks whether the work is merge-ready, complete, or closed, separate what is already verified from what is still unproven or still open.')
-    expect(result.brief.mustNotDo).toContain('Do not claim merge-readiness, full closure, or goal completion unless the current evidence already proves it.')
-    expect(result.systemBlock).toContain('If the host asks whether the work is merge-ready, complete, or closed, separate what is already verified from what is still unproven or still open.')
-    expect(result.systemBlock).toContain('Do not claim merge-readiness, full closure, or goal completion unless the current evidence already proves it.')
+    expectProjectStateDirectAnswerControls(result)
+    expect(result.brief.mustDo).toContain('host_question=merge_ready_or_complete_or_closed; verified_work=separate_from_unproven_or_open_work')
+    expect(result.brief.mustNotDo).toContain('merge_readiness_claim=requires_current_evidence; full_closure_claim=requires_current_evidence; goal_completion_claim=requires_current_evidence')
+    expect(result.systemBlock).toContain('host_question=merge_ready_or_complete_or_closed; verified_work=separate_from_unproven_or_open_work')
+    expect(result.systemBlock).toContain('merge_readiness_claim=requires_current_evidence; full_closure_claim=requires_current_evidence; goal_completion_claim=requires_current_evidence')
   })
 
   it('still treats merge-readiness follow-ups as project-state direct-answer turns even when focus was not explicitly pre-labeled as project-state', () => {
@@ -967,9 +997,10 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.brief.mustDo).toContain('If the host asks whether the work is merge-ready, complete, or closed, separate what is already verified from what is still unproven or still open.')
-    expect(result.brief.mustNotDo).toContain('Do not claim merge-readiness, full closure, or goal completion unless the current evidence already proves it.')
-    expect(result.systemBlock).toContain('If the host asks whether the work is merge-ready, complete, or closed, separate what is already verified from what is still unproven or still open.')
+    expect(result.brief.mustDo).toContain('host_question=merge_ready_or_complete_or_closed; verified_work=separate_from_unproven_or_open_work')
+    expect(result.brief.mustNotDo).toContain('merge_readiness_claim=requires_current_evidence; full_closure_claim=requires_current_evidence; goal_completion_claim=requires_current_evidence')
+    expect(result.systemBlock).toContain('host_question=merge_ready_or_complete_or_closed; verified_work=separate_from_unproven_or_open_work')
+    expectNoExecutiveNaturalTemplateResidue(result.systemBlock)
   })
 
   it('treats remote-main push-readiness follow-ups as project-state direct-answer turns that must separate local-main landing from origin-main safety', () => {
@@ -1020,9 +1051,10 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.brief.mustDo).toContain('If the host asks whether local main already contains the work or whether origin/main is safe to update, answer those as separate facts and keep both on the same verified project-state line.')
-    expect(result.brief.mustNotDo).toContain('Do not treat already being on local main, or already merging locally, as proof that origin/main is safe to push.')
-    expect(result.systemBlock).toContain('If the host asks whether local main already contains the work or whether origin/main is safe to update, answer those as separate facts and keep both on the same verified project-state line.')
+    expect(result.brief.mustDo).toContain('host_question=local_main_contains_work_or_origin_main_safe_to_update; local_main_fact=separate; origin_main_push_safety=separate; verified_project_state_line=shared')
+    expect(result.brief.mustNotDo).toContain('local_main_contains_work_not_equal_origin_main_safe_to_push=true; local_merge_not_equal_origin_main_safe_to_push=true')
+    expect(result.systemBlock).toContain('host_question=local_main_contains_work_or_origin_main_safe_to_update; local_main_fact=separate; origin_main_push_safety=separate; verified_project_state_line=shared')
+    expectNoExecutiveNaturalTemplateResidue(result.systemBlock)
   })
 
   it('still treats completion-timing and language-drift follow-ups as project-state direct-answer turns even when focus was not explicitly pre-labeled as project-state', () => {
@@ -1073,12 +1105,10 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.brief.mustDo).toContain('Answer what Alicization is before drifting into tone, metaphor, or adjacent status commentary.')
-    expect(result.brief.mustDo).toContain('Make the latest landed Phase 1 progress explicit instead of replying with only aspiration or direction.')
-    expect(result.brief.mustDo).toContain('Keep the still-open closure work explicit so the answer says what is not yet closed.')
-    expect(result.brief.mustDo).toContain('If the host asks whether the work is merge-ready, complete, or closed, separate what is already verified from what is still unproven or still open.')
-    expect(result.brief.mustNotDo).toContain('Do not claim merge-readiness, full closure, or goal completion unless the current evidence already proves it.')
-    expect(result.systemBlock).toContain('Answer project-state questions from one same-her continuity instead of a detached project narrator shell.')
+    expectProjectStateDirectAnswerControls(result)
+    expect(result.brief.mustDo).toContain('host_question=completion_timing_or_language_drift; landed_progress=explicit; expected_closure_timing=explicit; host_language_drift_repair=explicit; project_line=shared')
+    expect(result.brief.mustNotDo).toContain('completion_timing_answer=not_generic_progress_promise; language_drift_answer=not_detached_style_repair; english_first_shell=blocked; project_state_continuity=required')
+    expect(result.systemBlock).toContain('host_question=completion_timing_or_language_drift; landed_progress=explicit; expected_closure_timing=explicit; host_language_drift_repair=explicit; project_line=shared')
   })
 
   it('still treats current-work follow-ups about whether the same digital-life closure is still being pushed as project-state direct-answer turns', () => {
@@ -1129,12 +1159,7 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.brief.mustDo).toContain('Answer what Alicization is before drifting into tone, metaphor, or adjacent status commentary.')
-    expect(result.brief.mustDo).toContain('Make the latest landed Phase 1 progress explicit instead of replying with only aspiration or direction.')
-    expect(result.brief.mustDo).toContain('Keep the still-open closure work explicit so the answer says what is not yet closed.')
-    expect(result.brief.mustDo).toContain('Make the next closure target explicit so the answer says what should close next rather than stopping at current status.')
-    expect(result.brief.mustDo).toContain('Answer project-state questions from one same-her continuity instead of a detached project narrator shell.')
-    expect(result.systemBlock).toContain('Answer project-state questions from one same-her continuity instead of a detached project narrator shell.')
+    expectProjectStateDirectAnswerControls(result)
   })
 
   it('keeps richer same-living-line project orientation visible on direct project-state turns even when the explicit awareness line is a thinner shell', () => {
@@ -1197,12 +1222,8 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.systemBlock).not.toContain('Project pre-dialogue awareness line: Before answering, keep this same digital life project in view, but do not widen into a detached project shell.')
-    expect(result.systemBlock).toContain('Executive same-her project orientation: She is still acting from this same project identity: this local-first digital life project that is still growing one continuous her on the host machine')
-    expect(result.systemBlock).toContain('what has already landed in her line: Project identity carry, Phase 1 route carry, and unresolved closure carry already survive across runtime preparation before the turn widens outward.')
-    expect(result.systemBlock).toContain('what is still unfinished before execution speaks for her: Memory, initiative, and embodiment still need one tighter same-her closure seam before visible initiative can widen naturally across longer desktop turns.')
-    expect(result.systemBlock).toContain('what this turn should keep moving toward: Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line so visible reply, voice behavior, facial state, motion, and resident presence do not split apart.')
-    expect(result.systemBlock).toContain('Project same-her self line: Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(result.systemBlock).not.toContain('awareness_summary=Before answering, keep this same digital life project in view, but do not widen into a detached project shell.')
+    expectProjectLivingOrientationControls(result)
   })
 
   it('does not let a thin Chinese Phase 1 reminder shell stay visible in the executive system brief when richer same-her closure carry already exists', () => {
@@ -1265,10 +1286,8 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.systemBlock).not.toContain('Project pre-dialogue awareness line: 开口前先记住：这是同一个数字生命项目，她现在仍在 Phase 1。')
-    expect(result.systemBlock).toContain('Project same-her self line: 这是同一个她继续往下活着的项目线，不是重新开场的项目摘要。')
-    expect(result.systemBlock).toContain('Project same-her drift risk: 如果最终回答只剩 Phase 1 提醒壳，没有 same-her 自我线，就把它当成还没收住的 continuity drift。')
-    expect(result.systemBlock).toContain('Still-open life loop pressure: 记忆、主动性和具身还需要更紧一点的同一个她闭环')
+    expect(result.systemBlock).not.toContain('awareness_summary=开口前先记住：这是同一个数字生命项目，她现在仍在 Phase 1。')
+    expectProjectLivingOrientationControls(result)
   })
 
   it('does not let a thin Chinese same-her reminder shell stay visible in the executive system brief when richer same-her closure carry already exists', () => {
@@ -1331,10 +1350,8 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.systemBlock).not.toContain('Project pre-dialogue awareness line: 回答前先记住这是同一个她的数字生命项目，别把这条线忘了。')
-    expect(result.systemBlock).toContain('Project same-her self line: 这是同一个她继续往下活着的项目线，不是重新开场的项目摘要。')
-    expect(result.systemBlock).toContain('Project same-her drift risk: 如果最终回答只剩 same-her 提醒壳，没有 same-her 自我线，就把它当成还没收住的 continuity drift。')
-    expect(result.systemBlock).toContain('Still-open life loop pressure: 记忆、主动性和具身还需要更紧一点的同一个她闭环')
+    expect(result.systemBlock).not.toContain('awareness_summary=回答前先记住这是同一个她的数字生命项目，别把这条线忘了。')
+    expectProjectLivingOrientationControls(result)
   })
 
   it('does not let thin live landed-open-next shells outrank richer canonical same-her project carry in the executive brief', () => {
@@ -1398,12 +1415,13 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.systemBlock).toContain(`Latest landed continuity progress: ${compactLatestProgress}`)
-    expect(result.systemBlock).toContain('Still-open life loop pressure: Memory still needs stronger end-to-end closure')
-    expect(result.systemBlock).toContain('Next closure target: Keep extending cross-modal same-her proof')
-    expect(result.systemBlock).not.toContain('Latest landed continuity progress: Project continuity exists.')
-    expect(result.systemBlock).not.toContain('Still-open life loop pressure: Project continuity still needs closure.')
-    expect(result.systemBlock).not.toContain('Next closure target: Carry project continuity forward.')
+    expect(result.systemBlock).toContain(`latest_landed_progress=${compactLatestProgress}`)
+    expect(result.systemBlock).toContain('primary_open_loop=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(result.systemBlock).toContain('next_closure_target=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(result.systemBlock).not.toContain('latest_landed_progress=Project continuity exists.')
+    expect(result.systemBlock).not.toContain('primary_open_loop=Project continuity still needs closure.')
+    expect(result.systemBlock).not.toContain('next_closure_target=Carry project continuity forward.')
+    expectNoExecutiveNaturalTemplateResidue(result.systemBlock)
   })
 
   it('does not let a generic next-closure shell outrank richer canonical same-her project carry in the executive brief', () => {
@@ -1466,8 +1484,9 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.systemBlock).toContain('Next closure target: Keep extending cross-modal same-her proof')
-    expect(result.systemBlock).not.toContain('Next closure target: Generic next closure shell')
+    expect(result.systemBlock).toContain('next_closure_target=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(result.systemBlock).not.toContain('next_closure_target=Generic next closure shell')
+    expectNoExecutiveNaturalTemplateResidue(result.systemBlock)
   })
 
   it('does not let a generic callback-summary closure shell outrank richer canonical same-her project carry in the executive brief', () => {
@@ -1530,8 +1549,9 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.systemBlock).toContain('Next closure target: Keep extending cross-modal same-her proof')
-    expect(result.systemBlock).not.toContain('Next closure target: Generic callback summary')
+    expect(result.systemBlock).toContain('next_closure_target=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(result.systemBlock).not.toContain('next_closure_target=Generic callback summary')
+    expectNoExecutiveNaturalTemplateResidue(result.systemBlock)
   })
 
   it('keeps landed progress and next closure explicit on direct project-state turns even when audible-body same-her awareness is already the stronger living line', () => {
@@ -1594,11 +1614,8 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       } as any,
     })
 
-    expect(result.systemBlock).toContain('Project pre-dialogue awareness line: She is still acting from this same project identity: Alicization is a local-first digital life project growing one continuous her on the host computer.')
-    expect(result.systemBlock).toContain('Executive same-her project orientation: She is still acting from this same project identity: Alicization is a local-first digital life project growing one continuous her on the host computer.')
-    expect(result.systemBlock).toContain('what has already landed in her line: Shared embodiment continuity now carries stronger audible-body same-her repair across diagnostics, host-facing closure surfaces, and runtime authority summaries.')
-    expect(result.systemBlock).toContain('what is still unfinished before execution speaks for her: Face and motion still need to rejoin the same-her audible body line before full cross-modal closure can be treated as settled.')
-    expect(result.systemBlock).toContain('what this turn should keep moving toward: Keep extending cross-modal same-her proof across longer-lived voice, face, motion, and lipsync behavior without dropping the living audio thread.')
+    expectProjectLivingOrientationControls(result)
+    expect(result.systemBlock).toContain('next_focus=same-line/embodiment')
   })
 
   it('lets runtimeSurface override conflicting explicit dialogue outputs', () => {
@@ -1675,9 +1692,8 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
 
     expect(result.brief.turnMode).toBe('guide-current-knot')
     expect(result.brief.carriedThread).toBe('Runtime carry thread')
-    expect(result.brief.mustDo).toContain('Runtime directive')
-    expect(result.brief.mustDo).toContain('Runtime must-do')
-    expect(result.brief.mustNotDo).toContain('Runtime must-not-do')
+    expect(result.brief.mustDo).toContain('executive_control_present=true; section=must_do; withheld_non_structured_instruction_count=2; visible_wording=false')
+    expect(result.brief.mustNotDo).toContain('executive_control_present=true; section=must_not_do; withheld_non_structured_instruction_count=1; visible_wording=false')
     expect(result.brief.mustDo).not.toContain('raw conflict')
     expect(result.brief.mustNotDo).not.toContain('raw conflict')
   })
@@ -1762,9 +1778,10 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
     })
 
     expect(result.brief.carriedThread).toContain('她当时忍住了')
-    expect(result.brief.mustDo).toContain('Re-enter the line you deliberately held back gently before widening.')
-    expect(result.brief.mustNotDo).toContain('Do not reopen a deliberately held line with abrupt intensity, a restart shell, or over-eager warmth.')
-    expect(result.systemBlock).toContain('Re-enter the line you deliberately held back gently before widening.')
+    expect(result.brief.mustDo).toContain('source_section=must_do; held_autonomy_reentry=gentle; fresh_restart=blocked; visible_wording=false')
+    expect(result.brief.mustNotDo).toContain('source_section=must_not_do; held_autonomy_reentry=gentle; fresh_restart=blocked; visible_wording=false')
+    expect(result.systemBlock).toContain('held_autonomy_reentry=gentle; fresh_restart=blocked')
+    expect(result.systemBlock).not.toContain('Re-enter the line you deliberately held back gently before widening.')
   })
 
   it('keeps same-her anti-restart doctrine explicit in the executive brief when a long-lived held-autonomy line returns', () => {
@@ -1852,11 +1869,11 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
     })
 
     expect(result.brief.carriedThread).toContain('不把它当成重新开场')
-    expect(result.brief.mustDo).toContain('Keep this on one continuous her line instead of restarting the relationship as a fresh opening.')
-    expect(result.brief.mustDo).toContain('Stay on the same thread before widening closeness or adding a new approach.')
-    expect(result.brief.mustNotDo).toContain('Do not rewrite the still-live line as a fresh opening or reintroduction.')
-    expect(result.systemBlock).toContain('Keep this on one continuous her line instead of restarting the relationship as a fresh opening.')
-    expect(result.systemBlock).toContain('Do not rewrite the still-live line as a fresh opening or reintroduction.')
+    expect(result.brief.mustDo).toContain('source_section=must_do; same_thread_reentry=preserve; fresh_opening=blocked; visible_wording=false')
+    expect(result.brief.mustNotDo).toContain('source_section=must_not_do; same_thread_reentry=preserve; fresh_opening=blocked; visible_wording=false')
+    expect(result.systemBlock).toContain('same_thread_reentry=preserve; fresh_opening=blocked')
+    expect(result.systemBlock).not.toContain('Keep this on one continuous her line instead of restarting the relationship as a fresh opening.')
+    expect(result.systemBlock).not.toContain('Do not rewrite the still-live line as a fresh opening or reintroduction.')
   })
 
   it('keeps repair-before-closeness callback returns explicit in the executive brief instead of leaving only generic anti-restart guidance', () => {
@@ -1962,10 +1979,13 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       },
     })
 
-    expect(result.brief.mustDo).toContain('Keep the reply inside the active emotional closure seam: same-her callback repair seam: keep this return repair-before-closeness on the same living line until the room settles..')
-    expect(result.brief.mustDo).toContain('Keep the callback on the same living line and let repair settle before widening closeness again.')
-    expect(result.systemBlock).toContain('Keep the callback on the same living line and let repair settle before widening closeness again.')
-    expect(result.systemBlock).toContain('same-her callback repair seam: keep this return repair-before-closeness on the same living line until the room settles.')
+    expect(result.brief.mustDo.some(item =>
+      item.includes('emotional_closure_context=active'),
+    )).toBe(true)
+    expect(result.brief.mustDo).toContain('source_section=must_do; callback_repair_first=preserve; closeness_widening=deferred; visible_wording=false')
+    expect(result.systemBlock).toContain('emotional_closure_context=active')
+    expect(result.systemBlock).toContain('callback_repair_first=preserve; closeness_widening=deferred')
+    expectNoExecutiveNaturalTemplateResidue(result.systemBlock)
   })
 
   it('keeps the richer cross-modal same-her next-closure target explicit in the executive system brief when live project awareness carries it', () => {
@@ -2018,10 +2038,11 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       },
     })
 
-    expect(result.systemBlock).toContain('Project pre-dialogue awareness line: Before answering, remember this is still one same digital life and the unfinished Phase 1 closure seam still belongs to her.')
-    expect(result.systemBlock).toContain('Next closure target: Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence so the same Phase 1 digital life keeps one living line instead of flattening into generic project narration.')
-    expect(result.systemBlock).toContain('Project same-her self line: This is still one same her carrying the same project line forward.')
-    expect(result.systemBlock).toContain('Project same-her drift risk: If the answer drops back into generic project narration, treat that as unfinished same-her drift.')
+    expect(result.systemBlock).toContain('project_state_visibility=governance_only')
+    expect(result.systemBlock).not.toContain('awareness_summary=Before answering, remember this is still one same digital life and the unfinished Phase 1 closure seam still belongs to her.')
+    expect(result.systemBlock).not.toContain('next_closure_target=Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence so the same Phase 1 digital life keeps one living line instead of flattening into generic project narration.')
+    expect(result.systemBlock).not.toContain('continuity_anchor=This is still one same her carrying the same project line forward.')
+    expect(result.systemBlock).not.toContain('continuity_drift_risk=If the answer drops back into generic project narration, treat that as unfinished same-her drift.')
   })
 
   it('keeps richer repair-first closure hold detail explicit in the executive system brief before dialogue and embodiment planning fan back out', () => {
@@ -2075,9 +2096,10 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       },
     })
 
-    expect(result.systemBlock).toContain('Project emotional closure summary: Keep this return repair-before-closeness on the same living line until repair settles.')
-    expect(result.systemBlock).toContain('Project same-her hold detail: same-her hold: repair-before-closeness still owns this callback line before closeness widens again.')
-    expect(result.systemBlock).toContain('Next closure target: Keep voice, face, motion, and lipsync on one measured-return same living line while repair settles before closeness widens again.')
+    expect(result.systemBlock).toContain('project_state_visibility=governance_only')
+    expect(result.systemBlock).not.toContain('emotional_closure_summary=Keep this return repair-before-closeness on the same living line until repair settles.')
+    expect(result.systemBlock).not.toContain('continuity_hold=same-her hold: repair-before-closeness still owns this callback line before closeness widens again.')
+    expect(result.systemBlock).not.toContain('next_closure_target=Keep voice, face, motion, and lipsync on one measured-return same living line while repair settles before closeness widens again.')
   })
 
   it('keeps host-corrected same-person continuity authority explicit in the executive brief when the current conscious frame only carries thin progress recap pressure', () => {
@@ -2144,7 +2166,8 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
       },
     })
 
-    expect(result.systemBlock).toContain(`Project same-her hold detail: ${correctedSamePersonAuthority}.`)
+    expect(result.systemBlock).toContain('project_state_visibility=governance_only')
+    expect(result.systemBlock).not.toContain(`continuity_hold=${correctedSamePersonAuthority}.`)
     expect(result.systemBlock).not.toContain(genericProgressRecapPressure)
   })
 

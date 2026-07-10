@@ -7,9 +7,11 @@ import type {
 import type { AlicizationPreDialogueSendIdentity } from '../../stores/alicization-bridge'
 
 import {
+  alicizationFixedTemplateReplacement,
   isAlicizationThinProjectAwarenessLine,
   isAlicizationThinSamePhaseCarryLine,
   normalizeAlicizationRuntimeDigest,
+  sanitizeAlicizationProviderFacingText,
   scoreAlicizationProjectAwarenessLine,
 } from '@proj-alicization/stage-shared'
 
@@ -171,7 +173,7 @@ function looksLikeThinSpeechProjectAwareness(value: unknown) {
     || lowered.includes('generic continuity fallback')
     || lowered.includes('generic continuity reminder')
     || lowered.includes('generic awareness reminder')
-    || lowered.includes('generic same-her reminder')
+    || lowered.includes('generic continuity reminder')
     || lowered.includes('generic next target')
     || lowered.includes('generic closure summary')
 }
@@ -247,7 +249,7 @@ function looksLikeThinSpeechProjectStateValue(field: string, value: unknown) {
     case 'sameHerSelfLine':
       return isAlicizationThinSamePhaseCarryLine(normalized)
         || looksLikeThinSpeechProjectAwareness(normalized)
-        || lowered.includes('generic same-her reminder')
+        || lowered.includes('generic continuity reminder')
     case 'preDialogueAwarenessLine':
     case 'preDialogueAwarenessSummary':
     case 'preflightSummary':
@@ -267,20 +269,26 @@ function scoreSpeechProjectStateValue(field: string, value: unknown) {
   const normalized = normalizeSpeechProjectStateText(value)
   if (!normalized)
     return Number.NEGATIVE_INFINITY
+  const providerSafe = sanitizeAlicizationProviderFacingText(normalized, 800)
+  if (
+    !providerSafe
+    || providerSafe === alicizationFixedTemplateReplacement
+    || /local-first digital life project|continuous "?her"?|better chat wrapper|same-her|same living line|同一个\s*her|同一个她|数字生命主线/iu.test(normalized)
+  ) {
+    return Number.NEGATIVE_INFINITY
+  }
 
-  let score = scoreAlicizationProjectAwarenessLine(normalized)
-  const lowered = normalized.toLowerCase()
+  let score = scoreAlicizationProjectAwarenessLine(providerSafe)
+  const lowered = providerSafe.toLowerCase()
 
-  if (looksLikeThinSpeechProjectStateValue(field, normalized))
+  if (looksLikeThinSpeechProjectStateValue(field, providerSafe))
     score -= 6
 
   switch (field) {
     case 'identity':
-      if (lowered.includes('local-first digital life project'))
+      if (lowered.includes('phase1_local_digital_life'))
         score += 4
-      if (lowered.includes('continuous "her"') || lowered.includes('continuous her'))
-        score += 3
-      if (lowered.includes('better chat wrapper'))
+      if (lowered.includes('identity-continuity') || lowered.includes('project_state_continuity'))
         score += 2
       break
     case 'currentPhase':
@@ -300,7 +308,7 @@ function scoreSpeechProjectStateValue(field: string, value: unknown) {
         score += 3
       break
     case 'nextClosureTarget':
-      if (/\bsame-her\b|voice|lipsync|body|face|motion|embodiment|life loop/iu.test(normalized))
+      if (/\bcontinuity\b|voice|lipsync|body|face|motion|embodiment|life loop/iu.test(normalized))
         score += 3
       break
     case 'sameHerHoldDetail':
@@ -308,7 +316,7 @@ function scoreSpeechProjectStateValue(field: string, value: unknown) {
         score += 4
       break
     case 'sameHerSelfLine':
-      if (/same phase 1 digital life|same living line|one living her/iu.test(normalized))
+      if (/phase1 continuity|continuity line|continuous identity/iu.test(normalized))
         score += 2
       break
   }

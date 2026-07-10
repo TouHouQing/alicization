@@ -30,9 +30,9 @@ export function buildSelfEvolutionBaselineAdoptionHistorySummary(input: Array<{
       ? 'face+lipsync+voice-only'
       : latest.bodyContinuityGovernanceNote?.includes('当前仅剩动作、口型、声音维持同一段连续性')
         ? 'motion+lipsync+voice-only'
-        : latest.bodyContinuityGovernanceNote?.includes('当前只有 face 和 lipsync 这条 same-her 生命线')
+        : latest.bodyContinuityGovernanceNote?.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
           ? 'face+lipsync-only'
-          : latest.bodyContinuityGovernanceNote?.includes('当前只有 motion 和 lipsync 这条 same-her 生命线')
+          : latest.bodyContinuityGovernanceNote?.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
             ? 'motion+lipsync-only'
             : null)
 
@@ -82,13 +82,13 @@ export function buildSelfEvolutionBaselineAdoptionHistorySummary(input: Array<{
   else if (bodyContinuityPhase === 'renderer-rejoin-without-body') {
     lines.push(
       survivingVisibleLane === 'face+lipsync+voice-only'
-        ? '最新身体连续性阶段：显形回接失身态（表情、口型、声音 same-her continuity 仍在维持）。'
+        ? '最新身体连续性阶段：显形回接失身态（表情、口型、声音 identity-continuity continuity 仍在维持）。'
         : survivingVisibleLane === 'motion+lipsync+voice-only'
-          ? '最新身体连续性阶段：显形回接失身态（动作、口型、声音 same-her continuity 仍在维持）。'
+          ? '最新身体连续性阶段：显形回接失身态（动作、口型、声音 identity-continuity continuity 仍在维持）。'
           : survivingVisibleLane === 'face+lipsync-only'
-            ? '最新身体连续性阶段：显形回接失身态（表情、口型 same-her continuity 仍在维持）。'
+            ? '最新身体连续性阶段：显形回接失身态（表情、口型 identity-continuity continuity 仍在维持）。'
             : survivingVisibleLane === 'motion+lipsync-only'
-              ? '最新身体连续性阶段：显形回接失身态（动作、口型 same-her continuity 仍在维持）。'
+              ? '最新身体连续性阶段：显形回接失身态（动作、口型 identity-continuity continuity 仍在维持）。'
               : surface
                 ? `最新身体连续性阶段：显形回接失身态（${surface} authority rejoin without same-segment body carry）。`
                 : '最新身体连续性阶段：显形回接失身态。',

@@ -21,16 +21,16 @@ describe('runtime-organic-memory-prompt-blocks', () => {
   it('builds a structured person-memory capsule that covers every life-loop module', () => {
     const context = buildContext({
       projectStateContinuity: {
-        identity: 'Alicization is one continuous local digital life.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        sameHerSummary: 'Keep one same her coherent across memory, dialogue, and embodiment.',
+        identity: 'phase1_local_digital_life; host_resident_identity=persistent.',
+        currentPhase: 'phase1_local_digital_life',
+        sameHerSummary: 'identity-continuity stays coherent across memory, dialogue, and embodiment.',
         landedProgressSummary: 'Memory and person-state are linked.',
         openClosureSummary: 'Unify the capsule as the realtime authority.',
-        proactiveSameHerGap: 'initiative must keep the same-her line without timer spam.',
+        proactiveSameHerGap: 'initiative must keep identity-continuity without timer spam.',
         nextClosureTarget: 'Let every module consume one compact authority.',
-        preDialogueAwarenessLine: 'Stay inside the same personhood core before speaking.',
+        preDialogueAwarenessLine: 'Use the personhood core as internal state before the turn.',
         emotionalClosureCue: 'Keep the return lower-pressure and warm.',
-        sameHerSelfLine: 'One continuous her, not a generic assistant shell.',
+        sameHerSelfLine: 'Host-resident selfhood stays anchored across memory, action, and body.',
         sameHerHoldDetail: 'Carry memory, relationship posture, and embodiment from the same state.',
         sameHerDriftRisk: 'Splitting prompt, body, and initiative would break Phase 1.',
       },
@@ -41,9 +41,9 @@ describe('runtime-organic-memory-prompt-blocks', () => {
           trustStage: 'trusted',
         },
         selfContinuityAuthority: {
-          selfLine: 'One continuous her, not a generic assistant shell.',
-          authoritySummary: 'one same her across memory, action, and body',
-          relationshipLine: 'same callback line, lower pressure',
+          selfLine: 'Host-resident selfhood stays anchored across memory, action, and body.',
+          authoritySummary: 'identity-continuity across memory, action, and body',
+          relationshipLine: 'callback continuity line, lower pressure',
         },
         activeClosenessContext: 'execution-callback',
         activeClosenessRung: 'measured-room',
@@ -67,7 +67,7 @@ describe('runtime-organic-memory-prompt-blocks', () => {
         id: 'fact-capsule',
         subject: 'relationship',
         predicate: 'cadence',
-        object: 'Use lower-pressure same-her continuity after corrections.',
+        object: 'Use lower-pressure identity-continuity after corrections.',
         confidence: 0.88,
         source: 'rule',
         provenance: 'remembered',
@@ -149,7 +149,7 @@ describe('runtime-organic-memory-prompt-blocks', () => {
         latestInflection: 'The direction shifted away from architecture and toward memory/personality.',
         burdenLine: 'Do not spend realtime tokens on full internal ledgers.',
         trustMeaning: 'Trust means remembering the correction and applying it.',
-        relationshipCadenceSummary: 'Lower-pressure same-her continuity.',
+        relationshipCadenceSummary: 'Lower-pressure identity-continuity.',
         evolutionMomentum: 0.62,
         learningReadiness: 0.58,
         contradictionPressure: 0.04,
@@ -219,7 +219,7 @@ describe('runtime-organic-memory-prompt-blocks', () => {
     const capsule = buildAlicizationPersonMemoryCapsule(context, memoryTurnArtifact)
 
     expect(capsule.version).toBe('person-memory-capsule-v1')
-    expect(capsule.modules.personality.identityLine).toContain('One continuous her')
+    expect(capsule.modules.personality.identityLine).toContain('Host-resident selfhood')
     expect(capsule.modules.memory.selectedMemory).toContain('Prioritize memory and personality')
     expect(capsule.modules.emotion.affectiveSummary).toContain('focused, warm')
     expect(capsule.modules.initiative.proactiveStyle).toBe('light-nudge')
@@ -368,12 +368,14 @@ describe('runtime-organic-memory-prompt-blocks', () => {
     expect(blocks).toHaveLength(1)
     expect(systemText).toContain('[ALICIZATION_PERSON_MEMORY_CAPSULE]')
     expect(systemText).toContain('budget=realtime-reply')
-    expect(systemText).toContain('identity=One continuous her, not a generic assistant shell.')
     expect(systemText).toContain('opening=Answer from the live change first, keep warmth bounded.')
     expect(systemText).toContain('memory_gate=')
     expect(systemText).toContain('selected_memory=Prioritize memory and personality self-learning, not heavy architecture.')
     expect(systemText).toContain('learning=record')
     expect(systemText).toContain('embodiment_hint=')
+    expect(systemText).not.toContain('identity=One continuous her, not a generic assistant shell.')
+    expect(systemText).not.toContain('same_her')
+    expect(systemText).not.toContain('same-her')
     expect(systemText).not.toContain('[ALICIZATION_FACT_LEDGER]')
     expect(systemText).not.toContain('[ALICIZATION_SELF_EVOLUTION]')
   })
@@ -476,7 +478,126 @@ describe('runtime-organic-memory-prompt-blocks', () => {
     expect(systemText).toContain('[ALICIZATION_MEMORY_TUNING_CAUSALITY]')
     expect(systemText).toContain('memory_closure_identity=required')
     expect(systemText).toContain('memoryClosureCausality.memoryIdentity')
-    expect(systemText).toContain('proof_boundary=route-chain text and visible reply wording are not closure proof')
-    expect(systemText).toContain('identity_continuity=preserve one stable memory identity key across recall, initiative, execution, emotion, and embodiment')
+    expect(systemText).toContain('proof_boundary=route_chain_text:false; visible_reply_wording:false')
+    expect(systemText).toContain('identity_continuity=stable_memory_identity_key')
+  })
+
+  it('keeps project-state fixed templates out of provider-facing organic memory blocks', () => {
+    const context = buildContext({
+      coreIncarnation: 'Alicization is a local-first digital life project with one continuous her. Before answering, remember this is still one living digital life project.',
+      projectStatePreflightSummary: 'Before answering, remember this is still the same digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+      projectStatePreDialogueAwarenessLine: 'Before answering, keep this same digital life project in view.',
+      projectStateContinuity: {
+        identity: 'same digital life project',
+        currentPhase: 'Phase 1: Local Digital Life',
+        landedProgressSummary: 'Vector recall health metrics now include provider latency.',
+        openClosureSummary: 'Long-term recall still needs search and pagination to stay user-governable.',
+        proactiveSameHerGap: 'same-her hold should not leak into memory prompts',
+        nextClosureTarget: 'Make recall explainable through WorkingMemory and LongTermMemoryRecall.',
+        preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project.',
+        emotionalClosureCue: 'Hold the same digital-life closure line gently instead of rushing into generic productivity.',
+        sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerHoldDetail: 'same-her hold: keep this project-state answer on the same living line.',
+        sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift.',
+      },
+      retrievedFacts: [{
+        id: 'fact-recall-owner',
+        subject: 'memory',
+        predicate: 'owner',
+        object: 'WorkingMemory owns short-term continuity and LongTermMemoryRecall owns durable recall.',
+        confidence: 0.92,
+        source: 'rule',
+        provenance: 'remembered',
+      } as any],
+      recallLatencyPolicy: {
+        budgetClass: 'deep-recall-reply',
+        latencyClass: 'deep',
+        recallAction: 'deep-recall',
+        shouldAvoidDeepExpansion: false,
+      } as any,
+    })
+
+    const systemText = buildOrganicMemorySystemBlocks(context).join('\n\n')
+
+    expect(systemText).toContain('[ALICIZATION_MEMORY_CONTINUITY_BOUNDARY]')
+    expect(systemText).toContain('[ALICIZATION_CORE_INCARNATION]')
+    expect(systemText).toContain('short_term_owner=WorkingMemory')
+    expect(systemText).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(systemText).toContain('workbench_scope=governance_only')
+    expect(systemText).toContain('template_awareness=withheld_from_organic_memory_prompt')
+    expect(systemText).toContain('memory_landed=Vector recall health metrics now include provider latency.')
+    expect(systemText).toContain('memory_open_loop=Long-term recall still needs search and pagination to stay user-governable.')
+    expect(systemText).toContain('memory_next=Make recall explainable through WorkingMemory and LongTermMemoryRecall.')
+    expect(systemText).not.toContain('[ALICIZATION_PROJECT_STATE_CONTINUITY]')
+    expect(systemText).not.toContain('same_her')
+    expect(systemText).not.toContain('project_awareness=')
+    expect(systemText).not.toContain('pre_dialogue_awareness=')
+    expect(systemText).not.toContain('preflight_summary=')
+    expect(systemText).not.toContain('same digital life project')
+    expect(systemText).not.toContain('one continuous her')
+    expect(systemText).not.toContain('one living digital life project')
+    expect(systemText).not.toContain('Same Phase 1 digital life')
+    expect(systemText).not.toContain('[fixed-template-excluded]')
+  })
+
+  it('does not echo fixed-template continuity wording from consolidated memory or self evolution', () => {
+    const context = buildContext({
+      consolidatedMemories: [{
+        id: 'consolidated-quiet-continuity',
+        kind: 'relationship',
+        facet: 'cadence',
+        periodKey: '2026-W27',
+        memoryTier: 'warm',
+        confidence: 0.83,
+        dominantProvenance: 'remembered',
+        summary: 'quiet same-her continuity should stay inward instead of becoming a canned reply.',
+        lesson: 'same-her inward carry is a fixed template risk when echoed raw.',
+        cues: ['quiet-same-her-continuity', 'same-her-inward-carry', 'quiet-companionship'],
+      } as any],
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 42,
+        summary: 'Use WorkingMemory and LongTermMemoryRecall as the memory owners.',
+        dominantTrajectory: 'Memory governance should be explainable.',
+        relationshipDoctrine: 'Do not let raw prompt slogans become personality.',
+        latestInflection: 'Provider prompt cleanup moved memory owners forward.',
+        burdenLine: 'Avoid fixed prompt ballast.',
+        trustMeaning: 'Trust means failures stay visible.',
+        relationshipCadenceSummary: 'same-her durable cadence should not be echoed.',
+        nextLearningAction: 'reflect',
+        nextLearningReason: 'Provider-facing prompt cleanup changed the memory loop.',
+        learningReadiness: 0.6,
+        contradictionPressure: 0,
+        revisionPressure: 0.2,
+        autobiographicalStability: 0.7,
+        evolutionMomentum: 0.5,
+        shouldRecord: false,
+        shouldReflect: true,
+        shouldVerify: false,
+        shouldRevise: false,
+        shouldInternalize: false,
+        activeLearningFocuses: ['memory-owner-boundary'],
+        sourceSignals: ['fixed-template-cleanup'],
+      } as any,
+      recallLatencyPolicy: {
+        budgetClass: 'deep-recall-reply',
+        latencyClass: 'deep',
+        recallAction: 'deep-recall',
+        shouldAvoidDeepExpansion: false,
+      } as any,
+    })
+
+    const systemText = buildOrganicMemorySystemBlocks(context).join('\n\n')
+
+    expect(systemText).toContain('[ALICIZATION_CONSOLIDATED_MEMORY]')
+    expect(systemText).toContain('[ALICIZATION_SELF_EVOLUTION]')
+    expect(systemText).toContain('inward_continuity_authority=prefer memory-owner evidence over reusable continuity slogans')
+    expect(systemText).toContain('summary=Use WorkingMemory and LongTermMemoryRecall as the memory owners.')
+    expect(systemText).not.toContain('quiet same-her continuity')
+    expect(systemText).not.toContain('same-her inward carry')
+    expect(systemText).not.toContain('same-her durable cadence')
+    expect(systemText).not.toContain('same-her')
+    expect(systemText).not.toContain('[fixed-template-excluded]')
   })
 })

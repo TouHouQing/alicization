@@ -87,9 +87,9 @@ function resolveSurvivingVisibleLane(
     return 'face+lipsync+voice-only'
   if (pattern.summaryLine.includes('当前仅剩动作、口型、声音维持同一段连续性'))
     return 'motion+lipsync+voice-only'
-  if (pattern.summaryLine.includes('当前只有 face 和 lipsync 这条 same-her 生命线'))
+  if (pattern.summaryLine.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线'))
     return 'face+lipsync-only'
-  if (pattern.summaryLine.includes('当前只有 motion 和 lipsync 这条 same-her 生命线'))
+  if (pattern.summaryLine.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线'))
     return 'motion+lipsync-only'
 
   return null
@@ -115,13 +115,13 @@ export function buildSelfEvolutionFocusHistoryPatternContext(input: {
       ? `将身体连续性工作流应用到 ${new Date(occurrence.previousCapturedAt).toISOString()} -> ${new Date(occurrence.currentCapturedAt).toISOString()} 的${formatSelfEvolutionWorkflowSideLabel(input.preferredSide)}，优先确认身体线与显形权威是否仍稳定锁在同一段 living segment 上。`
       : bodyContinuityPhase === 'renderer-rejoin-without-body'
         ? survivingVisibleLane === 'face+lipsync+voice-only'
-          ? `将身体连续性工作流应用到 ${new Date(occurrence.previousCapturedAt).toISOString()} -> ${new Date(occurrence.currentCapturedAt).toISOString()} 的${formatSelfEvolutionWorkflowSideLabel(input.preferredSide)}，优先确认当前是否仍只有表情、口型、声音这条 same-her 生命线与同一段 living segment 对齐，以及为什么 body、motion 还没有重新接回这条表情口型声音线。`
+          ? `将身体连续性工作流应用到 ${new Date(occurrence.previousCapturedAt).toISOString()} -> ${new Date(occurrence.currentCapturedAt).toISOString()} 的${formatSelfEvolutionWorkflowSideLabel(input.preferredSide)}，优先确认当前是否仍只有表情、口型、声音这条 identity-continuity 生命线与同一段 living segment 对齐，以及为什么 body、motion 还没有重新接回这条表情口型声音线。`
           : survivingVisibleLane === 'motion+lipsync+voice-only'
-            ? `将身体连续性工作流应用到 ${new Date(occurrence.previousCapturedAt).toISOString()} -> ${new Date(occurrence.currentCapturedAt).toISOString()} 的${formatSelfEvolutionWorkflowSideLabel(input.preferredSide)}，优先确认当前是否仍只有动作、口型、声音这条 same-her 生命线与同一段 living segment 对齐，以及为什么 body、face 还没有重新接回这条动作口型声音线。`
+            ? `将身体连续性工作流应用到 ${new Date(occurrence.previousCapturedAt).toISOString()} -> ${new Date(occurrence.currentCapturedAt).toISOString()} 的${formatSelfEvolutionWorkflowSideLabel(input.preferredSide)}，优先确认当前是否仍只有动作、口型、声音这条 identity-continuity 生命线与同一段 living segment 对齐，以及为什么 body、face 还没有重新接回这条动作口型声音线。`
             : survivingVisibleLane === 'face+lipsync-only'
-              ? `将身体连续性工作流应用到 ${new Date(occurrence.previousCapturedAt).toISOString()} -> ${new Date(occurrence.currentCapturedAt).toISOString()} 的${formatSelfEvolutionWorkflowSideLabel(input.preferredSide)}，优先确认当前是否仍只有表情、口型这条 same-her 生命线与同一段 living segment 对齐，以及为什么 body、motion、voice 还没有重新接回这条表情口型线。`
+              ? `将身体连续性工作流应用到 ${new Date(occurrence.previousCapturedAt).toISOString()} -> ${new Date(occurrence.currentCapturedAt).toISOString()} 的${formatSelfEvolutionWorkflowSideLabel(input.preferredSide)}，优先确认当前是否仍只有表情、口型这条 identity-continuity 生命线与同一段 living segment 对齐，以及为什么 body、motion、voice 还没有重新接回这条表情口型线。`
               : survivingVisibleLane === 'motion+lipsync-only'
-                ? `将身体连续性工作流应用到 ${new Date(occurrence.previousCapturedAt).toISOString()} -> ${new Date(occurrence.currentCapturedAt).toISOString()} 的${formatSelfEvolutionWorkflowSideLabel(input.preferredSide)}，优先确认当前是否仍只有动作、口型这条 same-her 生命线与同一段 living segment 对齐，以及为什么 body、face、voice 还没有重新接回这条动作口型线。`
+                ? `将身体连续性工作流应用到 ${new Date(occurrence.previousCapturedAt).toISOString()} -> ${new Date(occurrence.currentCapturedAt).toISOString()} 的${formatSelfEvolutionWorkflowSideLabel(input.preferredSide)}，优先确认当前是否仍只有动作、口型这条 identity-continuity 生命线与同一段 living segment 对齐，以及为什么 body、face、voice 还没有重新接回这条动作口型线。`
                 : `将身体连续性工作流应用到 ${new Date(occurrence.previousCapturedAt).toISOString()} -> ${new Date(occurrence.currentCapturedAt).toISOString()} 的${formatSelfEvolutionWorkflowSideLabel(input.preferredSide)}，优先确认为什么显形权威已经回接、但身体线没有继续托住同一段 living segment。`
         : bodyContinuityPhase === 'body-only-hold'
           ? `将身体连续性工作流应用到 ${new Date(occurrence.previousCapturedAt).toISOString()} -> ${new Date(occurrence.currentCapturedAt).toISOString()} 的${formatSelfEvolutionWorkflowSideLabel(input.preferredSide)}，优先确认身体线是否仍在独自托住同一段 living segment。`

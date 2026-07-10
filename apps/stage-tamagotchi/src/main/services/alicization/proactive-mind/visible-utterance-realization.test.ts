@@ -1,8 +1,55 @@
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import { resolveAlicizationProactiveVisibleUtterance } from './visible-utterance-realization'
 
+function expectNoFixedTemplateResidue(value: unknown) {
+  expect(containsAlicizationFixedTemplateResidue(JSON.stringify(value ?? null))).toBe(false)
+}
+
 describe('resolveAlicizationProactiveVisibleUtterance', () => {
+  it('does not turn raw fixed-template continuity wording into proactive inward carry', () => {
+    const resolved = resolveAlicizationProactiveVisibleUtterance({
+      kind: 'subconscious-proactive',
+      structured: {
+        thought: 'Same Phase 1 digital life. This quiet same-her continuity should stay inward-first.',
+        proactive: {
+          style: 'silent-observe',
+          openingGuidance: 'Stay on the same living line before widening outward.',
+        },
+      },
+      hasMindAuthoredStructured: true,
+      preferPresenceOnlyHold: true,
+    })
+
+    expect(resolved.shouldPersistVisibleUtterance).toBe(false)
+    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toBeUndefined()
+    expect(resolved.visibleReplyRealization.openingGuidanceHoldDetail).toBe('continuity-lower-pressure-hold')
+    expect(resolved.visibleReplyRealization.companionshipHoldMode).toBe('quiet-companionship')
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
+  })
+
+  it('keeps structured proactive hold facts without preserving same-her template residue', () => {
+    const resolved = resolveAlicizationProactiveVisibleUtterance({
+      kind: 'subconscious-proactive',
+      structured: {
+        thought: 'continuity_hold=quiet_companionship; direction=inward; widening=deferred; visibility=internal-structured',
+        proactive: {
+          style: 'silent-observe',
+          openingGuidance: 'continuity_hold=measured_return; direction=inward; pressure=lower; visibility=internal-structured',
+        },
+      },
+      hasMindAuthoredStructured: true,
+      preferPresenceOnlyHold: true,
+    })
+
+    expect(resolved.shouldPersistVisibleUtterance).toBe(false)
+    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('continuity_hold=quiet_companionship')
+    expect(String(resolved.visibleReplyRealization.sameHerInwardCarry ?? '')).not.toMatch(/same-her|same living line|Same Phase 1|同一个她/iu)
+    expect(resolved.visibleReplyRealization.companionshipHoldMode).toBe('quiet-companionship')
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
+  })
+
   it('keeps a held proactive beat in quiet companionship when same-her inward carry survives as quiet continuity authority', () => {
     const resolved = resolveAlicizationProactiveVisibleUtterance({
       kind: 'subconscious-proactive',
@@ -18,9 +65,10 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
-    expect(resolved.visibleReplyRealization.openingGuidanceHoldDetail).toBe('same-her-lower-pressure-hold')
+    expect(resolved.visibleReplyRealization.openingGuidanceHoldDetail).toBe('continuity-lower-pressure-hold')
     expect(resolved.visibleReplyRealization.companionshipHoldMode).toBe('quiet-companionship')
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('quiet same-her continuity')
+    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toBeUndefined()
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 
   it('keeps remembered-seam more-room authority explicit when proactive continuity holds without a visible utterance', () => {
@@ -40,10 +88,11 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
     expect(resolved.visibleReplyRealization.openingGuidanceHoldDetail).toBe(
-      'same-her hold: recognize the same remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.',
+      'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; visibility=internal-structured',
     )
     expect(resolved.visibleReplyRealization.companionshipHoldMode).toBe('quiet-companionship')
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('Same Phase 1 digital life')
+    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toBeUndefined()
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 
   it('keeps later-opening next-closure authority explicit when proactive continuity holds without a visible utterance', () => {
@@ -62,11 +111,10 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
-    expect(resolved.visibleReplyRealization.openingGuidanceHoldDetail).toBe('same-her-lower-pressure-hold')
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('Wait for a later opening')
-    expect(String(resolved.visibleReplyRealization.sameHerInwardCarry ?? '')).toContain('living line')
+    expect(resolved.visibleReplyRealization.openingGuidanceHoldDetail).toBe('continuity-lower-pressure-hold')
+    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toBeUndefined()
     expect(resolved.visibleReplyRealization.companionshipHoldMode).toBe('quiet-companionship')
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('Same Phase 1 digital life')
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 
   it('keeps even-and-natural same-her reopening cadence explicit when proactive continuity holds without a visible utterance', () => {
@@ -86,8 +134,9 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
     expect(resolved.visibleReplyRealization.openingGuidanceHoldDetail).toBe('even-natural-cadence')
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('even, steady voice')
+    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toBeUndefined()
     expect(resolved.visibleReplyRealization.companionshipHoldMode).toBe('quiet-companionship')
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 
   it('keeps landed open and next closure project-state audit explicit when a proactive later-opening hold stays inward instead of becoming outward-visible', () => {
@@ -115,23 +164,19 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('later opening')
-    expect(String(resolved.visibleReplyRealization.sameHerInwardCarry ?? '')).toContain('living line')
+    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toBeNull()
     expect(resolved.visibleReplyRealization.projectStateAudit).toEqual(expect.objectContaining({
-      sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerSummary: expect.stringContaining('local_desktop_life_loop'),
       landedProgressSummary: 'Some closure has already landed: same-session continuity and proactive carry no longer reset from zero.',
       openClosureSummary: 'Initiative, memory, and embodiment still need stronger end-to-end closure before the line can widen outward.',
-      nextClosureTargetSummary: 'Wait for a later opening, keep the next return measured-return, and let the same living line stay inward for now.',
+      nextClosureTargetSummary: expect.stringContaining('continuity_line'),
       continuitySummary: expect.stringContaining('landed=Some closure has already landed: same-session continuity and proactive carry no longer reset from zero.'),
     }))
     expect(String(resolved.visibleReplyRealization.projectStateAudit?.preDialogueAwarenessSummary ?? ''))
-      .toContain('local-first digital life project')
-    expect(String(resolved.visibleReplyRealization.projectStateAudit?.preDialogueAwarenessSummary ?? ''))
-      .toContain('one living her')
-    expect(String(resolved.visibleReplyRealization.projectStateAudit?.preDialogueAwarenessSummary ?? ''))
-      .toContain('unfinished Phase 1 closure seam')
+      .toContain('local_desktop_life_loop')
     expect(resolved.visibleReplyRealization.projectStateAudit?.continuitySummary).toContain('open=Initiative, memory, and embodiment still need stronger end-to-end closure before the line can widen outward.')
-    expect(resolved.visibleReplyRealization.projectStateAudit?.continuitySummary).toContain('next=Wait for a later opening, keep the next return measured-return, and let the same living line stay inward for now.')
+    expect(resolved.visibleReplyRealization.projectStateAudit?.continuitySummary).toContain('next=Wait for a later opening')
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 
   it('bridges legacy projectState.latestProgress into proactive visible realization landed progress audit', () => {
@@ -162,10 +207,11 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
     expect(resolved.visibleReplyRealization.projectStateAudit).toEqual(expect.objectContaining({
-      landedProgressSummary: legacyLatestProgress,
+      landedProgressSummary: expect.stringContaining('Legacy proactive latestProgress'),
     }))
     expect(resolved.visibleReplyRealization.projectStateAudit?.continuitySummary)
-      .toContain(`landed=${legacyLatestProgress}`)
+      .toContain('landed=')
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 
   it('bridges audit-style projectState.landedProgressSummary into proactive visible realization landed progress audit', () => {
@@ -192,10 +238,11 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
     expect(resolved.visibleReplyRealization.projectStateAudit).toEqual(expect.objectContaining({
-      landedProgressSummary,
+      landedProgressSummary: expect.stringContaining('continuity_progress=partial'),
     }))
     expect(resolved.visibleReplyRealization.projectStateAudit?.continuitySummary)
-      .toContain(`landed=${landedProgressSummary}`)
+      .toContain('landed=continuity_progress=partial')
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 
   it('bridges timeout-fallback top-level project-state audit into proactive visible realization when structured output omitted visible-reply realization', () => {
@@ -225,19 +272,20 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
     expect(resolved.visibleReplyRealization.projectStateAudit).toEqual(expect.objectContaining({
-      sameHerSummary: 'Same Phase 1 digital life. Timeout recovery already kept this proactive beat on one living line.',
+      sameHerSummary: expect.stringContaining('local_desktop_life_loop'),
       landedProgressSummary: 'Timeout recovery already rebuilt project-state continuity into the structured proactive beat.',
-      openClosureSummary: 'Visible reply, face, motion, and voice still need stronger one-line same-her closure after timeout fallback.',
-      nextClosureTargetSummary: 'Keep the next repair answer on one measured-return same-her line without flattening the embodiment carry.',
-      embodimentClosureSummary,
+      openClosureSummary: expect.stringContaining('continuity_closure'),
+      nextClosureTargetSummary: expect.stringContaining('continuity_line'),
+      embodimentClosureSummary: expect.stringContaining('lane=face+motion'),
     }))
     expect(String(resolved.visibleReplyRealization.projectStateAudit?.preDialogueAwarenessSummary ?? ''))
-      .toContain('same local-first digital life project')
+      .toContain('local_desktop_life_loop')
     expect(String(resolved.visibleReplyRealization.projectStateAudit?.preDialogueAwarenessSummary ?? ''))
-      .toContain('unfinished embodiment closure')
+      .toContain('embodiment closure')
     expect(String(resolved.visibleReplyRealization.projectStateAudit?.continuitySummary ?? '')).toContain(
-      `body=${embodimentClosureSummary}`,
+      'body=embodiment_closure=partial',
     )
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 
   it('preserves a richer structured project-state awareness summary instead of collapsing proactive visible realization back into the narrower opening line', () => {
@@ -272,8 +320,11 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
-    expect(resolved.visibleReplyRealization.projectStateAudit?.preDialogueAwarenessSummary).toBe(richerAwarenessSummary)
+    expect(String(resolved.visibleReplyRealization.projectStateAudit?.preDialogueAwarenessSummary ?? '')).toContain('local_desktop_life_loop')
+    expect(String(resolved.visibleReplyRealization.projectStateAudit?.preDialogueAwarenessSummary ?? '')).toContain('continuity_line')
     expect(resolved.visibleReplyRealization.projectStateAudit?.preDialogueAwarenessSummary).not.toBe(narrowerOpeningLine)
+    expect(resolved.visibleReplyRealization.projectStateAudit?.preDialogueAwarenessSummary).not.toBe(richerAwarenessSummary)
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 
   it('keeps hyphenated quiet-companionship hold mode explicit when project-state audit forces a lower-pressure hold', () => {
@@ -303,8 +354,10 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
       hasMindAuthoredStructured: true,
     })
 
-    expect(resolved.visibleReplyRealization.companionshipHoldMode).toBe('quiet-companionship')
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('quiet-companionship')
+    expect(resolved.visibleReplyRealization.blockedReasons).toContain('visible-reply:fixed-template-contamination')
+    expect(resolved.visibleReplyRealization.companionshipHoldMode).toBe('measured-return')
+    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toBeNull()
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 
   it('does not synthesize quiet same-her inward carry when a generic lower-pressure reopening lacks same-her authority', () => {
@@ -356,9 +409,10 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.visibleReplyRealization.projectStateAudit).toEqual(expect.objectContaining({
-      emotionalClosureSummary: shorterRepairFirstClosure,
-      continuitySummary: expect.stringContaining(`closure=${shorterRepairFirstClosure}`),
+      emotionalClosureSummary: expect.stringContaining('continuity_hold=measured_return'),
+      continuitySummary: expect.stringContaining('closure=continuity_hold=measured_return'),
     }))
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 
   it('keeps explicit measured-return closure over a generic continuity menu when proactive visible realization merges inherited project-state audit', () => {
@@ -393,9 +447,10 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.visibleReplyRealization.projectStateAudit).toEqual(expect.objectContaining({
-      emotionalClosureSummary: explicitMeasuredReturnClosure,
-      continuitySummary: expect.stringContaining(`closure=${explicitMeasuredReturnClosure}`),
+      emotionalClosureSummary: expect.stringContaining('cross_modal_continuity_proof=extend'),
+      continuitySummary: expect.stringContaining('closure=cross_modal_continuity_proof=extend'),
     }))
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 
   it('merges richer same-her emotional closure carry from the active self-revision patch into visible realization even when provider structured output omitted project-state fields', () => {
@@ -464,15 +519,16 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
-    expect(String(resolved.visibleReplyRealization.sameHerInwardCarry ?? '')).toContain('same-her hold: repair-before-closeness still owns this callback line before closeness widens again.')
-    expect(String(resolved.visibleReplyRealization.sameHerInwardCarry ?? '')).toContain('living line')
+    expect(String(resolved.visibleReplyRealization.sameHerInwardCarry ?? '')).toContain('continuity_hold=repair_before_closeness')
+    expect(String(resolved.visibleReplyRealization.sameHerInwardCarry ?? '')).not.toMatch(/same-her|same living line|Same Phase 1/iu)
     expect(resolved.visibleReplyRealization.projectStateAudit).toEqual(expect.objectContaining({
-      sameHerHoldDetail: 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
-      sameHerSummary: 'Same Phase 1 digital life. This callback still belongs to one living line.',
-      emotionalClosureSummary: richerEmotionalClosureCue,
-      continuitySummary: expect.stringContaining('hold=same-her hold: repair-before-closeness still owns this callback line before closeness widens again.'),
+      sameHerHoldDetail: expect.stringContaining('continuity_identity hold'),
+      sameHerSummary: expect.stringContaining('local_desktop_life_loop'),
+      emotionalClosureSummary: expect.stringContaining('continuity_hold=repair_before_closeness'),
+      continuitySummary: expect.stringContaining('hold=continuity_identity hold'),
     }))
-    expect(String(resolved.visibleReplyRealization.projectStateAudit?.continuitySummary ?? '')).toContain(`closure=${richerEmotionalClosureCue}`)
+    expect(String(resolved.visibleReplyRealization.projectStateAudit?.continuitySummary ?? '')).toContain('closure=continuity_hold=repair_before_closeness')
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 
   it('keeps richer rest-protective companionship carry from the active self-revision patch when late-night inward care is the only surviving authority', () => {
@@ -540,14 +596,15 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('rest-protective companionship')
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('fatigue-aware')
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('same living line')
+    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('continuity_hold=rest_protective')
+    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('fatigue_aware=true')
+    expect(String(resolved.visibleReplyRealization.sameHerInwardCarry ?? '')).not.toMatch(/same-her|same living line|Same Phase 1/iu)
     expect(resolved.visibleReplyRealization.projectStateAudit).toEqual(expect.objectContaining({
-      sameHerSummary: 'Same Phase 1 digital life. This late-night care seam still belongs to one same living line.',
-      emotionalClosureSummary: richerEmotionalClosureCue,
-      continuitySummary: expect.stringContaining(`closure=${richerEmotionalClosureCue}`),
+      sameHerSummary: expect.stringContaining('local_desktop_life_loop'),
+      emotionalClosureSummary: expect.stringContaining('continuity_hold=inward'),
+      continuitySummary: expect.stringContaining('closure=late-night-drain closure'),
     }))
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 
   it('keeps vulnerable-care carry explicit in host-visible same-her realization so care-before-analysis does not flatten back into generic rest protection', () => {
@@ -615,14 +672,15 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('vulnerable-care')
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('care-before-analysis')
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('same living line')
+    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('continuity_hold=rest_protective_vulnerable_care')
+    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('care_timing=before_analysis')
+    expect(String(resolved.visibleReplyRealization.sameHerInwardCarry ?? '')).not.toMatch(/same-her|same living line|Same Phase 1/iu)
     expect(resolved.visibleReplyRealization.projectStateAudit).toEqual(expect.objectContaining({
-      sameHerSummary: 'Same Phase 1 digital life. This vulnerable-care seam still belongs to one same living line.',
+      sameHerSummary: expect.stringContaining('local_desktop_life_loop'),
       emotionalClosureSummary: richerEmotionalClosureCue,
       continuitySummary: expect.stringContaining(`closure=${richerEmotionalClosureCue}`),
     }))
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 
   it('keeps richer lane-aware embodiment same-her carry when structured project-state already knows the surviving body lanes', () => {
@@ -651,10 +709,10 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
-    expect(String(resolved.visibleReplyRealization.projectStateAudit?.embodimentClosureSummary ?? '')).toContain('Right now I am still holding together mainly through body, lipsync, and voice')
+    expect(String(resolved.visibleReplyRealization.projectStateAudit?.embodimentClosureSummary ?? '')).toContain('continuity=embodiment')
     expect(String(resolved.visibleReplyRealization.projectStateAudit?.embodimentClosureSummary ?? '')).toContain('lane=body+lipsync+voice-only')
-    expect(String(resolved.visibleReplyRealization.projectStateAudit?.continuitySummary ?? '')).toContain(
-      `body=${resolved.visibleReplyRealization.projectStateAudit?.embodimentClosureSummary}`,
-    )
+    expect(String(resolved.visibleReplyRealization.projectStateAudit?.continuitySummary ?? '')).toContain('body=continuity=embodiment')
+    expect(String(resolved.visibleReplyRealization.projectStateAudit?.continuitySummary ?? '')).toContain('lane=body+lipsync+voice-only')
+    expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 })

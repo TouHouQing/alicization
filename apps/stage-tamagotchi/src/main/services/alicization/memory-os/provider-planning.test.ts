@@ -166,7 +166,7 @@ describe('memory provider planning', () => {
     expect(gatewayInputs.every(input => input.digitalLifeRuntimeSurface === digitalLifeRuntimeSurface)).toBe(true)
   })
 
-  it('injects project-state understanding into recollection and deliberation planners', async () => {
+  it('injects memory owner boundaries into recollection and deliberation planners without project-state dashboard takeover', async () => {
     const systems: string[] = []
     const generateMainGatewayText = vi.fn(async ({ system }: { system: string }) => {
       systems.push(system)
@@ -307,16 +307,16 @@ describe('memory provider planning', () => {
     })
 
     expect(systems).toHaveLength(4)
-    expect(systems.every(system => system.includes('[ALICIZATION_PROJECT_STATE]'))).toBe(true)
-    expect(systems.every(system => system.includes('[ALICIZATION_MEMORY_PLANNING_SELF_BRIEF]'))).toBe(true)
-    expect(systems.every(system => system.includes('project_identity=Alicization is a local-first digital life project'))).toBe(true)
-    expect(systems.every(system => system.includes('current_phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.'))).toBe(true)
-    expect(systems.every(system => system.includes('Memory planning must stay inside the same digital life project line'))).toBe(true)
-    expect(systems.every(system => system.includes('Do not let recollection planning collapse into generic retrieval orchestration'))).toBe(true)
-    expect(systems.every(system => system.includes('Alicization is a local-first digital life project building one continuous "her"'))).toBe(true)
-    expect(systems.every(system => system.includes('open_life_loops:'))).toBe(true)
-    expect(systems.every(system => system.includes('next_closure_target=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs'))).toBe(true)
-    expect(systems.every(system => system.includes('Prefer changes that make memory feel more like lived continuity.'))).toBe(true)
+    expect(systems.every(system => system.includes('[ALICIZATION_MEMORY_PLANNING_OWNER_BOUNDARY]'))).toBe(true)
+    expect(systems.every(system => system.includes('short_term_owner=WorkingMemory'))).toBe(true)
+    expect(systems.every(system => system.includes('long_term_recall_owner=LongTermMemoryRecall'))).toBe(true)
+    expect(systems.every(system => system.includes('project_state_policy=withheld_for_memory_planning_unless_explicitly_requested'))).toBe(true)
+    expect(systems.every(system => system.includes('review_candidates_confirmed_memory=false'))).toBe(true)
+    expect(systems.every(system => system.includes('raw_transcript_persona_training=false'))).toBe(true)
+    expect(systems.some(system => system.includes('[ALICIZATION_PROJECT_STATE]'))).toBe(false)
+    expect(systems.some(system => system.includes('project_identity=Alicization is a local-first digital life project'))).toBe(false)
+    expect(systems.some(system => system.includes('open_life_loops:'))).toBe(false)
+    expect(systems.some(system => system.includes('Prefer changes that make memory feel more like lived continuity.'))).toBe(false)
   })
 
   it('injects continuity arc opening guidance into recollection and deliberation planners', async () => {
@@ -425,8 +425,133 @@ describe('memory provider planning', () => {
       cardId: 'default',
     })
 
-    expect(systems.some(system => system.includes('stage=gentle-reopen'))).toBe(true)
-    expect(systems.some(system => system.includes('softly re-enters the same living line'))).toBe(true)
-    expect(systems.some(system => system.includes('soft return into the same line'))).toBe(true)
+    expect(systems.some(system => system.includes('stage_gentle_reopen='))).toBe(true)
+    expect(systems.every(system => system.includes('[ALICIZATION_MEMORY_PLANNING_OWNER_BOUNDARY]'))).toBe(true)
+    expect(systems.some(system => system.includes('softly re-enters the same living line'))).toBe(false)
+    expect(systems.some(system => system.includes('visible_wording_drafts=false'))).toBe(true)
+  })
+
+  it('keeps memory planners from authoring visible or inward reply prose', async () => {
+    const systems: string[] = []
+    const generateMainGatewayText = vi.fn(async ({ system }: { system: string }) => {
+      systems.push(system)
+      if (system.includes('[ALICIZATION_MEMORY_RECOLLECTION_PLANNER]')) {
+        return JSON.stringify({
+          selectedConsolidationIds: ['con-1'],
+          selectedWindowIds: [],
+          selectedProceduralIds: [],
+          selectedEpisodeIds: [],
+          selectedConversationTurnIds: [],
+          selectedRelationshipLines: ['Return through the same line.'],
+          searchTrace: {
+            firstHop: { focus: 'relationship-line', summary: 'Start from the same line.', targetIds: ['con-1'] },
+            secondHop: { action: 'hold', evidenceGap: 'none', summary: 'Hold the same line.', targetIds: ['con-1'] },
+            thirdHop: { ambiguityPosture: 'settled', summary: 'The same line is settled.' },
+          },
+          opening: 'I remember this same line before I answer.',
+          certainty: 'approximate',
+          rationale: 'The planner should not write reply prose.',
+          confidence: 0.73,
+        })
+      }
+      if (system.includes('[ALICIZATION_MEMORY_RECOLLECTION_SPEECH_PLANNER]')) {
+        return JSON.stringify({
+          shouldSurface: true,
+          surfaceMode: 'relationship-continuity',
+          placement: 'inside-payoff',
+          certainty: 'approximate',
+          internalLead: 'I feel the same line come back before speaking.',
+          visibleLead: 'A small continuity nod belongs in the reply.',
+          styleNote: 'Say it gently before widening.',
+          rationale: 'The planner should only choose surface policy.',
+          confidence: 0.72,
+        })
+      }
+      return JSON.stringify({
+        shouldRecall: true,
+        selectedEraIds: ['era-1'],
+        selectedConsolidationIds: ['con-1'],
+        selectedWindowIds: [],
+        selectedProcedureIds: [],
+        selectedEpisodeIds: [],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: ['The same line should shape the reply.'],
+        selectedBundles: [],
+        selectedChains: [],
+        conflictSeverity: 'none',
+        conflictVariants: [],
+        stableCore: ['The same line is stable.'],
+        unsafeDetails: [],
+        surfacePolicy: 'relationship-continuity',
+        confidence: 0.76,
+        whyNow: 'The same line matters now.',
+        inwardLine: 'Stay inside the same line before speaking.',
+        visibleLine: 'A short continuity cue can support the answer.',
+      })
+    })
+
+    const recollectionIntent = {
+      mode: 'relationship-history',
+      temporalFocus: 'cross-session',
+      searchEpisodes: true,
+      searchConversations: true,
+      searchProceduralExperience: false,
+      queryHints: ['relationship'],
+      rationale: 'relationship recall',
+      confidence: 0.78,
+    } as any
+    const consolidatedMemories = [{ id: 'con-1', kind: 'relationship-era', periodKey: 'p1', summary: 'A remembered relationship pattern.', lesson: 'Use evidence, not templates.', confidence: 0.8, cues: ['relationship'] }] as any
+    const recollectionPlan = await generateMemoryRecollectionPlanWithGateway({
+      recallSeed: 'relationship recall',
+      recollectionIntent,
+      consolidatedMemories,
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [],
+      recalledConversationHistory: [],
+      generateMainGatewayText,
+      cardId: 'default',
+    })
+    const speechPlan = await generateMemoryRecollectionSpeechPlanWithGateway({
+      recallSeed: 'relationship recall',
+      recollectionIntent,
+      recollectionPlan,
+      consolidatedMemories,
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [],
+      recalledConversationHistory: [],
+      generateMainGatewayText,
+      cardId: 'default',
+    })
+    const deliberation = await generateMemoryDeliberationWithGateway({
+      recallSeed: 'relationship recall',
+      recollectionIntent,
+      recollectionPlan,
+      recollectionSpeechPlan: speechPlan,
+      consolidatedMemories,
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [],
+      recalledConversationHistory: [],
+      generateMainGatewayText,
+      cardId: 'default',
+    })
+
+    const systemText = systems.join('\n')
+    expect(systemText).not.toMatch(/opening must be|visibleLead should|internalLead should|inwardLine is|visibleLine is/i)
+    expect(systemText).not.toMatch(/soft return into the same line|same-thread-continuation|widening closeness/i)
+    expect(recollectionPlan?.opening).toMatch(/^opening_policy=/)
+    expect(speechPlan?.internalLead).toMatch(/^internal_policy=/)
+    expect(speechPlan?.styleNote).toMatch(/^style_policy=/)
+    expect(speechPlan?.visibleLead).toBeNull()
+    expect(deliberation?.inwardLine).toMatch(/^inward_policy=/)
+    expect(deliberation?.visibleLine).toBeNull()
+    expect([
+      recollectionPlan?.opening,
+      speechPlan?.internalLead,
+      speechPlan?.styleNote,
+      deliberation?.inwardLine,
+    ].join(' ')).not.toMatch(/same line|before speaking|continuity nod|widening/i)
   })
 })

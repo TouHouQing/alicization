@@ -1,7 +1,11 @@
 import type { AlicizationVisibleReplyExecution } from '../../../../shared/eventa'
 import type { AlicizationSelfRevisionStatePatch } from '../self-evolution/state-revision-bus'
 
-import { buildAlicizationEmbodimentLoopSummary } from '@proj-alicization/stage-shared'
+import {
+  buildAlicizationEmbodimentLoopSummary,
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationStructuredInternalText,
+} from '@proj-alicization/stage-shared'
 
 import { preferStrongerContinuityClosureAuthority } from '../continuity-closure-authority'
 import {
@@ -38,11 +42,35 @@ interface AlicizationProactiveMemorySurfaceRestraint {
 
 function stringifyStructuredForRealization(structured: unknown) {
   try {
-    return JSON.stringify(structured ?? {})
+    return JSON.stringify(sanitizeStructuredForRealization(structured ?? {}))
   }
   catch {
     return ''
   }
+}
+
+function sanitizeStructuredForRealization(value: unknown): unknown {
+  if (typeof value === 'string') {
+    if (!value.trim())
+      return value
+    return containsAlicizationFixedTemplateResidue(value)
+      ? sanitizeAlicizationStructuredInternalText(value, 520)
+      : value
+  }
+
+  if (Array.isArray(value))
+    return value.map(item => sanitizeStructuredForRealization(item))
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+        key,
+        sanitizeStructuredForRealization(item),
+      ]),
+    )
+  }
+
+  return value
 }
 
 function readVisibleReply(structured: unknown) {
@@ -295,7 +323,7 @@ function mergeProjectStateAudit(
     candidate: inheritedAudit.nextFocusSummary,
   })
 
-  return {
+  return sanitizeProjectStateAuditRecord({
     ...inheritedAudit,
     ...currentAudit,
     ...(sameHerSummary ? { sameHerSummary } : {}),
@@ -315,29 +343,43 @@ function mergeProjectStateAudit(
       emotionalClosureSummary,
       embodimentClosureSummary,
     }),
-  }
+  })
+}
+
+function sanitizeProjectStateAuditRecord(record: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(record).map(([key, value]) => {
+      if (typeof value === 'string')
+        return [key, sanitizeProjectStateAuditText(value, 640) || null]
+      if (Array.isArray(value))
+        return [key, value.map(item => typeof item === 'string' ? sanitizeProjectStateAuditText(item, 320) || null : item)]
+      return [key, value]
+    }),
+  )
 }
 
 function sanitizeProjectStateAuditText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
-  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  if (!normalized)
+    return ''
+  return sanitizeAlicizationStructuredInternalText(normalized, maxChars)
 }
 
 function shouldCarryOpeningGuidanceIntoSameHerInwardCarry(openingGuidance: string) {
-  const normalized = openingGuidance.trim().toLowerCase()
+  const normalized = sanitizeSameHerCarry(openingGuidance)?.toLowerCase() ?? ''
   if (!normalized)
     return false
 
-  return (
+  return carriesStructuredContinuityHold(normalized) || (
     normalized.includes('later opening')
-    || normalized.includes('same living line')
-    || normalized.includes('same line')
     || normalized.includes('measured-return')
+    || normalized.includes('measured_return')
     || normalized.includes('lower-pressure')
+    || normalized.includes('lower_pressure')
     || normalized.includes('before widening outward')
     || normalized.includes('leave room')
-    || normalized.includes('同一条生命线')
     || normalized.includes('先留白')
     || normalized.includes('别立刻')
   )
@@ -353,7 +395,7 @@ function buildProjectStateAuditContinuitySummary(input: {
   embodimentClosureSummary?: string | null
 }) {
   return [
-    input.sameHerSummary ? `same-her=${input.sameHerSummary}` : '',
+    input.sameHerSummary ? `continuity_anchor=${input.sameHerSummary}` : '',
     input.landedProgressSummary ? `landed=${input.landedProgressSummary}` : '',
     input.openClosureSummary ? `open=${input.openClosureSummary}` : '',
     input.nextClosureTargetSummary ? `next=${input.nextClosureTargetSummary}` : '',
@@ -505,16 +547,9 @@ function readSameHerInwardCarry(structured: unknown) {
   if (!combined)
     return null
 
-  const normalized = combined.toLowerCase()
-  if (
-    normalized.includes('same phase 1 digital life')
-    || normalized.includes('same living line')
-    || normalized.includes('same digital life')
-    || normalized.includes('same-her')
-    || normalized.includes('同一个她')
-  ) {
-    return sanitizeSameHerCarry(combined)
-  }
+  const sanitized = sanitizeSameHerCarry(combined)
+  if (sanitized && carriesStructuredContinuityHold(sanitized))
+    return sanitized
 
   return null
 }
@@ -553,7 +588,22 @@ function deriveSelfRevisionPatchSameHerHoldDetail(selfRevisionPatch?: Alicizatio
   if (!projectStateContinuity)
     return null
 
-  const explicitSameHerHoldDetail = sanitizeProjectStateAuditText(projectStateContinuity.sameHerHoldDetail, 220) || null
+  const rawExplicitSameHerHoldDetail = typeof projectStateContinuity.sameHerHoldDetail === 'string'
+    ? projectStateContinuity.sameHerHoldDetail.trim()
+    : ''
+  if (rawExplicitSameHerHoldDetail) {
+    const loweredExplicitHold = rawExplicitSameHerHoldDetail.toLowerCase()
+    if (/repair-before-closeness|repair before closeness|repair-first|repair first/u.test(loweredExplicitHold))
+      return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens; visibility=internal-structured'
+    if (/vulnerable-care|vulnerable care|care-before-analysis|care before analysis/u.test(loweredExplicitHold))
+      return 'continuity_hold=rest_protective_vulnerable_care; care_timing=before_analysis; closeness=lighter; visibility=internal-structured'
+    if (/rest-protective|rest protective|fatigue-aware|fatigue aware|quiet-companionship|quiet companionship/u.test(loweredExplicitHold))
+      return 'continuity_hold=rest_protective; fatigue_aware=true; direction=inward; visibility=internal-structured'
+    if (/measured-return|measured return|lower-pressure|lower pressure|leave more room|more room/u.test(loweredExplicitHold))
+      return 'continuity_hold=measured_return; pressure=lower; room=more; widening=deferred; visibility=internal-structured'
+  }
+
+  const explicitSameHerHoldDetail = sanitizeProjectStateAuditText(rawExplicitSameHerHoldDetail, 220) || null
   if (explicitSameHerHoldDetail)
     return explicitSameHerHoldDetail
 
@@ -566,17 +616,17 @@ function deriveSelfRevisionPatchSameHerHoldDetail(selfRevisionPatch?: Alicizatio
     return null
 
   if (/repair-before-closeness|repair before closeness|repair-first|repair first/u.test(merged))
-    return 'repair-before-closeness is still owning this callback line before closeness widens again.'
+    return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens; visibility=internal-structured'
 
   if (
     /vulnerable-care|vulnerable care|fragile care|care-before-analysis|care before analysis|care arrive before analysis|care arrives before analysis|analysis-heavy|analysis heavy/u.test(merged)
-    && /same living line|same line|same-her|same her|line stays inward|holds inward/u.test(merged)
+    && /same living line|same line|same-her|same her|line stays inward|holds inward|direction=inward/u.test(merged)
   ) {
-    return 'rest-protective vulnerable-care keeps this return care-before-analysis, lighter, and inward.'
+    return 'continuity_hold=rest_protective_vulnerable_care; care_timing=before_analysis; closeness=lighter; visibility=internal-structured'
   }
 
   if (/rest-protective|rest protective|rest protection|quiet-companionship|quiet companionship|fatigue-aware|late-night-drain|line holds inward|holds inward|quietly inward/u.test(merged)) {
-    return 'rest-protective companionship is still keeping this return inward and fatigue-aware.'
+    return 'continuity_hold=rest_protective; fatigue_aware=true; direction=inward; visibility=internal-structured'
   }
 
   return null
@@ -595,7 +645,9 @@ function deriveSelfRevisionPatchSameHerInwardCarry(selfRevisionPatch?: Alicizati
     sanitizeProjectStateAuditText(projectStateContinuity.continuityGuard, 220),
   ]
     .filter((text): text is string => Boolean(text))
-    .filter(text => /same living line|same line|same-her|same her|one living line|one continuous her|repair-before-closeness|repair before closeness|rest-protective|rest protective|measured-return|lower-pressure|fatigue-aware|quiet-companionship|quiet companionship/u.test(text))
+    .map(text => sanitizeSameHerCarry(text))
+    .filter((text): text is string => Boolean(text))
+    .filter(text => carriesStructuredContinuityHold(text))
     .filter((text, index, array) => array.findIndex(candidate => candidate.toLowerCase() === text.toLowerCase()) === index)
     .join(' | ')
 
@@ -603,7 +655,27 @@ function deriveSelfRevisionPatchSameHerInwardCarry(selfRevisionPatch?: Alicizati
 }
 
 function sanitizeSameHerCarry(text: string) {
-  return text.trim().replace(/\s+/g, ' ').slice(0, 220)
+  const normalized = text.trim().replace(/\s+/g, ' ').slice(0, 220)
+  if (!normalized)
+    return null
+
+  const sanitized = containsAlicizationFixedTemplateResidue(normalized)
+    ? sanitizeAlicizationStructuredInternalText(normalized, 220, '')
+    : normalized
+  return sanitized || null
+}
+
+function carriesStructuredContinuityHold(text: string | null | undefined) {
+  if (!text)
+    return false
+
+  const normalized = text.toLowerCase()
+  const hasStructuredKey
+    = /(?:^|[;|\s])(?:continuity_hold|relationship_cadence|reentry_cadence|care_timing|embodiment_closure|continuity=embodiment|direction=inward|widening=deferred|warmth_widening=deferred|pressure=lower|room=more|fatigue_aware=true|visibility=renderer-internal|visibility=internal-structured)\b/u.test(normalized)
+  if (!hasStructuredKey)
+    return false
+
+  return /repair_before_closeness|rest_protective|rest_protective_vulnerable_care|measured_return|quiet_companionship|vulnerable-care|care-before-analysis|repair-before-closeness|rest-protective|measured-return|quiet-companionship|lower-pressure|lower_pressure|fatigue-aware|fatigue_aware|widening=deferred|direction=inward|room=more|pressure=lower/u.test(normalized)
 }
 
 function isQuietSameHerContinuityCarry(text: string | null | undefined) {
@@ -611,27 +683,21 @@ function isQuietSameHerContinuityCarry(text: string | null | undefined) {
     return false
 
   const normalized = text.toLowerCase()
-  const carriesSameHerLine
-    = normalized.includes('same phase 1 digital life')
-      || normalized.includes('same living line')
-      || normalized.includes('same digital life')
-      || normalized.includes('same-her')
-      || normalized.includes('one continuous her')
-      || normalized.includes('同一个她')
   const carriesQuietInwardHold
-    = normalized.includes('quiet same-her continuity')
-      || normalized.includes('quiet same her continuity')
-      || normalized.includes('same-her-inward-carry')
-      || normalized.includes('quiet companionship')
+    = normalized.includes('quiet_companionship')
       || normalized.includes('quiet-companionship')
-      || normalized.includes('line holds inward')
-      || normalized.includes('stay inward')
+      || normalized.includes('rest_protective')
+      || normalized.includes('rest-protective')
+      || normalized.includes('direction=inward')
+      || normalized.includes('widening=deferred')
       || normalized.includes('before widening outward')
       || normalized.includes('before widening warmth')
       || normalized.includes('lower-pressure')
+      || normalized.includes('lower_pressure')
       || normalized.includes('measured-return')
+      || normalized.includes('measured_return')
 
-  return carriesSameHerLine && carriesQuietInwardHold
+  return carriesStructuredContinuityHold(normalized) && carriesQuietInwardHold
 }
 
 function hasRememberedSeamMoreRoomCarry(text: string | null | undefined) {
@@ -648,7 +714,7 @@ function hasRememberedSeamMoreRoomCarry(text: string | null | undefined) {
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'Recognize the remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
+  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; visibility=internal-structured'
 }
 
 function guidanceIndicatesEvenNaturalReentry(guidance: string) {
@@ -688,7 +754,7 @@ function deriveCompanionshipHoldMode(input: {
       input.decisionReason === 'proactive-visible-presence-without-utterance'
       || input.decisionReason === 'proactive-opening-guidance-violation:lower-pressure'
       || input.decisionReason === 'proactive-project-state-audit-violation:lower-pressure'
-      || input.openingGuidanceHoldDetail === 'same-her-lower-pressure-hold'
+      || input.openingGuidanceHoldDetail === 'continuity-lower-pressure-hold'
     )
   ) {
     return 'quiet-companionship' as const
@@ -764,7 +830,7 @@ function derivePresenceOnlyOpeningGuidanceHoldDetail(input: {
     || normalizedGuidance.includes('lower-pressure')
     || normalizedGuidance.includes('measured-return')
   ) {
-    return 'same-her-lower-pressure-hold'
+    return 'continuity-lower-pressure-hold'
   }
 
   return 'quiet-companionship'
@@ -813,9 +879,10 @@ export function resolveAlicizationProactiveVisibleUtterance(input: {
     ),
   )
   const sameHerInwardCarry = readSameHerInwardCarry(input.structured)
+  const openingGuidanceInwardCarry = sanitizeSameHerCarry(openingGuidance)
   const structuredSameHerInwardCarry
-    = sameHerInwardCarry && openingGuidance && shouldCarryOpeningGuidanceIntoSameHerInwardCarry(openingGuidance)
-      ? `${sameHerInwardCarry} | ${openingGuidance}`.trim()
+    = sameHerInwardCarry && openingGuidanceInwardCarry && shouldCarryOpeningGuidanceIntoSameHerInwardCarry(openingGuidance)
+      ? `${sameHerInwardCarry} | ${openingGuidanceInwardCarry}`.trim()
       : sameHerInwardCarry
   const carriedSameHerInwardCarry = preferRicherProjectStateAuditText({
     current: structuredSameHerInwardCarry,
@@ -846,6 +913,9 @@ export function resolveAlicizationProactiveVisibleUtterance(input: {
     && proactiveReplyWidensSurfaceTooEarly(reply)
     ? 'proactive-project-state-audit-violation:lower-pressure'
     : null
+  const visibleReplyFixedTemplateViolationReason = reply && containsAlicizationFixedTemplateResidue(reply)
+    ? 'proactive-visible-reply-fixed-template-contamination'
+    : null
   const memorySurfaceRestraint = input.memorySurfaceRestraint ?? null
   const memoryBoundaryViolationReason = reply
     && memorySurfaceRestraint
@@ -864,7 +934,7 @@ export function resolveAlicizationProactiveVisibleUtterance(input: {
     : null
   const effectiveOpeningGuidanceViolationReason = sameThreadExecutionCallbackFreshRestart
     ? 'proactive-opening-guidance-violation:lower-pressure'
-    : openingGuidanceViolationReason ?? projectStateAuditViolationReason
+    : openingGuidanceViolationReason ?? projectStateAuditViolationReason ?? visibleReplyFixedTemplateViolationReason
   const callbackSpecificLowerPressureViolationReason = input.kind === 'execution-callback'
     && !effectiveOpeningGuidanceViolationReason
     && hasSameHerRelationshipRestraint(input.selfRevisionPatch ?? null)
@@ -932,7 +1002,7 @@ export function resolveAlicizationProactiveVisibleUtterance(input: {
           ),
         ),
         sameHerInwardCarry: typeof inheritedVisibleReplyRealization.sameHerInwardCarry === 'string'
-          ? inheritedVisibleReplyRealization.sameHerInwardCarry
+          ? sanitizeSameHerCarry(inheritedVisibleReplyRealization.sameHerInwardCarry) ?? carriedSameHerInwardCarry
           : carriedSameHerInwardCarry,
       }
     : derivedProjectStateAudit || selfRevisionPatchProjectStateAudit || carriedSameHerInwardCarry

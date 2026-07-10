@@ -1,3 +1,4 @@
+import { sanitizeAlicizationStructuredInternalText } from './alicization-fixed-template-sanitizer'
 import { normalizeAlicizationSettleLoopToken } from './alicization-same-her-renderer-hints'
 
 function normalizeSummaryString(raw: unknown) {
@@ -6,6 +7,11 @@ function normalizeSummaryString(raw: unknown) {
 
   const normalized = raw.trim()
   return normalized || null
+}
+
+function normalizeReasonSummaryString(raw: unknown) {
+  const normalized = normalizeSummaryString(raw)
+  return normalized ? sanitizeAlicizationStructuredInternalText(normalized, 520, normalized) || null : null
 }
 
 export function buildAlicizationMotionSummary(input: {
@@ -52,7 +58,7 @@ export function buildAlicizationMotionSummary(input: {
     normalizeSummaryString(input.continuityTiming) ? `timing=${normalizeSummaryString(input.continuityTiming)}` : null,
     normalizeSummaryString(input.preferredBlinkCadence) ? `blink=${normalizeSummaryString(input.preferredBlinkCadence)}` : null,
     normalizeSummaryString(input.preferredGazeMode) ? `gaze=${normalizeSummaryString(input.preferredGazeMode)}` : null,
-    normalizeSummaryString(input.reasonSummary) ? `reason=${normalizeSummaryString(input.reasonSummary)}` : null,
+    normalizeReasonSummaryString(input.reasonSummary) ? `reason=${normalizeReasonSummaryString(input.reasonSummary)}` : null,
     normalizedIdleBase ? `idle=${normalizedIdleBase}` : null,
     formatNumber(input.intensity) ? `intensity=${formatNumber(input.intensity)}` : null,
     resolveFiniteNumber(input.holdMs) != null ? `hold=${Number(input.holdMs)}ms` : null,

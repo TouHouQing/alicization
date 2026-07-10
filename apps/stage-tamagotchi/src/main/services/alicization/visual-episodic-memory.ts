@@ -2628,7 +2628,7 @@ function derivePresenceOnlyResidentHoldInwardPreoccupation(input: {
   if (!hasRememberedSeamMoreRoomCarry(continuityAuthorityText) && (!hasSameLineCarry || !hasMeasuredRoomCarry))
     return fallback || null
 
-  return 'The same remembered seam is back, so leave more room and let the return stay slower before warmth widens again.'
+  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; warmth_widening=deferred; visibility=internal-structured'
 }
 
 function derivePresenceOnlyResidentHoldContinuityRestraint(input: {

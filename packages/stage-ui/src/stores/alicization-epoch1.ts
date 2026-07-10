@@ -377,7 +377,7 @@ function resolveAsyncExtractionProjectAwarenessIdentity(
 function buildAsyncExtractionProjectAwarenessPrompt(identities: AlicizationPreDialogueSendIdentity[]) {
   const lines = [
     'You are Alicization asynchronous memory extractor.',
-    'You are extracting memory for a local-first digital life project, not for a generic assistant shell.',
+    'Extract durable memory facts from user-visible dialogue and structured continuity evidence.',
   ]
 
   for (const identity of identities) {
@@ -391,8 +391,8 @@ function buildAsyncExtractionProjectAwarenessPrompt(identities: AlicizationPreDi
   }
 
   lines.push(
-    'When extracting durable memory, stay on the same project-awareness line: keep what this digital life project is, what has landed, and which still-open closure should keep carrying forward.',
-    'If project-awareness survives only as a detached project status shell, treat that as continuity drift instead of a successful same-her carry.',
+    'When extracting durable memory, keep user facts, relationship facts, constraints, preferences, plans, and explicit continuity evidence.',
+    'Do not store project slogans, fixed-template residue, provider fallback text, timeout fallback text, or detached project-status shells as durable memory.',
     'Return JSON only. No markdown.',
     'Schema:',
     '{"facts":[{"subject":"user|assistant|relationship","predicate":"likes|dislikes|plan|fact|constraint|preference","object":"short text","confidence":0.45-0.95}]}',

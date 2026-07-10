@@ -6,6 +6,12 @@ import {
 } from './memory-search-retrieval-operators'
 import { deriveSceneTriggeredRecollectionIntent } from './runtime-organic-memory-search-prelude'
 
+const fixedTemplateResiduePattern = /Before (?:answering|speaking|acting)|Same Phase 1 digital life|same-her|same her|same living line|one living her|one continuous her|local-first digital life project|同一个她|同一个 her|数字生命主线/iu
+
+function expectNoFixedTemplateResidue(value: unknown) {
+  expect(JSON.stringify(value)).not.toMatch(fixedTemplateResiduePattern)
+}
+
 describe('memory-search-retrieval-operators', () => {
   it('derives heuristic recollection intent from session mirror runtime continuity carry', async () => {
     let plannedInput: any = null
@@ -137,7 +143,7 @@ describe('memory-search-retrieval-operators', () => {
     }))
   })
 
-  it('keeps Phase 1 same-her project carry visible in heuristic recollection intent when mirror runtime continuity already carries the unfinished project line', async () => {
+  it('keeps Phase 1 project carry structured in heuristic recollection intent when mirror runtime continuity already carries the unfinished project line', async () => {
     let plannedInput: any = null
     const prelude = await resolveMemorySearchPrelude({
       access: {
@@ -173,26 +179,28 @@ describe('memory-search-retrieval-operators', () => {
       mode: 'execution-procedure',
       searchProceduralExperience: true,
       queryHints: expect.arrayContaining([
-        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        'phase1_local_digital_life. Some closure already landed. Unfinished closure still needs the continuity_line.',
         'Keep the unfinished digital-life closure work explicit in the answer.',
-        'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        'Keep extending cross_modal_continuity_proof across longer, noisier real-desktop runs.',
       ]),
       recollectionAgenda: expect.objectContaining({
         candidateProcedureLines: expect.arrayContaining([
-          'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          'phase1_local_digital_life. Some closure already landed. Unfinished closure still needs the continuity_line.',
         ]),
       }),
     }))
+    expectNoFixedTemplateResidue(plannedInput?.heuristicIntent)
     expect(prelude.recollectionIntent).toEqual(expect.objectContaining({
       mode: 'execution-procedure',
       searchProceduralExperience: true,
       queryHints: expect.arrayContaining([
-        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        'phase1_local_digital_life. Some closure already landed. Unfinished closure still needs the continuity_line.',
       ]),
     }))
+    expectNoFixedTemplateResidue(prelude.recollectionIntent)
   })
 
-  it('keeps deferred Phase 1 same-her closure carry visible when continuity held autonomy already carries the unfinished project line', async () => {
+  it('keeps deferred Phase 1 identity-continuity closure carry structured when continuity held autonomy already carries the unfinished project line', async () => {
     let plannedInput: any = null
     const prelude = await resolveMemorySearchPrelude({
       access: {
@@ -228,27 +236,29 @@ describe('memory-search-retrieval-operators', () => {
       mode: 'execution-procedure',
       searchProceduralExperience: true,
       queryHints: expect.arrayContaining([
-        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-        expect.stringContaining('Before answering, remember this is still the same digital life project, already in Phase 1'),
+        'phase1_local_digital_life. Some closure already landed. Unfinished closure still needs the continuity_line.',
+        'Keep extending cross_modal_continuity_proof across longer, noisier real-desktop runs.',
+        expect.stringContaining('structured_carry=phase1_local_digital_life'),
       ]),
       recollectionAgenda: expect.objectContaining({
         candidateProcedureLines: expect.arrayContaining([
-          'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+          'phase1_local_digital_life. Some closure already landed. Unfinished closure still needs the continuity_line.',
+          'Keep extending cross_modal_continuity_proof across longer, noisier real-desktop runs.',
         ]),
       }),
     }))
+    expectNoFixedTemplateResidue(plannedInput?.heuristicIntent)
     expect(prelude.recollectionIntent).toEqual(expect.objectContaining({
       mode: 'execution-procedure',
       searchProceduralExperience: true,
       queryHints: expect.arrayContaining([
-        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        'phase1_local_digital_life. Some closure already landed. Unfinished closure still needs the continuity_line.',
       ]),
     }))
+    expectNoFixedTemplateResidue(prelude.recollectionIntent)
   })
 
-  it('keeps Phase 1 project-state same-her closure visible when continuity project state already carries the unfinished line', async () => {
+  it('keeps Phase 1 project-state identity-continuity closure structured when continuity project state already carries the unfinished line', async () => {
     let plannedInput: any = null
     const prelude = await resolveMemorySearchPrelude({
       access: {
@@ -284,27 +294,29 @@ describe('memory-search-retrieval-operators', () => {
       mode: 'execution-procedure',
       searchProceduralExperience: true,
       queryHints: expect.arrayContaining([
-        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        'Memory, initiative, and embodiment still need to close as one same-life seam.',
-        'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        'phase1_local_digital_life. Some closure already landed. Unfinished closure still needs the continuity_line.',
+        'Memory, initiative, and embodiment still need to close as one identity-continuity seam.',
+        'Keep extending cross_modal_continuity_proof across longer, noisier real-desktop runs.',
       ]),
       recollectionAgenda: expect.objectContaining({
         candidateProcedureLines: expect.arrayContaining([
-          'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          'Memory, initiative, and embodiment still need to close as one same-life seam.',
+          'phase1_local_digital_life. Some closure already landed. Unfinished closure still needs the continuity_line.',
+          'Memory, initiative, and embodiment still need to close as one identity-continuity seam.',
         ]),
       }),
     }))
+    expectNoFixedTemplateResidue(plannedInput?.heuristicIntent)
     expect(prelude.recollectionIntent).toEqual(expect.objectContaining({
       mode: 'execution-procedure',
       searchProceduralExperience: true,
       queryHints: expect.arrayContaining([
-        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        'phase1_local_digital_life. Some closure already landed. Unfinished closure still needs the continuity_line.',
       ]),
     }))
+    expectNoFixedTemplateResidue(prelude.recollectionIntent)
   })
 
-  it('keeps inward same-her callback recollection carry visible when mirror recollection afterthought already marks it ripe', async () => {
+  it('keeps inward identity-continuity callback recollection carry structured when mirror recollection afterthought already marks it ripe', async () => {
     let plannedInput: any = null
     const prelude = await resolveMemorySearchPrelude({
       access: {
@@ -340,24 +352,26 @@ describe('memory-search-retrieval-operators', () => {
       mode: 'execution-procedure',
       searchProceduralExperience: true,
       queryHints: expect.arrayContaining([
-        'Keep the same-her callback closure line inward until there is more room. surface=inward',
+        'Keep the identity-continuity callback closure line inward until there is more room. surface=inward',
       ]),
       recollectionAgenda: expect.objectContaining({
         candidateProcedureLines: expect.arrayContaining([
-          'Keep the same-her callback closure line inward until there is more room. surface=inward',
+          'Keep the identity-continuity callback closure line inward until there is more room. surface=inward',
         ]),
       }),
     }))
+    expectNoFixedTemplateResidue(plannedInput?.heuristicIntent)
     expect(prelude.recollectionIntent).toEqual(expect.objectContaining({
       mode: 'execution-procedure',
       searchProceduralExperience: true,
       queryHints: expect.arrayContaining([
-        'Keep the same-her callback closure line inward until there is more room. surface=inward',
+        'Keep the identity-continuity callback closure line inward until there is more room. surface=inward',
       ]),
     }))
+    expectNoFixedTemplateResidue(prelude.recollectionIntent)
   })
 
-  it('keeps same-her callback afterglow carry visible when continuity afterglow already says the line should reopen gently instead of from scratch', async () => {
+  it('keeps identity-continuity callback afterglow carry structured when continuity afterglow already says the line should reopen gently instead of from scratch', async () => {
     let plannedInput: any = null
     const prelude = await resolveMemorySearchPrelude({
       access: {
@@ -393,23 +407,25 @@ describe('memory-search-retrieval-operators', () => {
       mode: 'execution-procedure',
       searchProceduralExperience: true,
       queryHints: expect.arrayContaining([
-        'Keep the same-her callback afterglow line inward until there is more room before widening outward again.',
-        'runtime same-her callback seam',
+        expect.stringContaining('Keep the identity-continuity callback afterglow line inward'),
+        'runtime identity-continuity callback seam',
       ]),
       recollectionAgenda: expect.objectContaining({
         candidateProcedureLines: expect.arrayContaining([
-          'Keep the same-her callback afterglow line inward until there is more room before widening outward again.',
-          'runtime same-her callback seam',
+          expect.stringContaining('Keep the identity-continuity callback afterglow line inward'),
+          'runtime identity-continuity callback seam',
         ]),
       }),
     }))
+    expectNoFixedTemplateResidue(plannedInput?.heuristicIntent)
     expect(prelude.recollectionIntent).toEqual(expect.objectContaining({
       mode: 'execution-procedure',
       searchProceduralExperience: true,
       queryHints: expect.arrayContaining([
-        'Keep the same-her callback afterglow line inward until there is more room before widening outward again.',
+        expect.stringContaining('Keep the identity-continuity callback afterglow line inward'),
       ]),
     }))
+    expectNoFixedTemplateResidue(prelude.recollectionIntent)
   })
 
   it('keeps cadence reconfirmation continuity visible when measured-return room-first carry is already in the recall seed', async () => {

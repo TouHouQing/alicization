@@ -46,8 +46,8 @@ function readInitiativeExecutionRepairFocus(
     return []
 
   return [
-    'same-her initiative/execution causality pending',
-    'verify proactive opening, execution callback, and learning feedback follow the recalled same-her line',
+    'continuity initiative/execution causality pending',
+    'verify proactive opening, execution callback, and learning feedback follow the recalled continuity line',
   ]
 }
 

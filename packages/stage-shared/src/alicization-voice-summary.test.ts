@@ -20,7 +20,7 @@ describe('alicization voice summary', () => {
       source: 'prosody-authority',
       segmentId: 'segment-1',
     })).toBe(
-      'zh-CN | pitch=1.00 | rate=1.00 | energy=0.42 | cadence=0.38 | closure=0.84 | precision=0.90 | emotion=thinking | companion=measured-return | blink=linger | gaze=soften | reason=Deliver the result on the same living thread, but leave room before widening closeness | src=prosody-authority | seg=segment-1',
+      'zh-CN | pitch=1.00 | rate=1.00 | energy=0.42 | cadence=0.38 | closure=0.84 | precision=0.90 | emotion=thinking | companion=measured-return | blink=linger | gaze=soften | reason=Deliver the result on the continuity_thread, but leave room before widening closeness | src=prosody-authority | seg=segment-1',
     )
   })
 
@@ -38,7 +38,7 @@ describe('alicization voice summary', () => {
       preferredGazeMode: 'soften',
       reasonSummary: 'Keep the same living line inward for now, and leave room before widening outward again',
     })).toBe(
-      'zh-CN | companion=measured-return | blink=linger | gaze=soften | reason=Keep the same living line inward for now, and leave room before widening outward again',
+      'zh-CN | companion=measured-return | blink=linger | gaze=soften | reason=continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower',
     )
   })
 
@@ -60,7 +60,7 @@ describe('alicization voice summary', () => {
       source: 'prosody-authority',
       segmentId: 'segment-audible-body-voice-1',
     })).toBe(
-      'zh-CN | closure=0.35 | precision=0.55 | emotion=thinking | companion=measured-return | timing=audible-body-carry | blink=linger | gaze=soften | pause=longer | lipsyncMode=restrained | voiceMode=lower-pressure | pacing=slower | reason=Keep the same living line audible while face and motion rejoin | src=prosody-authority | seg=segment-audible-body-voice-1',
+      'zh-CN | closure=0.35 | precision=0.55 | emotion=thinking | companion=measured-return | timing=audible-body-carry | blink=linger | gaze=soften | pause=longer | lipsyncMode=restrained | voiceMode=lower-pressure | pacing=slower | reason=continuity_hold=audible_body_carry; rejoin=face+motion | src=prosody-authority | seg=segment-audible-body-voice-1',
     )
   })
 
@@ -74,7 +74,7 @@ describe('alicization voice summary', () => {
       reasonSummary: 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again',
       segmentId: 'segment-repair-first-same-her-inward-carry',
     })).toBe(
-      'emotion=concerned | companion=repair-before-closeness | timing=next-open-window | blink=quiet | gaze=soften | reason=Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again | seg=segment-repair-first-same-her-inward-carry',
+      'emotion=concerned | companion=repair-before-closeness | timing=next-open-window | blink=quiet | gaze=soften | reason=continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred | seg=segment-repair-first-same-her-inward-carry',
     )
   })
 })

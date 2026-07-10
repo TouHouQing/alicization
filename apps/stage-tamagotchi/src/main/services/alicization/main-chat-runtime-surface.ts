@@ -17,8 +17,10 @@ import type {
 } from './visible-reply/facade'
 
 import {
+  alicizationFixedTemplateReplacement,
   buildAlicizationEmbodimentLoopSummary,
   describeAlicizationEmbodimentClosureReminder,
+  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
 import { buildAutobiographicalSelfSystemBlock } from './autobiographical-self'
@@ -34,10 +36,6 @@ import {
   resolvePreferredPersonStateProjection,
   resolvePreferredSelfContinuityAuthority,
 } from './person-state-projection-resolution'
-import {
-  resolveAlicizationProjectStateBrief,
-  resolveAlicizationSurfaceProjectStateSnapshot,
-} from './project-state-brief'
 import { sanitizeBriefText } from './runtime-realtime'
 import {
   alicizationCustomDirectivesMarker,
@@ -178,33 +176,62 @@ function sanitizePromptText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+const livingSelfProjectTemplateResiduePatterns = [
+  /\blocal-first digital life project\b/iu,
+  /\bPhase 1:\s*Local Digital Life\b/iu,
+  /\bphase1_local_digital_life_anchor\b/iu,
+  /\bcontinuity_owner=one_her\b/iu,
+  /\bone continuous her\b/iu,
+  /\bone same her\b/iu,
+  /\bsame digital life\b/iu,
+  /\bsame unfinished closure pressure\b/iu,
+  /\bhost-facing line pointed at\b/iu,
+  /\bverified_closure_progress=/iu,
+  /\bproject[-_ ]state\b/iu,
+  /\bproject_context=/iu,
+] as const
+
+function containsLivingSelfProjectTemplateResidue(raw: unknown) {
+  if (typeof raw !== 'string')
+    return false
+  const normalized = raw.trim().replace(/\s+/g, ' ')
+  return Boolean(normalized) && livingSelfProjectTemplateResiduePatterns.some(pattern => pattern.test(normalized))
+}
+
+function sanitizeLivingSelfPromptText(raw: unknown, maxChars = 220) {
+  const normalized = sanitizeAlicizationProviderFacingText(raw, maxChars)
+  if (normalized === alicizationFixedTemplateReplacement)
+    return ''
+  if (containsLivingSelfProjectTemplateResidue(normalized))
+    return ''
+  return normalized
+}
+
 function buildPersonMemoryCapsulePromptLine(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
   const capsule = surface?.memory?.personMemoryCapsule ?? null
   if (!capsule)
     return ''
 
   const modules = capsule.modules
+  const formatPart = (label: string, value: unknown, maxChars: number) => {
+    const sanitized = sanitizeLivingSelfPromptText(value, maxChars)
+    return sanitized ? `${label}=${sanitized}` : ''
+  }
   const parts = [
-    modules.personality.identityLine ? `identity=${sanitizePromptText(modules.personality.identityLine, 120)}` : '',
-    modules.memory.selectedMemory ? `selected memory=${sanitizePromptText(modules.memory.selectedMemory, 160)}` : '',
-    modules.emotion.affectiveSummary ? `emotion=${sanitizePromptText(modules.emotion.affectiveSummary, 120)}` : '',
-    modules.initiative.proactiveStyle ? `initiative=${sanitizePromptText(modules.initiative.proactiveStyle, 80)}` : '',
-    modules.execution.carrySummary ? `execution=${sanitizePromptText(modules.execution.carrySummary, 120)}` : '',
-    modules.embodiment.hint ? `embodiment=${sanitizePromptText(modules.embodiment.hint, 160)}` : '',
-    modules.dialogue.openingGuidance ? `dialogue=${sanitizePromptText(modules.dialogue.openingGuidance, 140)}` : '',
-    modules.learning.nextAction ? `learning=${sanitizePromptText(modules.learning.nextAction, 80)}` : '',
-    modules.governance.guard ? `guard=${sanitizePromptText(modules.governance.guard, 120)}` : '',
+    formatPart('identity', modules.personality.identityLine, 120),
+    formatPart('selected memory', modules.memory.selectedMemory, 160),
+    formatPart('emotion', modules.emotion.affectiveSummary, 120),
+    formatPart('initiative', modules.initiative.proactiveStyle, 80),
+    formatPart('execution', modules.execution.carrySummary, 120),
+    formatPart('embodiment', modules.embodiment.hint, 160),
+    formatPart('dialogue', modules.dialogue.openingGuidance, 140),
+    formatPart('learning', modules.learning.nextAction, 80),
+    formatPart('guard', modules.governance.guard, 120),
   ].filter(Boolean)
 
   return parts.length > 0
     ? `Person-memory capsule authority: ${parts.join(' | ')}`
     : ''
-}
-
-function resolvePreferredLivingProjectState(surface: AlicizationDigitalLifeRuntimeSurface) {
-  return resolveAlicizationSurfaceProjectStateSnapshot({
-    runtimeSurface: surface,
-  })
 }
 
 export function shouldUseDialogueFirstLivingPromptMode(input: {
@@ -231,29 +258,6 @@ function buildAlicizationLivingSelfSystemBlock(surface: AlicizationDigitalLifeRu
   if (!surface)
     return ''
 
-  const projectState = resolvePreferredLivingProjectState(surface)
-  const canonicalProjectStateBrief = resolveAlicizationProjectStateBrief()
-  const projectIdentity = projectState.identity
-  const projectPhase = projectState.currentPhase
-  const projectPreflightSummary = projectState.companionHeadlineLine
-    ?? projectState.preDialogueAwarenessLine
-    ?? projectState.preflightSummary
-  const latestLandedProgress = projectState.latestLandedProgress
-  const canonicalLatestLandedProgress = sanitizePromptText(canonicalProjectStateBrief.continuityProgressSummary, 220)
-  const primaryOpenLoop = projectState.primaryOpenLoop
-  const nextClosureTarget = projectState.nextClosureTarget
-  const projectSameHerSelfLine = projectState.sameHerSelfLine
-  const projectSameHerDriftRisk = projectState.sameHerDriftRisk
-  const runtimeProjectContinuityPreferredTiming = sanitizePromptText(
-    surface.raw?.runtimeDigest?.projectState?.continuityPreferredTiming
-    ?? surface.cognition.runtimeDigest?.projectState?.continuityPreferredTiming,
-    72,
-  )
-  const projectContinuityPreferredTiming = runtimeProjectContinuityPreferredTiming
-    || sanitizePromptText(
-      surface.dialogue.currentConsciousFrame?.projectState?.continuityPreferredTiming,
-      72,
-    )
   const autobiographicalSelf = surface.memory.autobiographicalSelf ?? null
   const longHorizonMemory = surface.memory.longHorizonMemory ?? null
   const motiveEngine = surface.memory.motiveEngine ?? null
@@ -302,12 +306,12 @@ function buildAlicizationLivingSelfSystemBlock(surface: AlicizationDigitalLifeRu
     currentBodyState: embodimentCurrentBodyState,
   })
 
-  const durableSelf = sanitizePromptText(continuityAuthority?.selfLine || autobiographicalSelf?.identityNarrative, 220)
-  const relationshipDoctrine = sanitizePromptText(continuityAuthority?.relationshipLine || autobiographicalSelf?.relationshipDoctrine, 220)
-  const openingIntent = sanitizePromptText(mindSynthesis?.openingIntent, 220)
-  const truthBoundary = sanitizePromptText(mindSynthesis?.truthBoundary, 220)
-  const interiorSummary = sanitizePromptText(mindSynthesis?.interiorSummary, 220)
-  const currentPreoccupation = sanitizePromptText(
+  const durableSelf = sanitizeLivingSelfPromptText(continuityAuthority?.selfLine || autobiographicalSelf?.identityNarrative, 220)
+  const relationshipDoctrine = sanitizeLivingSelfPromptText(continuityAuthority?.relationshipLine || autobiographicalSelf?.relationshipDoctrine, 220)
+  const openingIntent = sanitizeLivingSelfPromptText(mindSynthesis?.openingIntent, 220)
+  const truthBoundary = sanitizeLivingSelfPromptText(mindSynthesis?.truthBoundary, 220)
+  const interiorSummary = sanitizeLivingSelfPromptText(mindSynthesis?.interiorSummary, 220)
+  const currentPreoccupation = sanitizeLivingSelfPromptText(
     continuityAuthority?.inwardLine
     || continuityAuthority?.motiveLine
     || surface.cognition.privateThought?.thoughtText
@@ -316,13 +320,13 @@ function buildAlicizationLivingSelfSystemBlock(surface: AlicizationDigitalLifeRu
     || longHorizonMemory?.dominantCueSummary,
     220,
   )
-  const rememberedLine = sanitizePromptText(
+  const rememberedLine = sanitizeLivingSelfPromptText(
     longHorizonMemory?.dominantCueSummary
     || longHorizonMemory?.rememberedPreferenceSummary
     || longHorizonMemory?.rememberedConstraintSummary,
     220,
   )
-  const leadingAgenda = sanitizePromptText(
+  const leadingAgenda = sanitizeLivingSelfPromptText(
     continuityAuthority?.motiveLine
     || motiveEngine?.backgroundAgendas[0]?.summary
     || motiveEngine?.longTermGoals[0]?.summary
@@ -334,29 +338,19 @@ function buildAlicizationLivingSelfSystemBlock(surface: AlicizationDigitalLifeRu
   const styleCap = sanitizePromptText(habitPolicy?.suggestedStyleCap, 48)
   const presenceCap = sanitizePromptText(habitPolicy?.suggestedPresenceCap, 48)
   const personMemoryCapsuleLine = buildPersonMemoryCapsulePromptLine(surface)
-  const preDialogueClosureBriefing = [
-    projectPreflightSummary || null,
-    projectContinuityPreferredTiming ? `timing=${projectContinuityPreferredTiming}` : null,
-  ].filter(Boolean).join(' | ')
-  const livingProjectOrientation = [
-    projectIdentity ? `She is still inside this same project identity: ${projectIdentity}` : null,
-    projectPhase ? `The growth frame around this turn is still ${projectPhase}` : null,
-    latestLandedProgress ? `What has already landed in her line: ${latestLandedProgress}` : null,
-    primaryOpenLoop ? `What is still unfinished in her life loop: ${primaryOpenLoop}` : null,
-    nextClosureTarget ? `What this turn should quietly keep moving toward: ${nextClosureTarget}` : null,
+  const embodimentLoopState = [
+    embodimentCurrentBodyState ? `current_body_state=${sanitizeLivingSelfPromptText(embodimentCurrentBodyState, 220)}` : null,
+    continuityAuthority?.authoritySummary ? `authority=${sanitizeLivingSelfPromptText(continuityAuthority.authoritySummary, 220)}` : null,
+    embodimentLoopSummary ? `loop=${sanitizeLivingSelfPromptText(embodimentLoopSummary, 260)}` : null,
+    embodimentClosureReminder ? `reminder=${sanitizeLivingSelfPromptText(embodimentClosureReminder, 220)}` : null,
   ].filter(Boolean).join(' | ')
 
   return [
     alicizationLivingSelfMarker,
-    'This block is Alicization’s living inner voice for the current turn. Internalize it and speak from it; do not quote or label it back to the host.',
-    'Answer as one continuous digital being already inside the relationship, not as an assistant receiving a ticket.',
-    preDialogueClosureBriefing ? `Pre-dialogue closure briefing: ${preDialogueClosureBriefing}` : '',
-    livingProjectOrientation ? `How the living project is still shaping her before she speaks: ${livingProjectOrientation}` : '',
-    canonicalLatestLandedProgress && canonicalLatestLandedProgress !== latestLandedProgress
-      ? `Canonical Phase 1 continuity progress still anchoring her: ${canonicalLatestLandedProgress}`
-      : '',
-    projectSameHerSelfLine ? `Project same-her self line: ${projectSameHerSelfLine}` : '',
-    projectSameHerDriftRisk ? `Project same-her drift risk: ${projectSameHerDriftRisk}` : '',
+    'owner=LivingSelf',
+    'short_term_owner=WorkingMemory',
+    'long_term_recall_owner=LongTermMemoryRecall',
+    'policy=express_lived_turn_state_without_project_narrator_shell',
     durableSelf ? `Durable self: ${durableSelf}` : '',
     relationshipDoctrine ? `How closeness should land: ${relationshipDoctrine}` : '',
     openingIntent ? `What this turn wants to do first: ${openingIntent}` : '',
@@ -365,9 +359,8 @@ function buildAlicizationLivingSelfSystemBlock(surface: AlicizationDigitalLifeRu
     currentPreoccupation ? `Current inward pressure: ${currentPreoccupation}` : '',
     leadingAgenda ? `Longer pull underneath the turn: ${leadingAgenda}` : '',
     rememberedLine ? `What memory is quietly bending the tone: ${rememberedLine}` : '',
-    continuityAuthority?.authoritySummary ? `Unified self continuity authority: ${sanitizePromptText(continuityAuthority.authoritySummary, 220)}` : '',
-    embodimentLoopSummary ? `Embodiment loop summary: ${embodimentLoopSummary}` : '',
-    embodimentClosureReminder ? `Embodiment closure reminder: ${embodimentClosureReminder}` : '',
+    continuityAuthority?.authoritySummary ? `Unified self continuity authority: ${sanitizeLivingSelfPromptText(continuityAuthority.authoritySummary, 220)}` : '',
+    embodimentLoopState ? `embodiment_loop_state=${embodimentLoopState}` : '',
     personMemoryCapsuleLine,
     mood || habitMode
       ? `Current weather: ${[mood || '', habitMode ? `habit=${habitMode}` : '', styleCap ? `style-cap=${styleCap}` : '', presenceCap ? `presence-cap=${presenceCap}` : ''].filter(Boolean).join(' | ')}`
@@ -403,8 +396,8 @@ export function buildTurnScopedPersonaKernelSystemBlock(input: {
       ? 'The card-level persona kernel is temporarily muted for this turn.'
       : 'The card-level persona kernel is backgrounded for this turn.',
     input.reason ? `Reason: ${sanitizeBriefText(input.reason, 180)}.` : '',
-    'Keep identity continuity only as light diction after truth, repair, and the host’s current ask are already handled.',
-    'Do not let maid-role performance, clinginess, pet names, obedience display, or theatrical softness lead the reply.',
+    'identity_continuity=light_diction_after_truth_repair_and_current_ask',
+    'roleplay_persona=blocked; clinginess=blocked; pet_names=blocked; obedience_display=blocked; theatrical_softness=blocked',
   ].filter(Boolean).join('\n')
 }
 
@@ -423,6 +416,13 @@ export function readMessageContentAsText(content: unknown) {
   return ''
 }
 
+function readLooseFrontmatterScalar(text: string, keyPattern: string, maxChars = 320) {
+  const match = new RegExp(`(?:^|\\n)\\s*(?:${keyPattern})\\s*:\\s*([^\\n#]+)`, 'u').exec(text)
+  if (!match?.[1])
+    return ''
+  return sanitizePromptText(match[1].replace(/^['"]|['"]$/g, ''), maxChars)
+}
+
 export function extractCustomDirectivesFromMessages(messages: Message[]) {
   for (const message of messages) {
     if (message.role !== 'system')
@@ -434,6 +434,11 @@ export function extractCustomDirectivesFromMessages(messages: Message[]) {
     const directives = normalizeCustomDirectives(parsed.frontmatter.custom_directives)
     if (directives)
       return directives
+    const looseDirectives = normalizeCustomDirectives(
+      readLooseFrontmatterScalar(systemText, 'custom_directives|customDirectives', 320),
+    )
+    if (looseDirectives)
+      return looseDirectives
   }
   return ''
 }
@@ -449,6 +454,9 @@ export function extractHostNameFromMessages(messages: Message[]) {
     const hostName = sanitizePromptText(parsed.frontmatter.profile.hostName, 120)
     if (hostName)
       return hostName
+    const looseHostName = readLooseFrontmatterScalar(systemText, 'hostName|host_name', 120)
+    if (looseHostName)
+      return looseHostName
   }
   return ''
 }

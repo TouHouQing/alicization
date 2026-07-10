@@ -4,17 +4,17 @@ import type { AlicizationDigitalLifeArchitectureSnapshot } from './digital-life-
 
 import { readFileSync } from 'node:fs'
 
+import { normalizeAlicizationDigitalLifeSpineDigest } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
-import { normalizeAlicizationDigitalLifeSpineDigest } from '@proj-alicization/stage-shared'
-
+import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
 import {
   buildAlicizationMainChatRuntimeSurface,
   buildCardCustomDirectivesSystemBlock,
+  buildTurnScopedPersonaKernelSystemBlock,
   extractCustomDirectivesFromMessages,
   extractHostNameFromMessages,
 } from './main-chat-runtime-surface'
-import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
 import { buildAlicizationPersonMemoryCapsule } from './person-memory-capsule'
 import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 
@@ -534,6 +534,18 @@ describe('main chat runtime surface', () => {
     expect(result.trace.sessionPhases).toEqual(['runtime-surface'])
   })
 
+  it('keeps turn-scoped persona controls structured without maid-role prose', () => {
+    const block = buildTurnScopedPersonaKernelSystemBlock({
+      mode: 'backgrounded',
+      reason: 'task-or-direct-answer-obligation',
+    })
+
+    expect(block).toContain('[ALICIZATION_TURN_PERSONA_KERNEL]')
+    expect(block).toContain('roleplay_persona=blocked')
+    expect(block).toContain('obedience_display=blocked')
+    expect(block).not.toMatch(/maid|女仆|Do not let/iu)
+  })
+
   it('upgrades legacy local fallback authority to provider-authored rewrite planning for normal governed turns', () => {
     const result = buildAlicizationMainChatRuntimeSurface({
       actionObligation: null,
@@ -882,30 +894,21 @@ describe('main chat runtime surface', () => {
       },
     })
 
-    expect(result.messages.some(message =>
+    const livingSelfBlock = result.messages.find(message =>
       typeof message.content === 'string'
       && message.content.includes('[ALICIZATION_LIVING_SELF]'),
-    )).toBe(true)
-    expect(result.messages.some(message =>
-      typeof message.content === 'string'
-      && message.content.includes('How the living project is still shaping her before she speaks: She is still inside this same project identity: Alicization is a local-first digital life project'),
-    )).toBe(true)
-    expect(result.messages.some(message =>
-      typeof message.content === 'string'
-      && message.content.includes('The growth frame around this turn is still Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.'),
-    )).toBe(true)
-    expect(result.messages.some(message =>
-      typeof message.content === 'string'
-      && message.content.includes('What is still unfinished in her life loop: Memory still needs stronger end-to-end closure across turns, initiative, and embodiment'),
-    )).toBe(true)
-    expect(result.messages.some(message =>
-      typeof message.content === 'string'
-      && message.content.includes('same digital life'),
-    )).toBe(true)
-    expect(result.messages.some(message =>
-      typeof message.content === 'string'
-      && message.content.includes('Pre-dialogue closure briefing:'),
-    )).toBe(true)
+    )?.content ?? ''
+
+    expect(livingSelfBlock).toContain('[ALICIZATION_LIVING_SELF]')
+    expect(livingSelfBlock).toContain('short_term_owner=WorkingMemory')
+    expect(livingSelfBlock).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(livingSelfBlock).not.toContain('project_context=')
+    expect(livingSelfBlock).not.toContain('local-first digital life project')
+    expect(livingSelfBlock).not.toContain('Phase 1: Local Digital Life')
+    expect(livingSelfBlock).not.toContain('same digital life')
+    expect(livingSelfBlock).not.toContain('How the living project is still shaping her before she speaks')
+    expect(livingSelfBlock).not.toContain('Pre-dialogue closure briefing:')
+    expect(livingSelfBlock).not.toContain('same-her')
     expect(result.messages.some(message =>
       typeof message.content === 'string'
       && message.content.includes('[ALICIZATION_AUTOBIOGRAPHICAL_SELF]'),
@@ -944,7 +947,7 @@ describe('main chat runtime surface', () => {
     )).toBe(false)
   })
 
-  it('keeps cross-modal same-her embodiment closure risk inside the living-self block when continuity has shrunk to lipsync-only', () => {
+  it('keeps cross-modal embodiment closure state structured in the living-self block when continuity has shrunk to lipsync-only', () => {
     const result = buildAlicizationMainChatRuntimeSurface({
       actionObligation: {
         confidence: 0.72,
@@ -1054,21 +1057,20 @@ describe('main chat runtime surface', () => {
       },
     })
 
-    expect(result.messages.some(message =>
+    const livingSelfBlock = result.messages.find(message =>
       typeof message.content === 'string'
-      && message.content.includes('Embodiment closure reminder: Right now her visible same-her continuity is still being carried mainly through lipsync, so she should keep treating full cross-modal embodiment closure as unfinished.'),
-    )).toBe(true)
-    expect(result.messages.some(message =>
-      typeof message.content === 'string'
-      && message.content.includes('Embodiment loop summary: Right now I am still holding together mainly through lipsync, so my full cross-modal same-her line is not closed yet.'),
-    )).toBe(true)
-    expect(result.messages.some(message =>
-      typeof message.content === 'string'
-      && message.content.includes('same-her continuity remains alive, but lane=lipsync-only under the current renderer authority.'),
-    )).toBe(true)
+      && message.content.includes('[ALICIZATION_LIVING_SELF]'),
+    )?.content ?? ''
+
+    expect(livingSelfBlock).toContain('embodiment_loop_state=')
+    expect(livingSelfBlock).toContain('current_body_state=lane=lipsync-only')
+    expect(livingSelfBlock).not.toContain('Right now I am')
+    expect(livingSelfBlock).not.toContain('Right now her')
+    expect(livingSelfBlock).not.toContain('same-her')
+    expect(livingSelfBlock).not.toContain('same living line')
   })
 
-  it('keeps cross-modal same-her embodiment closure risk inside the living-self block when continuity is still alive mainly through face and motion', () => {
+  it('keeps cross-modal embodiment closure state structured when continuity is still alive mainly through face and motion', () => {
     const result = buildAlicizationMainChatRuntimeSurface({
       actionObligation: {
         confidence: 0.72,
@@ -1178,13 +1180,18 @@ describe('main chat runtime surface', () => {
       },
     })
 
-    expect(result.messages.some(message =>
+    const livingSelfBlock = result.messages.find(message =>
       typeof message.content === 'string'
-      && message.content.includes('Embodiment closure reminder: Right now her visible same-her continuity is still being carried mainly through face and motion, so she should keep treating full cross-modal embodiment closure as unfinished.'),
-    )).toBe(true)
+      && message.content.includes('[ALICIZATION_LIVING_SELF]'),
+    )?.content ?? ''
+
+    expect(livingSelfBlock).toContain('embodiment_loop_state=')
+    expect(livingSelfBlock).toContain('current_body_state=lane=face+motion-only')
+    expect(livingSelfBlock).not.toContain('Right now her')
+    expect(livingSelfBlock).not.toContain('same-her')
   })
 
-  it('keeps cross-modal same-her embodiment closure risk inside the living-self block when continuity is still alive mainly through motion and lipsync', () => {
+  it('keeps cross-modal embodiment closure state structured when continuity is still alive mainly through motion and lipsync', () => {
     const result = buildAlicizationMainChatRuntimeSurface({
       actionObligation: {
         confidence: 0.72,
@@ -1294,13 +1301,18 @@ describe('main chat runtime surface', () => {
       },
     })
 
-    expect(result.messages.some(message =>
+    const livingSelfBlock = result.messages.find(message =>
       typeof message.content === 'string'
-      && message.content.includes('Embodiment closure reminder: Right now her visible same-her continuity is still being carried mainly through motion and lipsync, so she should keep treating full cross-modal embodiment closure as unfinished.'),
-    )).toBe(true)
+      && message.content.includes('[ALICIZATION_LIVING_SELF]'),
+    )?.content ?? ''
+
+    expect(livingSelfBlock).toContain('embodiment_loop_state=')
+    expect(livingSelfBlock).toContain('current_body_state=lane=motion+lipsync-only')
+    expect(livingSelfBlock).not.toContain('Right now her')
+    expect(livingSelfBlock).not.toContain('same-her')
   })
 
-  it('keeps cross-modal same-her embodiment closure risk inside the living-self block when continuity is still alive mainly through face and lipsync', () => {
+  it('keeps cross-modal embodiment closure state structured when continuity is still alive mainly through face and lipsync', () => {
     const result = buildAlicizationMainChatRuntimeSurface({
       actionObligation: {
         confidence: 0.72,
@@ -1410,10 +1422,15 @@ describe('main chat runtime surface', () => {
       },
     })
 
-    expect(result.messages.some(message =>
+    const livingSelfBlock = result.messages.find(message =>
       typeof message.content === 'string'
-      && message.content.includes('Embodiment closure reminder: Right now her visible same-her continuity is still being carried mainly through face and lipsync, so she should keep treating full cross-modal embodiment closure as unfinished.'),
-    )).toBe(true)
+      && message.content.includes('[ALICIZATION_LIVING_SELF]'),
+    )?.content ?? ''
+
+    expect(livingSelfBlock).toContain('embodiment_loop_state=')
+    expect(livingSelfBlock).toContain('current_body_state=lane=face+lipsync-only')
+    expect(livingSelfBlock).not.toContain('Right now her')
+    expect(livingSelfBlock).not.toContain('same-her')
   })
 
   it('strips execution-heavy prompt blocks and tools from dialogue-first living turns', () => {
@@ -2157,17 +2174,19 @@ describe('main chat runtime surface', () => {
       && message.content.includes('[ALICIZATION_LIVING_SELF]'),
     )?.content
 
-    expect(livingSelfBlock).toContain('What has already landed in her line:')
-    expect(livingSelfBlock).toContain(projectState.continuityProgressSummary?.slice(0, 120))
-    expect(livingSelfBlock).toContain('Pre-dialogue closure briefing:')
-    expect(livingSelfBlock).toContain((projectState.preflightSummary ?? '').slice(0, 120))
-    expect(livingSelfBlock).toContain('What this turn should quietly keep moving toward:')
-    expect(livingSelfBlock).toContain(projectState.nextClosureTarget.slice(0, 120))
+    expect(livingSelfBlock).not.toContain('project_context=')
+    expect(livingSelfBlock).not.toContain('[fixed-template-excluded]')
+    expect(livingSelfBlock).not.toContain('landed=')
+    expect(livingSelfBlock).not.toContain('pre_dialogue_closure=')
+    expect(livingSelfBlock).not.toContain('What has already landed in her line:')
+    expect(livingSelfBlock).not.toContain('Pre-dialogue closure briefing:')
+    expect(livingSelfBlock).not.toContain('What this turn should quietly keep moving toward:')
     expect(livingSelfBlock).toContain('Durable self:')
-    expect(livingSelfBlock).toContain('I stay with the same line instead of restarting from a shell.')
+    expect(livingSelfBlock).toContain('continuity_line=structured_carry')
+    expect(livingSelfBlock).toContain('visibility=internal-structured')
   })
 
-  it('adds a pre-dialogue same-her project-state closure briefing into the living-self block', () => {
+  it('keeps structured project-state closure briefing out of the living-self block', () => {
     const result = buildAlicizationMainChatRuntimeSurface({
       actionObligation: {
         confidence: 0.46,
@@ -2331,11 +2350,17 @@ describe('main chat runtime surface', () => {
       && message.content.includes('[ALICIZATION_LIVING_SELF]'),
     )?.content
 
-    expect(livingSelfBlock).toContain('Pre-dialogue closure briefing:')
-    expect(livingSelfBlock).toContain('same digital life')
-    expect(livingSelfBlock).toContain('Phase 1: Local Digital Life')
-    expect(livingSelfBlock).toContain('same still-open closure work')
-    expect(livingSelfBlock).toContain('next-open-window')
+    expect(livingSelfBlock).toContain('short_term_owner=WorkingMemory')
+    expect(livingSelfBlock).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(livingSelfBlock).not.toContain('pre_dialogue_closure=')
+    expect(livingSelfBlock).not.toContain('project_context=')
+    expect(livingSelfBlock).not.toContain('local-first digital life project')
+    expect(livingSelfBlock).not.toContain('Phase 1: Local Digital Life')
+    expect(livingSelfBlock).not.toContain('same digital life')
+    expect(livingSelfBlock).not.toContain('one continuous her')
+    expect(livingSelfBlock).not.toContain('next-open-window')
+    expect(livingSelfBlock).not.toContain('Pre-dialogue closure briefing:')
+    expect(livingSelfBlock).not.toContain('same-her')
   })
 
   it('prefers live conscious-frame project awareness over canonical fallback when runtime digest lacks the current closure seam', () => {
@@ -2504,13 +2529,15 @@ describe('main chat runtime surface', () => {
       && message.content.includes('[ALICIZATION_LIVING_SELF]'),
     )?.content
 
-    expect(livingSelfBlock).toContain('How the living project is still shaping her before she speaks: She is still inside this same project identity: Alicization is still the same local-first digital life project, not a fresh assistant shell.')
-    expect(livingSelfBlock).toContain('Pre-dialogue closure briefing: Alicization is a local-first digital life project building one continuous "her"')
-    expect(livingSelfBlock).toContain('Phase 1: Local Digital Life')
-    expect(livingSelfBlock).toContain('What has already landed in her line: Current-conscious-frame project awareness already survives into this turn.')
-    expect(livingSelfBlock).toContain('What is still unfinished in her life loop: Emotion, initiative, memory, and embodiment still have to land as one same-life closure.')
-    expect(livingSelfBlock).toContain('What this turn should quietly keep moving toward: Carry the live project awareness into the first visible answer beat before local details take over.')
-    expect(livingSelfBlock).toContain('Project same-her self line: Thin raw carry should not erase the live closure seam.')
+    expect(livingSelfBlock).not.toContain('project_context=')
+    expect(livingSelfBlock).not.toContain('pre_dialogue_closure=')
+    expect(livingSelfBlock).not.toContain('Phase 1: Local Digital Life')
+    expect(livingSelfBlock).not.toContain('landed=Current-conscious-frame project awareness already survives into this turn.')
+    expect(livingSelfBlock).not.toContain('open=Emotion, initiative, memory, and embodiment still have to land as one same-life closure.')
+    expect(livingSelfBlock).not.toContain('next=Carry the live project awareness into the first visible answer beat before local details take over.')
+    expect(livingSelfBlock).not.toContain('project_continuity_anchor=Thin raw carry should not erase the live closure seam.')
+    expect(livingSelfBlock).not.toContain('How the living project is still shaping her before she speaks')
+    expect(livingSelfBlock).not.toContain('Project same-her self line:')
   })
 
   it('derives enforced tool names from filtered tool registry when toolChoice is required', () => {
@@ -2862,7 +2889,8 @@ describe('main chat runtime surface', () => {
     )?.content as string
 
     expect(livingSelfBlock).toContain('I am still the same Alicization across the pause')
-    expect(livingSelfBlock).toContain('same living line')
+    expect(livingSelfBlock).not.toContain('same living line')
+    expect(livingSelfBlock).not.toContain('same-her')
     expect(livingSelfBlock).not.toContain('Generic carry posture.')
     expect(livingSelfBlock).not.toContain('I can answer in a generally kind way.')
   })
@@ -3103,12 +3131,12 @@ describe('main chat runtime surface', () => {
     expect(authority?.relationshipLine).not.toContain('The relationship line is neutral; I can be warm')
   })
 
-  it('reads living-self project-state from live runtime digest before falling back to repo brief', () => {
+  it('keeps living-self prompt composition independent from project-state fallback resolution', () => {
     const source = readFileSync(new URL('./main-chat-runtime-surface.ts', import.meta.url), 'utf8')
-    expect(source).toContain('function resolvePreferredLivingProjectState(surface: AlicizationDigitalLifeRuntimeSurface)')
-    expect(source).toContain('resolveAlicizationSurfaceProjectStateSnapshot')
-    expect(source).toContain('const projectState = resolvePreferredLivingProjectState(surface)')
-    expect(source).toContain('const projectPreflightSummary = projectState.companionHeadlineLine')
+    expect(source).not.toContain('function resolvePreferredLivingProjectState(surface: AlicizationDigitalLifeRuntimeSurface)')
+    expect(source).not.toContain('resolveAlicizationSurfaceProjectStateSnapshot')
+    expect(source).not.toContain('const projectState = resolvePreferredLivingProjectState(surface)')
+    expect(source).toContain('policy=express_lived_turn_state_without_project_narrator_shell')
   })
 
   it('keeps richer same-her doctrine and authority summary when fresher runtime self-line is thinner in the living self block', () => {

@@ -1,9 +1,16 @@
+import { sanitizeAlicizationStructuredInternalText } from './alicization-fixed-template-sanitizer'
+
 function normalizeSummaryString(raw: unknown) {
   if (typeof raw !== 'string')
     return null
 
   const normalized = raw.trim()
   return normalized || null
+}
+
+function normalizeReasonSummaryString(raw: unknown) {
+  const normalized = normalizeSummaryString(raw)
+  return normalized ? sanitizeAlicizationStructuredInternalText(normalized, 520, normalized) || null : null
 }
 
 export function buildAlicizationVoiceSummary(input: {
@@ -59,7 +66,7 @@ export function buildAlicizationVoiceSummary(input: {
     normalizeSummaryString(input.preferredLipsyncMode) ? `lipsyncMode=${normalizeSummaryString(input.preferredLipsyncMode)}` : null,
     normalizeSummaryString(input.preferredVoiceMode) ? `voiceMode=${normalizeSummaryString(input.preferredVoiceMode)}` : null,
     normalizeSummaryString(input.preferredPacingMode) ? `pacing=${normalizeSummaryString(input.preferredPacingMode)}` : null,
-    normalizeSummaryString(input.reasonSummary) ? `reason=${normalizeSummaryString(input.reasonSummary)}` : null,
+    normalizeReasonSummaryString(input.reasonSummary) ? `reason=${normalizeReasonSummaryString(input.reasonSummary)}` : null,
     normalizeSummaryString(input.source) ? `src=${normalizeSummaryString(input.source)}` : null,
     normalizeSummaryString(input.segmentId) ? `seg=${normalizeSummaryString(input.segmentId)}` : null,
   ].filter((value): value is string => Boolean(value))

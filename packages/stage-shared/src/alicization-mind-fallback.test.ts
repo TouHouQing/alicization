@@ -73,8 +73,6 @@ describe('alicization-mind-fallback', () => {
     const surface = buildMindGovernedFallbackSurface({
       userText: '继续开发',
       translate: (path, params) => {
-        if (path === 'mind-fallback.answer-opening-same-her-first')
-          return `Same-her first: ${String(params?.focus ?? '')} | Landed: ${String(params?.landed ?? '')} | Next: ${String(params?.next ?? '')}`
         if (path === 'mind-fallback.answer-repair-body')
           return 'answer-repair-body'
         if (path === 'mind-fallback.dialogue-boundary-memory')
@@ -123,8 +121,6 @@ describe('alicization-mind-fallback', () => {
     const surface = buildMindGovernedFallbackSurface({
       userText: '你好',
       translate: (path, params) => {
-        if (path === 'mind-fallback.answer-opening-same-her-first')
-          return `Same-her first: ${String(params?.focus ?? '')} | Landed: ${String(params?.landed ?? '')} | Next: ${String(params?.next ?? '')}`
         if (path === 'mind-fallback.answer-opening-plain')
           return 'Answer: plain'
         return path
@@ -207,8 +203,6 @@ describe('alicization-mind-fallback', () => {
     const surface = buildMindGovernedFallbackSurface({
       userText: '继续开发',
       translate: (path, params) => {
-        if (path === 'mind-fallback.answer-opening-same-her-first')
-          return `Same-her first: ${String(params?.focus ?? '')} | Landed: ${String(params?.landed ?? '')} | Next: ${String(params?.next ?? '')}`
         if (path === 'mind-fallback.answer-repair-body')
           return 'answer-repair-body'
         if (path === 'mind-fallback.dialogue-boundary-memory')
@@ -257,8 +251,6 @@ describe('alicization-mind-fallback', () => {
     const surface = buildMindGovernedFallbackSurface({
       userText: '继续开发',
       translate: (path, params) => {
-        if (path === 'mind-fallback.answer-opening-same-her-first')
-          return `Same-her first: ${String(params?.focus ?? '')} | Landed: ${String(params?.landed ?? '')} | Next: ${String(params?.next ?? '')}`
         if (path === 'mind-fallback.answer-repair-body')
           return 'answer-repair-body'
         if (path === 'mind-fallback.dialogue-boundary-memory')
@@ -310,8 +302,6 @@ describe('alicization-mind-fallback', () => {
     const surface = buildMindGovernedFallbackSurface({
       userText: '继续开发',
       translate: (path, params) => {
-        if (path === 'mind-fallback.answer-opening-same-her-first')
-          return `Same-her first: ${String(params?.focus ?? '')} | Landed: ${String(params?.landed ?? '')} | Next: ${String(params?.next ?? '')}`
         if (path === 'mind-fallback.answer-repair-body')
           return 'answer-repair-body'
         if (path === 'mind-fallback.dialogue-boundary-memory')
@@ -386,5 +376,42 @@ describe('alicization-mind-fallback', () => {
     expect(translateGovernedMindFallback('mind-repair.stream-timeout', undefined, '你好')).toBe('超时了。')
     expect(translateGovernedMindFallback('mind-repair.stream-failure', undefined, '你好')).toBe('回复流失败。')
     expect(translateGovernedMindFallback('mind-repair.provider-config', undefined, '你好')).toBe('提供方或模型配置不完整。')
+  })
+
+  it('does not let local mind fallback paths author persona dialogue', () => {
+    const fallbackPaths = [
+      'mind-fallback.repair-stale-anchor',
+      'mind-fallback.repair-need-reground',
+      'mind-fallback.dialogue-boundary-memory',
+      'mind-fallback.care-body',
+      'mind-fallback.accompany-body',
+      'mind-fallback.answer-repair-body',
+      'mind-fallback.answer-dialogue-body',
+      'mind-fallback.guide-opening',
+      'mind-fallback.guide-opening-plain',
+      'mind-fallback.care-opening',
+      'mind-fallback.care-opening-plain',
+      'mind-fallback.accompany-opening',
+      'mind-fallback.accompany-opening-plain',
+      'mind-fallback.observation-opening',
+      'mind-fallback.observation-opening-plain',
+      'mind-fallback.answer-opening',
+      'mind-fallback.answer-opening-plain',
+      'mind-fallback.carry-memory',
+      'mind-fallback.reground-note',
+    ]
+    const forbiddenPersonaTemplate = /(?:我(?:直接|就贴着|现在看到|记得|还带着|还记着|先|刚才|听见|不用)|好，|先把|这句我|上一条线|同一个 her|same-her|same living line|I (?:will|still|heard|pulled|should|do not|can honestly)|Let's|All right|What I can|Then I'll|I'll answer)/iu
+
+    for (const path of fallbackPaths) {
+      const message = translateGovernedMindFallback(path, {
+        focus: '当前焦点',
+        carry: '旧记忆',
+        landed: '已落地项',
+        next: '下一步',
+      }, '你好')
+
+      expect(message, path).not.toMatch(forbiddenPersonaTemplate)
+      expect(message, path).toMatch(/(?:链路|模型|fallback|grounding|可见回复|local fallback|model-authored|visible reply|grounding)/iu)
+    }
   })
 })

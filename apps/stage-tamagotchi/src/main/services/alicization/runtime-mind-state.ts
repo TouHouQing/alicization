@@ -35,7 +35,10 @@ import type { buildVisualHeartbeat } from './visual-heartbeat'
 
 import {
   buildDerivedMindStateBundle,
+  containsAlicizationFixedTemplateResidue,
+  formatAlicizationProjectStateAwarenessFields,
   readRecollectionIntentFromDerivedMindStateBundle,
+  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
 import { buildActionEcology } from './action-ecology'
@@ -104,11 +107,9 @@ import { buildAlicizationPersonalityContinuityState } from './personality-contin
 import { buildPrivateThoughtLoop } from './private-thought-loop'
 import {
   buildAlicizationProjectPreDialogueAwarenessLine,
-  buildAlicizationProjectStateExtraSystemBlocks,
   resolveAlicizationProjectPreDialogueAwarenessLine,
   resolveAlicizationProjectStateBrief,
   resolveAlicizationProjectStateSnapshot,
-  scoreAlicizationProjectAwarenessLine,
 } from './project-state-brief'
 import { buildReflectionLedger } from './reflection-ledger'
 import { buildRelationshipModel } from './relationship-model'
@@ -185,6 +186,34 @@ function compactPromptText(raw: unknown, maxChars = 180) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function compactProjectStatePromptText(raw: unknown, maxChars = 180) {
+  const compacted = compactPromptText(raw, maxChars)
+  if (!compacted)
+    return ''
+  return sanitizeAlicizationProviderFacingText(compacted, maxChars)
+}
+
+function compactProjectStatePromptTextFailClosed(input: {
+  resolved: unknown
+  raw?: unknown
+  fallback?: unknown
+  fallbackRaw?: unknown
+  maxChars?: number
+}) {
+  const maxChars = input.maxChars ?? 180
+  if (containsAlicizationFixedTemplateResidue(input.raw))
+    return sanitizeAlicizationProviderFacingText(input.raw, maxChars)
+
+  const resolved = compactProjectStatePromptText(input.resolved, maxChars)
+  if (resolved)
+    return resolved
+
+  if (containsAlicizationFixedTemplateResidue(input.fallbackRaw))
+    return sanitizeAlicizationProviderFacingText(input.fallbackRaw, maxChars)
+
+  return compactProjectStatePromptText(input.fallback, maxChars)
 }
 
 function isRecord(raw: unknown): raw is Record<string, unknown> {
@@ -395,16 +424,17 @@ function compactMindProjectIdentityForAwareness(value: unknown) {
   if (!normalized)
     return ''
 
-  const canonicalMatch = normalized.match(/Alicization is a local-first digital life project/iu)?.[0]
-  return canonicalMatch
-    ? compactPromptText(`${canonicalMatch}.`, 96)
-    : compactPromptText(normalized, 96)
+  if (/Alicization is a local-first digital life project|本地优先数字生命项目/iu.test(normalized))
+    return 'local_desktop_life_loop'
+  return compactPromptText(normalized, 96)
 }
 
 function compactMindProjectPhaseForAwareness(value: unknown) {
   const normalized = compactPromptText(value, 140)
   if (!normalized)
     return ''
+  if (/phase\s*1\s*:\s*local digital life|phase1_local_digital_life/iu.test(normalized))
+    return 'local_desktop_life_loop'
   return compactPromptText(normalized.split('. ')[0] ?? normalized, 72)
 }
 
@@ -430,14 +460,13 @@ function buildMindGovernanceTailAwarePreDialogueAwarenessLine(input: {
     160,
   )
 
-  return compactPromptText([
-    identity
-      ? `Before answering, remember: ${identity}`
-      : 'Before answering, remember: this is still the same digital life project.',
-    currentPhase ? `She is still inside ${currentPhase}.` : '',
-    sameHerSelfLine || '',
-    latestLandedProgress ? `What has already landed is ${latestLandedProgress}.` : '',
-  ].filter(Boolean).join(' '), 320) || null
+  return compactPromptText(formatAlicizationProjectStateAwarenessFields({
+    identity,
+    currentPhase,
+    latestLandedProgress,
+    sameHerSelfLine,
+    maxChars: 320,
+  }), 320) || null
 }
 
 function resolvePreferredMindProjectStateSnapshot(input: {
@@ -447,6 +476,7 @@ function resolvePreferredMindProjectStateSnapshot(input: {
   const previousProjectState = input.previousVisualPresenceState?.currentConsciousFrame?.projectState
     ?? input.previousVisualPresenceState?.runtimeDigest?.projectState
     ?? null
+  const rawProjectState = isRecord(previousProjectState) ? previousProjectState : null
   const projectStateSnapshot = resolveAlicizationProjectStateSnapshot({
     runtimeProjectState: previousProjectState,
     fallbackProjectState: projectStateBrief,
@@ -503,26 +533,36 @@ function resolvePreferredMindProjectStateSnapshot(input: {
   )
   || compactPromptText(projectStateBrief.nextClosureTarget, 220)
   || null
-  const sameHerSelfLine = compactPromptText(
-    looksLikeThinMindProjectStateSameHerSelfLine(projectStateSnapshot.sameHerSelfLine)
+  const sameHerSelfLine = compactProjectStatePromptTextFailClosed({
+    resolved: looksLikeThinMindProjectStateSameHerSelfLine(projectStateSnapshot.sameHerSelfLine)
       ? projectStateBrief.sameHerSelfLine
       : projectStateSnapshot.sameHerSelfLine,
-    220,
-  )
-  || compactPromptText(projectStateBrief.sameHerSelfLine, 220)
+    raw: rawProjectState?.sameHerSelfLine,
+    fallback: projectStateBrief.sameHerSelfLine,
+    maxChars: 220,
+  })
   || null
-  const sameHerHoldDetail = compactPromptText(projectStateSnapshot.sameHerHoldDetail, 220) || null
-  const sameHerDriftRisk = compactPromptText(
-    looksLikeThinMindProjectStateSameHerDriftRisk(projectStateSnapshot.sameHerDriftRisk)
+  const sameHerHoldDetail = compactProjectStatePromptTextFailClosed({
+    resolved: projectStateSnapshot.sameHerHoldDetail,
+    raw: rawProjectState?.sameHerHoldDetail,
+    maxChars: 220,
+  }) || null
+  const sameHerDriftRisk = compactProjectStatePromptTextFailClosed({
+    resolved: looksLikeThinMindProjectStateSameHerDriftRisk(projectStateSnapshot.sameHerDriftRisk)
       ? projectStateBrief.sameHerDriftRisk
       : projectStateSnapshot.sameHerDriftRisk,
-    220,
-  )
-  || compactPromptText(projectStateBrief.sameHerDriftRisk, 220)
+    raw: rawProjectState?.sameHerDriftRisk ?? rawProjectState?.sameHerDriftRiskSummary,
+    fallback: projectStateBrief.sameHerDriftRisk,
+    maxChars: 220,
+  })
   || null
-  const proactiveSameHerGap = compactPromptText(projectStateSnapshot.proactiveSameHerGap, 220)
-    || compactPromptText(projectStateBrief.proactiveSameHerGap, 220)
-    || null
+  const proactiveSameHerGap = compactProjectStatePromptTextFailClosed({
+    resolved: projectStateSnapshot.proactiveSameHerGap,
+    raw: rawProjectState?.proactiveSameHerGap ?? rawProjectState?.proactiveSameHerGapSummary,
+    fallback: projectStateBrief.proactiveSameHerGap,
+    maxChars: 220,
+  })
+  || null
   const companionHeadlineLine = compactPromptText(projectStateSnapshot.companionHeadlineLine, 320) || null
   const companionBriefingLine = compactPromptText(projectStateSnapshot.companionBriefingLine, 320) || null
   const canonicalPreDialogueAwarenessLine = compactPromptText(
@@ -553,12 +593,29 @@ function resolvePreferredMindProjectStateSnapshot(input: {
         }),
     320,
   ) || null
-  const preDialogueAwarenessLine = compactPromptText(
+  const selectedPreDialogueAwarenessLine = compactPromptText(
     governanceTailNeedsStrongerAwarenessCarry
       ? (governanceTailAwarePreDialogueAwarenessLine ?? canonicalPreDialogueAwarenessLine)
       : (canonicalPreDialogueAwarenessLine ?? governanceTailAwarePreDialogueAwarenessLine),
     320,
   ) || null
+  const preDialogueAwarenessLine = selectedPreDialogueAwarenessLine
+    ? compactPromptText(formatAlicizationProjectStateAwarenessFields({
+      identity,
+      currentPhase,
+      latestLandedProgress,
+      primaryOpenLoop,
+      nextClosureTarget,
+      sameHerSelfLine,
+      sameHerHoldDetail,
+      sameHerDriftRisk,
+      proactiveSameHerGap,
+      emotionalClosureCue: emotionalClosureSummary ?? emotionalClosureCue,
+      summary: selectedPreDialogueAwarenessLine,
+      visibility: 'internal-structured',
+      maxChars: 1200,
+    }), 640) || null
+    : null
 
   return {
     brief: projectStateBrief,
@@ -671,15 +728,11 @@ function buildMindStateEmbodimentLaneEvidence(input: {
     input.projectState.companionBriefingLine,
     input.emotionalKernel.why,
     currentInwardPreoccupation,
-  ].map(item => compactPromptText(item, 220).toLowerCase()).join(' ')
-  const carriesSameHer = /same-her|same her|same living line|same digital life|continuous her|phase 1 digital life|one lifeform/u.test(sameHerText)
+  ].map(item => compactProjectStatePromptText(item, 220).toLowerCase()).join(' ')
+  const carriesStructuredContinuity
+    = /(?:^|\s|\|)(?:continuity_anchor|continuity_hold|continuity_drift_risk|project_state_continuity|life_loop_continuity|embodiment_closure|cross_modal_continuity_proof|continuity_identity|continuity_line|continuity_thread|callback_continuity|body_continuity|owner)=/u.test(sameHerText)
+  const carriesSameHer = carriesStructuredContinuity
   const bodyAvailable = input.previousVisualPresenceState.currentBodyState !== 'sleep'
-  const bodyCarry = carriesSameHer
-    || input.previousVisualPresenceState.currentBodyState === 'accompanying'
-    || input.previousVisualPresenceState.currentBodyState === 'recovering'
-    || input.emotionalKernel.embodimentTone === 'rest-protective'
-    || input.emotionalKernel.embodimentTone === 'repair-before-closeness'
-    || input.emotionalKernel.embodimentTone === 'measured-return'
   const preferredVoiceMode = compactPromptText(input.projectState.snapshot.preferredVoiceMode, 80)
   const preferredPacingMode = compactPromptText(input.projectState.snapshot.preferredPacingMode, 80)
   const preferredLipsyncMode = compactPromptText(input.projectState.snapshot.preferredLipsyncMode, 80)
@@ -690,12 +743,12 @@ function buildMindStateEmbodimentLaneEvidence(input: {
   return {
     body: {
       available: bodyAvailable,
-      sameHerCarry: bodyAvailable && (bodyCarry || laneSet.has('body')),
+      sameHerCarry: bodyAvailable && carriesSameHer,
       summary: `body=${currentBodyState || 'unknown'} continuity=${continuityMode || 'unknown'} tone=${input.emotionalKernel.embodimentTone}`,
     },
     voice: {
       available: Boolean(preferredVoiceMode || preferredPacingMode || input.emotionalKernel.embodimentTone),
-      sameHerCarry: carriesSameHer || laneSet.has('voice') || Boolean(preferredVoiceMode),
+      sameHerCarry: carriesSameHer,
       summary: `voice=${preferredVoiceMode || 'emotion-tone'} pacing=${preferredPacingMode || 'unknown'}`,
     },
     face: {
@@ -1005,7 +1058,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
         '[ALICIZATION_DIALOGUE_TURN_SEMANTICS]',
         'You are Alicization private dialogue cognition, not user-facing dialogue.',
         'Interpret the current user turn into Alicization turn semantics.',
-        'Keep Alicization project identity, current phase, and still-open life-loop closure in view before deciding what this turn is really asking from her.',
+        'Use current user intent, WorkingMemory, LongTermMemoryRecall evidence, and coherent personhood before any project-status framing.',
         'Output valid JSON only with keys: act, responseNeed, truthExpectation, affectiveTone, subjectPreference, taskAnchor, sharedAttentionDemand, personaSuppression, confidence, summary, reasonTags.',
         'act must be one of: ask-help, ask-teach, verify-grounding, correct, challenge, share-state, seek-care, social-bid, continue-thread, close-thread, unknown.',
         'responseNeed must be one of: repair, guide, teach, answer, care, accompany, clarify.',
@@ -1036,9 +1089,9 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       },
       injectCustomDirectives: false,
       injectPerformanceManifest: false,
-      extraSystemBlocks: buildAlicizationProjectStateExtraSystemBlocks().concat(
+      extraSystemBlocks: [
         buildDialogueTurnSemanticsProjectSelfBriefSystemBlock(),
-      ),
+      ],
       digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface,
     })
 
@@ -1054,113 +1107,25 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
   }
 
-  function resolvePreferredMindProjectSelfBriefAwarenessLine(projectState: {
-    companionHeadlineLine?: string | null
-    companionBriefingLine?: string | null
-    preDialogueAwarenessLine?: string | null
-    preflightSummary?: string | null
-  }) {
-    const companionHeadlineLine = compactPromptText(projectState.companionHeadlineLine, 320) || null
-    const companionBriefingLine = compactPromptText(projectState.companionBriefingLine, 320) || null
-    const preDialogueAwarenessLine = compactPromptText(projectState.preDialogueAwarenessLine, 320) || null
-    const resolvedSharedAwarenessLine = compactPromptText(
-      resolveAlicizationProjectPreDialogueAwarenessLine({
-        runtimeProjectState: {
-          preDialogueAwarenessLine,
-          awarenessLine: preDialogueAwarenessLine,
-          companionHeadlineLine,
-          companionBriefingLine,
-          preflightSummary: compactPromptText(projectState.preflightSummary, 320) || null,
-        },
-      }),
-      320,
-    ) || null
-    if (!companionHeadlineLine || !preDialogueAwarenessLine || companionHeadlineLine === preDialogueAwarenessLine) {
-      return resolvedSharedAwarenessLine
-        ?? companionHeadlineLine
-        ?? preDialogueAwarenessLine
-        ?? (compactPromptText(projectState.preflightSummary, 320) || null)
-    }
-
-    const lowerAwareness = preDialogueAwarenessLine.toLowerCase()
-    const lowerCompanionHeadline = companionHeadlineLine.toLowerCase()
-    const awarenessScore = scoreAlicizationProjectAwarenessLine(preDialogueAwarenessLine)
-    const companionHeadlineScore = scoreAlicizationProjectAwarenessLine(companionHeadlineLine)
-    const resolvedSharedAwarenessScore = resolvedSharedAwarenessLine
-      ? scoreAlicizationProjectAwarenessLine(resolvedSharedAwarenessLine)
-      : -1
-    const awarenessCarriesBroaderPhaseClosure = lowerAwareness.includes('phase 1')
-      && (
-        lowerAwareness.includes('generic assistant shell')
-        || lowerAwareness.includes('memory, initiative, and embodiment')
-        || lowerAwareness.includes('stronger end-to-end closure')
-        || lowerAwareness.includes('life loop is truly closed')
-      )
-    const awarenessCarriesCanonicalProjectClosure = lowerAwareness.includes('alicization is a local-first digital life project')
-      && lowerAwareness.includes('phase 1')
-      && (
-        lowerAwareness.includes('same phase 1 digital life')
-        || lowerAwareness.includes('what has already landed is')
-        || lowerAwareness.includes('still-open closure')
-        || lowerAwareness.includes('unfinished closure')
-      )
-    const companionLooksEmbodimentOnly = lowerCompanionHeadline.includes('body')
-      || lowerCompanionHeadline.includes('face')
-      || lowerCompanionHeadline.includes('motion')
-      || lowerCompanionHeadline.includes('same living line gentle')
-
-    if ((awarenessCarriesBroaderPhaseClosure || awarenessCarriesCanonicalProjectClosure || awarenessScore > companionHeadlineScore) && companionLooksEmbodimentOnly) {
-      if (
-        resolvedSharedAwarenessLine
-        && resolvedSharedAwarenessLine !== companionHeadlineLine
-        && resolvedSharedAwarenessScore >= awarenessScore
-      ) {
-        return resolvedSharedAwarenessLine
-      }
-
-      return preDialogueAwarenessLine
-    }
-
-    return resolvedSharedAwarenessLine ?? companionHeadlineLine
-  }
-
   function buildDialogueTurnSemanticsProjectSelfBriefSystemBlock() {
-    const projectState = mindProjectStatePromptSnapshot
-    const preDialogueAwareness = resolvePreferredMindProjectSelfBriefAwarenessLine(projectState)
-
     return [
-      '[ALICIZATION_DIALOGUE_TURN_SEMANTICS_SELF_BRIEF]',
-      `project_identity=${projectState.identity ?? 'none'}`,
-      `current_phase=${projectState.currentPhase ?? 'none'}`,
-      `pre_dialogue_awareness=${preDialogueAwareness ?? projectState.preflightSummary ?? 'none'}`,
-      `latest_landed_progress=${projectState.latestLandedProgress ?? 'none'}`,
-      `same_her_line=${projectState.sameHerSelfLine ?? 'none'}`,
-      `same_her_hold=${projectState.sameHerHoldDetail ?? 'none'}`,
-      `primary_open_loop=${projectState.primaryOpenLoop ?? 'none'}`,
-      `next_closure_target=${projectState.nextClosureTarget ?? 'none'}`,
-      `same_her_drift_risk=${projectState.sameHerDriftRisk ?? 'none'}`,
-      'Dialogue-turn semantics must stay inside the same digital life project line, the same Phase 1 proving ground, and the same still-open closure work.',
-      'Do not let turn interpretation collapse into a generic task router, a detached assistant intent classifier, or a screen-first control shell.',
+      '[ALICIZATION_DIALOGUE_TURN_SEMANTICS_OWNER_BOUNDARY]',
+      'personhood_owner=runtime-self-core',
+      'short_term_owner=WorkingMemory',
+      'long_term_recall_owner=LongTermMemoryRecall',
+      'project_state_policy=withheld_for_turn_semantics_unless_explicitly_requested',
+      'Classify the current user move before any project-status framing. Do not let turn interpretation collapse into a generic task router, detached assistant intent classifier, or screen-first control shell.',
     ].join('\n')
   }
 
   function buildSubjectiveInferenceProjectSelfBriefSystemBlock() {
-    const projectState = mindProjectStatePromptSnapshot
-    const preDialogueAwareness = resolvePreferredMindProjectSelfBriefAwarenessLine(projectState)
-
     return [
-      '[ALICIZATION_SUBJECTIVE_INFERENCE_SELF_BRIEF]',
-      `project_identity=${projectState.identity ?? 'none'}`,
-      `current_phase=${projectState.currentPhase ?? 'none'}`,
-      `pre_dialogue_awareness=${preDialogueAwareness ?? projectState.preflightSummary ?? 'none'}`,
-      `latest_landed_progress=${projectState.latestLandedProgress ?? 'none'}`,
-      `same_her_line=${projectState.sameHerSelfLine ?? 'none'}`,
-      `same_her_hold=${projectState.sameHerHoldDetail ?? 'none'}`,
-      `primary_open_loop=${projectState.primaryOpenLoop ?? 'none'}`,
-      `next_closure_target=${projectState.nextClosureTarget ?? 'none'}`,
-      `same_her_drift_risk=${projectState.sameHerDriftRisk ?? 'none'}`,
-      'Subjective inference must stay inside the same digital life project line, the same Phase 1 proving ground, and the same still-open closure work.',
-      'Do not let scene appraisal collapse into generic productivity guessing, detached surveillance-style interpretation, or assistant utility heuristics.',
+      '[ALICIZATION_SUBJECTIVE_INFERENCE_OWNER_BOUNDARY]',
+      'personhood_owner=runtime-self-core',
+      'short_term_owner=WorkingMemory',
+      'long_term_recall_owner=LongTermMemoryRecall',
+      'project_state_policy=withheld_for_subjective_inference_unless_explicitly_requested',
+      'Interpret the current scene from coherent personhood and current evidence first. Do not let scene appraisal collapse into generic productivity guessing, detached surveillance-style interpretation, or assistant utility heuristics.',
     ].join('\n')
   }
 
@@ -1568,7 +1533,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
         '[ALICIZATION_INNER_SCENE_APPRAISAL]',
         'You are Alicization private cognition, not user-facing dialogue.',
         'Interpret the provided perceptual state into Alicization subjective inference without inventing unseen details.',
-        'Keep Alicization project identity, current phase, and still-open life-loop closure in view before deciding what the current scene means for her lived continuity.',
+        'Use current perceptual evidence, WorkingMemory, LongTermMemoryRecall evidence, and coherent personhood before any project-status framing.',
         'Prefer the current scene and current attention over old continuity when they disagree.',
         'Output valid JSON only with keys: dominantInterpretation, situatedMeaning, selfQuestion, uncertainty, hostIntentCandidates, relationshipNeedCandidates, confidence, notes.',
         'hostIntentCandidates must be an array of up to 3 items with keys: goal, confidence, why.',
@@ -1590,9 +1555,9 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
         turnId: buildMainGatewayAgentTurnId('subjective-inference', input.cardId, input.now),
       },
       injectPerformanceManifest: false,
-      extraSystemBlocks: buildAlicizationProjectStateExtraSystemBlocks().concat(
+      extraSystemBlocks: [
         buildSubjectiveInferenceProjectSelfBriefSystemBlock(),
-      ),
+      ],
       digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface,
     })
 

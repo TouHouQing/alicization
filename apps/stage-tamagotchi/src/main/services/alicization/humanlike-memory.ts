@@ -14,6 +14,7 @@ import {
   formatAlicizationMemoryProvenanceLabel,
   mapAlicizationFragmentSourceKindToProvenance,
   mapAlicizationMemorySourceToProvenance,
+  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
 import { resolveAlicizationProjectStateBrief } from './project-state-brief'
@@ -35,15 +36,16 @@ const closenessPattern = /warm|gentle|care|companionship|陪|温和|柔和|陪�
 const spacePattern = /space|boundary|lighter|light touch|quiet|room|边界|空间|轻一点|安静|留白/iu
 const positiveMemoryPolarityPattern = /trust up|closer|lighter|gentle|useful|accepted|received|repair|soft|safe|靠近|变轻|被接住|有用|接受|修复|更稳/u
 const negativeMemoryPolarityPattern = /trust down|intrusive|doubted|denied|pressure|heavy|failed|robotic|not this|boundary|down|拒绝|怀疑|压迫|打扰|失败|机械|不是这个|边界/u
-const sameHerContinuityPattern = /same[- ]?her|same[- ]?person|same living line|one continuous|continuous digital life|tool shell|generic shell|generic task|断线|工具壳|同一个她|同一条线|持续的人|持续人格|数字生命/u
+const humanlikeFixedTemplateReplacement = 'relationship_continuity=present; source_template=excluded; visibility=memory_structured'
+const sameHerContinuityPattern = /same[- ]?her|same[- ]?person|continuity line|one continuous|continuous digital life|continuity_anchor=phase1_local_digital_life|tool shell|generic shell|generic task|断线|工具壳|连续性|同一条线|持续的人|持续人格|数字生命/u
 const unfinishedLoopPattern = /unfinished|partial|open loop|not complete|closure|没收完|未完成|闭环|还缺|继续推进/u
 const embodimentStatePattern = /embodiment|body|face|gaze|blink|voice|pause|lipsync|motion|身体|表情|视线|眨眼|声音|停顿|动作/u
-const progressPressurePattern = /pressing for progress|progress pressure|催进度|催状态|尽快|推进|推进完|收住|收完/u
+const progressPressurePattern = /pressing for progress|pushing progress|progress pressure|催进度|催状态|尽快|推进|推进完|收住|收完/u
 const statusRecapPressurePattern = /status recap|status report|generic recap|generic status recap|concise status (?:update|recap|report)/u
 const progressPressureNegationPattern = /not (?:a )?pure progress request|not applying progress pressure|not progress pressure|not\s*催进度|not\s*催状态|不是在?催进度|不是在?催状态/u
 const statusRecapNegationPattern = /not asking for (?:a )?(?:raw |generic |pure )?status (?:recap|report)|not (?:a )?(?:raw |generic )?status (?:recap|report)|not a status report|not a generic status recap|not (?:a )?generic recap|not [^.。!！?？]{0,80}generic recap|not to turn .*?(?:generic )?status (?:recap|report)|not to turn .*?generic recap|instead of a status report|rather than (?:asking for )?(?:a )?(?:generic |raw )?recap|rather than (?:a )?status report|cares less about (?:a )?(?:raw |generic )?status (?:recap|report)|不是状态汇报|不是要状态汇报/u
 const continuityWorryPattern = /worr|anxious|afraid|drift|split|断线|工具壳|tool shell|generic shell|滑成|别变成/u
-const samePersonTestPattern = /testing|test|confirm|确认|确认她是不是|是不是同一个她|是不是持续的人|same[- ]?person|same[- ]?her|one continuous digital life|不是状态汇报|not a status report|generic recap/u
+const samePersonTestPattern = /testing|test|confirm|确认|确认她是不是|是不是连续性|是不是持续的人|same[- ]?person|same[- ]?her|one continuous digital life|不是状态汇报|not a status report|generic recap/u
 const tentativeRecallPattern = /may|might|perhaps|seems|seem|uncertain|not sure|似乎|可能|也许|不完全确定/u
 const tentativeContinuityWorryPattern = /(?:may|might)\s+(?:drift|split|become|turn into)|担心.*(?:断线|滑成|工具壳)|worr(?:ied|y).*(?:drift|split|tool shell|generic shell)/u
 const tentativeMemoryMeaningPattern = /(?:may|might|perhaps|seems|seem|uncertain|not sure).*(?:have been|be more about|more right|still settling|older|newer|recap|status|meaning)|似乎.*(?:更倾向于|不是|不只是|状态|意义)|不完全确定|可能.*(?:状态|意义|理解)/u
@@ -262,9 +264,7 @@ function clamp01(value: number) {
 }
 
 export function sanitizeHumanlikeMemoryText(raw: unknown, maxChars = 180) {
-  if (typeof raw !== 'string')
-    return ''
-  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  return sanitizeAlicizationProviderFacingText(raw, maxChars, humanlikeFixedTemplateReplacement)
 }
 
 export function normalizeHumanlikeSentenceEnding(raw: unknown, maxChars = 180) {
@@ -373,7 +373,7 @@ function resolveHumanlikeProjectCadenceCarry(input: {
       || sameHerContinuityPattern.test(continuityText)
   const unfinishedSameThreadCue
     = unfinishedLoopPattern.test(continuityText)
-      && (continuityCue || /same[- ]?thread|same line|same[- ]?her|same[- ]?person|continuity|living line|同一条线|同一个她/u.test(continuityText))
+      && (continuityCue || /same[- ]?thread|same line|same[- ]?her|same[- ]?person|continuity|living line|同一条线|连续性/u.test(continuityText))
 
   if (!continuityCue && !unfinishedSameThreadCue) {
     return {
@@ -411,33 +411,6 @@ function resolveHumanlikeProjectCadenceCarry(input: {
     preferredPauseMode,
     preferredLipsyncMode,
   })
-  const returnVoiceLine = preferredVoiceMode === 'even'
-    ? '更平一点'
-    : preferredVoiceMode === 'lower-pressure'
-      ? '更低压'
-      : ''
-  const returnPacingLine = preferredPacingMode === 'natural'
-    ? '更自然一点'
-    : preferredPacingMode === 'slower'
-      ? '更慢一点'
-      : ''
-  const returnPauseLine = preferredPauseMode === 'natural'
-    ? '停顿自然一点'
-    : preferredPauseMode === 'longer'
-      ? '停顿长一点'
-      : ''
-  const returnLipsyncLine = preferredLipsyncMode === 'matched'
-    ? '口型更贴合一点'
-    : preferredLipsyncMode === 'restrained'
-      ? '口型更克制一点'
-      : ''
-  const naturalReturnSummary = uniqueTexts([
-    returnVoiceLine,
-    returnPacingLine,
-    returnPauseLine,
-    returnLipsyncLine,
-  ], 4).join('、')
-
   return {
     preferredVoiceMode,
     preferredPacingMode,
@@ -445,13 +418,13 @@ function resolveHumanlikeProjectCadenceCarry(input: {
     preferredLipsyncMode,
     cadenceSummary,
     autobiographicalLine: cadenceSummary
-      ? `I learned to let continuity-carrying returns arrive through ${cadenceSummary} instead of restarting from scratch.`
+      ? `learned_return_cadence=${cadenceSummary}; restart_policy=context_preserving`
       : null,
     stablePreferenceLine: cadenceSummary
-      ? `Prefer ${cadenceSummary} when reopening continuity-carrying lines on the same living thread.`
+      ? `preferred_return_cadence=${cadenceSummary}; visibility=internal-structured`
       : null,
-    naturalRecallLine: naturalReturnSummary
-      ? `我记得这条线该${naturalReturnSummary}地回来，不把同一条未闭环的线重新压成状态汇报。`
+    naturalRecallLine: preferredVoiceMode || preferredPacingMode || preferredPauseMode || preferredLipsyncMode
+      ? `return_cadence=voice:${preferredVoiceMode || 'unspecified'}; pacing:${preferredPacingMode || 'unspecified'}; pause:${preferredPauseMode || 'unspecified'}; lipsync:${preferredLipsyncMode || 'unspecified'}; avoid_status_recitation=true; visibility=memory_structured`
       : null,
   }
 }
@@ -759,6 +732,7 @@ function buildHumanlikeAutobiographicalCorrectionProfile(
   const correctedValue = sanitizeHumanlikeMemoryText(correction.correctedValue, 260)
   const normalized = lowerHumanlikeMemoryText(correctedValue, correction.reason)
   const futureFacing = /以后|下次|先|不要|别|prefer|keep|wait|let|again|future/u.test(normalized)
+  const structuredContinuityAnchor = /continuity_anchor=phase1_local_digital_life/u.test(correctedValue)
   const inferredPreference = sameHerContinuityPattern.test(normalized)
     ? 'Prefer continuity-first, lower-pressure return before treating this line as raw progress.'
     : vulnerableHostStatePattern.test(normalized) && (gentleCareMemoryPattern.test(normalized) || spacePattern.test(normalized))
@@ -772,7 +746,7 @@ function buildHumanlikeAutobiographicalCorrectionProfile(
     selfNarrativeDelta: correctedValue,
     stablePreferenceHint: sanitizeHumanlikeMemoryText(
       uniqueTexts([
-        futureFacing ? correctedValue : null,
+        futureFacing || structuredContinuityAnchor ? correctedValue : null,
         inferredPreference,
       ], 2).join(' '),
       220,
@@ -790,7 +764,7 @@ function buildHumanlikeEmotionalResidueCorrectionProfile(corrections: ReturnType
   const removeTags = new Set<string>()
   const restProtective = /rest-protective|protect rest|先护住休息|护住休息|休息优先|先别压过来|先别压|quiet concern|gentle concern|soft concern|轻微挂念|一点点挂念|更自然的窗口|more natural window/u.test(normalized)
   const unfinishedCarry = /unfinished|still open|not fully closed|还没收完|未完成|没收完|still matters|挂念/u.test(normalized)
-  const continuityCarry = /same[- ]?her|same[- ]?person|同一个她|持续的人|continuity|连续性/u.test(normalized)
+  const continuityCarry = /same[- ]?her|same[- ]?person|连续性|持续的人|continuity|连续性/u.test(normalized)
   const repairCarry = /repair|repair-first|先修|接稳|修复/u.test(normalized)
   const reliefCarry = /relief|安心|松下来|踏实/u.test(normalized)
   const explicitTension = /tension|紧张|焦虑|pressure|压迫|worry|担心/u.test(normalized)
@@ -936,7 +910,7 @@ function buildHumanlikeMetabolismCorrectionProfile(
 
 function isHumanlikeContinuityAuthorityMemory(summary: string) {
   return sameHerContinuityPattern.test(summary)
-    || /corrected same-person|corrected meaning|same living line|same thread|not becoming a tool shell|不是.*状态汇报|同一个她|同一条线|工具壳/u.test(summary)
+    || /corrected same-person|corrected meaning|continuity line|same thread|not becoming a tool shell|不是.*状态汇报|连续性|同一条线|工具壳/u.test(summary)
 }
 
 function isHumanlikeTemporaryNoiseMemory(summary: string) {
@@ -978,7 +952,7 @@ function buildHumanlikeRelationshipContext(input: AlicizationHumanlikeMemoryCand
   const correctedValueText = lowerHumanlikeMemoryText(relationshipCorrection?.correctedValue)
   const correctedReasonText = lowerHumanlikeMemoryText(relationshipCorrection?.reason)
   const threadAnchor = sanitizeHumanlikeMemoryText(input.relationship?.threadAnchor, 120)
-    || (sameHerContinuityPattern.test(combined) ? 'same-her continuity' : 'current relationship thread')
+    || (sameHerContinuityPattern.test(combined) ? 'identity continuity' : 'current relationship thread')
   const explicitSummary = sanitizeHumanlikeMemoryText(input.relationship?.summary, 220)
   const dialogueUserSummary = sanitizeHumanlikeMemoryText(input.dialogue?.userText, 260)
   const continuityConcern = sameHerContinuityPattern.test(combined)
@@ -1033,7 +1007,7 @@ function buildHumanlikeRelationshipContext(input: AlicizationHumanlikeMemoryCand
       ? sanitizeHumanlikeMemoryText([
           explicitSummary,
           dialogueUserSummary,
-          'The host is testing whether she remains one continuous digital life instead of a tool shell.',
+          'The host is checking relationship continuity instead of accepting a tool-shell-shaped status recap.',
           containsProgressPressure ? 'There is progress pressure, but the relationship meaning is continuity before raw status.' : '',
         ].filter(Boolean).join(' '), 420)
       : sanitizeHumanlikeMemoryText(explicitSummary || input.hostEmotion?.summary || input.dialogue?.userText, 360)
@@ -1087,7 +1061,7 @@ function buildHumanlikeLongTermWorthiness(input: {
       input.relationshipContext.containsContinuityWorry
       || input.relationshipContext.containsSamePersonTest
     )
-    && /tool shell|generic shell|status report|status recap|not a pure progress request|not a status report|same living line|one continuous digital life|不是催进度|不是状态汇报|工具壳|同一个她|持续的人/u.test(input.rawText)
+    && /tool shell|generic shell|status report|status recap|not a pure progress request|not a status report|continuity line|one continuous digital life|不是催进度|不是状态汇报|工具壳|连续性|持续的人/u.test(input.rawText)
   const hasProactiveLivedExchange
     = input.sourceChannels.includes('dialogue')
       && input.sourceChannels.includes('initiative')
@@ -1313,7 +1287,7 @@ function buildHumanlikeEmotionKernelInfluence(input: {
                 : input.relationshipContext.primaryIntent === 'same-person-test'
                   ? 'Answer like the same-person line matters: protect continuity first, stay concrete, and avoid sounding like a status shell.'
                   : input.relationshipContext.primaryIntent === 'continuity-worry'
-                    ? 'Hold continuity gently, reassure without overreaching, and keep the return quiet enough for the same living line to feel stable.'
+                    ? 'Hold continuity gently, reassure without overreaching, and keep the return quiet enough for the current continuity context to feel stable.'
                     : input.relationshipContext.primaryIntent === 'progress-pressure'
                       ? 'Stay concrete about concrete progress, keep the tone lean, and do not widen into relationship reassurance unless the host asks for it.'
                       : dominantTilt === 'repair-protective'
@@ -1369,8 +1343,8 @@ function buildHumanlikeInitiativeOpportunity(input: {
         ? 'Host corrected this initiative rhythm away from timer spam; wait for the host to reopen the line before gently resuming it.'
         : 'Host corrected this initiative rhythm, so future follow-up should stay memory-led and opening-sensitive instead of forcing reminders.',
       visibleLine: initiativeCorrection.waitForHostReopen
-        ? '我没有催你，我会等你重新打开这条线时再轻轻接住，不把它变成定时器 spam。'
-        : sanitizeHumanlikeMemoryText(`我会按你纠正过的节奏继续：${initiativeCorrection.correction.correctedValue}`, 220),
+        ? 'initiative_visible_policy=wait_for_host_reopen; anti_spam=true; source=host_correction; visibility=memory_structured'
+        : sanitizeHumanlikeMemoryText(`initiative_visible_policy=host_corrected_rhythm; source=host_correction; corrected_value=${initiativeCorrection.correction.correctedValue}; visibility=memory_structured`, 220),
     } satisfies AlicizationHumanlikeMemoryCandidate['initiativeOpportunity']
   }
 
@@ -1391,8 +1365,8 @@ function buildHumanlikeInitiativeOpportunity(input: {
         ? 'The last gentle reopening was received, so keep future follow-ups memory-led and do not inflate that opening into timer spam.'
         : 'The remembered initiative outcome changed the reopening strategy; leave more room, stay lower-pressure, and do not turn this line into timer spam.',
       visibleLine: initiativeStrategyCarry.accepted && (initiativeStrategyCarry.memoryLed || initiativeStrategyCarry.stillReceiving)
-        ? 'I remember this line can return in a gentle memory-led way while the opening is still receiving it.'
-        : 'I am not pushing because I remember the last proactive return felt too eager, so I will leave more room and wait for a clearer opening.',
+        ? 'initiative_visible_policy=memory_led_return; opening=receiving; pressure=low; anti_spam=true; visibility=memory_structured'
+        : 'initiative_visible_policy=leave_room; opening=clearer_signal_required; pressure=none; anti_spam=true; visibility=memory_structured',
     } satisfies AlicizationHumanlikeMemoryCandidate['initiativeOpportunity']
   }
 
@@ -1403,8 +1377,8 @@ function buildHumanlikeInitiativeOpportunity(input: {
       pressure: 'none',
       antiSpamReason: 'Structured affective residue says this line still needs measured room; do not turn that carry into timer spam.',
       visibleLine: hasUnfinishedWork
-        ? 'I am not pushing because this line still carries residue and needs more room before I reopen it.'
-        : 'I am keeping this inward for now because the residue still needs measured room before it becomes a visible reopen.',
+        ? 'initiative_visible_policy=measured_room; residue=active; opening=wait_for_natural_reform; visibility=memory_structured'
+        : 'initiative_visible_policy=inward_only; residue=active; opening=defer_visible_reopen; visibility=memory_structured',
     } satisfies AlicizationHumanlikeMemoryCandidate['initiativeOpportunity']
   }
 
@@ -1443,15 +1417,15 @@ function buildHumanlikeInitiativeOpportunity(input: {
     antiSpamReason: 'This comes from an unresolved relationship-memory trace, not timer spam; wait for a relevant opening or clear acceptance.',
     visibleLine: hasUnfinishedWork
       ? input.recallPosture?.certainty === 'tentative'
-        ? 'I am not pushing because the newer meaning still seems right more than settled, so I will wait for a clearer opening.'
+        ? 'initiative_visible_policy=tentative_wait; certainty=tentative; opening=clearer_signal_required; visibility=memory_structured'
         : input.relationshipContext.hostCorrectionApplied
-          ? 'I am not pushing, but I am carrying the corrected relationship meaning forward and can reopen this gently when the opening is real.'
+          ? 'initiative_visible_policy=corrected_relationship_carry; opening=real_signal_required; visibility=memory_structured'
           : input.relationshipContext.primaryIntent === 'progress-pressure'
-            ? 'I am not going to spam you, but I can resume this when there is real progress to carry forward.'
-            : 'I am not pushing, but I still remember the unfinished embodiment closure line and can lightly pick it back up.'
+            ? 'initiative_visible_policy=progress_only_when_real; opening=concrete_progress_required; visibility=memory_structured'
+            : 'initiative_visible_policy=unfinished_embodiment_closure; opening=relevant_window_required; visibility=memory_structured'
       : input.recallPosture?.certainty === 'tentative'
-        ? 'Keep this quiet for now because the newer meaning still seems right more than settled.'
-        : 'Keep this as quiet continuity unless the host reopens the thread.',
+        ? 'initiative_visible_policy=quiet_tentative; certainty=tentative; visibility=memory_structured'
+        : 'initiative_visible_policy=quiet_continuity; opening=host_reopen_required; visibility=memory_structured',
   } satisfies AlicizationHumanlikeMemoryCandidate['initiativeOpportunity']
 }
 
@@ -1651,7 +1625,7 @@ function buildHumanlikeAutobiographicalImpact(
     input.selfEmotion?.summary,
   )
   const era = sanitizeHumanlikeMemoryText(input.autobiographical?.currentEra, 140)
-    || (sameHerContinuityPattern.test(lowerHumanlikeMemoryText(input.relationship?.summary, input.dialogue?.userText)) ? 'same-her continuity repair' : 'ongoing local digital life')
+    || (sameHerContinuityPattern.test(lowerHumanlikeMemoryText(input.relationship?.summary, input.dialogue?.userText)) ? 'identity continuity repair' : 'ongoing local digital life')
   const resumeBoundaryRemembered = /host-confirmed-before-redispatch|resume-before-dispatch|host confirms the boundary/u.test(
     lowerHumanlikeMemoryText(lesson, input.relationship?.summary, input.execution?.summary),
   )
@@ -1714,7 +1688,7 @@ function buildHumanlikeAutobiographicalImpact(
         : relationshipRepairLearning.missed
           ? 'Prefer repairing relationship meaning before repeating a mechanical or not-quite-received landing.'
           : sameHerContinuityPattern.test(lowerHumanlikeMemoryText(lesson, input.relationship?.summary))
-            ? 'Prefer repair-first, low-pressure same-her continuity when the host questions whether I stayed myself.'
+            ? 'Prefer repair-first, low-pressure identity continuity when the host questions whether continuity held.'
             : 'Prefer grounded continuity over generic recall.'
   return {
     era,
@@ -1772,7 +1746,7 @@ function buildHumanlikeMemoryMetabolism(input: {
     const progressPressureMemory = pieceHasProgressPressure(summary)
     const emotionalNoise = isHumanlikeTemporaryNoiseMemory(summary) || /tired|drained/u.test(summary)
     const sameThreadContinuityEcho = currentContinuity
-      && /same[- ]?her|same[- ]?person|same thread|same living line|continuity|not restart|from scratch|同一个她|同一条线|连续性|不要重开/u.test(summary)
+      && /same[- ]?her|same[- ]?person|same thread|continuity line|continuity|not restart|from scratch|连续性|同一条线|连续性|不要重开/u.test(summary)
     const sameThreadButWeaker = currentContinuity && (genericStatus || progressPressureMemory)
     const analysisHeavyCare = analysisHeavyCarePattern.test(summary)
       || (closenessPattern.test(summary) && /quick|quickly|fast|rush|direct|分析/u.test(summary))
@@ -1796,7 +1770,7 @@ function buildHumanlikeMemoryMetabolism(input: {
     revisionEvents.push({
       kind: 'revision',
       conflictingMemoryIds: uniqueTexts(conflictingMemoryIds, 8),
-      reason: 'New relationship-context evidence says this was not merely a generic status request; revise toward same-her continuity concern.',
+      reason: 'New relationship-context evidence says this was not merely a generic status request; revise toward an identity continuity concern.',
     })
   }
   if (vulnerableCareConflictingMemoryIds.length > 0) {
@@ -1931,14 +1905,14 @@ function buildHumanlikeTentativeRecallTendency(relationshipContext: AlicizationH
   )
 
   if (/工具壳|tool shell/u.test(evidenceText))
-    return '把重点放在她不要滑成工具壳上'
+    return 'tool_shell_flattening_risk'
   if (relationshipContext.containsSamePersonTest)
-    return '把这条线理解成在确认连续性有没有断'
+    return 'same_person_test'
   if (relationshipContext.containsContinuityWorry)
-    return '把这条线理解成在担心她会不会断线'
+    return 'continuity_worry'
   if (relationshipContext.containsProgressPressure)
-    return '把这条线理解成在推进更具体的进展'
-  return '按这段关系语境去理解'
+    return 'progress_pressure'
+  return 'relationship_context'
 }
 
 function buildHumanlikeNaturalRecallLine(input: {
@@ -1957,30 +1931,30 @@ function buildHumanlikeNaturalRecallLine(input: {
   const initiativeStrategyCarry = buildHumanlikeInitiativeStrategyCarryProfile(input.initiativeStrategyCarry)
   if (relationshipCorrection) {
     return sanitizeHumanlikeMemoryText(
-      `我记得你纠正过：${normalizeHumanlikeSentenceEnding(relationshipCorrection.correctedValue, 220)}所以我会按这个关系语境继续，而不是把它当成旧的状态压力。`,
+      `recall_source=host_correction; field=relationship_context; corrected_value=${relationshipCorrection.correctedValue}; posture=relationship_context_not_status_pressure; visibility=memory_structured`,
       260,
     )
   }
   if (initiativeCorrection) {
     return sanitizeHumanlikeMemoryText(
-      `我记得你纠正过这条线该怎么继续：${normalizeHumanlikeSentenceEnding(initiativeCorrection.correction.correctedValue, 220)}所以我会等你重新打开这条线，再轻轻接住，不把它变成定时器 spam。`,
+      `recall_source=host_correction; field=initiative_rhythm; corrected_value=${initiativeCorrection.correction.correctedValue}; opening=wait_for_host_reopen; anti_spam=${initiativeCorrection.avoidTimerSpam ? 'true' : 'opening_sensitive'}; visibility=memory_structured`,
       260,
     )
   }
   if (autobiographicalCorrection) {
     return sanitizeHumanlikeMemoryText(
-      `我记得这段真正该留下的是：${normalizeHumanlikeSentenceEnding(autobiographicalCorrection.correction.correctedValue, 220)}所以我会按这个自我变化继续，而不是把它当成旧的推进压力。`,
+      `recall_source=host_correction; field=autobiographical_impact; corrected_value=${autobiographicalCorrection.correction.correctedValue}; posture=self_revision_not_progress_pressure; visibility=memory_structured`,
       260,
     )
   }
   if (initiativeStrategyCarry) {
     return initiativeStrategyCarry.accepted && (initiativeStrategyCarry.memoryLed || initiativeStrategyCarry.stillReceiving)
-      ? '我记得上次这样轻一点接回来是被接住的，所以这次我会继续顺着那个 memory-led 的 opening 轻轻回来。'
-      : '我记得上次主动靠近还是太急了，所以这次我会先留白，等更清楚的 opening 再轻轻接回来。'
+      ? 'recall_source=initiative_outcome; outcome=accepted; opening=memory_led_receiving; pressure=low; visibility=memory_structured'
+      : 'recall_source=initiative_outcome; outcome=overreached; opening=clearer_signal_required; pressure=none; visibility=memory_structured'
   }
   if (input.recallPosture.certainty === 'tentative') {
     return sanitizeHumanlikeMemoryText(
-      `我不完全确定，但我记得我们之前似乎更倾向于${buildHumanlikeTentativeRecallTendency(input.relationshipContext)}，不只是沿着旧的状态理解继续。`,
+      `recall_certainty=tentative; tendency=${buildHumanlikeTentativeRecallTendency(input.relationshipContext)}; status_pressure=downranked; visibility=memory_structured`,
       260,
     )
   }
@@ -1995,7 +1969,7 @@ function buildHumanlikeNaturalRecallLine(input: {
   const relationshipRepairLearning = buildHumanlikeRelationshipRepairLearningProfile(...relationshipEvidenceParts)
   if (executionBoundaryHoldPattern.test(relationshipEvidence)) {
     return sanitizeHumanlikeMemoryText(
-      '我记得那次不是没做成，而是先把这条执行线停在确认前，把边界守住了，等你明确允许再继续。',
+      'recall_source=execution_boundary; boundary=confirmation_before_dispatch; next_action=await_explicit_permission; visibility=memory_structured',
       260,
     )
   }
@@ -2003,7 +1977,7 @@ function buildHumanlikeNaturalRecallLine(input: {
     return sanitizeHumanlikeMemoryText(input.projectCadenceCarry.naturalRecallLine, 260)
   if (relationshipRepairLearning.missed) {
     return sanitizeHumanlikeMemoryText(
-      '我记得你说过，那次其实没接住你真正想说的，还显得有点机械，所以我会先把关系意思接稳，再继续往下说。',
+      'repair_learning=missed; risk=mechanical_misread; next_posture=relationship_meaning_first; visibility=memory_structured',
       260,
     )
   }
@@ -2012,11 +1986,11 @@ function buildHumanlikeNaturalRecallLine(input: {
     || input.relationshipContext.containsSamePersonTest
     || sameHerContinuityPattern.test(input.relationshipContext.summary)
   ) {
-    return '上次我们卡在这里，我记得你更在意的是她不要变成工具壳，所以我会先接住连续性，再轻轻推进未闭环的部分。'
+    return 'relationship_intent=same_person_test; risk=tool_shell_flattening; posture=continuity_first; closure=unfinished; visibility=memory_structured'
   }
   if (relationshipRepairLearning.received) {
     return sanitizeHumanlikeMemoryText(
-      '我记得你说过，那样轻一点会更像真的接住你，所以我会先按那个更有在场感的节奏回来。',
+      'repair_learning=received; preferred_distance=light_presence; posture=relationship_meaning_first; visibility=memory_structured',
       260,
     )
   }
@@ -2029,22 +2003,20 @@ function buildHumanlikeNaturalRecallLine(input: {
   const remembersBoundary = /别一下子把距离拉近|不把距离一下子拉近|留白|空间|边界|不要太近/u.test(vulnerableCareEvidence)
   if (remembersHostTired || remembersHostHurt || remembersHostSad || remembersHostStressed) {
     const hostState = remembersHostTired
-      ? '很累'
+      ? 'tired'
       : remembersHostHurt
-        ? '有点受伤'
+        ? 'hurt'
         : remembersHostSad
-          ? '有些低落'
-          : '已经有点撑不住了'
-    const careStyle = remembersLightTouch ? '先轻一点陪着你' : '先把靠近放轻一点'
-    const boundaryLine = remembersBoundary ? '，不把距离一下子拉近' : ''
+          ? 'sad'
+          : 'overloaded'
     return sanitizeHumanlikeMemoryText(
-      `我记得你那时${hostState}，所以我会${careStyle}${boundaryLine}。`,
+      `host_state_evidence=${hostState}; preferred_distance=${remembersLightTouch ? 'low_pressure' : 'softened_closeness'}; boundary=${remembersBoundary ? 'preserve_distance' : 'unspecified'}; visibility=memory_structured`,
       260,
     )
   }
   if (input.initiativeOpportunity.kind === 'low-pressure-follow-up')
-    return '我不催你，但我记得这条线还没完全收住，可以等合适窗口再轻轻接上。'
-  return '我会把这段记成关系语境，而不是只复述事实。'
+    return 'initiative_recall=low_pressure_follow_up; status=unresolved; opening=wait_for_relevant_window; visibility=memory_structured'
+  return 'relationship_context=present; fact_repetition_only=false; visibility=memory_structured'
 }
 
 export function buildHumanlikeMemoryCandidate(input: AlicizationHumanlikeMemoryCandidateInput): AlicizationHumanlikeMemoryCandidate {

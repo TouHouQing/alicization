@@ -119,17 +119,17 @@ function projectStateRowHeadline(key: string) {
   if (key === 'project_state_identity_hit_rate')
     return 'Project identity carry'
   if (key === 'project_state_phase_hit_rate')
-    return 'Phase 1 route carry'
+    return 'Local desktop life-loop carry'
   if (key === 'project_state_open_loop_hit_rate')
     return 'Unresolved closure carry'
   if (key === 'project_state_continuity_hit_rate')
-    return 'Same-her continuity carry'
+    return 'Identity continuity carry'
   return key
 }
 
 function selfAuthorityRowHeadline(key: string) {
   if (key === 'self_authority_compared_turn_count')
-    return 'Same-her self audit coverage'
+    return 'Identity continuity audit coverage'
   if (key === 'self_authority_summary_rate')
     return 'Explicit self line carry'
   if (key === 'self_authority_closeness_posture_rate')
@@ -139,21 +139,21 @@ function selfAuthorityRowHeadline(key: string) {
   if (key === 'self_authority_rewrite_applied_rate')
     return 'Final rewrite carry'
   if (key === 'self_authority_fully_carried_rate')
-    return 'Same-her self continuity carry'
+    return 'Identity continuity carry'
   return key
 }
 
 function projectStateAuditRowHeadline(key: string) {
   if (key === 'project_state_audit_compared_turn_count')
-    return 'Same-her project audit coverage'
+    return 'Project continuity audit coverage'
   if (key === 'project_state_audit_same_her_summary_rate')
-    return 'Same-her project brief carry'
+    return 'Project continuity brief carry'
   if (key === 'project_state_audit_preserved_rate')
     return 'Project brief preserve carry'
   if (key === 'project_state_audit_rewrite_applied_rate')
     return 'Project brief rewrite carry'
   if (key === 'project_state_audit_fully_carried_rate')
-    return 'Same-her project-status continuity carry'
+    return 'Project-status continuity carry'
   return key
 }
 
@@ -237,7 +237,7 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
           @click="emit('run')"
         />
         <Button
-          :label="tDiagnosis('actions.run_same_her_session_proof', 'Run Same-her Proof')"
+          :label="tDiagnosis('actions.run_same_her_session_proof', 'Run Continuity Proof')"
           icon="i-solar:heart-pulse-bold-duotone"
           size="sm"
           variant="secondary"
@@ -661,10 +661,10 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
           :class="['mb-4', 'grid', 'gap-2']"
         >
           <div :class="['text-xs', 'text-neutral-500', 'dark:text-neutral-400']">
-            {{ tDiagnosis('project_state.description', 'Project-state continuity tracks whether Alicization still carries project identity, the Phase 1 local-digital-life route, and unresolved closure work on the same living thread into replayed turns.') }}
+            {{ tDiagnosis('project_state.description', 'Project-state continuity tracks whether Alicization still carries project identity, the Phase 1 local-digital-life route, and unresolved closure work through replayed turns.') }}
           </div>
           <div :class="['text-[11px]', 'font-medium', 'uppercase', 'tracking-[0.18em]', 'text-indigo-600/80', 'dark:text-indigo-300/80']">
-            {{ tDiagnosis('project_state.same_living_thread', 'Same living thread: identity, phase, and unresolved closure carry') }}
+            {{ tDiagnosis('project_state.continuity_thread', 'Continuity thread: identity, phase, and unresolved closure carry') }}
           </div>
           <div
             v-for="row in projectStateRows"
@@ -697,10 +697,10 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
           :class="['mb-4', 'grid', 'gap-2']"
         >
           <div :class="['text-xs', 'text-neutral-500', 'dark:text-neutral-400']">
-            {{ tDiagnosis('same_her_sessions.description', 'Long-run same-her session proof checks whether memory, initiative or execution callback, emotion, and embodiment close together across multiple real sampled turns in the same desktop session.') }}
+            {{ tDiagnosis('same_her_sessions.description', 'Long-run identity-continuity proof checks whether memory, initiative or execution callback, emotion, and embodiment close together across multiple real sampled turns in the same desktop session.') }}
           </div>
           <div :class="['text-[11px]', 'font-medium', 'uppercase', 'tracking-[0.18em]', 'text-emerald-600/80', 'dark:text-emerald-300/80']">
-            {{ tDiagnosis('same_her_sessions.title', 'Long-run same-her sessions: memory, initiative, emotion, and embodiment close together') }}
+            {{ tDiagnosis('same_her_sessions.title', 'Long-run identity-continuity sessions: memory, initiative, emotion, and embodiment close together') }}
           </div>
           <div
             v-if="runtimeSamplingEvidenceRows.length > 0"
@@ -747,7 +747,7 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
             <div :class="['mt-2', 'grid', 'gap-2']">
               <div
                 v-for="row in sameHerLaneGapRows"
-                :key="`same-her-lane-gap:${row.key}`"
+                :key="`identity-continuity-lane-gap:${row.key}`"
                 :class="['text-[11px]', 'text-amber-900', 'dark:text-amber-100']"
               >
                 <span :class="['font-mono']">{{ row.key }}</span>
@@ -764,7 +764,7 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
             </div>
             <div
               v-for="target in sameHerRepairTargetRows"
-              :key="`same-her-repair-target:${target.lane}:${target.turnId}`"
+              :key="`identity-continuity-repair-target:${target.lane}:${target.turnId}`"
               :class="[
                 'rounded-xl', 'border', 'border-solid', 'border-neutral-200/80',
                 'bg-white/70', 'px-3', 'py-3',
@@ -788,7 +788,7 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
                   >
                     <li
                       v-for="reason in target.reasons"
-                      :key="`same-her-repair-target-reason:${target.lane}:${target.turnId}:${reason}`"
+                      :key="`identity-continuity-repair-target-reason:${target.lane}:${target.turnId}:${reason}`"
                       :class="['list-disc']"
                     >
                       {{ reason }}
@@ -814,7 +814,7 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
             </div>
             <div
               v-for="row in sameHerTransitionRows"
-              :key="`same-her-transition:${row.key}`"
+              :key="`identity-continuity-transition:${row.key}`"
               :class="[
                 'rounded-xl', 'border', 'border-solid', 'px-3', 'py-3',
                 row.value === 1
@@ -838,7 +838,7 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
           </div>
           <div
             v-for="row in sameHerSessionRows"
-            :key="`same-her-session:${row.key}`"
+            :key="`identity-continuity-session:${row.key}`"
             :class="[
               'rounded-xl', 'border', 'border-solid', 'px-3', 'py-3',
               sameHerSessionRowTone(row) === 'open'
@@ -865,10 +865,10 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
           :class="['mb-4', 'grid', 'gap-2']"
         >
           <div :class="['text-xs', 'text-neutral-500', 'dark:text-neutral-400']">
-            {{ tDiagnosis('self_authority.description', 'Same-her self authority tracks whether Alicization keeps one explicit self line and the matching relational posture visible all the way into rewrite, so the project thread and the speaking self do not drift apart.') }}
+            {{ tDiagnosis('self_authority.description', 'Self authority tracks whether Alicization keeps one explicit self line and the matching relational posture visible all the way into rewrite, so the project thread and the speaking self do not drift apart.') }}
           </div>
           <div :class="['text-[11px]', 'font-medium', 'uppercase', 'tracking-[0.18em]', 'text-fuchsia-600/80', 'dark:text-fuchsia-300/80']">
-            {{ tDiagnosis('self_authority.same_living_self_thread', 'Same living self thread: explicit self line, relational posture, and rewrite carry') }}
+            {{ tDiagnosis('self_authority.continuity_self_thread', 'Self continuity thread: explicit self line, relational posture, and rewrite carry') }}
           </div>
           <div
             v-for="row in selfAuthorityRows"
@@ -901,10 +901,10 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
           :class="['mb-4', 'grid', 'gap-2']"
         >
           <div :class="['text-xs', 'text-neutral-500', 'dark:text-neutral-400']">
-            {{ tDiagnosis('project_state_audit.description', 'Same-her project-state audit tracks whether Alicization answers project-status questions as one living self who is still carrying project identity, the Phase 1 route, and unfinished closure work through rewrite.') }}
+            {{ tDiagnosis('project_state_audit.description', 'Project-state continuity audit tracks whether Alicization answers project-status questions from local desktop life-loop identity, project continuity, and unfinished closure work through rewrite.') }}
           </div>
           <div :class="['text-[11px]', 'font-medium', 'uppercase', 'tracking-[0.18em]', 'text-violet-600/80', 'dark:text-violet-300/80']">
-            {{ tDiagnosis('project_state_audit.same_her_project_thread', 'Same-her project thread: one living self, one project brief, one unfinished closure line') }}
+            {{ tDiagnosis('project_state_audit.same_her_project_thread', 'Project continuity thread: one identity context, one project brief, one unfinished closure line') }}
           </div>
           <div
             v-for="row in projectStateAuditRows"

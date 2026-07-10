@@ -1,9 +1,16 @@
+import { sanitizeAlicizationStructuredInternalText } from './alicization-fixed-template-sanitizer'
+
 function normalizeSummaryString(raw: unknown) {
   if (typeof raw !== 'string')
     return null
 
   const normalized = raw.trim()
   return normalized || null
+}
+
+function normalizeReasonSummaryString(raw: unknown) {
+  const normalized = normalizeSummaryString(raw)
+  return normalized ? sanitizeAlicizationStructuredInternalText(normalized, 520, normalized) || null : null
 }
 
 export function resolveLipsyncContinuityPosture(input: {
@@ -87,7 +94,7 @@ export function buildAlicizationLipsyncSummary(input: {
     normalizeSummaryString(input.preferredLipsyncMode) ? `lipsyncMode=${normalizeSummaryString(input.preferredLipsyncMode)}` : null,
     normalizeSummaryString(input.preferredVoiceMode) ? `voiceMode=${normalizeSummaryString(input.preferredVoiceMode)}` : null,
     normalizeSummaryString(input.preferredPacingMode) ? `pacing=${normalizeSummaryString(input.preferredPacingMode)}` : null,
-    normalizeSummaryString(input.reasonSummary) ? `reason=${normalizeSummaryString(input.reasonSummary)}` : null,
+    normalizeReasonSummaryString(input.reasonSummary) ? `reason=${normalizeReasonSummaryString(input.reasonSummary)}` : null,
     formatNumber(input.visemeBias) ? `visemeBias=${formatNumber(input.visemeBias)}` : null,
     formatNumber(input.energyBias) ? `energyBias=${formatNumber(input.energyBias)}` : null,
     formatNumber(input.mouthScale) ? `mouthScale=${formatNumber(input.mouthScale)}` : null,

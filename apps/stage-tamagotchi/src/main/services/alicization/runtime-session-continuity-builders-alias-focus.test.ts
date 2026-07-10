@@ -1,6 +1,11 @@
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import { createAlicizationSessionContinuityBuildersRuntime } from './runtime-session-continuity-builders'
+
+function expectNoFixedTemplateResidue(raw: unknown) {
+  expect(containsAlicizationFixedTemplateResidue(JSON.stringify(raw))).toBe(false)
+}
 
 function createRuntime() {
   return createAlicizationSessionContinuityBuildersRuntime({
@@ -42,10 +47,13 @@ describe('runtime session continuity builders alias focus carry', () => {
 
     expect(signal.metadata).toEqual(expect.objectContaining({
       source: 'proactive-deferred',
-      projectPrimaryOpenLoop: 'Emotion, memory, initiative, and embodiment still need one stronger same living line closure seam.',
-      projectNextClosureTarget: 'Keep project identity carry, Phase 1 route carry, measured-return initiative, and resident presence on one same living line.',
+      projectIdentity: 'phase1_local_digital_life',
+      projectPhase: 'phase1_local_digital_life',
+      projectPrimaryOpenLoop: 'open_loop=callback_continuity; status=unfinished',
+      projectNextClosureTarget: 'project_state_continuity=identity+landed+open+next',
       projectStateOpenFocusSummary: 'emotion/memory/initiative/embodiment/same-line/closure-seam',
       projectStateNextFocusSummary: 'project-carry/phase-1/measured-return/same-line/initiative/embodiment',
     }))
+    expectNoFixedTemplateResidue(signal.metadata)
   })
 })

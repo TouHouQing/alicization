@@ -9,6 +9,10 @@ import {
   selectAlicizationExecutionDeliveryReply,
 } from './execution-delivery-surface'
 
+function expectNoFixedExecutionHandoffTemplate(reply: string) {
+  expect(reply).not.toMatch(/你现在要是方便|你现在要是能接|轻一点地接回来|轻轻接回来给你|我把这条结果接回来了/u)
+}
+
 describe('execution delivery surface', () => {
   it('renders listing outcomes as natural Chinese callback text instead of raw listing protocol strings', () => {
     const reply = buildAlicizationDeterministicExecutionDeliveryReply({
@@ -189,7 +193,7 @@ describe('execution delivery surface', () => {
     expect(selected.reason).toBe('opening-guidance-lower-pressure')
   })
 
-  it('adds a soft availability check when learned delivery policy is cautious', () => {
+  it('keeps learned cautious delivery policy structural instead of adding a fixed availability prefix', () => {
     const reply = buildAlicizationDeterministicExecutionDeliveryReply({
       channel: 'codex',
       goal: 'Patch the runtime line.',
@@ -203,11 +207,11 @@ describe('execution delivery surface', () => {
       },
     })
 
-    expect(reply).toContain('你现在要是方便')
     expect(reply).toContain('patched runtime line')
+    expectNoFixedExecutionHandoffTemplate(reply)
   })
 
-  it('uses a lighter callback opening when execution-result learning says the last payoff felt too tight', () => {
+  it('does not turn tight-payoff learning into a fixed callback opening', () => {
     const reply = buildAlicizationDeterministicExecutionDeliveryReply({
       channel: 'codex',
       goal: 'Patch the runtime line.',
@@ -245,11 +249,11 @@ describe('execution delivery surface', () => {
       } as any,
     })
 
-    expect(reply).toContain('轻一点地接回来')
     expect(reply).toContain('patched runtime line')
+    expectNoFixedExecutionHandoffTemplate(reply)
   })
 
-  it('uses a lighter callback opening when same-her even-and-natural return cadence says the result should come back steady and unforced', () => {
+  it('does not turn even-and-natural cadence into a fixed callback opening', () => {
     const reply = buildAlicizationDeterministicExecutionDeliveryReply({
       channel: 'codex',
       goal: 'Patch the runtime line.',
@@ -287,11 +291,11 @@ describe('execution delivery surface', () => {
       } as any,
     })
 
-    expect(reply).toContain('轻一点地接回来')
     expect(reply).toContain('patched runtime line')
+    expectNoFixedExecutionHandoffTemplate(reply)
   })
 
-  it('uses a softer handoff wording when learned execution trust has opened the room', () => {
+  it('does not turn learned execution trust into a fixed soft-handoff prefix', () => {
     const reply = buildAlicizationDeterministicExecutionDeliveryReply({
       channel: 'codex',
       goal: 'Patch the runtime line.',
@@ -330,11 +334,11 @@ describe('execution delivery surface', () => {
       } as any,
     })
 
-    expect(reply).toContain('轻轻接回来给你')
     expect(reply).toContain('patched runtime line')
+    expectNoFixedExecutionHandoffTemplate(reply)
   })
 
-  it('adds a soft availability check from host person model even without an explicit learned delivery policy', () => {
+  it('keeps host person model caution structural instead of adding a fixed availability prefix', () => {
     const reply = buildAlicizationDeterministicExecutionDeliveryReply({
       channel: 'codex',
       goal: 'Patch the runtime line.',
@@ -362,11 +366,11 @@ describe('execution delivery surface', () => {
       },
     })
 
-    expect(reply).toContain('你现在要是方便')
     expect(reply).toContain('patched runtime line')
+    expectNoFixedExecutionHandoffTemplate(reply)
   })
 
-  it('lets person-state projection act as the single cautious delivery authority for execution callbacks', () => {
+  it('lets person-state projection govern structure without adding a fixed callback prefix', () => {
     const reply = buildAlicizationDeterministicExecutionDeliveryReply({
       channel: 'codex',
       goal: 'Patch the runtime line.',
@@ -398,8 +402,8 @@ describe('execution delivery surface', () => {
       } as any,
     })
 
-    expect(reply).toContain('你现在要是方便')
     expect(reply).toContain('patched runtime line')
+    expectNoFixedExecutionHandoffTemplate(reply)
   })
 
   it('threads self continuity authority into the payoff prompt surface', () => {
@@ -525,7 +529,7 @@ describe('execution delivery surface', () => {
     expect(prompt.system).toContain('single social authority')
   })
 
-  it('keeps canonical project-state identity and Phase 1 closure truth visible in execution payoff prompts before the result is spoken', () => {
+  it('keeps execution payoff prompts focused on result facts and memory owners instead of project-state templates', () => {
     const prompt = buildAlicizationExecutionPayoffPrompt({
       mode: 'callback-delivery',
       channel: 'codex',
@@ -535,14 +539,17 @@ describe('execution delivery surface', () => {
       outcome: 'patched runtime line',
     })
 
-    expect(prompt.system).toContain('[ALICIZATION_PROJECT_STATE]')
-    expect(prompt.system).toContain('Alicization is a local-first digital life project building one continuous "her"')
-    expect(prompt.system).toContain('current_phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
-    expect(prompt.system).toContain('current_objective=Build a local companion on the host computer with continuous personhood, stable memory, emotional state, initiative, execution ability, embodied expression, and natural dialogue.')
-    expect(prompt.system).toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(prompt.system).toContain('open=Memory still needs stronger end-to-end closure')
-    expect(prompt.system).toContain('next_closure_target=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs')
-    expect(prompt.system).toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+    expect(prompt.system).toContain('[ALICIZATION_EXECUTION_PAYOFF]')
+    expect(prompt.system).toContain('payoff_scope=execution_result_delivery')
+    expect(prompt.system).toContain('short_term_owner=WorkingMemory')
+    expect(prompt.system).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(prompt.system).toContain('failure_surface=report_provider_tool_and_execution_failures_directly')
+    expect(prompt.system).toContain('Execution payoff JSON:')
+    expect(prompt.system).not.toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(prompt.system).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+    expect(prompt.system).not.toContain('same_her_line=')
+    expect(prompt.system).not.toContain('same_her_hold=')
+    expect(prompt.system).not.toContain('same digital life project')
   })
 
   it('normalizes callback delivery through the same mind-turn surface builder', () => {
@@ -825,11 +832,11 @@ describe('execution delivery surface', () => {
 
     expect(selected.source).toBe('llm-repaired')
     expect(selected.reason).toBe('opening-guidance-lower-pressure')
-    expect(selected.reply).toContain('你现在要是方便')
     expect(selected.reply).toContain('patched runtime line')
+    expectNoFixedExecutionHandoffTemplate(selected.reply)
   })
 
-  it('adds a lower-pressure callback handoff when memory restraint says the bond line should stay inward until payoff lands', () => {
+  it('keeps memory restraint structural instead of adding a lower-pressure callback handoff', () => {
     const reply = buildAlicizationDeterministicExecutionDeliveryReply({
       channel: 'codex',
       goal: 'Patch the runtime line.',
@@ -844,12 +851,11 @@ describe('execution delivery surface', () => {
       },
     })
 
-    expect(reply).toContain('你现在要是方便')
-    expect(reply).toContain('轻一点地接回来')
     expect(reply).toContain('patched runtime line')
+    expectNoFixedExecutionHandoffTemplate(reply)
   })
 
-  it('repairs llm callback wording back to a lower-pressure handoff when memory restraint is still active', () => {
+  it('repairs llm callback wording back to direct result text when memory restraint is still active', () => {
     const selected = selectAlicizationExecutionDeliveryReply({
       channel: 'codex',
       goal: 'Return the finished patch result to the same thread.',
@@ -865,7 +871,7 @@ describe('execution delivery surface', () => {
       },
     })
 
-    expect(selected.reply).toContain('你现在要是方便')
-    expect(selected.reply).toContain('轻一点地接回来')
+    expect(selected.reply).toContain('patched runtime line')
+    expectNoFixedExecutionHandoffTemplate(selected.reply)
   })
 })

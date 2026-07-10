@@ -124,11 +124,11 @@ describe('execution interaction learning', () => {
             worldModel: {
               hostState: {
                 availability: 'open',
-                attitude: '开始觉得 Alicization 的执行回报靠得太紧，需要更轻一点、更看窗口再进入。',
+                attitude: 'execution_feedback=intrusive; distance_delta=more_space; reply_policy=lower_pressure; visibility=structured',
               },
             },
             relationshipModel: {
-              hostAttitude: '开始觉得 Alicization 的执行回报靠得太紧，需要更轻一点、更看窗口再进入。',
+              hostAttitude: 'execution_feedback=intrusive; distance_delta=more_space; reply_policy=lower_pressure; visibility=structured',
             },
           },
           memory: {
@@ -306,7 +306,7 @@ describe('execution interaction learning', () => {
 
     expect(policy.companionshipFraming).toBe('quiet-presence')
     expect(policy.closurePatience).toBeGreaterThan(0.5)
-    expect(policy.reasonTags).toContain('project-same-her-pressure')
+    expect(policy.reasonTags).toContain('project-continuity-pressure')
     expect(policy.reasonTags).toContain('project-measured-return-pressure')
     expect(policy.reasonTags).toContain('project-next-closure-pressure')
   })
@@ -376,7 +376,7 @@ describe('execution interaction learning', () => {
     expect(policy.companionshipFraming).toBe('quiet-presence')
     expect(policy.closurePatience).toBeGreaterThan(0.5)
     expect(policy.reasonTags).toContain('project-open-closure')
-    expect(policy.reasonTags).toContain('project-same-her-pressure')
+    expect(policy.reasonTags).toContain('project-continuity-pressure')
     expect(policy.reasonTags).toContain('project-measured-return-pressure')
     expect(policy.reasonTags).toContain('project-next-closure-pressure')
   })
@@ -441,7 +441,7 @@ describe('execution interaction learning', () => {
     })
 
     expect(policy.reasonTags).toContain('project-open-closure')
-    expect(policy.reasonTags).toContain('project-same-her-pressure')
+    expect(policy.reasonTags).toContain('project-continuity-pressure')
     expect(policy.reasonTags).toContain('project-next-closure-pressure')
   })
 
@@ -505,7 +505,7 @@ describe('execution interaction learning', () => {
     })
 
     expect(policy.reasonTags).toContain('project-open-closure')
-    expect(policy.reasonTags).toContain('project-same-her-pressure')
+    expect(policy.reasonTags).toContain('project-continuity-pressure')
     expect(policy.reasonTags).toContain('project-next-closure-pressure')
   })
 
@@ -792,7 +792,7 @@ describe('execution interaction learning', () => {
     expect(policy.resultLeadStyle).toBe('availability-first')
     expect(policy.companionshipFraming).toBe('quiet-presence')
     expect(policy.reasonTags).toContain('project-same-her-drift-risk-pressure')
-    expect(policy.reasonTags).toContain('project-same-her-pressure')
+    expect(policy.reasonTags).toContain('project-continuity-pressure')
   })
 
   it('warms toward close-carry after valued execution-result feedback strengthened trust', () => {
@@ -802,11 +802,11 @@ describe('execution interaction learning', () => {
           world: {
             worldModel: {
               hostState: {
-                attitude: '开始更相信 Alicization 的执行回报是有用且接得住当下需要的，不只是机械汇报。',
+                attitude: 'execution_feedback=valued; trust_delta=positive; reply_policy=continue_with_evidence; visibility=structured',
               },
             },
             relationshipModel: {
-              hostAttitude: '开始更相信 Alicization 的执行回报是有用且接得住当下需要的，不只是机械汇报。',
+              hostAttitude: 'execution_feedback=valued; trust_delta=positive; reply_policy=continue_with_evidence; visibility=structured',
             },
           },
           memory: {

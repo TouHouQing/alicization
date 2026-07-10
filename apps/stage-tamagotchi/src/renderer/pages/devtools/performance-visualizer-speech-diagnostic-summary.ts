@@ -22,9 +22,9 @@ export interface PerformanceVisualizerSpeechDiagnosticSummaryEntry {
     | 'authority-match'
     | 'closure-stage'
     | 'authority-trust'
-    | 'same-her-signature'
+    | 'continuity-signature'
     | 'execution-safety-gate'
-    | 'same-her-reasons'
+    | 'continuity-reasons'
     | 'authority-mismatch'
     | 'renderer-drift'
     | 'voice'
@@ -515,7 +515,7 @@ function resolveThinMeasuredReturnAuthorityDisplay(input: {
       !normalizedHint.includes('较薄证据维持')
       && !normalizedHint.includes('thin measured-return')
       && !normalizedHint.includes('noisy-detour continuity line')
-      && !normalizedHint.includes('thinner measured-return same-her line')
+      && !normalizedHint.includes('thinner measured-return continuity line')
     )
   ) {
     return null
@@ -555,7 +555,7 @@ function preferAuthorityTrustContinuityHint(input: {
       normalizedTrust.includes('较薄证据维持')
       || normalizedTrust.includes('thin measured-return')
       || normalizedTrust.includes('noisy-detour continuity line')
-      || normalizedTrust.includes('thinner measured-return same-her line')
+      || normalizedTrust.includes('thinner measured-return continuity line')
     )
   ) {
     return authorityTrustSummary
@@ -581,7 +581,7 @@ function isRicherContinuityAuthorityTrustSummary(summary: string | null | undefi
       && (
         normalized.includes('较薄证据维持')
         || normalized.includes('thin measured-return')
-        || normalized.includes('thinner measured-return same-her line')
+        || normalized.includes('thinner measured-return continuity line')
         || normalized.includes('回身线')
       )
     )
@@ -713,7 +713,7 @@ export function buildSpeechDiagnosticSummaryEntries(
   }
   if (hasValue(input.sameHerSignature)) {
     pushEntry({
-      key: 'same-her-signature',
+      key: 'continuity-signature',
       label: '同一人签名',
       value: input.sameHerSignature!,
     })
@@ -729,7 +729,7 @@ export function buildSpeechDiagnosticSummaryEntries(
   const sameHerReasons = formatList(input.sameHerReasonTags)
   if (sameHerReasons) {
     pushEntry({
-      key: 'same-her-reasons',
+      key: 'continuity-reasons',
       label: '同一人线索',
       value: sameHerReasons,
     })

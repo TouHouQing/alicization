@@ -3312,7 +3312,7 @@ export interface AlicizationEmotionalTransitionLedgerSnapshot {
 }
 
 export type AlicizationEmbodimentContinuityLane = 'body' | 'voice' | 'face' | 'motion' | 'lipsync'
-export type AlicizationEmbodimentContinuityLaneStatus = 'carrying-same-her' | 'dropped' | 'pending-rejoin' | 'rejoined' | 'silent'
+export type AlicizationEmbodimentContinuityLaneStatus = 'carrying-continuity' | 'carrying-same-her' | 'dropped' | 'pending-rejoin' | 'rejoined' | 'silent'
 export type AlicizationEmbodimentContinuityPhase = 'fragmented' | 'partial-carry' | 'rejoining' | 'fully-rejoined' | 'quiet'
 
 export interface AlicizationEmbodimentContinuityLedgerSnapshot {
@@ -3682,6 +3682,11 @@ function normalizeAlicizationSameHerCausalityRepairPressureSnapshot(raw: unknown
       }
     : null
 
+  const summary = sanitizeAlicizationDigitalLifeDigestText(candidate.summary, 260)
+  const sanitizedSummary = summary && /pending same-her causality repair|same-her|same living line|same living thread/iu.test(summary)
+    ? `pending continuity_causality_repair: ${lanes.map(item => item.lane).join(', ')}`
+    : summary
+
   return {
     version: 'same-her-causality-repair-pressure-v1',
     source: 'memory-tuning-advice',
@@ -3702,8 +3707,8 @@ function normalizeAlicizationSameHerCausalityRepairPressureSnapshot(raw: unknown
           .filter(Boolean)
           .slice(0, 6)
       : [],
-    summary: sanitizeAlicizationDigitalLifeDigestText(candidate.summary, 260)
-      || `pending same-her causality repair: ${lanes.map(item => item.lane).join(', ')}`,
+    summary: sanitizedSummary
+      || `pending continuity_causality_repair: ${lanes.map(item => item.lane).join(', ')}`,
   }
 }
 
@@ -3862,7 +3867,9 @@ function normalizeAlicizationEmbodimentContinuityLane(raw: unknown): Alicization
 }
 
 function normalizeAlicizationEmbodimentContinuityLaneStatus(raw: unknown): AlicizationEmbodimentContinuityLaneStatus {
-  return raw === 'carrying-same-her'
+  if (raw === 'carrying-same-her')
+    return 'carrying-continuity'
+  return raw === 'carrying-continuity'
     || raw === 'dropped'
     || raw === 'pending-rejoin'
     || raw === 'rejoined'
@@ -6532,7 +6539,7 @@ export type AlicizationProactiveStaticReasonCode
     | 'held-autonomy-carry'
     | 'presence-only-hold'
     | 'project-phase1-life-loop-open'
-    | 'project-same-her-pressure'
+    | 'project-continuity-pressure'
     | 'project-measured-return-pressure'
     | 'project-next-closure-pressure'
     | 'relationship-cadence-residue'

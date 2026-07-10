@@ -64,6 +64,14 @@ function lowerText(...values: Array<string | null | undefined>) {
   return values.map(value => sanitizeText(value, 320)).filter(Boolean).join(' ').toLowerCase()
 }
 
+function sanitizeHumanlikeCarryMetadataText(raw: unknown, maxChars = 220) {
+  return sanitizeText(raw, maxChars)
+    .replace(/same living line/giu, 'relationship continuity line')
+    .replace(/same[- ]?her/giu, 'relationship-continuity')
+    .replace(/one continuous her/giu, 'continuous self-context')
+    .trim()
+}
+
 const samePersonContinuityPattern = /same[- ]?person|same[- ]?her|same living line|continuous digital life|tool shell|generic shell|同一个她|同一条线|数字生命|工具壳/u
 const progressPressurePattern = /progress pressure|status recap|status report|generic recap|催进度|催状态|状态汇报/u
 const progressPressureNegationPattern = /not a status report|not .*status recap|不是状态汇报|不是催进度|不是催状态/u
@@ -372,10 +380,10 @@ function buildHumanlikeCarryMetadata(events: AlicizationEpisodicEventRecord[]) {
     }), 2).join(' ')
     || null
   const autobiographicalDelta = uniqueList([
-    ...events.map(event => sanitizeText(event.latestReconsolidation?.lesson, 220) || null),
-    ...events.map(event => sanitizeText(event.lesson, 220) || null),
+    ...events.map(event => sanitizeHumanlikeCarryMetadataText(event.latestReconsolidation?.lesson, 220) || null),
+    ...events.map(event => sanitizeHumanlikeCarryMetadataText(event.lesson, 220) || null),
     correctedMeaningPattern.test(combined) && samePersonContinuityPattern.test(combined)
-      ? 'I learned to carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation.'
+      ? 'I learned to carry corrected same-person continuity on a lower-pressure relationship continuity line instead of defending the first interpretation.'
       : null,
   ], 1)[0] ?? null
   const hostEmotionLabels = collectPatternMatches(textParts, hostEmotionLabelPattern, 4)
@@ -444,13 +452,13 @@ function buildProjectStateCarryMetadata(events: AlicizationEpisodicEventRecord[]
 
   const inwardLine = sanitizeText([
     (phaseOneDigitalLifePattern.test(combined) || samePersonContinuityPattern.test(combined))
-      ? 'Current Phase 1 project context.'
+      ? 'memory_continuity=local_runtime.'
       : '',
     executionCallbackPattern.test(combined)
-      ? 'Some closure already landed.'
+      ? 'verified_closure_progress=partial.'
       : '',
     unfinishedClosurePattern.test(combined)
-      ? 'Unfinished closure still needs continuity.'
+      ? 'unresolved_closure=continuity.'
       : '',
   ].filter(Boolean).join(' '), 220)
 

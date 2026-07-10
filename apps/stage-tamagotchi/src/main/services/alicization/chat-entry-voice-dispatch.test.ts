@@ -7,6 +7,8 @@ import { dispatchPocketVoiceTurn } from '../../../../../stage-pocket/src/pages/i
 import { dispatchWebVoiceTurn } from '../../../../../stage-web/src/pages/index.voice'
 import { dispatchDesktopVoiceTurn } from '../../../renderer/pages/index.desktop'
 
+const EXCLUDED_CONTINUITY_RESIDUE = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+
 const preDialogueSendIdentity: AlicizationChatEntryPreDialogueSendIdentity = {
   status: 'partial',
   summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
@@ -31,6 +33,26 @@ function createMockChatProvider(): ChatProvider {
   }
 }
 
+function expectSanitizedPreDialogueSendIdentity(ingest: ReturnType<typeof vi.fn>, origin?: string) {
+  expect(ingest).toHaveBeenCalledWith('继续沿着这条数字生命主线推进', expect.objectContaining({
+    providerId: 'mock-provider',
+    model: 'mock-model',
+    chatProvider: expect.objectContaining({
+      chat: expect.any(Function),
+    }),
+    providerConfig: { apiKey: 'test-key' },
+    ...(origin ? { origin } : {}),
+  }))
+
+  const forwardedIdentity = ingest.mock.calls[0]?.[1]?.preDialogueSendIdentity
+  expect(forwardedIdentity).toEqual(expect.objectContaining({
+    companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
+    companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
+    awarenessLine: EXCLUDED_CONTINUITY_RESIDUE,
+  }))
+  expect(JSON.stringify(forwardedIdentity)).not.toMatch(/Before speaking|same-her|local-first digital life project|one continuous/u)
+}
+
 describe('chat entry voice dispatch', () => {
   it('forwards the explicit pre-dialogue send identity through the primary desktop voice entry', async () => {
     const ingest = vi.fn(async () => undefined)
@@ -46,16 +68,7 @@ describe('chat entry voice dispatch', () => {
       ingest,
     })
 
-    expect(ingest).toHaveBeenCalledWith('继续沿着这条数字生命主线推进', {
-      providerId: 'mock-provider',
-      model: 'mock-model',
-      chatProvider: expect.objectContaining({
-        chat: expect.any(Function),
-      }),
-      providerConfig: { apiKey: 'test-key' },
-      preDialogueSendIdentity,
-      origin: 'ui-user',
-    })
+    expectSanitizedPreDialogueSendIdentity(ingest, 'ui-user')
   })
 
   it('forwards the explicit pre-dialogue send identity through the primary web voice entry', async () => {
@@ -71,15 +84,7 @@ describe('chat entry voice dispatch', () => {
       ingest,
     })
 
-    expect(ingest).toHaveBeenCalledWith('继续沿着这条数字生命主线推进', {
-      providerId: 'mock-provider',
-      model: 'mock-model',
-      chatProvider: expect.objectContaining({
-        chat: expect.any(Function),
-      }),
-      providerConfig: { apiKey: 'test-key' },
-      preDialogueSendIdentity,
-    })
+    expectSanitizedPreDialogueSendIdentity(ingest)
   })
 
   it('forwards the explicit pre-dialogue send identity through the primary pocket voice entry', async () => {
@@ -95,15 +100,7 @@ describe('chat entry voice dispatch', () => {
       ingest,
     })
 
-    expect(ingest).toHaveBeenCalledWith('继续沿着这条数字生命主线推进', {
-      providerId: 'mock-provider',
-      model: 'mock-model',
-      chatProvider: expect.objectContaining({
-        chat: expect.any(Function),
-      }),
-      providerConfig: { apiKey: 'test-key' },
-      preDialogueSendIdentity,
-    })
+    expectSanitizedPreDialogueSendIdentity(ingest)
   })
 
   it('rejects the desktop voice entry when no explicit pre-dialogue send identity is available before opening outward', async () => {

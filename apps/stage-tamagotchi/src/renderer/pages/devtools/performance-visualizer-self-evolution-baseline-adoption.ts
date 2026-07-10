@@ -32,7 +32,7 @@ function pickProsodyAuthorityNote(supportingLines: string[]) {
 }
 
 function pickContinuityGovernanceNote(supportingLines: string[]) {
-  return supportingLines.find(line => line.includes('same-her 连续性治理已经被新的验证快照再次确认'))
+  return supportingLines.find(line => line.includes('identity-continuity 连续性治理已经被新的验证快照再次确认'))
 }
 
 function pickProjectStateContinuityGovernanceNote(supportingLines: string[]) {
@@ -73,9 +73,9 @@ function resolveSurvivingVisibleLane(
     return 'face+lipsync+voice-only'
   if (note.includes('当前仅剩动作、口型、声音维持同一段连续性'))
     return 'motion+lipsync+voice-only'
-  if (note.includes('当前只有 face 和 lipsync 这条 same-her 生命线'))
+  if (note.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线'))
     return 'face+lipsync-only'
-  if (note.includes('当前只有 motion 和 lipsync 这条 same-her 生命线'))
+  if (note.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线'))
     return 'motion+lipsync-only'
 
   return null
@@ -144,19 +144,19 @@ function formatBodyContinuitySurfaceCarryLine(params: {
 
   if (rendererRejoinWithoutBody) {
     if (survivingVisibleLane === 'face+lipsync+voice-only') {
-      return '显形回接失身态已经被完整记录：当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。'
+      return '显形回接失身态已经被完整记录：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。'
     }
 
     if (survivingVisibleLane === 'motion+lipsync+voice-only') {
-      return '显形回接失身态已经被完整记录：当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。'
+      return '显形回接失身态已经被完整记录：当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。'
     }
 
     if (survivingVisibleLane === 'face+lipsync-only') {
-      return '显形回接失身态已经被完整记录：当前只有 face 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。'
+      return '显形回接失身态已经被完整记录：当前只有 face 和 lipsync 这条 identity-continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。'
     }
 
     if (survivingVisibleLane === 'motion+lipsync-only') {
-      return '显形回接失身态已经被完整记录：当前只有 motion 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。'
+      return '显形回接失身态已经被完整记录：当前只有 motion 和 lipsync 这条 identity-continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。'
     }
 
     return rejoinSurface
@@ -220,7 +220,7 @@ export function buildSelfEvolutionBaselineAdoption(input: {
         '下一次 recurring-drift 转移仍需要验证它是否稳定。',
         ...(prosodyAuthorityNote ? ['韵律权威链尚未回到当前片段，因此不能进入长期基线。'] : []),
         ...(projectStateContinuityGovernanceNote ? ['项目状态连续性治理虽然再次确认，但仍需继续观察项目身份、Phase 1 主线和未闭环任务承接是否在下一次转移里保持同一条生命线程。'] : []),
-        ...(continuityGovernanceNote ? ['same-her 连续性治理虽然再次确认，但仍需继续观察其后续稳定性。'] : []),
+        ...(continuityGovernanceNote ? ['identity-continuity 连续性治理虽然再次确认，但仍需继续观察其后续稳定性。'] : []),
         ...(relationshipCadenceGovernanceNote
           ? [isRestrainedCallbackCadenceNote(relationshipCadenceGovernanceNote)
               ? 'relationship cadence 治理虽然再次确认，但当前仍停在 same-turn-if-invited measured-return 的同一条 callback line 上，仍需继续观察下一次关系回归是否守住同一条更克制的关系节律。'
@@ -231,13 +231,13 @@ export function buildSelfEvolutionBaselineAdoption(input: {
         ...(bodyContinuityGovernanceNote
           ? [bodyContinuityRendererRejoinWithoutBody
               ? survivingVisibleLane === 'face+lipsync+voice-only'
-                ? '当前仍处于显形回接失身态：当前仅有表情、口型、声音这条 same-her 生命线仍与同一段 living segment 对齐，body、motion 还没有重新接回这条表情口型声音线，因此不能把它升级成默认连续性参照。'
+                ? '当前仍处于显形回接失身态：当前仅有表情、口型、声音这条 identity-continuity 生命线仍与同一段 living segment 对齐，body、motion 还没有重新接回这条表情口型声音线，因此不能把它升级成默认连续性参照。'
                 : survivingVisibleLane === 'motion+lipsync+voice-only'
-                  ? '当前仍处于显形回接失身态：当前仅有动作、口型、声音这条 same-her 生命线仍与同一段 living segment 对齐，body、face 还没有重新接回这条动作口型声音线，因此不能把它升级成默认连续性参照。'
+                  ? '当前仍处于显形回接失身态：当前仅有动作、口型、声音这条 identity-continuity 生命线仍与同一段 living segment 对齐，body、face 还没有重新接回这条动作口型声音线，因此不能把它升级成默认连续性参照。'
                   : survivingVisibleLane === 'face+lipsync-only'
-                    ? '当前仍处于显形回接失身态：当前仅有表情、口型这条 same-her 生命线仍与同一段 living segment 对齐，body、motion、voice 还没有重新接回这条表情口型线，因此不能把它升级成默认连续性参照。'
+                    ? '当前仍处于显形回接失身态：当前仅有表情、口型这条 identity-continuity 生命线仍与同一段 living segment 对齐，body、motion、voice 还没有重新接回这条表情口型线，因此不能把它升级成默认连续性参照。'
                     : survivingVisibleLane === 'motion+lipsync-only'
-                      ? '当前仍处于显形回接失身态：当前仅有动作、口型这条 same-her 生命线仍与同一段 living segment 对齐，body、face、voice 还没有重新接回这条动作口型线，因此不能把它升级成默认连续性参照。'
+                      ? '当前仍处于显形回接失身态：当前仅有动作、口型这条 identity-continuity 生命线仍与同一段 living segment 对齐，body、face、voice 还没有重新接回这条动作口型线，因此不能把它升级成默认连续性参照。'
                       : bodyContinuityRejoinSurface
                         ? `当前仍处于显形回接失身态：${bodyContinuityRejoinSurface} 显形权威已经回接，但身体线没有继续托住同一段 living segment，因此不能把它升级成默认连续性参照。`
                         : '当前仍处于显形回接失身态：显形权威已经回接，但身体线没有继续托住同一段 living segment，因此不能把它升级成默认连续性参照。'
@@ -286,7 +286,7 @@ export function buildSelfEvolutionBaselineAdoption(input: {
         '当前没有比它更新的连续性快照会与之竞争。',
         ...(prosodyAuthorityNote ? ['韵律权威链已重新绑定到当前片段，可直接进入长期基线。'] : []),
         ...(projectStateContinuityGovernanceNote ? ['项目状态连续性治理已经再次确认，可直接进入长期基线。'] : []),
-        ...(continuityGovernanceNote ? ['same-her 连续性治理已经再次确认，可直接进入长期基线。'] : []),
+        ...(continuityGovernanceNote ? ['identity-continuity 连续性治理已经再次确认，可直接进入长期基线。'] : []),
         ...(relationshipCadenceGovernanceNote
           ? [isRestrainedCallbackCadenceNote(relationshipCadenceGovernanceNote)
               ? 'relationship cadence 治理已经再次确认，但当前仍停在 same-turn-if-invited measured-return 的同一条 callback line 上，应作为更克制的关系节律基线继续承接，而不是被扩写成一段新的外放靠近。'
@@ -346,7 +346,7 @@ export function buildSelfEvolutionBaselineAdoption(input: {
       '但历史中已经存在更晚的连续性快照。',
       ...(prosodyAuthorityNote ? ['韵律权威链已经就绪；当前仅因存在更新快照而继续观察。'] : []),
       ...(projectStateContinuityGovernanceNote ? ['项目状态连续性治理已经再次确认；当前仅因存在更新快照而继续观察。'] : []),
-      ...(continuityGovernanceNote ? ['same-her 连续性治理已经再次确认；当前仅因存在更新快照而继续观察。'] : []),
+      ...(continuityGovernanceNote ? ['identity-continuity 连续性治理已经再次确认；当前仅因存在更新快照而继续观察。'] : []),
       ...(relationshipCadenceGovernanceNote
         ? [isRestrainedCallbackCadenceNote(relationshipCadenceGovernanceNote)
             ? 'relationship cadence 治理已经再次确认，但当前仍停在 same-turn-if-invited measured-return 的同一条 callback line 上；当前仅因存在更新快照而继续观察这条更克制的关系节律是否持续稳住。'
@@ -357,13 +357,13 @@ export function buildSelfEvolutionBaselineAdoption(input: {
       ...(bodyContinuityGovernanceNote
         ? [bodyContinuityRendererRejoinWithoutBody
             ? survivingVisibleLane === 'face+lipsync+voice-only'
-              ? '显形回接失身态仍被保留为审计锚点；当前仅因存在更新快照而继续观察表情、口型、声音这条 same-her 生命线是否仍与同一段 living segment 对齐，并确认 body、motion 是否还没有重新接回这条表情口型声音线。'
+              ? '显形回接失身态仍被保留为审计锚点；当前仅因存在更新快照而继续观察表情、口型、声音这条 identity-continuity 生命线是否仍与同一段 living segment 对齐，并确认 body、motion 是否还没有重新接回这条表情口型声音线。'
               : survivingVisibleLane === 'motion+lipsync+voice-only'
-                ? '显形回接失身态仍被保留为审计锚点；当前仅因存在更新快照而继续观察动作、口型、声音这条 same-her 生命线是否仍与同一段 living segment 对齐，并确认 body、face 是否还没有重新接回这条动作口型声音线。'
+                ? '显形回接失身态仍被保留为审计锚点；当前仅因存在更新快照而继续观察动作、口型、声音这条 identity-continuity 生命线是否仍与同一段 living segment 对齐，并确认 body、face 是否还没有重新接回这条动作口型声音线。'
                 : survivingVisibleLane === 'face+lipsync-only'
-                  ? '显形回接失身态仍被保留为审计锚点；当前仅因存在更新快照而继续观察表情、口型这条 same-her 生命线是否仍与同一段 living segment 对齐，并确认 body、motion、voice 是否还没有重新接回这条表情口型线。'
+                  ? '显形回接失身态仍被保留为审计锚点；当前仅因存在更新快照而继续观察表情、口型这条 identity-continuity 生命线是否仍与同一段 living segment 对齐，并确认 body、motion、voice 是否还没有重新接回这条表情口型线。'
                   : survivingVisibleLane === 'motion+lipsync-only'
-                    ? '显形回接失身态仍被保留为审计锚点；当前仅因存在更新快照而继续观察动作、口型这条 same-her 生命线是否仍与同一段 living segment 对齐，并确认 body、face、voice 是否还没有重新接回这条动作口型线。'
+                    ? '显形回接失身态仍被保留为审计锚点；当前仅因存在更新快照而继续观察动作、口型这条 identity-continuity 生命线是否仍与同一段 living segment 对齐，并确认 body、face、voice 是否还没有重新接回这条动作口型线。'
                     : bodyContinuityRejoinSurface
                       ? `显形回接失身态仍被保留为审计锚点；当前仅因存在更新快照而继续观察 ${bodyContinuityRejoinSurface} 已回接但身体线未承接的这次可见恢复。`
                       : '显形回接失身态仍被保留为审计锚点；当前仅因存在更新快照而继续观察显形已回接但身体线未承接的这次可见恢复。'

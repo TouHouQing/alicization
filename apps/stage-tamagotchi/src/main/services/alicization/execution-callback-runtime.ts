@@ -10,6 +10,11 @@ import type {
 } from './agent-runtime'
 
 import {
+  alicizationFixedTemplateReplacement,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+
+import {
   alicizationTerminalTaskThreadStatuses,
   readExecutionOutcome,
   readLatestExecutionEvent,
@@ -117,6 +122,11 @@ interface AlicizationExecutionCallbackRuntimeOptions {
   } | null
   maxPendingCallbacks?: number
   maxThreadAgeMs?: number
+}
+
+function sanitizeExecutionCallbackProviderText(raw: unknown, maxChars = 320) {
+  const normalized = sanitizeAlicizationProviderFacingText(raw, maxChars)
+  return normalized && normalized !== alicizationFixedTemplateReplacement ? normalized : ''
 }
 
 type AlicizationExecutionCallbackProjectBriefing = NonNullable<AlicizationExecutionCallbackRuntimeOptions['projectBriefing']>
@@ -1177,47 +1187,59 @@ function buildExecutionCallbackProjectAwarenessLine(projectBriefing?: Alicizatio
       )
       ? strongerSameHerHoldDetail
       : sharedAwarenessLine
-  const awarenessLine = [
-    awarenessLead,
+  const structuredAwarenessLine = buildAlicizationProjectPreDialogueAwarenessLine({
     identity,
-    currentPhase ? `current phase=${currentPhase}` : '',
+    currentPhase,
+    latestLandedProgress: latestProgress,
+    primaryOpenLoop,
+    nextClosureTarget,
     sameHerSelfLine,
-    latestProgress ? `What has already landed is ${latestProgress}.` : '',
-    primaryOpenLoop ? `The still-open closure is ${primaryOpenLoop}.` : '',
-    nextClosureTarget ? `Next closure: ${nextClosureTarget}.` : '',
-  ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
+  })
+  const safeAwarenessLead = sanitizeAlicizationProviderFacingText(awarenessLead, 320, '')
+  const awarenessLine = [
+    safeAwarenessLead,
+    structuredAwarenessLine,
+  ].filter(Boolean).join(' | ').replace(/\s+/g, ' ').trim()
 
   return awarenessLine || projectStateSnapshot.preDialogueAwarenessLine || projectStateSnapshot.awarenessLine || null
 }
 
 function buildExecutionCallbackSystemBlock(
   items: AlicizationExecutionCallbackItem[],
-  projectAwareness: string | null,
   projectCarry: AlicizationExecutionCallbackProjectCarryDetails | null,
 ) {
   if (items.length === 0)
     return ''
 
+  const companionBriefing = sanitizeExecutionCallbackProviderText(projectCarry?.companionBriefingLine, 320)
+  const emotionalContext = sanitizeExecutionCallbackProviderText(projectCarry?.emotionalClosureSummary, 220)
+  const continuityCue = sanitizeExecutionCallbackProviderText(projectCarry?.continuityCue, 220)
+  const holdPolicy = sanitizeExecutionCallbackProviderText(projectCarry?.sameHerHoldDetail, 320)
+  const proactiveContinuityGap = sanitizeExecutionCallbackProviderText(projectCarry?.proactiveSameHerGap, 320)
+
   return [
     '[ALICIZATION_EXECUTION_CALLBACKS]',
     'Freshly settled runtime callbacks carried into this turn from the current conversation session.',
     'These are already executed results. Reference them naturally when relevant, but do not claim they re-ran in this turn.',
-    projectAwareness ? `project_awareness=${projectAwareness}` : '',
-    projectCarry?.companionBriefingLine ? `project_companion_briefing=${projectCarry.companionBriefingLine}` : '',
-    projectCarry?.emotionalClosureSummary ? `project_emotional_closure=${projectCarry.emotionalClosureSummary}` : '',
-    projectCarry?.continuityArcStage ? `project_continuity_arc_stage=${projectCarry.continuityArcStage}` : '',
-    projectCarry?.continuityRestraint ? `project_continuity_restraint=${projectCarry.continuityRestraint}` : '',
-    projectCarry?.sameHerHoldDetail ? `project_same_her_hold=${projectCarry.sameHerHoldDetail}` : '',
-    projectCarry?.continuityCue ? `project_continuity_cue=${projectCarry.continuityCue}` : '',
-    projectCarry?.continuityPreferredTiming ? `project_continuity_preferred_timing=${projectCarry.continuityPreferredTiming}` : '',
-    projectCarry?.continuityCadence ? `project_continuity_cadence=${projectCarry.continuityCadence}` : '',
-    projectCarry?.preferredBlinkCadence ? `project_preferred_blink_cadence=${projectCarry.preferredBlinkCadence}` : '',
-    projectCarry?.preferredGazeMode ? `project_preferred_gaze_mode=${projectCarry.preferredGazeMode}` : '',
-    projectCarry?.preferredPauseMode ? `project_pause_mode=${projectCarry.preferredPauseMode}` : '',
-    projectCarry?.preferredLipsyncMode ? `project_lipsync_mode=${projectCarry.preferredLipsyncMode}` : '',
-    projectCarry?.preferredVoiceMode ? `project_voice_mode=${projectCarry.preferredVoiceMode}` : '',
-    projectCarry?.preferredPacingMode ? `project_pacing_mode=${projectCarry.preferredPacingMode}` : '',
-    projectCarry?.proactiveSameHerGap ? `project_proactive_same_her_gap=${projectCarry.proactiveSameHerGap}` : '',
+    'callback_context=execution-result',
+    'short_term_owner=WorkingMemory',
+    'long_term_recall_owner=LongTermMemoryRecall',
+    'failure_surface=report_provider_tool_and_execution_failures_directly',
+    companionBriefing ? `callback_companion_briefing=${companionBriefing}` : '',
+    emotionalContext ? `callback_emotional_context=${emotionalContext}` : '',
+    projectCarry?.continuityArcStage ? `callback_continuity_arc_stage=${projectCarry.continuityArcStage}` : '',
+    projectCarry?.continuityRestraint ? `callback_continuity_restraint=${projectCarry.continuityRestraint}` : '',
+    holdPolicy ? `callback_hold_policy=${holdPolicy}` : '',
+    continuityCue ? `callback_continuity_cue=${continuityCue}` : '',
+    projectCarry?.continuityPreferredTiming ? `callback_continuity_preferred_timing=${projectCarry.continuityPreferredTiming}` : '',
+    projectCarry?.continuityCadence ? `callback_continuity_cadence=${projectCarry.continuityCadence}` : '',
+    projectCarry?.preferredBlinkCadence ? `callback_preferred_blink_cadence=${projectCarry.preferredBlinkCadence}` : '',
+    projectCarry?.preferredGazeMode ? `callback_preferred_gaze_mode=${projectCarry.preferredGazeMode}` : '',
+    projectCarry?.preferredPauseMode ? `callback_pause_mode=${projectCarry.preferredPauseMode}` : '',
+    projectCarry?.preferredLipsyncMode ? `callback_lipsync_mode=${projectCarry.preferredLipsyncMode}` : '',
+    projectCarry?.preferredVoiceMode ? `callback_voice_mode=${projectCarry.preferredVoiceMode}` : '',
+    projectCarry?.preferredPacingMode ? `callback_pacing_mode=${projectCarry.preferredPacingMode}` : '',
+    proactiveContinuityGap ? `callback_proactive_continuity_gap=${proactiveContinuityGap}` : '',
     ...items.map(item => [
       `- channel=${item.channel}`,
       `status=${item.status}`,
@@ -1288,8 +1310,12 @@ export function createAlicizationExecutionCallbackRuntime(options: AlicizationEx
       items: pendingItems,
       projectBriefing: options.projectBriefing ?? null,
     })
-    const projectAwareness = buildExecutionCallbackProjectAwarenessLine(resolvedProjectBriefing)
     const projectCarry = buildExecutionCallbackProjectCarryDetails(resolvedProjectBriefing)
+    const companionBriefing = sanitizeExecutionCallbackProviderText(projectCarry?.companionBriefingLine, 320)
+    const emotionalContext = sanitizeExecutionCallbackProviderText(projectCarry?.emotionalClosureSummary, 220)
+    const continuityCue = sanitizeExecutionCallbackProviderText(projectCarry?.continuityCue, 220)
+    const holdPolicy = sanitizeExecutionCallbackProviderText(projectCarry?.sameHerHoldDetail, 320)
+    const proactiveContinuityGap = sanitizeExecutionCallbackProviderText(projectCarry?.proactiveSameHerGap, 320)
 
     if (input.consume !== false) {
       surfacedCursorBySession.set(
@@ -1303,25 +1329,24 @@ export function createAlicizationExecutionCallbackRuntime(options: AlicizationEx
       callbacks: pendingItems.map(item => item.digest),
       continuitySignals: pendingItems.map(buildCallbackContinuitySignal),
       recallText: [
-        projectAwareness ? `execution_callback_project_awareness:${projectAwareness}` : '',
-        projectCarry?.companionBriefingLine ? `execution_callback_project_companion_briefing:${projectCarry.companionBriefingLine}` : '',
-        projectCarry?.emotionalClosureSummary ? `execution_callback_project_emotional_closure:${projectCarry.emotionalClosureSummary}` : '',
-        projectCarry?.continuityArcStage ? `execution_callback_project_continuity_arc_stage:${projectCarry.continuityArcStage}` : '',
-        projectCarry?.continuityRestraint ? `execution_callback_project_continuity_restraint:${projectCarry.continuityRestraint}` : '',
-        projectCarry?.sameHerHoldDetail ? `execution_callback_project_same_her_hold:${projectCarry.sameHerHoldDetail}` : '',
-        projectCarry?.continuityCue ? `execution_callback_project_continuity_cue:${projectCarry.continuityCue}` : '',
-        projectCarry?.continuityPreferredTiming ? `execution_callback_project_continuity_timing:${projectCarry.continuityPreferredTiming}` : '',
-        projectCarry?.continuityCadence ? `execution_callback_project_continuity_cadence:${projectCarry.continuityCadence}` : '',
-        projectCarry?.preferredBlinkCadence ? `execution_callback_project_preferred_blink:${projectCarry.preferredBlinkCadence}` : '',
-        projectCarry?.preferredGazeMode ? `execution_callback_project_preferred_gaze:${projectCarry.preferredGazeMode}` : '',
-        projectCarry?.preferredPauseMode ? `execution_callback_project_pause_mode:${projectCarry.preferredPauseMode}` : '',
-        projectCarry?.preferredLipsyncMode ? `execution_callback_project_lipsync_mode:${projectCarry.preferredLipsyncMode}` : '',
-        projectCarry?.preferredVoiceMode ? `execution_callback_project_voice_mode:${projectCarry.preferredVoiceMode}` : '',
-        projectCarry?.preferredPacingMode ? `execution_callback_project_pacing_mode:${projectCarry.preferredPacingMode}` : '',
-        projectCarry?.proactiveSameHerGap ? `execution_callback_project_proactive_same_her_gap:${projectCarry.proactiveSameHerGap}` : '',
+        companionBriefing ? `execution_callback_companion_briefing:${companionBriefing}` : '',
+        emotionalContext ? `execution_callback_emotional_context:${emotionalContext}` : '',
+        projectCarry?.continuityArcStage ? `execution_callback_continuity_arc_stage:${projectCarry.continuityArcStage}` : '',
+        projectCarry?.continuityRestraint ? `execution_callback_continuity_restraint:${projectCarry.continuityRestraint}` : '',
+        holdPolicy ? `execution_callback_hold_policy:${holdPolicy}` : '',
+        continuityCue ? `execution_callback_continuity_cue:${continuityCue}` : '',
+        projectCarry?.continuityPreferredTiming ? `execution_callback_continuity_timing:${projectCarry.continuityPreferredTiming}` : '',
+        projectCarry?.continuityCadence ? `execution_callback_continuity_cadence:${projectCarry.continuityCadence}` : '',
+        projectCarry?.preferredBlinkCadence ? `execution_callback_preferred_blink:${projectCarry.preferredBlinkCadence}` : '',
+        projectCarry?.preferredGazeMode ? `execution_callback_preferred_gaze:${projectCarry.preferredGazeMode}` : '',
+        projectCarry?.preferredPauseMode ? `execution_callback_pause_mode:${projectCarry.preferredPauseMode}` : '',
+        projectCarry?.preferredLipsyncMode ? `execution_callback_lipsync_mode:${projectCarry.preferredLipsyncMode}` : '',
+        projectCarry?.preferredVoiceMode ? `execution_callback_voice_mode:${projectCarry.preferredVoiceMode}` : '',
+        projectCarry?.preferredPacingMode ? `execution_callback_pacing_mode:${projectCarry.preferredPacingMode}` : '',
+        proactiveContinuityGap ? `execution_callback_proactive_continuity_gap:${proactiveContinuityGap}` : '',
         buildExecutionCallbackRecallText(pendingItems),
       ].filter(Boolean).join('\n'),
-      systemBlock: buildExecutionCallbackSystemBlock(pendingItems, projectAwareness, projectCarry),
+      systemBlock: buildExecutionCallbackSystemBlock(pendingItems, projectCarry),
     }
   }
 

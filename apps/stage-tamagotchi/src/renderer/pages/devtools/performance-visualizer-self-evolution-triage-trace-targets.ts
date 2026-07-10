@@ -43,7 +43,7 @@ export function buildSelfEvolutionTriageTraceTargets(
           'selected-trace-event',
         ]
       }
-      else if (card.detail === 'same-her continuity governance') {
+      else if (card.detail === 'identity-continuity continuity governance') {
         targets[card.id] = [
           'trace-consumption',
           'trace-details',

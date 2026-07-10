@@ -2,6 +2,8 @@ import type { AlicizationMindTurnGovernance } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
+import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
+
 import {
   isAlicizationThinProjectAwarenessLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
@@ -26,6 +28,14 @@ type CallbackSelfContinuityAuthority = NonNullable<NonNullable<AlicizationDigita
 type CallbackFollowUpAffordance = NonNullable<NonNullable<AlicizationDigitalLifeRuntimeSurface['memory']['memoryDeliberation']>['followUpAffordance']>
 type CallbackMemoryDeliberation = NonNullable<AlicizationDigitalLifeRuntimeSurface['memory']['memoryDeliberation']>
 type CallbackRuntimeDigest = NonNullable<AlicizationDigitalLifeRuntimeSurface['raw']>['runtimeDigest']
+
+function sanitizeCallbackCarryText(raw: unknown, maxChars = 420) {
+  return sanitizeAlicizationProviderFacingText(raw, maxChars, '') || null
+}
+
+function sanitizeCallbackCarryAnchor(raw: unknown, fallback = 'callback_thread') {
+  return sanitizeCallbackCarryText(raw, 220) ?? fallback
+}
 
 function sanitizeContinuityPreferredTiming(raw: unknown): CurrentConsciousProjectState['continuityPreferredTiming'] {
   const normalized = typeof raw === 'string' ? raw.trim() : ''
@@ -214,8 +224,8 @@ export function applyExecutionCallbackCarryToDigitalLifeRuntimeSurface(input: {
       ?? null
   const projectPreflightCue
     = typeof surfaceProjectState?.preflightSummary === 'string' && surfaceProjectState.preflightSummary.trim()
-      ? surfaceProjectState.preflightSummary
-      : (canonicalProjectState.preflightSummary ?? null)
+      ? sanitizeCallbackCarryText(surfaceProjectState.preflightSummary, 520)
+      : sanitizeCallbackCarryText(canonicalProjectState.preflightSummary ?? null, 520)
   const surfaceProjectAwarenessLine
     = typeof surfaceProjectState?.preDialogueAwarenessLine === 'string' ? surfaceProjectState.preDialogueAwarenessLine : null
   const surfaceCompanionBriefingLine
@@ -282,7 +292,7 @@ export function applyExecutionCallbackCarryToDigitalLifeRuntimeSurface(input: {
     || surfaceCompanionBriefingLine
     || surfaceProjectAwarenessLine
     : surfaceProjectAwarenessLine
-  const projectPreDialogueAwarenessCue = resolveAlicizationProjectPreDialogueAwarenessLine({
+  const projectPreDialogueAwarenessCue = sanitizeCallbackCarryText(resolveAlicizationProjectPreDialogueAwarenessLine({
     runtimeProjectState: {
       preDialogueAwarenessLine: preferredProjectAwarenessLine,
       awarenessLine:
@@ -304,31 +314,31 @@ export function applyExecutionCallbackCarryToDigitalLifeRuntimeSurface(input: {
       companionBriefingLine: null,
       preflightSummary: canonicalProjectState.preflightSummary ?? null,
     },
-  }) ?? projectPreflightCue
+  }) ?? projectPreflightCue, 720) ?? projectPreflightCue
   const projectIdentityCue
     = typeof surfaceProjectState?.identity === 'string' && surfaceProjectState.identity.trim()
-      ? surfaceProjectState.identity
-      : canonicalProjectState.identity
+      ? sanitizeCallbackCarryAnchor(surfaceProjectState.identity, 'project_identity')
+      : sanitizeCallbackCarryAnchor(canonicalProjectState.identity, 'project_identity')
   const currentPhaseCue
     = typeof surfaceProjectState?.currentPhase === 'string' && surfaceProjectState.currentPhase.trim()
-      ? surfaceProjectState.currentPhase
-      : canonicalProjectState.currentPhase
+      ? sanitizeCallbackCarryAnchor(surfaceProjectState.currentPhase, 'project_phase')
+      : sanitizeCallbackCarryAnchor(canonicalProjectState.currentPhase, 'project_phase')
   const projectProgressCue
     = typeof surfaceProjectState?.latestLandedProgress === 'string' && surfaceProjectState.latestLandedProgress.trim()
-      ? surfaceProjectState.latestLandedProgress
-      : canonicalProjectState.continuityProgressSummary
+      ? sanitizeCallbackCarryText(surfaceProjectState.latestLandedProgress, 420)
+      : sanitizeCallbackCarryText(canonicalProjectState.continuityProgressSummary
         ?? canonicalProjectState.memoryAnthropomorphismProgress[canonicalProjectState.memoryAnthropomorphismProgress.length - 1]
-        ?? null
+        ?? null, 420)
   const primaryOpenLoopCue
     = typeof surfaceProjectState?.primaryOpenLoop === 'string' && surfaceProjectState.primaryOpenLoop.trim()
-      ? surfaceProjectState.primaryOpenLoop
-      : (canonicalProjectState.openLoops[0] ?? null)
+      ? sanitizeCallbackCarryText(surfaceProjectState.primaryOpenLoop, 420)
+      : sanitizeCallbackCarryText(canonicalProjectState.openLoops[0] ?? null, 420)
   const nextClosureTargetCue
     = typeof runtimeDigestProjectState?.nextClosureTarget === 'string' && runtimeDigestProjectState.nextClosureTarget.trim()
-      ? runtimeDigestProjectState.nextClosureTarget
+      ? sanitizeCallbackCarryText(runtimeDigestProjectState.nextClosureTarget, 420)
       : typeof surfaceProjectState?.nextClosureTarget === 'string' && surfaceProjectState.nextClosureTarget.trim()
-        ? surfaceProjectState.nextClosureTarget
-        : canonicalProjectState.nextClosureTarget
+        ? sanitizeCallbackCarryText(surfaceProjectState.nextClosureTarget, 420)
+        : sanitizeCallbackCarryText(canonicalProjectState.nextClosureTarget, 420)
   const continuityArcStage
     = sanitizeContinuityArcStage(surfaceProjectState?.continuityArcStage)
       ?? sanitizeContinuityArcStage(runtimeDigestProjectState?.continuityArcStage)
@@ -348,25 +358,30 @@ export function applyExecutionCallbackCarryToDigitalLifeRuntimeSurface(input: {
   const preferredVoiceMode = sanitizePreferredVoiceMode(surfaceProjectState?.preferredVoiceMode)
   const preferredPacingMode = sanitizePreferredPacingMode(surfaceProjectState?.preferredPacingMode)
 
-  const openingClaim = carry.threadAnchor
-    ? `Bring the execution-callback result back onto ${carry.threadAnchor} as the current callback thread.`
-    : `Execution-callback carry: ${carry.summary}`
+  const callbackThreadAnchor = sanitizeCallbackCarryAnchor(carry.threadAnchor, 'callback_thread')
+  const callbackSummary = sanitizeCallbackCarryText(carry.summary, 420) ?? 'callback_result=available'
+  const openingClaim = [
+    'execution_callback=return',
+    `thread=${callbackThreadAnchor}`,
+    `summary=${callbackSummary}`,
+    'visibility=internal-structured',
+  ].join(' | ')
   const openingDirective = carry.carryMode === 'repair-before-closeness'
-    ? 'Keep the execution-callback connected to the current thread, let repair settle before closeness widens again, and avoid flattening it into a bare utility notification.'
+    ? 'callback_return_policy=repair_before_closeness | utility_notice=blocked'
     : carry.carryMode === 'lower-pressure'
-      ? 'Keep the execution-callback connected to the current thread, leave room before the next follow-up, and avoid flattening it into a bare utility notification.'
+      ? 'callback_return_policy=lower_pressure | utility_notice=blocked'
       : carry.carryMode === 'trust-warming'
-        ? 'Keep the execution-callback connected to the current thread and let warmed trust land quietly without breaking continuity.'
-        : 'Keep the execution-callback connected to the current thread rather than a detached callback notice.'
+        ? 'callback_return_policy=trust_warming | utility_notice=blocked'
+        : 'callback_return_policy=thread_connected | utility_notice=blocked'
   const supportingReality = uniqueList([
     projectPreflightCue ? `project preflight: ${projectPreflightCue}` : null,
     `project identity: ${projectIdentityCue}`,
     `current phase: ${currentPhaseCue}`,
     projectProgressCue ? `project progress: ${projectProgressCue}` : null,
-    carry.summary,
+    callbackSummary,
     surface.dialogue.answerCompiler?.supportingReality?.[0] ?? null,
     `execution-callback carry mode: ${carry.carryMode}`,
-    carry.threadAnchor ? `thread anchor: ${carry.threadAnchor}` : null,
+    `thread anchor: ${callbackThreadAnchor}`,
     primaryOpenLoopCue ? `phase-one open loop: ${primaryOpenLoopCue}` : null,
     nextClosureTargetCue ? `next closure target: ${nextClosureTargetCue}` : null,
   ])
@@ -374,15 +389,15 @@ export function applyExecutionCallbackCarryToDigitalLifeRuntimeSurface(input: {
     ? surface.memory.memoryDeliberation.followUpAffordance
     : {
         summary: carry.threadAnchor
-          ? `Keep the execution-callback on ${carry.threadAnchor} as the same living thread instead of flattening it into a detached result notice.`
-          : `Keep the execution-callback on the same living thread: ${carry.summary}`,
+          ? `execution_callback=follow_up | thread=${callbackThreadAnchor} | notice_shape=blocked_detached_result`
+          : `execution_callback=follow_up | thread=${callbackThreadAnchor} | summary=${callbackSummary}`,
         whyNow: carry.carryMode === 'repair-before-closeness'
-          ? 'The callback already landed, but the same-her return still needs repair-first room so the line can settle before closeness widens again.'
+          ? 'callback_landed=true | return_policy=repair_before_closeness | timing=next_open_window'
           : carry.carryMode === 'trust-warming'
-            ? 'The callback already landed, but the warmed trust carry still needs a gentle same-thread return before any wider closeness move.'
+            ? 'callback_landed=true | return_policy=trust_warming | timing=after_payoff'
             : carry.carryMode === 'lower-pressure'
-              ? 'The callback already landed, but the return still needs lower-pressure room so the same-her line does not collapse into utility cadence.'
-              : 'The callback already landed, and the same-her line still needs a thread-faithful return before continuity loosens.',
+              ? 'callback_landed=true | return_policy=lower_pressure | timing=next_open_window'
+              : 'callback_landed=true | return_policy=thread_connected | timing=after_payoff',
         intrusionRisk: carry.carryMode === 'trust-warming' ? 'low' as const : 'medium' as const,
         payoffDependency: 'requires-current-payoff' as const,
         preferredTiming:
@@ -393,12 +408,12 @@ export function applyExecutionCallbackCarryToDigitalLifeRuntimeSurface(input: {
               : 'after-payoff' as const,
       }
   const callbackRelationshipCarry = carry.carryMode === 'repair-before-closeness'
-    ? 'Stay repair-before-closeness on the same callback line until the room settles again.'
+    ? 'callback_relationship_carry=repair_before_closeness | timing=next_open_window'
     : carry.carryMode === 'lower-pressure'
-      ? 'Keep the callback on the same line and leave room before leaning closer again.'
+      ? 'callback_relationship_carry=lower_pressure | timing=next_open_window'
       : carry.carryMode === 'trust-warming'
-        ? 'Keep the callback on the same line and let the warmed trust land quietly before leaning closer again.'
-        : 'Keep the callback on the same line and preserve one continuous her through the return.'
+        ? 'callback_relationship_carry=trust_warming | timing=after_payoff'
+        : 'callback_relationship_carry=thread_connected | timing=after_payoff'
   const existingAuthority = surface.memory.personStateProjection?.selfContinuityAuthority ?? null
   const shouldPreserveCallbackRelationshipCarry = (
     !existingAuthority?.relationshipLine

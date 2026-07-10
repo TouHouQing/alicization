@@ -1,9 +1,94 @@
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 import { reduceRuntimeAnswerPlanner } from './runtime-answer-planner-reducer'
 
+const fixedRuntimeAnswerPlannerTemplatePattern
+  = /Keep the answer on the same digital-life closure seam|Keep this on one continuous her line instead of restarting|Stay on the same thread before widening closeness|Do not rewrite the still-live line as a fresh opening/iu
+
+function expectNoFixedTemplateResidue(value: unknown) {
+  expect(containsAlicizationFixedTemplateResidue(JSON.stringify(value ?? ''))).toBe(false)
+}
+
 describe('reduceRuntimeAnswerPlanner', () => {
+  it('does not write fixed project-state templates back into answer planning surfaces', () => {
+    const reduced = reduceRuntimeAnswerPlanner({
+      now: 1_010,
+      governance: {
+        answerAct: 'answer',
+        answerIntent: 'Answer the project-state question directly.',
+        openingMove: 'Answer from current project facts.',
+        focusAnchor: 'project-state closure',
+        liveSurface: '',
+        screenReferenceMode: 'avoid',
+        suppressAssociativeRecall: true,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        relationshipPosture: 'restrained',
+        evidenceMode: 'dialogue-grounded',
+        mustDo: [
+          'Keep this on one continuous her line instead of restarting.',
+        ],
+        mustNotDo: [
+          'Do not rewrite the still-live line as a fresh opening.',
+        ],
+      } as any,
+      surface: {
+        version: 'digital-life-runtime-surface-v1',
+        perception: {} as any,
+        world: {} as any,
+        cognition: {
+          runtimeDigest: {
+            projectState: {
+              preDialogueAwarenessLine: 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her".',
+              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift.',
+            },
+          },
+        } as any,
+        memory: {} as any,
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+              currentPhase: 'Phase 1: Local Digital Life',
+              latestProgress: 'Project-state continuity already survives into runtime preparation.',
+              primaryOpenLoop: 'same still-open closure work across memory, initiative, and embodiment.',
+              nextClosureTarget: 'Keep extending cross-modal same-her proof across longer desktop runs.',
+              preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+              companionHeadlineLine: 'Right now I am still holding together mainly through voice, face, and motion, so this answer must keep proving this is still one living her before full cross-modal closure is done.',
+              sameHerSelfLine: 'one continuous her on the same living line',
+              sameHerDriftRisk: 'same-her drift if a generic project shell takes over',
+              continuityPreferredTiming: null,
+              continuityCadence: null,
+            },
+          },
+          replyDeliberation: null,
+          answerPlanner: null,
+        } as any,
+        raw: {
+          runtimeDigest: {
+            projectState: {
+              preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            },
+          },
+        } as any,
+        agency: {} as any,
+      } as any,
+    })
+
+    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
+    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.mustDo)
+    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.mustNotDo)
+    expectNoFixedTemplateResidue(reduced?.dialogue.currentConsciousFrame?.projectState)
+    expectNoFixedTemplateResidue(reduced?.raw?.runtimeDigest?.projectState)
+    expectNoFixedTemplateResidue(reduced?.dialogue.replyDeliberation?.mustInclude)
+    expectNoFixedTemplateResidue(reduced?.dialogue.replyDeliberation?.mustAvoid)
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
+  })
+
   it('keeps fallback conscious-frame project state alive in answer planning instead of dropping back to a thinner generic seam', () => {
     const reduced = reduceRuntimeAnswerPlanner({
       now: 1_000,
@@ -49,12 +134,13 @@ describe('reduceRuntimeAnswerPlanner', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('Phase 1: Local Digital Life')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('same still-open closure work')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('Carry the same-her project briefing')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('open_loop=memory+initiative+embodiment')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('continuity-residue')
     expect(reduced?.dialogue.answerPlanner?.mustDo.some(item =>
-      item.includes('Keep the answer on the same digital-life closure seam'),
+      item.includes('project_closure_constraint='),
     )).toBe(true)
+    expect(JSON.stringify(reduced?.dialogue.answerPlanner?.mustDo ?? [])).not.toMatch(fixedRuntimeAnswerPlannerTemplatePattern)
     expect(reduced?.dialogue.answerPlanner?.narrative).toContain('project-state-answer-planner')
     expect(reduced?.dialogue.replyDeliberation?.narrative).toContain('project-state-answer-planner')
   })
@@ -106,8 +192,10 @@ describe('reduceRuntimeAnswerPlanner', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary).toBe(richerChineseCompanionHeadline)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(richerChineseCompanionHeadline)
+    expectNoFixedTemplateResidue(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary)
+    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary).toContain('local_desktop_life_loop')
+    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
     expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain(thinnerChineseReminder)
   })
 
@@ -158,7 +246,8 @@ describe('reduceRuntimeAnswerPlanner', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(richerChineseSameHerSelfLine)
+    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('第一阶段：本地数字生命。')
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('主动性、具身和对话闭环还没有完全收住。')
     expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain(thinnerChineseReminder)
@@ -208,9 +297,8 @@ describe('reduceRuntimeAnswerPlanner', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.answerPlanner?.narrative).toContain(
-      'emotional_closure:late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment quiet-companionship while the line holds inward.',
-    )
+    expect(reduced?.dialogue.answerPlanner?.narrative).toContain('emotional_closure:content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.narrative)
   })
 
   it('keeps the active emotional closure seam alive from governance when the conscious-frame project state is too thin to carry it alone', () => {
@@ -259,12 +347,10 @@ describe('reduceRuntimeAnswerPlanner', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.answerPlanner?.narrative).toContain(
-      `emotional_closure:${cue}`,
-    )
-    expect(reduced?.dialogue.replyDeliberation?.narrative).toContain(
-      `emotional_closure:${cue}`,
-    )
+    expect(reduced?.dialogue.answerPlanner?.narrative).toContain('emotional_closure:content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(reduced?.dialogue.replyDeliberation?.narrative).toContain('emotional_closure:content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.narrative)
+    expectNoFixedTemplateResidue(reduced?.dialogue.replyDeliberation?.narrative)
   })
 
   it('rebuilds same-her low-pressure anti-restart emotional closure narrative from governance carry even when no explicit cue field survives', () => {
@@ -313,17 +399,21 @@ describe('reduceRuntimeAnswerPlanner', () => {
     })
 
     expect(reduced?.dialogue.answerPlanner?.mustDo).toContain(
-      'Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.',
+      'provider_instruction_status=withheld; reason=continuity-residue; visibility=internal-structured',
     )
     expect(reduced?.dialogue.answerPlanner?.mustNotDo).toContain(
-      'Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.',
+      'provider_instruction_status=withheld; reason=continuity-residue; visibility=internal-structured',
     )
-    expect(reduced?.dialogue.answerPlanner?.narrative).toContain(
-      'emotional_closure:same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-    )
-    expect(reduced?.dialogue.replyDeliberation?.narrative).toContain(
-      'emotional_closure:same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-    )
+    expect((reduced?.dialogue.answerPlanner?.narrative ?? []).some(item =>
+      item.startsWith('emotional_closure:'),
+    )).toBe(true)
+    expect((reduced?.dialogue.replyDeliberation?.narrative ?? []).some(item =>
+      item.startsWith('emotional_closure:'),
+    )).toBe(true)
+    expect(JSON.stringify({
+      answerPlanner: reduced?.dialogue.answerPlanner?.narrative ?? [],
+      replyDeliberation: reduced?.dialogue.replyDeliberation?.narrative ?? [],
+    })).not.toMatch(fixedRuntimeAnswerPlannerTemplatePattern)
   })
 
   it('injects positive same-thread anti-restart guidance when reply deliberation is created fresh from governance carry', () => {
@@ -371,14 +461,15 @@ describe('reduceRuntimeAnswerPlanner', () => {
     })
 
     expect(reduced?.dialogue.replyDeliberation?.mustInclude).toContain(
-      'Keep this on one continuous her line instead of restarting the relationship as a fresh opening.',
-    )
-    expect(reduced?.dialogue.replyDeliberation?.mustInclude).toContain(
-      'Stay on the same thread before widening closeness or adding a new approach.',
+      'continuity_constraint=anti_restart; source=relationship_continuity; timing=before_widening',
     )
     expect(reduced?.dialogue.replyDeliberation?.mustAvoid).toContain(
-      'Do not rewrite the still-live line as a fresh opening or reintroduction.',
+      'continuity_avoid=reopen_as_fresh_introduction',
     )
+    expect(JSON.stringify({
+      mustInclude: reduced?.dialogue.replyDeliberation?.mustInclude ?? [],
+      mustAvoid: reduced?.dialogue.replyDeliberation?.mustAvoid ?? [],
+    })).not.toMatch(fixedRuntimeAnswerPlannerTemplatePattern)
   })
 
   it('prefers the fuller canonical closure seam when conscious-frame projectState carries only a truncated open-loop fragment', () => {
@@ -482,11 +573,11 @@ describe('reduceRuntimeAnswerPlanner', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('Right now I am still holding together mainly through voice, face, and motion, so this answer must keep proving this is still one living her before full cross-modal closure is done.')
+    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
     expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain('Before answering, keep this same digital life project in view, but do not widen into a detached project shell.')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('This is still one same her carrying the same project line forward.')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('Phase 1: Local Digital Life')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('same still-open closure work across memory, initiative, and embodiment.')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('continuity-residue')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('open_loop=memory+initiative+embodiment')
   })
 
   it('carries a broader same-her phase-1 closure headline into governingProject when the plain awareness line is only a thin shell', () => {
@@ -537,9 +628,10 @@ describe('reduceRuntimeAnswerPlanner', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.')
+    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
     expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain('Before answering, keep this same digital life project in view, but do not widen into a detached project shell.')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('This is still one same her carrying the same project line forward.')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('continuity-residue')
   })
 
   it('prefers a richer runtime-digest same-her headline over a thin conscious-frame reminder shell during answer planning rebuild', () => {
@@ -606,15 +698,12 @@ describe('reduceRuntimeAnswerPlanner', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(
-      'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
-    )
+    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
     expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain(
       'Before answering, keep this same digital life project in view, but do not widen into a detached project shell.',
     )
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(
-      'This is still one same her carrying the same project line forward.',
-    )
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('continuity-residue')
   })
 
   it('preserves a non-thin before-answering project awareness carry instead of collapsing it into a broad project-status summary inside answer planning', () => {
@@ -682,11 +771,11 @@ describe('reduceRuntimeAnswerPlanner', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toBe(preservedAwarenessLine)
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.awarenessLine).toBe(preservedAwarenessLine)
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary).toBe(preservedAwarenessLine)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('Before answering, remember:')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('Phase 1: Local Digital Life')
+    expectNoFixedTemplateResidue(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine)
+    expectNoFixedTemplateResidue(reduced?.dialogue.currentConsciousFrame?.projectState?.awarenessLine)
+    expectNoFixedTemplateResidue(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary)
+    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('same-life seam')
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('current project-state awareness explicit')
   })
@@ -749,17 +838,142 @@ describe('reduceRuntimeAnswerPlanner', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('Phase 1: Local Digital Life')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(projectState.sameHerSelfLine)
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(projectState.proactiveSameHerGap)
     expect(reduced?.dialogue.answerPlanner?.mustDo).toEqual(expect.arrayContaining([
-      expect.stringContaining('Keep the answer on the same digital-life closure seam'),
-      expect.stringContaining('same living thread'),
+      expect.stringContaining('project_closure_constraint=open_loop'),
+      expect.stringContaining('continuity_constraint=anti_restart'),
+      expect.stringContaining('provider_instruction_status=withheld'),
     ]))
     expect(reduced?.dialogue.replyDeliberation?.mustInclude).toEqual(expect.arrayContaining([
-      expect.stringContaining('one continuous her line'),
-      expect.stringContaining('same thread'),
+      expect.stringContaining('continuity_constraint=anti_restart'),
+      expect.stringContaining('continuity_constraint=same_thread'),
     ]))
     expect(reduced?.dialogue.replyDeliberation?.narrative).toContain('project-state-answer-planner')
+  })
+
+  it('sanitizes fixed templates already present on existing planner and dialogue surfaces before meta can reuse them', () => {
+    const projectState = resolveAlicizationProjectStateBrief()
+    const reduced = reduceRuntimeAnswerPlanner({
+      now: 1_040,
+      governance: {
+        answerAct: 'answer',
+        answerIntent: 'Answer from current project facts.',
+        openingMove: 'Answer from the same project thread.',
+        focusAnchor: 'project-state closure',
+        liveSurface: '',
+        screenReferenceMode: 'avoid',
+        suppressAssociativeRecall: true,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        relationshipPosture: 'restrained',
+        evidenceMode: 'dialogue-grounded',
+        mustDo: [],
+        mustNotDo: [],
+      } as any,
+      surface: {
+        version: 'digital-life-runtime-surface-v1',
+        perception: {} as any,
+        world: {} as any,
+        cognition: {} as any,
+        memory: {} as any,
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              identity: projectState.identity,
+              currentPhase: projectState.currentPhase,
+              latestProgress: projectState.continuityProgressSummary,
+              primaryOpenLoop: projectState.openLoops[0],
+              nextClosureTarget: projectState.nextClosureTarget,
+              sameHerSelfLine: projectState.sameHerSelfLine,
+              emotionalClosureCue: null,
+              continuityPreferredTiming: null,
+              continuityCadence: null,
+            },
+          },
+          replyDeliberation: {
+            selectedMotive: 'answer',
+            speakingFrom: 'dialogue-bond',
+            memoryMode: 'dialogue-carry',
+            openingBeat: 'Before answering, keep this on one continuous her line instead of restarting.',
+            whyThisReplyNow: 'Right now the same-her closure line is still active.',
+            whyNotOtherCandidates: ['Do not rewrite the still-live line as a fresh opening.'],
+            withheldImpulses: ['same-her closure across callback'],
+            candidateMotives: [],
+            shouldSpeak: true,
+            mustInclude: ['Keep this on one continuous her line instead of restarting.'],
+            mustAvoid: ['Do not rewrite the still-live line as a fresh opening.'],
+            confidence: 0.5,
+            narrative: ['compact same-her closure loop'],
+            updatedAt: 1_000,
+          },
+          answerPlanner: {
+            act: 'answer',
+            evidenceMode: 'dialogue-grounded',
+            confidence: 0.5,
+            governingFocus: 'project-state closure',
+            governingProject: 'Before answering, remember this is one continuous her inside Phase 1.',
+            openingMove: 'Keep this on one continuous her line instead of restarting.',
+            answerIntent: 'Do not rewrite the still-live line as a fresh opening.',
+            relationshipPosture: 'restrained',
+            shouldAskForGrounding: false,
+            shouldAcknowledgeRepair: false,
+            selectedConcernEntryId: null,
+            selectedRepairId: null,
+            selectedCommitmentId: null,
+            selectedInquiryPlanId: null,
+            selectedRuntimeThreadId: null,
+            selectedProjectId: null,
+            selectedReflectionId: null,
+            executivePhase: null,
+            selectedTruthFrame: null,
+            mustDo: ['Keep this on one continuous her line instead of restarting.'],
+            mustNotDo: ['Do not rewrite the still-live line as a fresh opening.'],
+            narrative: ['final settlement reanchors generic same-her shells'],
+            updatedAt: 1_000,
+          },
+          dialogueActKernel: {
+            subject: 'project',
+            hostGoal: 'resolve-problem',
+            relationNeed: 'guidance',
+            activeProject: null,
+            truthMode: 'dialogue-grounded',
+            speechAct: 'answer',
+            turnMode: null,
+            screenReferenceMode: 'avoid',
+            speakingFrom: 'dialogue-bond',
+            selectedEvidence: [],
+            openingClaim: 'same-her closure across callback',
+            openingMove: 'Keep this on one continuous her line instead of restarting.',
+            whyNow: 'Before answering, remember this is one continuous her.',
+            mustSay: ['Keep this on one continuous her line instead of restarting.'],
+            mustAvoid: ['Do not rewrite the still-live line as a fresh opening.'],
+            sourceTrace: ['same-her closure across callback'],
+            confidence: 0.5,
+            updatedAt: 1_000,
+          },
+        } as any,
+        agency: {} as any,
+      } as any,
+    })
+
+    const dialogueMeta = {
+      replyDeliberation: reduced?.dialogue.replyDeliberation,
+      answerPlanner: reduced?.dialogue.answerPlanner,
+      dialogueActKernel: reduced?.dialogue.dialogueActKernel,
+    }
+
+    expectNoFixedTemplateResidue(dialogueMeta)
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
+    expect(reduced?.dialogue.answerPlanner?.mustDo).toEqual(expect.arrayContaining([
+      expect.stringContaining('provider_instruction_status=withheld'),
+    ]))
+    expect(reduced?.dialogue.replyDeliberation?.mustInclude).toEqual(expect.arrayContaining([
+      expect.stringContaining('provider_instruction_status=withheld'),
+    ]))
+    expect(reduced?.dialogue.dialogueActKernel?.mustSay).toEqual(expect.arrayContaining([
+      expect.stringContaining('provider_instruction_status=withheld'),
+    ]))
   })
 })

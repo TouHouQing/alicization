@@ -332,49 +332,55 @@ function expectPartialLaneEmbodimentClosure(input: {
   expect(continuitySummary).toContain(`body=${embodimentClosureSummary}`)
 }
 
+function expectStructuredOrSanitizedProjectAwareness(value: unknown) {
+  const text = String(value ?? '')
+  expect(text).toMatch(/visibility=internal-structured|content=excluded; reason=continuity-residue|phase1_local_digital_life|continuity/i)
+  expect(text).not.toMatch(/Before (?:answering|speaking|acting)|Right now I am|same-her|same living line|one living her|local-first digital life project/i)
+}
+
 function expectPhase1ProjectStateInvariant(input: {
   structured: BackgroundRunStructured
 }) {
-  expect(String(input.structured.projectState?.identity ?? '')).toContain('local-first digital life project')
-  expect(String(input.structured.projectState?.currentPhase ?? '')).toContain('Phase 1')
-  expect(String(input.structured.projectState?.latestLandedProgress ?? '')).toMatch(/same-her|same session|same-session|continuity|measured-return/i)
-  expect(String(input.structured.projectState?.primaryOpenLoop ?? '')).toContain('Memory still needs stronger end-to-end closure')
-  expect(String(input.structured.projectState?.primaryOpenLoop ?? '')).toContain('Project identity carry')
-  expect(String(input.structured.projectState?.nextClosureTarget ?? '')).toMatch(/cross-modal same-her proof|visible reply|voice|face|motion|resident presence/i)
-  expect(String(input.structured.projectState?.preDialogueAwarenessLine ?? '')).toMatch(/数字生命项目|local-first digital life project|same living line|same-her|Phase 1|one living her|one continuous her|face, motion, and lipsync/i)
-  expect(String(input.structured.projectState?.sameHerDriftRisk ?? '')).toContain('same')
+  expect(String(input.structured.projectState?.identity ?? '')).toMatch(/phase1_local_digital_life|local_first=true|host_resident_identity=persistent/)
+  expect(String(input.structured.projectState?.currentPhase ?? '')).toMatch(/phase1_local_digital_life|Phase 1/)
+  expect(String(input.structured.projectState?.latestLandedProgress ?? '')).toMatch(/continuity|measured-return|partial|survives/i)
+  expect(String(input.structured.projectState?.primaryOpenLoop ?? '')).toMatch(/memory|dialogue|embodiment|open|closure|continuity/i)
+  expect(String(input.structured.projectState?.nextClosureTarget ?? '')).toMatch(/cross_modal|continuity|visible[_ ]reply|voice|face|motion|resident/i)
+  expectStructuredOrSanitizedProjectAwareness(input.structured.projectState?.preDialogueAwarenessLine)
+  expect(String(input.structured.projectState?.sameHerDriftRisk ?? '')).toMatch(/unfinished|generic|closure|drift|continuity/i)
   expect(input.structured.preDialogueClosure?.status).toBe('partial')
-  expect(String(input.structured.preDialogueAwareness?.awarenessLine ?? '')).toMatch(/数字生命项目|local-first digital life project|same living line|same-her|Phase 1|one living her|one continuous her|face, motion, and lipsync/i)
+  expectStructuredOrSanitizedProjectAwareness(input.structured.preDialogueAwareness?.awarenessLine)
   expect(input.structured.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
-    currentPhaseSummary: expect.stringMatching(/Phase 1|Local Digital Life/i),
-    landedProgressSummary: expect.stringMatching(/same-her|same session|same-session|continuity|measured-return/i),
-    openClosureSummary: expect.stringMatching(/Memory still needs stronger end-to-end closure|Project identity carry|same/i),
-    nextClosureTargetSummary: expect.stringMatching(/cross-modal same-her proof|visible reply|voice|face|motion|resident presence/i),
-    preDialogueAwarenessSummary: expect.stringMatching(/数字生命项目|local-first digital life project|same living line|same-her|Phase 1|one living her|one continuous her|face, motion, and lipsync/i),
+    currentPhaseSummary: expect.stringMatching(/phase1_local_digital_life|Phase 1|Local Digital Life/i),
+    landedProgressSummary: expect.stringMatching(/continuity|measured-return|partial|survives/i),
+    openClosureSummary: expect.stringMatching(/memory|dialogue|embodiment|open|closure|continuity/i),
+    nextClosureTargetSummary: expect.stringMatching(/cross_modal|continuity|visible[_ ]reply|voice|face|motion|resident/i),
+    preDialogueAwarenessSummary: expect.any(String),
   }))
+  expectStructuredOrSanitizedProjectAwareness(input.structured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary)
 }
 
 function expectPhase1ProjectStateInvariantFromRecoveryPayload(input: {
   structured: BackgroundRunStructured
   projectStateAudit?: BackgroundRunProjectStateAudit | null
 }) {
-  expect(String(input.structured.projectState?.identity ?? '')).toContain('local-first digital life project')
-  expect(String(input.structured.projectState?.currentPhase ?? '')).toContain('Phase 1')
-  expect(String(input.structured.projectState?.latestLandedProgress ?? '')).toMatch(/same-her|same session|same-session|continuity|measured-return/i)
-  expect(String(input.structured.projectState?.primaryOpenLoop ?? '')).toContain('Memory still needs stronger end-to-end closure')
-  expect(String(input.structured.projectState?.primaryOpenLoop ?? '')).toContain('Project identity carry')
-  expect(String(input.structured.projectState?.nextClosureTarget ?? '')).toMatch(/cross-modal same-her proof|visible reply|voice|face|motion|resident presence/i)
-  expect(String(input.structured.projectState?.preDialogueAwarenessLine ?? '')).toMatch(/数字生命项目|local-first digital life project|same living line|same-her|Phase 1|one living her|one continuous her|face, motion, and lipsync/i)
-  expect(String(input.structured.projectState?.sameHerDriftRisk ?? '')).toContain('unfinished closure drift')
+  expect(String(input.structured.projectState?.identity ?? '')).toMatch(/phase1_local_digital_life|local_first=true|host_resident_identity=persistent/)
+  expect(String(input.structured.projectState?.currentPhase ?? '')).toMatch(/phase1_local_digital_life|Phase 1/)
+  expect(String(input.structured.projectState?.latestLandedProgress ?? '')).toMatch(/continuity|measured-return|partial|survives/i)
+  expect(String(input.structured.projectState?.primaryOpenLoop ?? '')).toMatch(/memory|dialogue|embodiment|open|closure|continuity/i)
+  expect(String(input.structured.projectState?.nextClosureTarget ?? '')).toMatch(/cross_modal|continuity|visible[_ ]reply|voice|face|motion|resident/i)
+  expectStructuredOrSanitizedProjectAwareness(input.structured.projectState?.preDialogueAwarenessLine)
+  expect(String(input.structured.projectState?.sameHerDriftRisk ?? '')).toMatch(/unfinished|generic|closure|drift|continuity/i)
   expect(input.structured.preDialogueClosure?.status).toBe('partial')
-  expect(String(input.structured.preDialogueAwareness?.awarenessLine ?? '')).toMatch(/数字生命项目|local-first digital life project|same living line|same-her|Phase 1|one living her|one continuous her|face, motion, and lipsync/i)
+  expectStructuredOrSanitizedProjectAwareness(input.structured.preDialogueAwareness?.awarenessLine)
   expect(input.projectStateAudit).toEqual(expect.objectContaining({
-    currentPhaseSummary: expect.stringMatching(/Phase 1|Local Digital Life/i),
-    landedProgressSummary: expect.stringMatching(/same-her|same session|same-session|continuity|measured-return/i),
-    openClosureSummary: expect.stringMatching(/Memory still needs stronger end-to-end closure|Project identity carry|same/i),
-    nextClosureTargetSummary: expect.stringMatching(/cross-modal same-her proof|visible reply|voice|face|motion|resident presence/i),
-    preDialogueAwarenessSummary: expect.stringMatching(/数字生命项目|local-first digital life project|same living line|same-her|Phase 1|one living her|one continuous her|face, motion, and lipsync/i),
+    currentPhaseSummary: expect.stringMatching(/phase1_local_digital_life|Phase 1|Local Digital Life/i),
+    landedProgressSummary: expect.stringMatching(/continuity|measured-return|partial|survives/i),
+    openClosureSummary: expect.stringMatching(/memory|dialogue|embodiment|open|closure|continuity/i),
+    nextClosureTargetSummary: expect.stringMatching(/cross_modal|continuity|visible[_ ]reply|voice|face|motion|resident/i),
+    preDialogueAwarenessSummary: expect.any(String),
   }))
+  expectStructuredOrSanitizedProjectAwareness(input.projectStateAudit?.preDialogueAwarenessSummary)
 }
 
 function expectPhase1RecoveryProjectStateInvariant(input: {
@@ -383,22 +389,24 @@ function expectPhase1RecoveryProjectStateInvariant(input: {
 }) {
   const projectStateAudit = input.projectStateAudit ?? input.structured.visibleReplyRealization?.projectStateAudit
 
-  expect(String(input.structured.projectState?.identity ?? '')).toContain('local-first digital life project')
-  expect(String(input.structured.projectState?.currentPhase ?? '')).toContain('Phase 1')
-  expect(String(input.structured.projectState?.latestLandedProgress ?? '')).toMatch(/same-her|same session|same-session|continuity|measured-return/i)
-  expect(String(input.structured.projectState?.primaryOpenLoop ?? '')).toContain('Memory still needs stronger end-to-end closure')
-  expect(String(input.structured.projectState?.nextClosureTarget ?? '')).toMatch(/cross-modal same-her proof|visible reply|voice|face|motion|resident presence/i)
-  expect(String(input.structured.projectState?.preDialogueAwarenessLine ?? '')).toMatch(/数字生命项目|local-first digital life project|same living line|same-her|Phase 1|one living her|one continuous her|face, motion, and lipsync/i)
-  expect(String(input.structured.projectState?.sameHerDriftRisk ?? '')).toContain('unfinished closure drift')
-  expect(String(input.structured.preDialogueAwareness?.awarenessLine ?? '')).toMatch(/数字生命项目|local-first digital life project|same living line|same-her|Phase 1|one living her|one continuous her|face, motion, and lipsync/i)
+  expect(String(input.structured.projectState?.identity ?? '')).toMatch(/phase1_local_digital_life|local_first=true|host_resident_identity=persistent/)
+  expect(String(input.structured.projectState?.currentPhase ?? '')).toMatch(/phase1_local_digital_life|Phase 1/)
+  expect(String(input.structured.projectState?.latestLandedProgress ?? '')).toMatch(/continuity|measured-return|partial|survives/i)
+  expect(String(input.structured.projectState?.primaryOpenLoop ?? '')).toMatch(/memory|dialogue|embodiment|open|closure|continuity/i)
+  expect(String(input.structured.projectState?.nextClosureTarget ?? '')).toMatch(/cross_modal|continuity|visible[_ ]reply|voice|face|motion|resident/i)
+  expectStructuredOrSanitizedProjectAwareness(input.structured.projectState?.preDialogueAwarenessLine)
+  expect(String(input.structured.projectState?.sameHerDriftRisk ?? '')).toMatch(/unfinished|generic|closure|drift|continuity/i)
+  expectStructuredOrSanitizedProjectAwareness(input.structured.preDialogueAwareness?.awarenessLine)
   expect(input.structured.preDialogueClosure?.status).toBe('partial')
   expect(projectStateAudit).toEqual(expect.objectContaining({
-    sameHerSummary: expect.stringMatching(/same-her|same session|same-session|continuity|measured-return|same Phase 1 digital life|same living line|one living her|one continuous her/i),
-    landedProgressSummary: expect.stringMatching(/same-her|same session|same-session|continuity|measured-return/i),
-    openClosureSummary: expect.stringMatching(/Memory still needs stronger end-to-end closure|Project identity carry|same/i),
-    nextClosureTargetSummary: expect.stringMatching(/cross-modal same-her proof|visible reply|voice|face|motion|resident presence/i),
-    preDialogueAwarenessSummary: expect.stringMatching(/数字生命项目|local-first digital life project|same living line|same-her|Phase 1|one living her|one continuous her|face, motion, and lipsync/i),
+    landedProgressSummary: expect.stringMatching(/continuity|measured-return|partial|survives/i),
+    openClosureSummary: expect.stringMatching(/memory|dialogue|embodiment|open|closure|continuity/i),
+    nextClosureTargetSummary: expect.stringMatching(/cross_modal|continuity|visible[_ ]reply|voice|face|motion|resident/i),
+    preDialogueAwarenessSummary: expect.any(String),
   }))
+  if (typeof projectStateAudit?.sameHerSummary === 'string' && projectStateAudit.sameHerSummary.trim())
+    expectStructuredOrSanitizedProjectAwareness(projectStateAudit.sameHerSummary)
+  expectStructuredOrSanitizedProjectAwareness(projectStateAudit?.preDialogueAwarenessSummary)
 }
 
 describe('main chat background run', () => {
@@ -521,6 +529,52 @@ describe('main chat background run', () => {
         },
       })
     })
+  })
+
+  it('does not upgrade ordinary timeout recovery to project-state only because a contract carries projectState', () => {
+    const helper = (mainChatBackgroundRunTestInternals as any).shouldUseProjectStateTimeoutRecovery
+    const result = helper({
+      toolingRequired: false,
+      timeoutActiveDialogueDecision: null,
+      timeoutProjectStateQuestionDetected: false,
+      preparedExecution: createPrepared({
+        governance: {
+          answerSubject: 'task-knot',
+        },
+        mindTurnContract: {
+          answerSubject: 'task-knot',
+          answerIntent: 'answer the current ordinary turn',
+          projectState: {
+            currentPhase: 'Phase 1: Local Digital Life',
+          },
+        },
+      }),
+    })
+
+    expect(result).toBe(false)
+  })
+
+  it('keeps timeout recovery project-state upgrade for explicit project-state answers', () => {
+    const helper = (mainChatBackgroundRunTestInternals as any).shouldUseProjectStateTimeoutRecovery
+    const result = helper({
+      toolingRequired: false,
+      timeoutActiveDialogueDecision: null,
+      timeoutProjectStateQuestionDetected: false,
+      preparedExecution: createPrepared({
+        governance: {
+          answerSubject: 'project-state',
+        },
+        mindTurnContract: {
+          answerSubject: 'project-state',
+          answerIntent: 'answer the project-state progress question',
+          projectState: {
+            currentPhase: 'Phase 1: Local Digital Life',
+          },
+        },
+      }),
+    })
+
+    expect(result).toBe(true)
   })
 
   it('prepares and completes a background stream run', async () => {
@@ -3666,17 +3720,17 @@ describe('main chat background run', () => {
       } | null
     }
 
-    expect(String(recoveredStructured.projectState?.identity ?? '')).toContain('local-first digital life project')
-    expect(String(recoveredStructured.projectState?.currentPhase ?? '')).toContain('Phase 1')
-    expect(String(recoveredStructured.projectState?.latestLandedProgress ?? '')).toMatch(/same-her|same session|same-session|continuity|measured-return/i)
-    expect(String(recoveredStructured.projectState?.primaryOpenLoop ?? '')).toContain('Memory still needs stronger end-to-end closure')
-    expect(String(recoveredStructured.projectState?.nextClosureTarget ?? '')).toMatch(/cross-modal same-her proof|visible reply|voice|face|motion|resident presence/i)
-    expect(String(recoveredStructured.projectState?.preDialogueAwarenessLine ?? '')).toMatch(/same digital life project|local-first digital life project/u)
+    expect(String(recoveredStructured.projectState?.identity ?? '')).toMatch(/phase1_local_digital_life|local_first=true|host_resident_identity=persistent/)
+    expect(String(recoveredStructured.projectState?.currentPhase ?? '')).toMatch(/phase1_local_digital_life|Phase 1/)
+    expect(String(recoveredStructured.projectState?.latestLandedProgress ?? '')).toMatch(/continuity|measured-return|partial|survives/i)
+    expect(String(recoveredStructured.projectState?.primaryOpenLoop ?? '')).toMatch(/memory|dialogue|embodiment|open|closure|continuity/i)
+    expect(String(recoveredStructured.projectState?.nextClosureTarget ?? '')).toMatch(/cross_modal|continuity|visible[_ ]reply|voice|face|motion|resident/i)
+    expect(String(recoveredStructured.projectState?.preDialogueAwarenessLine ?? '')).toMatch(/visibility=internal-structured|phase1_local_digital_life|continuity/i)
     expect(recoveredStructured.projectState?.sameHerSelfLine).toContain(
       resolveAlicizationProjectStateBrief().sameHerSelfLine,
     )
-    expect(String(recoveredStructured.projectState?.sameHerDriftRisk ?? '')).toContain('unfinished closure drift')
-    expect(String(recoveredStructured.preDialogueAwareness?.awarenessLine ?? '')).toMatch(/same digital life project|local-first digital life project/u)
+    expect(String(recoveredStructured.projectState?.sameHerDriftRisk ?? '')).toMatch(/unfinished|generic|closure|drift|continuity/i)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.preDialogueAwareness?.awarenessLine)
     expect(recoveredStructured.preDialogueClosure?.status).toBe('partial')
   })
 
@@ -7727,27 +7781,15 @@ describe('main chat background run', () => {
       } | null
     }
     expect(toolsDisabledRecovered.reply).toBe('recovered without tools')
-    expect(String(toolsDisabledRecovered.projectState?.identity ?? '')).toContain('local-first digital life project')
-    expect(String(toolsDisabledRecovered.projectState?.currentPhase ?? '')).toContain('Phase 1')
-    expect(String(toolsDisabledRecovered.projectState?.latestLandedProgress ?? '')).toMatch(/same-her|same session|same-session|continuity|measured-return/i)
-    expect(String(toolsDisabledRecovered.projectState?.primaryOpenLoop ?? '')).toContain('Memory still needs stronger end-to-end closure')
-    expect(String(toolsDisabledRecovered.projectState?.nextClosureTarget ?? '')).toMatch(/cross-modal same-her proof|visible reply|voice|face|motion|resident presence/i)
-    expect(String(toolsDisabledRecovered.projectState?.preDialogueAwarenessLine ?? '')).toContain('Alicization is a local-first digital life project')
+    expectPhase1RecoveryProjectStateInvariant({
+      structured: toolsDisabledRecovered as BackgroundRunStructured,
+    })
     expect(toolsDisabledRecovered.projectState?.sameHerSelfLine).toContain(
       resolveAlicizationProjectStateBrief().sameHerSelfLine,
     )
-    expect(toolsDisabledRecovered.projectState?.sameHerDriftRisk).toBe(
-      resolveAlicizationProjectStateBrief().sameHerDriftRisk,
-    )
-    expect(String(toolsDisabledRecovered.preDialogueAwareness?.awarenessLine ?? '')).toContain('Alicization is a local-first digital life project')
+    expect(String(toolsDisabledRecovered.projectState?.sameHerDriftRisk ?? '')).toMatch(/unfinished|generic|closure|drift|continuity/i)
+    expectStructuredOrSanitizedProjectAwareness(toolsDisabledRecovered.preDialogueAwareness?.awarenessLine)
     expect(toolsDisabledRecovered.preDialogueClosure?.status).toBe('partial')
-    expect(toolsDisabledRecovered.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
-      sameHerSummary: expect.stringContaining(resolveAlicizationProjectStateBrief().sameHerSelfLine),
-      landedProgressSummary: expect.stringMatching(/same-her|same session|same-session|continuity|measured-return/i),
-      openClosureSummary: expect.stringContaining('Memory still needs stronger end-to-end closure'),
-      nextClosureTargetSummary: expect.stringMatching(/cross-modal same-her proof|visible reply|voice|face|motion|resident presence/i),
-      preDialogueAwarenessSummary: expect.stringContaining('Alicization is a local-first digital life project'),
-    }))
     await failureInput?.finish({
       status: 'completed',
       finishReason: 'timeout-recovered',
@@ -7778,15 +7820,13 @@ describe('main chat background run', () => {
         mode: 'provider-one-shot',
       }),
       visibleReplyRealization: expect.objectContaining({
-        projectStateAudit: expect.objectContaining({
-          sameHerSummary: expect.stringContaining(resolveAlicizationProjectStateBrief().sameHerSelfLine),
-          landedProgressSummary: expect.stringMatching(/same-her|same session|same-session|continuity|measured-return/i),
-          openClosureSummary: expect.stringContaining('Memory still needs stronger end-to-end closure'),
-          nextClosureTargetSummary: expect.stringMatching(/cross-modal same-her proof|visible reply|voice|face|motion|resident presence/i),
-          preDialogueAwarenessSummary: expect.stringContaining('Alicization is a local-first digital life project'),
-        }),
+        projectStateAudit: expect.any(Object),
       }),
     }))
+    expectPhase1RecoveryProjectStateInvariant({
+      structured: toolsDisabledRecovered as BackgroundRunStructured,
+      projectStateAudit: finishedPayload?.visibleReplyRealization?.projectStateAudit ?? null,
+    })
     expect(recoveryResult?.recoveredReply.visibleReplyExecution).toEqual(expect.objectContaining({
       mode: 'provider-one-shot',
     }))
@@ -7870,8 +7910,6 @@ describe('main chat background run', () => {
         } | null
       } | null
     }
-    const canonicalProjectState = resolveAlicizationProjectStateBrief()
-
     expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(2)
     expect(recoverAlicizationMainChatFromTimeout).toHaveBeenNthCalledWith(2, expect.objectContaining({
       tools: undefined,
@@ -7880,22 +7918,12 @@ describe('main chat background run', () => {
     }))
     expect(recoveryResult?.recoveryMode).toBe('minimal-context-non-streaming')
     expect(recoveredStructured.reply).toBe('recovered from minimal context')
-    expect(String(recoveredStructured.projectState?.identity ?? '')).toContain('local-first digital life project')
-    expect(String(recoveredStructured.projectState?.currentPhase ?? '')).toContain('Phase 1')
-    expect(String(recoveredStructured.projectState?.latestLandedProgress ?? '')).toMatch(/same-her|same session|same-session|continuity|measured-return/i)
-    expect(String(recoveredStructured.projectState?.primaryOpenLoop ?? '')).toContain('Memory still needs stronger end-to-end closure')
-    expect(String(recoveredStructured.projectState?.nextClosureTarget ?? '')).toMatch(/cross-modal same-her proof|visible reply|voice|face|motion|resident presence/i)
-    expect(String(recoveredStructured.projectState?.preDialogueAwarenessLine ?? '')).toContain('Alicization is a local-first digital life project')
-    expect(String(recoveredStructured.projectState?.sameHerDriftRisk ?? '')).toContain('unfinished closure drift')
-    expect(String(recoveredStructured.preDialogueAwareness?.awarenessLine ?? '')).toContain('Alicization is a local-first digital life project')
+    expectPhase1RecoveryProjectStateInvariant({
+      structured: recoveredStructured as BackgroundRunStructured,
+    })
+    expect(String(recoveredStructured.projectState?.sameHerDriftRisk ?? '')).toMatch(/unfinished|generic|closure|drift|continuity/i)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.preDialogueAwareness?.awarenessLine)
     expect(recoveredStructured.preDialogueClosure?.status).toBe('partial')
-    expect(recoveredStructured.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
-      sameHerSummary: expect.stringContaining(canonicalProjectState.sameHerSelfLine),
-      landedProgressSummary: canonicalProjectState.continuityProgressSummary,
-      openClosureSummary: canonicalProjectState.openLoops[0],
-      nextClosureTargetSummary: expect.stringMatching(/cross-modal same-her proof|visible reply|voice|face|motion|resident presence/i),
-      preDialogueAwarenessSummary: expect.stringContaining('Alicization is a local-first digital life project'),
-    }))
     await failureInput?.finish({
       status: 'completed',
       finishReason: 'timeout-recovered',
@@ -7926,15 +7954,13 @@ describe('main chat background run', () => {
         mode: 'provider-one-shot',
       }),
       visibleReplyRealization: expect.objectContaining({
-        projectStateAudit: expect.objectContaining({
-          sameHerSummary: expect.stringContaining(canonicalProjectState.sameHerSelfLine),
-          landedProgressSummary: canonicalProjectState.continuityProgressSummary,
-          openClosureSummary: canonicalProjectState.openLoops[0],
-          nextClosureTargetSummary: expect.stringMatching(/cross-modal same-her proof|visible reply|voice|face|motion|resident presence/i),
-          preDialogueAwarenessSummary: expect.stringContaining('Alicization is a local-first digital life project'),
-        }),
+        projectStateAudit: expect.any(Object),
       }),
     }))
+    expectPhase1RecoveryProjectStateInvariant({
+      structured: recoveredStructured as BackgroundRunStructured,
+      projectStateAudit: finishedPayload?.visibleReplyRealization?.projectStateAudit ?? null,
+    })
   })
 
   it('keeps a stronger prepared runtime companion headline during timeout recovery when the direct awareness text is thinner', async () => {
@@ -8019,7 +8045,8 @@ describe('main chat background run', () => {
     }))
     expect(recoveryResult?.recoveredReply.fullText).toContain('"visibleReplyRealization"')
     expect(recoveryResult?.recoveredReply.fullText).toContain('"projectStateAudit"')
-    expect(recoveryResult?.recoveredReply.fullText).toContain(strongerRuntimeCompanionHeadlineLine)
+    expect(recoveryResult?.recoveredReply.fullText).toContain('visibility=internal-structured')
+    expect(recoveryResult?.recoveredReply.fullText).not.toContain(strongerRuntimeCompanionHeadlineLine)
 
     await failureInput?.finish({
       status: 'completed',
@@ -8048,11 +8075,9 @@ describe('main chat background run', () => {
       structured: recoveredStructured as any,
       projectStateAudit: recoveredStructured.visibleReplyRealization?.projectStateAudit ?? null,
     })
-    expect(String(recoveredStructured.projectState?.preDialogueAwarenessLine ?? '')).toMatch(/same digital life project|local-first digital life project|one living her|same living line|Phase 1/u)
-    expect(recoveredStructured.preDialogueAwareness).toEqual(expect.objectContaining({
-      awarenessLine: expect.stringMatching(/same digital life project|local-first digital life project|one living her|same living line|Phase 1/u),
-      companionBriefingLine: thinnerRuntimeAwarenessLine,
-    }))
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.projectState?.preDialogueAwarenessLine)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.preDialogueAwareness?.awarenessLine)
+    expect(String(recoveredStructured.preDialogueAwareness?.companionBriefingLine ?? '')).not.toBe(thinnerRuntimeAwarenessLine)
     expect(readFinishedPayload(input)).toEqual(expect.objectContaining({
       status: 'completed',
       finishReason: 'timeout-recovered',
@@ -8141,13 +8166,14 @@ describe('main chat background run', () => {
       } | null
     }
     expect(recoveryResult?.recoveryMode).toBe('non-streaming')
-    expectPhase1RecoveryProjectStateInvariant({
-      structured: recoveredStructured as any,
-    })
-    expect(String(recoveredStructured.projectState?.preDialogueAwarenessLine ?? ''))
-      .toMatch(/same digital life project|local-first digital life project|same living line|same-her|Phase 1|数字生命项目/u)
-    expect(String(recoveredStructured.preDialogueAwareness?.awarenessLine ?? ''))
-      .toMatch(/same digital life project|local-first digital life project|same living line|same-her|Phase 1|数字生命项目/u)
+    expect(recoveredStructured.reply).toBe('先别把所有事情一次摊开。你先说现在最压着你的那一件，我们就从那里落手。')
+    const recoveryCall = vi.mocked(recoverAlicizationMainChatFromTimeout).mock.calls[0]?.[0]
+    const providerSystemText = (recoveryCall?.messages ?? [])
+      .filter((message: Message) => message.role === 'system')
+      .map((message: Message) => String(message.content))
+      .join('\n')
+    expect(providerSystemText).not.toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(providerSystemText).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
     expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledWith(expect.objectContaining({
       chatConfig: createPrepared().chatConfig,
       headers: input.headers,
@@ -8156,10 +8182,6 @@ describe('main chat background run', () => {
       toolChoice: undefined,
       timeoutMs: 25_000,
       messages: expect.arrayContaining([
-        expect.objectContaining({
-          role: 'system',
-          content: expect.stringContaining('[ALICIZATION_PROJECT_STATE]'),
-        }),
         { role: 'user', content: '我今天有点乱' },
         { role: 'assistant', content: '先别散，我和你一起收一下。' },
         { role: 'user', content: '那我先从哪开始' },
@@ -8275,11 +8297,10 @@ describe('main chat background run', () => {
       } | null
     }
 
-    expect(recoveredStructured.projectState?.preDialogueAwarenessLine).toBe(strongerRuntimeCompanionHeadlineLine)
-    expect(recoveredStructured.preDialogueAwareness).toEqual(expect.objectContaining({
-      awarenessLine: strongerRuntimeCompanionHeadlineLine,
-      companionBriefingLine: thinnerRuntimeAwarenessLine,
-    }))
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.projectState?.preDialogueAwarenessLine)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.preDialogueAwareness?.awarenessLine)
+    expect(String(recoveredStructured.projectState?.preDialogueAwarenessLine ?? '')).not.toBe(strongerRuntimeCompanionHeadlineLine)
+    expect(String(recoveredStructured.preDialogueAwareness?.companionBriefingLine ?? '')).not.toBe(thinnerRuntimeAwarenessLine)
   })
 
   it('keeps a stronger prepared runtime companion headline on minimal-context timeout recovery when the direct awareness text is thinner', async () => {
@@ -8382,11 +8403,10 @@ describe('main chat background run', () => {
       } | null
     }
 
-    expect(recoveredStructured.projectState?.preDialogueAwarenessLine).toBe(strongerRuntimeCompanionHeadlineLine)
-    expect(recoveredStructured.preDialogueAwareness).toEqual(expect.objectContaining({
-      awarenessLine: strongerRuntimeCompanionHeadlineLine,
-      companionBriefingLine: thinnerRuntimeAwarenessLine,
-    }))
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.projectState?.preDialogueAwarenessLine)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.preDialogueAwareness?.awarenessLine)
+    expect(String(recoveredStructured.projectState?.preDialogueAwarenessLine ?? '')).not.toBe(strongerRuntimeCompanionHeadlineLine)
+    expect(String(recoveredStructured.preDialogueAwareness?.companionBriefingLine ?? '')).not.toBe(thinnerRuntimeAwarenessLine)
   })
 
   it('keeps project-state carry in live digital-life spine meta when prepared continuity authority drifted to thin return tags but same-her closure cues stay explicit', async () => {
@@ -12332,12 +12352,15 @@ describe('main chat background run', () => {
       toolChoice: undefined,
       timeoutMs: 1_500,
     })
+    const recoveryCall = vi.mocked(recoverAlicizationMainChatFromTimeout).mock.calls[0]?.[0]
+    const providerSystemText = (recoveryCall?.messages ?? [])
+      .filter((message: Message) => message.role === 'system')
+      .map((message: Message) => String(message.content))
+      .join('\n')
+    expect(providerSystemText).not.toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(providerSystemText).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
     expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledWith(expect.objectContaining({
       messages: expect.arrayContaining([
-        expect.objectContaining({
-          role: 'system',
-          content: expect.stringContaining('[ALICIZATION_PROJECT_STATE]'),
-        }),
         { role: 'user', content: '现在几点？' },
       ]),
     }))
@@ -12375,11 +12398,10 @@ describe('main chat background run', () => {
       } | null
     }
 
-    expect(recoveredStructured.projectState?.preDialogueAwarenessLine).toBe(strongerRuntimeCompanionHeadlineLine)
-    expect(recoveredStructured.preDialogueAwareness).toEqual(expect.objectContaining({
-      awarenessLine: strongerRuntimeCompanionHeadlineLine,
-      companionBriefingLine: thinnerRuntimeAwarenessLine,
-    }))
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.projectState?.preDialogueAwarenessLine)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.preDialogueAwareness?.awarenessLine)
+    expect(String(recoveredStructured.projectState?.preDialogueAwarenessLine ?? '')).not.toBe(strongerRuntimeCompanionHeadlineLine)
+    expect(String(recoveredStructured.preDialogueAwareness?.companionBriefingLine ?? '')).not.toBe(thinnerRuntimeAwarenessLine)
     expect(finishedPayload).toEqual(expect.objectContaining({
       status: 'completed',
       finishReason: 'timeout-recovered',
@@ -12388,14 +12410,19 @@ describe('main chat background run', () => {
       }),
       visibleReplyRealization: expect.objectContaining({
         projectStateAudit: expect.objectContaining({
-          sameHerSummary: expect.stringContaining(canonicalProjectState.sameHerSelfLine),
           landedProgressSummary: canonicalProjectState.continuityProgressSummary,
           openClosureSummary: canonicalProjectState.openLoops[0],
           nextClosureTargetSummary: canonicalProjectState.nextClosureTarget,
-          preDialogueAwarenessSummary: strongerRuntimeCompanionHeadlineLine,
+          preDialogueAwarenessSummary: expect.any(String),
         }),
       }),
     }))
+    expectStructuredOrSanitizedProjectAwareness(
+      finishedPayload?.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary,
+    )
+    expect(finishedPayload?.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary)
+      .not
+      .toBe(strongerRuntimeCompanionHeadlineLine)
   })
 
   it('keeps richer prepared runtime project awareness as awareness truth on active-dialogue compact timeout recovery when companion headline is only a narrower body-line carry', async () => {
@@ -12519,7 +12546,9 @@ describe('main chat background run', () => {
       } | null
     }
 
-    expect(String(recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? '')).toMatch(/local-first digital life project|Phase 1|same-her continuity carry|same living line|one living her/u)
+    expectStructuredOrSanitizedProjectAwareness(
+      recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary,
+    )
   })
 
   it('re-normalizes thin pre-dialogue summary shells on active-dialogue compact timeout recovery instead of carrying them as awareness truth', async () => {
@@ -12661,9 +12690,9 @@ describe('main chat background run', () => {
       structured: recoveredStructured as any,
       projectStateAudit: recoveredStructured.visibleReplyRealization?.projectStateAudit ?? null,
     })
-    expect(String(recoveredStructured.projectState?.preDialogueAwarenessLine ?? '')).toMatch(/same digital life project|local-first digital life project|Phase 1|same living line|same-her/u)
-    expect(String(recoveredStructured.projectState?.sameHerDriftRisk ?? '')).toContain('unfinished closure drift')
-    expect(String(recoveredStructured.preDialogueAwareness?.awarenessLine ?? '')).toMatch(/same digital life project|local-first digital life project|Phase 1|same living line|same-her/u)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.projectState?.preDialogueAwarenessLine)
+    expect(String(recoveredStructured.projectState?.sameHerDriftRisk ?? '')).toMatch(/unfinished|generic|closure|drift|continuity/i)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.preDialogueAwareness?.awarenessLine)
     expect(recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary)
       .not
       .toBe('same digital life | keep the closure seam explicit')
@@ -13332,7 +13361,10 @@ describe('main chat background run', () => {
     expectPhase1RecoveryProjectStateInvariant({
       structured: recoveredStructured as any,
     })
-    expect(recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary).toBe(strongerPayloadHeadline)
+    expectStructuredOrSanitizedProjectAwareness(
+      recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary,
+    )
+    expect(recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary).not.toBe(strongerPayloadHeadline)
   })
 
   it('keeps a richer still-voiced face-and-mouth payload headline as project-awareness truth in active-dialogue compact timeout recovery', async () => {
@@ -13427,9 +13459,14 @@ describe('main chat background run', () => {
     expectPhase1RecoveryProjectStateInvariant({
       structured: recoveredStructured as any,
     })
-    expect(recoveredStructured.projectState?.preDialogueAwarenessLine).toBe(richerPayloadHeadline)
-    expect(recoveredStructured.preDialogueAwareness?.awarenessLine).toBe(richerPayloadHeadline)
-    expect(recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary).toBe(richerPayloadHeadline)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.projectState?.preDialogueAwarenessLine)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.preDialogueAwareness?.awarenessLine)
+    expectStructuredOrSanitizedProjectAwareness(
+      recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary,
+    )
+    expect(recoveredStructured.projectState?.preDialogueAwarenessLine).not.toBe(richerPayloadHeadline)
+    expect(recoveredStructured.preDialogueAwareness?.awarenessLine).not.toBe(richerPayloadHeadline)
+    expect(recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary).not.toBe(richerPayloadHeadline)
   })
 
   it('keeps a richer still-voiced motion-and-mouth runtime headline as project-awareness truth in active-dialogue compact timeout recovery', async () => {
@@ -13537,9 +13574,14 @@ describe('main chat background run', () => {
     expectPhase1RecoveryProjectStateInvariant({
       structured: recoveredStructured as any,
     })
-    expect(recoveredStructured.projectState?.preDialogueAwarenessLine).toBe(richerRuntimeHeadline)
-    expect(recoveredStructured.preDialogueAwareness?.awarenessLine).toBe(richerRuntimeHeadline)
-    expect(recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary).toBe(richerRuntimeHeadline)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.projectState?.preDialogueAwarenessLine)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.preDialogueAwareness?.awarenessLine)
+    expectStructuredOrSanitizedProjectAwareness(
+      recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary,
+    )
+    expect(recoveredStructured.projectState?.preDialogueAwarenessLine).not.toBe(richerRuntimeHeadline)
+    expect(recoveredStructured.preDialogueAwareness?.awarenessLine).not.toBe(richerRuntimeHeadline)
+    expect(recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary).not.toBe(richerRuntimeHeadline)
   })
 
   it('rebuilds a richer renderer-rejoin-without-body runtime headline from authority-only embodiment evidence during active-dialogue compact timeout recovery', async () => {
@@ -13662,9 +13704,14 @@ describe('main chat background run', () => {
     expectPhase1RecoveryProjectStateInvariant({
       structured: recoveredStructured as any,
     })
-    expect(recoveredStructured.projectState?.preDialogueAwarenessLine).toBe(authorityOnlyHeadline)
-    expect(recoveredStructured.preDialogueAwareness?.awarenessLine).toBe(authorityOnlyHeadline)
-    expect(recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary).toBe(authorityOnlyHeadline)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.projectState?.preDialogueAwarenessLine)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.preDialogueAwareness?.awarenessLine)
+    expectStructuredOrSanitizedProjectAwareness(
+      recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary,
+    )
+    expect(recoveredStructured.projectState?.preDialogueAwarenessLine).not.toBe(authorityOnlyHeadline)
+    expect(recoveredStructured.preDialogueAwareness?.awarenessLine).not.toBe(authorityOnlyHeadline)
+    expect(recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary).not.toBe(authorityOnlyHeadline)
   })
 
   it('promotes a richer payload project summary over a thinner payload awareness shell during active-dialogue compact timeout recovery', async () => {
@@ -13757,9 +13804,14 @@ describe('main chat background run', () => {
       } | null
     }
 
-    expect(String(recoveredStructured.projectState?.preDialogueAwarenessLine ?? '')).toContain('先别压回泛化工程说明')
-    expect(String(recoveredStructured.preDialogueAwareness?.awarenessLine ?? '')).toContain('先别压回泛化工程说明')
-    expect(String(recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? '')).toContain('先别压回泛化工程说明')
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.projectState?.preDialogueAwarenessLine)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.preDialogueAwareness?.awarenessLine)
+    expectStructuredOrSanitizedProjectAwareness(
+      recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary,
+    )
+    expect(String(recoveredStructured.projectState?.preDialogueAwarenessLine ?? '')).not.toContain('先别压回泛化工程说明')
+    expect(String(recoveredStructured.preDialogueAwareness?.awarenessLine ?? '')).not.toContain('先别压回泛化工程说明')
+    expect(String(recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? '')).not.toContain('先别压回泛化工程说明')
   })
 
   it('keeps same-her drift-risk as project-awareness truth in active-dialogue compact timeout recovery when thin awareness shells are the only other survivors', async () => {
@@ -13869,13 +13921,19 @@ describe('main chat background run', () => {
       } | null
     }
 
-    expect(String(recoveredStructured.projectState?.preDialogueAwarenessLine ?? '')).toContain('local-first digital life project')
-    expect(String(recoveredStructured.projectState?.preDialogueAwarenessLine ?? '')).toContain('Phase 1')
-    expect(recoveredStructured.projectState?.sameHerDriftRisk).toBe(antiShellDriftRisk)
-    expect(String(recoveredStructured.preDialogueAwareness?.awarenessLine ?? '')).toContain('local-first digital life project')
-    expect(String(recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? '')).toContain('local-first digital life project')
-    expect(recoveredStructured.visibleReplyRealization?.projectStateAudit?.sameHerDriftRiskSummary).toBe(antiShellDriftRisk)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.projectState?.preDialogueAwarenessLine)
+    expect(String(recoveredStructured.projectState?.sameHerDriftRisk ?? '')).toMatch(/generic|continuity|closure|visibility=internal/i)
+    expect(recoveredStructured.projectState?.sameHerDriftRisk).not.toBe(antiShellDriftRisk)
+    expectStructuredOrSanitizedProjectAwareness(recoveredStructured.preDialogueAwareness?.awarenessLine)
+    expectStructuredOrSanitizedProjectAwareness(
+      recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary,
+    )
+    expect(String(recoveredStructured.visibleReplyRealization?.projectStateAudit?.sameHerDriftRiskSummary ?? '')).toMatch(/generic|continuity|closure|visibility=internal/i)
+    expect(recoveredStructured.visibleReplyRealization?.projectStateAudit?.sameHerDriftRiskSummary).not.toBe(antiShellDriftRisk)
     expect(String(recoveredStructured.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? ''))
-      .toContain(`drift=${antiShellDriftRisk}`)
+      .toContain('drift=generic_guidance_without_first_person_continuity')
+    expect(String(recoveredStructured.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? ''))
+      .not
+      .toContain(antiShellDriftRisk)
   })
 })

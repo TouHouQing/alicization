@@ -28,10 +28,12 @@ import type { AlicizationSelfContinuityAuthority } from './self-continuity-autho
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
 import {
+  alicizationFixedTemplateReplacement,
   readHostPersonModelFromDerivedMindStateBundle,
   readKnowledgeEvidenceFromDerivedMindStateBundle,
   readPersonStateProjectionFromDerivedMindStateBundle,
   resolveProjectClosureSpeechEmbodimentBiasFromCue,
+  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
@@ -61,22 +63,85 @@ import {
 } from './person-state-projection-resolution'
 import { buildAlicizationPersonalityContinuityState } from './personality-continuity-state'
 import {
-  buildAlicizationProjectStateExtraSystemBlocks,
   compactProjectLatestProgressForSystemBlock,
   isAlicizationThinProjectAwarenessLine,
   looksLikeThinProjectClosureShell,
   preferStrongerPersistedSameHerSelfLine,
   preferStrongerSameHerDriftRisk,
-  resolveAlicizationProjectPreDialogueAwarenessLine,
   resolveAlicizationProjectStateBrief,
-  resolveAlicizationProjectStatusBrief,
 } from './project-state-brief'
+import {
+  deriveCompactProjectStateNextFocusSummary,
+  deriveCompactProjectStateOpenFocusSummary,
+} from './project-state-focus'
 import { resolvePreferredRuntimeSurface } from './runtime-surface-continuity-selection'
 import { parseJsonObjectFromText } from './runtime-transport-content'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 import { buildAlicizationSelfEvolutionKernel } from './self-evolution-kernel'
 
-const canonicalExecutionProjectStateCarryLine = 'Current Phase 1 project context. Some closure already landed. Unfinished closure still needs continuity.'
+const canonicalExecutionCallbackContextLine = 'callback_context=execution-result; runtime_context=alicization_phase1; failure_surface=transparent.'
+
+function appendFocusPart(parts: string[], value: string) {
+  if (!parts.includes(value))
+    parts.push(value)
+}
+
+function deriveExecutionProjectOpenFocus(primaryOpenLoop: unknown) {
+  const normalized = typeof primaryOpenLoop === 'string'
+    ? primaryOpenLoop.trim().toLowerCase()
+    : ''
+  const focus: string[] = []
+  const compact = deriveCompactProjectStateOpenFocusSummary(primaryOpenLoop)
+  for (const part of compact?.split('/') ?? []) {
+    if (part)
+      appendFocusPart(focus, part)
+  }
+  if (/memory_dialogue_embodiment_closure|memory=required|memory_required|natural_recall|workingmemory|longtermmemory/iu.test(normalized))
+    appendFocusPart(focus, 'memory')
+  if (/memory_dialogue_embodiment_closure|dialogue|visible_reply|voice|reply/iu.test(normalized))
+    appendFocusPart(focus, 'dialogue')
+  if (/memory_dialogue_embodiment_closure|initiative|proactive|initiative=restrained|runtime_proactive_initiative/iu.test(normalized))
+    appendFocusPart(focus, 'initiative')
+  if (/memory_dialogue_embodiment_closure|embodiment|body|face|motion|lipsync|resident_presence|cross_modal/iu.test(normalized))
+    appendFocusPart(focus, 'embodiment')
+  if (/same[-_ ]?her|same_living|same living line|closure_seam|project_identity_route_carry/iu.test(normalized))
+    appendFocusPart(focus, 'same-line')
+  return focus.length > 0 ? focus.join('/') : null
+}
+
+function deriveExecutionProjectNextFocus(nextClosureTarget: unknown) {
+  const normalized = typeof nextClosureTarget === 'string'
+    ? nextClosureTarget.trim().toLowerCase()
+    : ''
+  const focus: string[] = []
+  const compact = deriveCompactProjectStateNextFocusSummary(nextClosureTarget)
+  for (const part of compact?.split('/') ?? []) {
+    if (part)
+      appendFocusPart(focus, part)
+  }
+  if (/project_identity|project-carry|project carry|project_identity_carry/iu.test(normalized))
+    appendFocusPart(focus, 'project-carry')
+  if (/phase1|phase_1|phase-1|phase 1/iu.test(normalized))
+    appendFocusPart(focus, 'phase-1')
+  if (/measured_return|measured-return|measured return/iu.test(normalized))
+    appendFocusPart(focus, 'measured-return')
+  if (/same[-_ ]?her|same_living|same living line/iu.test(normalized))
+    appendFocusPart(focus, 'same-line')
+  if (/memory|natural_recall|workingmemory|longtermmemory/iu.test(normalized))
+    appendFocusPart(focus, 'memory')
+  if (/dialogue|visible_reply|voice|reply/iu.test(normalized))
+    appendFocusPart(focus, 'dialogue')
+  if (/initiative|proactive/iu.test(normalized))
+    appendFocusPart(focus, 'initiative')
+  if (/embodiment|body|face|motion|lipsync|resident_presence|cross_modal/iu.test(normalized))
+    appendFocusPart(focus, 'embodiment')
+  return focus.length > 0 ? focus.join('/') : null
+}
+
+function sanitizeExecutionProviderProjectText(raw: unknown, maxChars = 320) {
+  const normalized = sanitizeAlicizationProviderFacingText(raw, maxChars)
+  return normalized && normalized !== alicizationFixedTemplateReplacement ? normalized : 'none'
+}
 
 function normalizeExecutionDeliveryProjectBriefing(
   projectBriefing: unknown,
@@ -366,57 +431,22 @@ function buildExecutionCallbackProjectSelfBriefSystemBlock(
   projectState?: AlicizationPendingExecutionDeliveryProjectState | null,
   personStateProjection?: AlicizationPersonStateProjection | null,
 ) {
-  const canonicalBrief = resolveAlicizationProjectStateBrief()
-  const brief = {
-    ...canonicalBrief,
-    identity: sanitizeExecutionLedgerText(projectState?.identity, 220) || canonicalBrief.identity,
-    currentPhase: sanitizeExecutionLedgerText(projectState?.currentPhase, 220) || canonicalBrief.currentPhase,
-    latestProgress: sanitizeExecutionLedgerText(
-      projectState?.latestLandedProgress
-      ?? projectState?.latestProgress
-      ?? projectState?.landedProgressSummary,
-      320,
-    ) || canonicalBrief.latestProgress,
-    openLoops: [
-      sanitizeExecutionLedgerText(
-        projectState?.primaryOpenLoop
-        ?? projectState?.openClosureSummary,
-        320,
-      ) || canonicalBrief.openLoops[0] || null,
-    ],
-    nextClosureTarget: sanitizeExecutionLedgerText(
-      projectState?.nextClosureTarget
-      ?? projectState?.nextClosureTargetSummary,
-      320,
-    ) || canonicalBrief.nextClosureTarget,
-    sameHerSelfLine: sanitizeExecutionLedgerText(projectState?.sameHerSelfLine, 220) || canonicalBrief.sameHerSelfLine,
-    sameHerDriftRisk: sanitizeExecutionLedgerText(
-      projectState?.sameHerDriftRisk
-      ?? projectState?.sameHerDriftRiskSummary,
-      320,
-    ) || canonicalBrief.sameHerDriftRisk,
-    preflightSummary: sanitizeExecutionLedgerText(projectState?.preflightSummary, 320) || canonicalBrief.preflightSummary,
-    preDialogueAwarenessLine: sanitizeExecutionLedgerText(
-      projectState?.preDialogueAwarenessLine
-      ?? projectState?.preDialogueAwarenessSummary,
-      320,
-    ) || canonicalBrief.preDialogueAwarenessLine,
-  }
-  const status = resolveAlicizationProjectStatusBrief()
-  const companionHeadline = sanitizeExecutionLedgerText(projectState?.companionHeadlineLine, 320)
-    || status.companionHeadlineLine
-    || null
-  const preDialogueAwareness = resolveAlicizationProjectPreDialogueAwarenessLine({
-    runtimeProjectState: {
-      preDialogueAwarenessLine: brief.preDialogueAwarenessLine,
-      companionHeadlineLine: companionHeadline,
-      companionBriefingLine: status.companionBriefingLine,
-      preflightSummary: brief.preflightSummary,
-    },
-  })
-  const companionBriefing = sanitizeExecutionLedgerText(projectState?.companionBriefingLine, 320)
-    || status.companionBriefingLine
-    || null
+  const latestProgress = sanitizeExecutionLedgerText(
+    projectState?.latestLandedProgress
+    ?? projectState?.latestProgress
+    ?? projectState?.landedProgressSummary,
+    320,
+  ) || null
+  const primaryOpenLoop = sanitizeExecutionLedgerText(
+    projectState?.primaryOpenLoop
+    ?? projectState?.openClosureSummary,
+    320,
+  ) || null
+  const nextClosureTarget = sanitizeExecutionLedgerText(
+    projectState?.nextClosureTarget
+    ?? projectState?.nextClosureTargetSummary,
+    320,
+  ) || null
   const emotionalClosureSummary = sanitizeExecutionLedgerText(projectState?.emotionalClosureSummary, 220) || null
   const continuityCue = sanitizeExecutionLedgerText(projectState?.continuityCue, 220) || null
   const continuityPreferredTiming = sanitizeExecutionLedgerText(projectState?.continuityPreferredTiming, 120) || null
@@ -473,28 +503,26 @@ function buildExecutionCallbackProjectSelfBriefSystemBlock(
 
   return [
     '[ALICIZATION_EXECUTION_CALLBACK_SELF_BRIEF]',
-    `project_identity=${brief.identity ?? 'none'}`,
-    `current_phase=${brief.currentPhase ?? 'none'}`,
-    `pre_dialogue_awareness=${preDialogueAwareness ?? brief.preflightSummary ?? 'none'}`,
-    `project_companion_headline=${companionHeadline ?? 'none'}`,
-    `project_companion_briefing=${companionBriefing ?? 'none'}`,
-    `emotional_closure_summary=${emotionalClosureSummary ?? 'none'}`,
-    `continuity_cue=${continuityCue ?? 'none'}`,
-    `continuity_preferred_timing=${continuityPreferredTiming ?? 'none'}`,
-    `continuity_cadence=${continuityCadence ?? 'none'}`,
-    `preferred_blink_cadence=${preferredBlinkCadence ?? 'none'}`,
-    `preferred_gaze_mode=${preferredGazeMode ?? 'none'}`,
-    `preferred_pause_mode=${preferredPauseMode ?? 'none'}`,
-    `preferred_lipsync_mode=${preferredLipsyncMode ?? 'none'}`,
-    `preferred_voice_mode=${preferredVoiceMode ?? 'none'}`,
-    `preferred_pacing_mode=${preferredPacingMode ?? 'none'}`,
-    `same_her_line=${brief.sameHerSelfLine ?? canonicalExecutionProjectStateCarryLine}`,
-    `latest_landed_progress=${brief.latestProgress ?? 'none'}`,
-    `primary_open_loop=${brief.openLoops[0] ?? 'none'}`,
-    `next_closure_target=${brief.nextClosureTarget ?? 'none'}`,
-    `same_her_drift_risk=${brief.sameHerDriftRisk ?? 'none'}`,
-    'Execution callback delivery must stay inside the current Alicization project context, the Phase 1 proving ground, and the still-open closure work.',
-    'Do not let execution callback delivery collapse into a detached result notice, a utility-status shell, or a generic assistant completion broadcast.',
+    'briefing_scope=execution_callback_delivery',
+    'runtime_context=alicization_phase1',
+    'callback_context=execution-result',
+    'short_term_owner=WorkingMemory',
+    'long_term_recall_owner=LongTermMemoryRecall',
+    'failure_surface=report_provider_tool_and_execution_failures_directly',
+    `emotional_closure_summary=${sanitizeExecutionProviderProjectText(emotionalClosureSummary)}`,
+    `continuity_cue=${sanitizeExecutionProviderProjectText(continuityCue, 160)}`,
+    `continuity_preferred_timing=${sanitizeExecutionProviderProjectText(continuityPreferredTiming, 80)}`,
+    `continuity_cadence=${sanitizeExecutionProviderProjectText(continuityCadence, 80)}`,
+    `preferred_blink_cadence=${sanitizeExecutionProviderProjectText(preferredBlinkCadence, 80)}`,
+    `preferred_gaze_mode=${sanitizeExecutionProviderProjectText(preferredGazeMode, 80)}`,
+    `preferred_pause_mode=${sanitizeExecutionProviderProjectText(preferredPauseMode, 80)}`,
+    `preferred_lipsync_mode=${sanitizeExecutionProviderProjectText(preferredLipsyncMode, 80)}`,
+    `preferred_voice_mode=${sanitizeExecutionProviderProjectText(preferredVoiceMode, 80)}`,
+    `preferred_pacing_mode=${sanitizeExecutionProviderProjectText(preferredPacingMode, 80)}`,
+    `latest_landed_progress=${sanitizeExecutionProviderProjectText(latestProgress)}`,
+    `primary_open_loop=${sanitizeExecutionProviderProjectText(primaryOpenLoop)}`,
+    `next_closure_target=${sanitizeExecutionProviderProjectText(nextClosureTarget)}`,
+    'Do not cover execution blockers, provider failures, or tool failures with persona continuity language.',
   ].join('\n')
 }
 
@@ -810,7 +838,7 @@ function buildLowPressureExecutionCallbackRhythmState(): AlicizationPersonalityR
     summary: 'Execution callback continuity stays low-pressure while the current context settles.',
     rationale: [
       'execution-callback',
-      'same-her-continuity',
+      'bounded-continuity',
       'lower-pressure-return',
     ],
   }
@@ -836,12 +864,12 @@ function buildLowPressureExecutionCallbackContinuityState(input: {
     rhythmState: buildLowPressureExecutionCallbackRhythmState(),
     trustMeaning: base.trustMeaning ?? 'Trust holds when callback timing stays lower-pressure before closeness widens.',
     reconsolidationLine: base.reconsolidationLine ?? 'Execution callback return stays in the current reply context.',
-    selfLine: base.selfLine ?? canonicalExecutionProjectStateCarryLine,
+    selfLine: base.selfLine ?? canonicalExecutionCallbackContextLine,
     relationLine: base.relationLine ?? 'Leave room before widening callback closeness again.',
     rationale: [
       ...base.rationale,
       'execution-callback',
-      'same-her-baseline',
+      'bounded-continuity',
       'lower-pressure-return',
     ],
   }
@@ -909,44 +937,8 @@ function applyTruthFirstRelationshipDoctrineToProjection(input: {
     return projection ?? null
 
   const projectState = resolveAlicizationProjectStateBrief()
-  const openFocus = (() => {
-    const normalized = (projectState.primaryOpenLoop ?? '').toLowerCase()
-    if (!normalized)
-      return null
-
-    const focus: string[] = []
-    if (normalized.includes('memory'))
-      focus.push('memory')
-    if (normalized.includes('initiative'))
-      focus.push('initiative')
-    if (normalized.includes('embodiment'))
-      focus.push('embodiment')
-    if (normalized.includes('same-her') || normalized.includes('same living line'))
-      focus.push('same-line')
-    if (normalized.includes('closure seam'))
-      focus.push('closure-seam')
-    return focus.length > 0 ? focus.join('/') : null
-  })()
-  const nextFocus = (() => {
-    const normalized = (projectState.nextClosureTarget ?? '').toLowerCase()
-    if (!normalized)
-      return null
-
-    const focus: string[] = []
-    if (normalized.includes('project identity carry'))
-      focus.push('project-carry')
-    if (normalized.includes('phase 1'))
-      focus.push('phase-1')
-    if (normalized.includes('measured-return'))
-      focus.push('measured-return')
-    if (normalized.includes('same living line') || normalized.includes('same-her'))
-      focus.push('same-line')
-    if (normalized.includes('initiative'))
-      focus.push('initiative')
-    if (normalized.includes('embodiment'))
-      focus.push('embodiment')
-    return focus.length > 0 ? focus.join('/') : null
-  })()
+  const openFocus = deriveExecutionProjectOpenFocus(projectState.primaryOpenLoop)
+  const nextFocus = deriveExecutionProjectNextFocus(projectState.nextClosureTarget)
   const shouldCarryProjectFocus = (projection.contexts ?? []).includes('project-state-carry')
     || /same-her baseline|same phase 1 digital life|project-state closure/u.test([
       projection.openingGuidance,
@@ -957,8 +949,8 @@ function applyTruthFirstRelationshipDoctrineToProjection(input: {
   const openingGuidance = shouldCarryProjectFocus
     ? [
         projection.openingGuidance,
-        openFocus ? `Keep open focus=${openFocus}.` : '',
-        nextFocus ? `Keep next focus=${nextFocus}.` : '',
+        openFocus ? `open_focus=${openFocus}` : '',
+        nextFocus ? `next_focus=${nextFocus}` : '',
       ].filter(Boolean).join(' ')
     : projection.openingGuidance
   const summary = shouldCarryProjectFocus
@@ -988,7 +980,10 @@ function applyTruthFirstRelationshipDoctrineToProjection(input: {
     ...projection,
     openingGuidance,
     summary,
-    relationshipDoctrine: `Repair truth before flourish. ${relationshipLine}`,
+    relationshipDoctrine: [
+      'repair_truth_before_closeness=true',
+      `relationship_line=${relationshipLine}`,
+    ].join('; '),
   }
 }
 
@@ -1044,14 +1039,14 @@ function applyActiveSameHerContinuityToProjection(input: {
     activeClosenessContext: 'execution-callback',
     activeClosenessRung: 'measured-room',
     relationshipPosture: 'restrained',
-    openingGuidance: `Stay inside the current continuity baseline. ${canonicalExecutionProjectStateCarryLine} Let repair settle before closeness widens again, and keep the callback return lower-pressure.`,
+    openingGuidance: 'callback_role=execution_result repair_phase=settle_before_closeness callback_pressure=lower failure_surface=explicit',
     preferredProactiveStyle: 'silent-observe',
-    manifestationCadenceSummary: 'Long-horizon relationship learning keeps manifestation repair-first, lower-pressure, and less eager until closeness can widen safely again.',
-    trustRationale: input.projection.trustRationale || 'Trust holds when repair settles before closeness widens and the opening stays less eager.',
-    relationshipDoctrine: 'Stay exact, bounded, and let repair settle before closeness widens again.',
+    manifestationCadenceSummary: 'manifestation_cadence=repair_first_lower_pressure',
+    trustRationale: input.projection.trustRationale || 'trust_condition=repair_settled_before_closeness',
+    relationshipDoctrine: 'relationship_doctrine=bounded_exact_repair_before_closeness',
     cautious: true,
     restrained: true,
-    summary: [...nextSummaryParts, `project_state=${canonicalExecutionProjectStateCarryLine}`].join(' | ').slice(0, 520),
+    summary: [...nextSummaryParts, 'callback_role=execution_result'].join(' | ').slice(0, 520),
     personalityContinuityState: {
       ...input.projection.personalityContinuityState,
       currentRegime: 'execution-callback',
@@ -1080,24 +1075,24 @@ function buildMinimalActiveSameHerProjection(input: {
     closenessLadder: [{
       context: 'execution-callback',
       rung: 'measured-room',
-      preference: 'Deliver the result cleanly, but leave room before widening closeness.',
+      preference: 'callback_delivery=bounded; closeness_widening=deferred',
       rationale: `continuity=${continuitySummary}`,
       confidence: 0.82,
     }],
     relationshipPosture: 'restrained',
-    openingGuidance: `Stay inside the current continuity baseline. ${canonicalExecutionProjectStateCarryLine} Let repair settle before closeness widens again, and keep the callback return lower-pressure.`,
+    openingGuidance: 'callback_role=execution_result repair_phase=settle_before_closeness callback_pressure=lower failure_surface=explicit',
     preferredProactiveStyle: 'silent-observe',
-    manifestationCadenceSummary: 'Long-horizon relationship learning keeps manifestation repair-first, lower-pressure, and less eager until closeness can widen safely again.',
-    preferenceText: 'Keep callback timing repair-first and lower-pressure.',
-    sensitivityText: 'Over-close callback warmth becomes pressure.',
-    repairTriggerText: 'If closeness jumps too fast, let repair settle before reopening lighter.',
-    burdenText: 'Execution callback warmth should not crowd the host.',
+    manifestationCadenceSummary: 'manifestation_cadence=repair_first_lower_pressure',
+    preferenceText: 'callback_timing=repair_first_lower_pressure',
+    sensitivityText: 'callback_risk=overclose_pressure',
+    repairTriggerText: 'repair_trigger=closeness_jump_too_fast',
+    burdenText: 'callback_burden=crowding_risk',
     routineText: '',
-    trustRationale: 'Trust holds when callback timing lets repair settle before closeness widens again.',
-    relationshipDoctrine: 'Stay exact, bounded, and let repair settle before closeness widens again.',
+    trustRationale: 'trust_condition=repair_settled_before_closeness',
+    relationshipDoctrine: 'relationship_doctrine=bounded_exact_repair_before_closeness',
     cautious: true,
     restrained: true,
-    summary: `regime=execution-callback | posture=restrained | continuity=${continuitySummary} | project_state=${canonicalExecutionProjectStateCarryLine}`.slice(0, 520),
+    summary: `regime=execution-callback | posture=restrained | continuity=${continuitySummary} | callback_role=execution_result`.slice(0, 520),
     personalityContinuityState: buildLowPressureExecutionCallbackContinuityState({
       continuitySummary,
     }),
@@ -1154,7 +1149,7 @@ function deriveExecutionDeliverySameHerOpeningCue(input: {
   if (!carriesSameHerLine || !carriesUnfinishedClosure && !carriesLowerPressureReturn)
     return null
 
-  return 'Keep this execution callback in the current reply context, and let the still-open project-state closure stay lower-pressure before anything widens outward.'
+  return 'callback_role=execution_result; continuity_pressure=lower; failure_surface=explicit; widening=deferred'
 }
 
 function buildMinimalProjectStateExecutionCallbackProjection(input: {
@@ -1164,47 +1159,11 @@ function buildMinimalProjectStateExecutionCallbackProjection(input: {
   const projectState = resolveAlicizationProjectStateBrief()
   const latestLandedProgress = compactProjectLatestProgressForSystemBlock(projectState.latestProgress, 96)
   const projectContinuitySummary = [
-    projectState.sameHerSelfLine,
+    'execution-callback',
     latestLandedProgress ? `latest_landed_progress=${latestLandedProgress}` : '',
   ].filter(Boolean).join(' | ')
-  const openFocus = (() => {
-    const normalized = (projectState.primaryOpenLoop ?? '').toLowerCase()
-    if (!normalized)
-      return null
-
-    const focus: string[] = []
-    if (normalized.includes('memory'))
-      focus.push('memory')
-    if (normalized.includes('initiative'))
-      focus.push('initiative')
-    if (normalized.includes('embodiment'))
-      focus.push('embodiment')
-    if (normalized.includes('same-her') || normalized.includes('same living line'))
-      focus.push('same-line')
-    if (normalized.includes('closure seam'))
-      focus.push('closure-seam')
-    return focus.length > 0 ? focus.join('/') : null
-  })()
-  const nextFocus = (() => {
-    const normalized = (projectState.nextClosureTarget ?? '').toLowerCase()
-    if (!normalized)
-      return null
-
-    const focus: string[] = []
-    if (normalized.includes('project identity carry'))
-      focus.push('project-carry')
-    if (normalized.includes('phase 1'))
-      focus.push('phase-1')
-    if (normalized.includes('measured-return'))
-      focus.push('measured-return')
-    if (normalized.includes('same living line') || normalized.includes('same-her'))
-      focus.push('same-line')
-    if (normalized.includes('initiative'))
-      focus.push('initiative')
-    if (normalized.includes('embodiment'))
-      focus.push('embodiment')
-    return focus.length > 0 ? focus.join('/') : null
-  })()
+  const openFocus = deriveExecutionProjectOpenFocus(projectState.primaryOpenLoop)
+  const nextFocus = deriveExecutionProjectNextFocus(projectState.nextClosureTarget)
   const executionSameHerOpeningCue = deriveExecutionDeliverySameHerOpeningCue({
     goal: input.goal,
     summary: input.selfContinuityAuthority?.authoritySummary ?? null,
@@ -1214,7 +1173,10 @@ function buildMinimalProjectStateExecutionCallbackProjection(input: {
       && /repair truth|truth/u.test(input.selfContinuityAuthority.selfLine)
       && typeof input.selfContinuityAuthority?.relationshipLine === 'string'
       && /closeness outrun truth/u.test(input.selfContinuityAuthority.relationshipLine)
-      ? `Repair truth before flourish. ${input.selfContinuityAuthority.relationshipLine.trim()}`
+      ? [
+          'repair_truth_before_closeness=true',
+          `relationship_line=${input.selfContinuityAuthority.relationshipLine.trim()}`,
+        ].join('; ')
       : null
 
   return {
@@ -1232,35 +1194,40 @@ function buildMinimalProjectStateExecutionCallbackProjection(input: {
     closenessLadder: [{
       context: 'execution-callback',
       rung: 'measured-room',
-      preference: 'Deliver the settled result through the current Phase 1 project context instead of a detached execution notice.',
-      rationale: projectState.sameHerSelfLine,
+      preference: 'callback_delivery=bounded; failure_surface=transparent',
+      rationale: latestLandedProgress
+        ? `latest_landed_progress=${latestLandedProgress}`
+        : 'callback_context=execution-result',
       confidence: 0.72,
     }],
     relationshipPosture: 'restrained',
     openingGuidance: [
-      `Stay inside the current continuity baseline. ${projectState.sameHerSelfLine} Let the callback return carry project identity, current Phase 1 progress, and still-open closure pressure before anything widens outward.`,
-      openFocus ? `Keep open focus=${openFocus}.` : '',
-      nextFocus ? `Keep next focus=${nextFocus}.` : '',
+      'callback_role=execution_result',
+      'failure_surface=explicit',
+      'memory_owner.short_term=WorkingMemory',
+      'memory_owner.long_term=LongTermMemoryRecall',
+      openFocus ? `open_focus=${openFocus}` : '',
+      nextFocus ? `next_focus=${nextFocus}` : '',
       executionSameHerOpeningCue,
     ].filter(Boolean).join(' '),
     preferredProactiveStyle: 'silent-observe',
-    manifestationCadenceSummary: 'Execution callback return should stay measured-return and keep project-state closure pressure on one living line.',
-    preferenceText: 'Keep callback timing exact, lower-pressure, and same-thread.',
-    sensitivityText: 'A detached result-notice shape would thin the execution return.',
-    repairTriggerText: 'If callback delivery starts sounding like a utility shell, pull it back into the current project context.',
-    burdenText: 'Execution callback warmth should not crowd the host or erase the still-open closure seam.',
-    routineText: 'Callback delivery should come back through the Phase 1 context that is still closing desktop life loops.',
-    trustRationale: 'Trust holds when executed results return through the current project context instead of a detached notification cadence.',
+    manifestationCadenceSummary: 'callback_cadence=measured_exact_failure_transparent',
+    preferenceText: 'callback_timing=exact_lower_pressure_current_turn',
+    sensitivityText: 'callback_risk=detached_result_notice',
+    repairTriggerText: 'repair_trigger=uncertainty_hidden',
+    burdenText: 'callback_burden=warmth_crowding_or_failure_erasure',
+    routineText: 'callback_route=current_execution_context_and_memory_owners',
+    trustRationale: 'trust_condition=status_evidence_failure_transparency',
     relationshipDoctrine: truthFirstRelationshipDoctrine
-      ?? 'Stay exact, bounded, and carry project identity plus unfinished closure pressure on the same callback line.',
+      ?? 'relationship_doctrine=exact_bounded_no_persona_cover_for_execution_uncertainty',
     cautious: true,
     restrained: true,
     summary: [
       'regime=execution-callback',
       'posture=restrained',
-      `project_state=${projectState.sameHerSelfLine}`,
+      'callback_context=execution-result',
+      'runtime_context=alicization_phase1',
       latestLandedProgress ? `latest_landed_progress=${latestLandedProgress}` : '',
-      `preflight=${projectState.identity}`,
       executionSameHerOpeningCue ? `opening=${executionSameHerOpeningCue}` : '',
       openFocus ? `open_focus=${openFocus}` : '',
       nextFocus ? `next_focus=${nextFocus}` : '',
@@ -1517,7 +1484,6 @@ export function createAlicizationRuntimeExecutionDelivery(
       captureAgentSensorySnapshot: false,
       digitalLifeRuntimeSurface,
       extraSystemBlocks: [
-        ...buildAlicizationProjectStateExtraSystemBlocks(),
         buildExecutionCallbackProjectSelfBriefSystemBlock(
           input.projectState,
           normalizedProjection,

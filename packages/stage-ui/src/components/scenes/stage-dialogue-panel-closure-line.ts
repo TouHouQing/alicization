@@ -1,19 +1,27 @@
 import type { StageQuickReplyClosureDiagnosticEntry } from './stage-quick-reply-closure'
 
-import { isAlicizationThinProjectAwarenessLine } from '@proj-alicization/stage-shared'
+import {
+  containsAlicizationFixedTemplateResidue,
+  isAlicizationThinProjectAwarenessLine,
+} from '@proj-alicization/stage-shared'
+
+const dialoguePanelInternalResiduePattern
+  = /continuity evidence|identity-continuity|phase1_local_digital_life|visibility=internal-structured|content=excluded|owner=|source=|continuity_anchor=|continuity=|pending=|pending[_-]rejoin=|recovery@|same[- ]her|same living line|one living her|one continuous her|同一个\s*her|同一个她|同一条数字生命线|数字生命主线|普通项目播报|下一步还要继续收住/iu
+
+function normalizeVisibleClosureLine(line: string | null | undefined) {
+  const trimmed = typeof line === 'string' ? line.trim() : ''
+  if (!trimmed)
+    return null
+  if (containsAlicizationFixedTemplateResidue(trimmed))
+    return null
+  if (dialoguePanelInternalResiduePattern.test(trimmed))
+    return null
+  return trimmed
+}
 
 function applyProjectStateTone(line: string | null, status: string | undefined) {
-  if (!line)
-    return null
-
-  const normalizedStatus = status?.trim().toLowerCase()
-  if (normalizedStatus === 'grounded')
-    return `这条数字生命主线现在先稳住了。 ${line}`.trim()
-  if (normalizedStatus === 'drift')
-    return `这条数字生命主线刚刚有点松了，我先把它重新收回来。 ${line}`.trim()
-  if (normalizedStatus === 'partial')
-    return `我还在继续带着这条数字生命主线往前走。 ${line}`.trim()
-  return line
+  void status
+  return normalizeVisibleClosureLine(line)
 }
 
 function isStrongerSameHerHeadline(line: string | null | undefined) {
@@ -31,15 +39,15 @@ function isStrongerSameHerHeadline(line: string | null | undefined) {
     )
     || (
       normalized.includes('holding together through face, motion, lipsync, and voice together')
-      && normalized.includes('visible same-her line has already rejoined without body carry')
+      && normalized.includes('visible identity-continuity line has already rejoined without body carry')
     )
     || normalized.includes('locked back onto the same living segment together')
     || normalized.includes('temporary visual alignment')
-    || normalized.includes('full cross-modal same-her line')
+    || normalized.includes('full cross-modal identity-continuity line')
     || normalized.includes('one living her')
     || (
       normalized.includes('resident body lane')
-      && normalized.includes('same-her voice line')
+      && normalized.includes('identity-continuity voice line')
     )
     || normalized.includes('body-only recovery@')
     || normalized.includes('body+lipsync+voice recovery@')
@@ -57,45 +65,53 @@ function isStrongerSameHerHeadline(line: string | null | undefined) {
     || normalized.includes('resident body continuity and voice prosody')
     || normalized.includes('resident body continuity')
     || normalized.includes('resident-body continuity')
-    || normalized.includes('same-her body line')
-    || normalized.includes('same-her audible body line')
+    || normalized.includes('identity-continuity body line')
+    || normalized.includes('identity-continuity audible body line')
     || normalized.includes('living audio thread')
 }
 
 function mergeCompanionshipReasonLine(line: string | null, companionshipReasonLine: string | null) {
-  if (!line || !companionshipReasonLine)
-    return line
+  const visibleLine = normalizeVisibleClosureLine(line)
+  const visibleCompanionshipReasonLine = normalizeVisibleClosureLine(companionshipReasonLine)
+  if (!visibleLine)
+    return null
+  if (!visibleCompanionshipReasonLine)
+    return visibleLine
 
-  const normalizedLine = line.toLowerCase()
-  const normalizedReason = companionshipReasonLine.toLowerCase()
+  const normalizedLine = visibleLine.toLowerCase()
+  const normalizedReason = visibleCompanionshipReasonLine.toLowerCase()
   if (normalizedLine.includes(normalizedReason))
-    return line
+    return visibleLine
 
-  return `${line} ${companionshipReasonLine}`.trim()
+  return normalizeVisibleClosureLine(`${visibleLine} ${visibleCompanionshipReasonLine}`.trim())
 }
 
 function mergeSameHerDriftRiskLine(line: string | null, driftRiskLine: string | null) {
-  if (!line || !driftRiskLine)
-    return line
+  const visibleLine = normalizeVisibleClosureLine(line)
+  const visibleDriftRiskLine = normalizeVisibleClosureLine(driftRiskLine)
+  if (!visibleLine || !visibleDriftRiskLine)
+    return visibleLine
 
-  const normalizedLine = line.toLowerCase()
-  const normalizedRisk = driftRiskLine.toLowerCase()
+  const normalizedLine = visibleLine.toLowerCase()
+  const normalizedRisk = visibleDriftRiskLine.toLowerCase()
   if (normalizedLine.includes(normalizedRisk))
-    return line
+    return visibleLine
 
-  return `${line} ${driftRiskLine}`.trim()
+  return normalizeVisibleClosureLine(`${visibleLine} ${visibleDriftRiskLine}`.trim())
 }
 
 function mergeProactiveSameHerGapLine(line: string | null, proactiveSameHerGapLine: string | null) {
-  if (!line || !proactiveSameHerGapLine)
-    return line
+  const visibleLine = normalizeVisibleClosureLine(line)
+  const visibleGapLine = normalizeVisibleClosureLine(proactiveSameHerGapLine)
+  if (!visibleLine || !visibleGapLine)
+    return visibleLine
 
-  const normalizedLine = line.toLowerCase()
-  const normalizedGapLine = proactiveSameHerGapLine.toLowerCase()
+  const normalizedLine = visibleLine.toLowerCase()
+  const normalizedGapLine = visibleGapLine.toLowerCase()
   if (normalizedLine.includes(normalizedGapLine))
-    return line
+    return visibleLine
 
-  return `${line} ${proactiveSameHerGapLine}`.trim()
+  return normalizeVisibleClosureLine(`${visibleLine} ${visibleGapLine}`.trim())
 }
 
 function mergeProjectStateRepairSupportLines(
@@ -134,30 +150,8 @@ function isProjectStateRepairFocus(focus: string | null | undefined) {
 }
 
 function buildProjectLoopGapEmbodimentLine(line: string | null) {
-  if (!line) {
-    return null
-  }
-
-  const normalized = line.trim().toLowerCase()
-  const mentionsEmotion = /emotion|affect|repair-before-closeness|rest-protective|情绪|情感/u.test(normalized)
-  const mentionsMemory = /memory|recall|recollection|记忆/u.test(normalized)
-  const mentionsInwardContinuity = /same-her inward-carry observability|same-her-inward-carry|inward-carry|inward continuity|inner continuity|内在连续性|内在线索/u.test(normalized)
-  const mentionsInitiative = /initiative|(?<!re)opening|proactive|主动性/u.test(normalized)
-  const mentionsEmbodiment = /embodiment|voice|face|motion|lipsync|resident presence|cross-modal|具身|口型|表情|动作/u.test(normalized)
-
-  if (!mentionsEmotion && !mentionsMemory && !mentionsInwardContinuity && !mentionsInitiative && !mentionsEmbodiment) {
-    return null
-  }
-
-  const gapLabels = [
-    mentionsEmotion ? '情绪' : null,
-    mentionsMemory ? '记忆' : null,
-    mentionsInwardContinuity ? '内在连续性' : null,
-    mentionsInitiative ? '主动性' : null,
-    mentionsEmbodiment ? '具身' : null,
-  ].filter(Boolean).join('、')
-
-  return `我这次还得继续把 ${gapLabels} 收回同一条数字生命线里，先别让这次开口漂成普通项目播报。`
+  void line
+  return null
 }
 
 function combineProjectLoopGapEvidence(...lines: Array<string | null>) {
@@ -175,7 +169,7 @@ function looksLikeThinLaneSameHerHeadline(line: string | null | undefined) {
     return false
 
   return normalized.includes('holding together mainly through')
-    && normalized.includes('full cross-modal same-her line is not closed yet')
+    && normalized.includes('full cross-modal identity-continuity line is not closed yet')
 }
 
 function scoreFallbackAwarenessLine(line: string | null | undefined) {
@@ -185,23 +179,23 @@ function scoreFallbackAwarenessLine(line: string | null | undefined) {
 
   let score = normalized.length >= 120 ? 2 : normalized.length >= 72 ? 1 : 0
   const carriesSameHerMeasuredReturn
-    = normalized.includes('same-her hold')
+    = normalized.includes('identity-continuity hold')
       || (
         normalized.includes('measured-return')
         && (
           normalized.includes('lower-pressure')
-          || normalized.includes('same living line')
+          || normalized.includes('current continuity route')
           || normalized.includes('callback line')
         )
       )
   const carriesSameHerInwardLowPressure
-    = normalized.includes('same-her-inward-carry')
+    = normalized.includes('identity-continuity-inward-carry')
       || normalized.includes('quiet-companionship')
       || (
         normalized.includes('low-pressure')
         && (
           normalized.includes('same line inward')
-          || normalized.includes('same living line')
+          || normalized.includes('current continuity route')
           || normalized.includes('one living her')
           || normalized.includes('body, face, and motion')
         )
@@ -227,7 +221,7 @@ function scoreFallbackAwarenessLine(line: string | null | undefined) {
     || normalized.includes('one living digital life project')
     || normalized.includes('what has landed')
     || normalized.includes('still-open')
-    || normalized.includes('same living line')
+    || normalized.includes('current continuity route')
     || normalized.includes('未闭环')
     || normalized.includes('数字生命项目')
   ) {
@@ -290,7 +284,7 @@ function isSameHerFocusedFallbackAwarenessCandidate(line: string | null | undefi
   if (!normalized)
     return false
 
-  return normalized.includes('same-her')
+  return normalized.includes('identity-continuity')
     || normalized.includes('one living her')
     || normalized.includes('same line inward')
     || normalized.includes('continuity=')
@@ -364,7 +358,7 @@ export function resolveStageDialoguePanelClosureLine(
     options?.fallbackAwarenessCandidates,
   )
   if (!closureCue)
-    return preferredFallbackAwarenessLine
+    return normalizeVisibleClosureLine(preferredFallbackAwarenessLine)
 
   const headline = typeof closureCue.headline === 'string' && closureCue.headline.trim()
     ? closureCue.headline.trim()
@@ -395,7 +389,7 @@ export function resolveStageDialoguePanelClosureLine(
       scoreFallbackAwarenessLine(headline),
       scoreFallbackAwarenessLine(briefingHeadline),
     )
-  const shouldPreferFallbackSameHerCarry = closureCue.routeQuery?.focus === 'same-her-continuity'
+  const shouldPreferFallbackSameHerCarry = closureCue.routeQuery?.focus === 'identity-continuity-continuity'
     && Boolean(preferredSameHerFallbackAwarenessLine)
     && (
       looksLikeThinSameHerClosureLine(headline)

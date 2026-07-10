@@ -889,7 +889,7 @@ function buildReplayHumanRatingRubric(): AlicizationReplayHumanRatingRubric {
       {
         key: 'templateSmell',
         label: 'Template Smell',
-        prompt: 'How little fixed-template smell remains in the visible reply surface?',
+        prompt: 'How little template residue remains in the visible reply surface?',
         scale: '1-5',
       },
       {
@@ -1123,7 +1123,7 @@ function summarizeReplayTurnGraph(turnGraph: AlicizationTurnGraph | null | undef
       blockedReasons: [...(turnGraph.surface?.blockedReasons ?? [])],
       criticStatus: turnGraph.surface?.critic?.status ?? null,
       criticReasonCodes: [...(turnGraph.surface?.critic?.reasonCodes ?? [])],
-      criticScores: turnGraph.surface?.critic?.scores ?? null,
+      criticScores: null,
       closureStatus: turnGraph.surface?.closure?.status ?? null,
       closureReasonCodes: [...(turnGraph.surface?.closure?.reasonCodes ?? [])],
       closureRewriteAttempted: turnGraph.surface?.closure?.rewriteAttempted ?? null,
@@ -1793,7 +1793,7 @@ function buildTraceMemoryClosureExecutionContext(input: {
 
   const producedAt = Math.max(0, Math.floor(Number(input.trace.lastUpdatedAt || input.trace.createdAt || Date.now())))
   const staleSummary = 'Stale status recap should be downranked after memory reconsolidation.'
-  const selectedSummary = carry || 'Corrected memory should keep the execution callback on the same-her line.'
+  const selectedSummary = carry || 'Corrected memory should keep execution callback continuity active.'
   const selectedCandidate = {
     id: 'memory-closure-execution:corrected-callback-carry',
     summary: selectedSummary,
@@ -1811,7 +1811,7 @@ function buildTraceMemoryClosureExecutionContext(input: {
   const preflightSummary = [
     'why recall surfaced now: memory-reconsolidated execution feedback corrected the callback-afterglow carry, downranked stale status recap, and must shape the next proactive-opening, emotional afterglow, and embodied return.',
     selectedSummary,
-    'Because corrected memory downranked stale status recap, the next proactive-opening, emotional afterglow, and body voice expression become lower-pressure on the same-her execution callback line.',
+    'Because corrected memory downranked stale status recap, the next proactive-opening, emotional afterglow, and body voice expression become lower-pressure through execution callback continuity.',
   ].join(' ')
   const suppressedSituation = {
     candidateId: 'memory-closure-execution:stale-status-recap',
@@ -3551,7 +3551,7 @@ export function buildReplayBenchmarkDatasetContinuityDigest(turn: AlicizationRep
   ]
   const embodimentContinuityCues = [
     /body\+voice\+lipsync carried same-her/iu.test(embodimentContinuityReplayLine)
-      ? 'body+voice+lipsync carried same-her'
+      ? 'body+voice+lipsync carried embodiment continuity'
       : '',
     readString(embodimentContinuityLedger?.continuityPhase, 64)
       ? `embodiment_phase:${readString(embodimentContinuityLedger?.continuityPhase, 64)}`
@@ -3691,7 +3691,7 @@ export function buildReplayBenchmarkDatasetContinuityDigest(turn: AlicizationRep
       ? `embodiment_phase:${readString(embodimentContinuityLedger?.continuityPhase, 64)}`
       : null,
     /body\+voice\+lipsync carried same-her/iu.test(embodimentContinuityReplayLine)
-      ? 'body+voice+lipsync carried same-her'
+      ? 'body+voice+lipsync carried embodiment continuity'
       : null,
     cues.some(cue => /body voice face motion lipsync expression/iu.test(cue))
       ? 'body voice face motion lipsync expression'
@@ -3699,12 +3699,12 @@ export function buildReplayBenchmarkDatasetContinuityDigest(turn: AlicizationRep
   ]
 
   return uniqueStrings([
-    'same-her continuity',
-    'phase 1 local digital life',
+    'identity continuity',
+    'phase 1 local runtime continuity',
     ...priorityMarkers,
-    hasDeferredInitiative ? 'initiative remains part of the same living line' : null,
-    hasEmbodimentCarry ? 'embodiment closure remains part of the same living line' : null,
-    hasRepairWindow ? 'same living line stays repair-aware before closeness widens' : null,
+    hasDeferredInitiative ? 'initiative remains part of current thread continuity' : null,
+    hasEmbodimentCarry ? 'embodiment closure remains part of embodiment continuity' : null,
+    hasRepairWindow ? 'relationship continuity stays repair-aware before closeness widens' : null,
     ...cues,
   ], 30).join(' | ')
 }

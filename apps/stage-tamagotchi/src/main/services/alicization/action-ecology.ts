@@ -122,10 +122,10 @@ function deriveProjectStateEcologyBias(projectState?: {
     )
   const carriesSameHerUnfinishedClosure = combinedProjectState.length > 0
     && (
-      combinedProjectState.includes('same-her')
-      || combinedProjectState.includes('same her')
-      || combinedProjectState.includes('same living line')
-      || combinedProjectState.includes('one continuous her')
+      combinedProjectState.includes('identity-continuity')
+      || combinedProjectState.includes('identity continuity')
+      || combinedProjectState.includes('continuity line')
+      || combinedProjectState.includes('identity continuity')
       || combinedProjectState.includes('continuous her')
     )
     && (
@@ -138,9 +138,9 @@ function deriveProjectStateEcologyBias(projectState?: {
     )
   const sameHerClosurePressure = combinedProjectState.length > 0
     && (
-      combinedProjectState.includes('same-her')
-      || combinedProjectState.includes('same her')
-      || combinedProjectState.includes('one continuous her')
+      combinedProjectState.includes('identity-continuity')
+      || combinedProjectState.includes('identity continuity')
+      || combinedProjectState.includes('identity continuity')
       || combinedProjectState.includes('measured-return')
       || combinedProjectState.includes('repair-before-closeness')
       || combinedProjectState.includes('cross-modal')
@@ -149,7 +149,7 @@ function deriveProjectStateEcologyBias(projectState?: {
       || combinedProjectState.includes('facial state')
       || combinedProjectState.includes('motion')
       || combinedProjectState.includes('同一个 her')
-      || combinedProjectState.includes('同一个她')
+      || combinedProjectState.includes('连续性')
       || combinedProjectState.includes('拟人')
       || combinedProjectState.includes('具身')
       || combinedProjectState.includes('跨模态')
@@ -163,10 +163,10 @@ function deriveProjectStateEcologyBias(projectState?: {
     lowerPressurePresence: true,
     preferReturnLater: true,
     preferMeasuredReturnPresence: sameHerClosurePressure || carriesSameHerUnfinishedClosure,
-    sameLivingLineTarget: nextClosureTarget.includes('same living line')
-      || latestLandedProgress.includes('same living line')
-      || primaryOpenLoop.includes('same living line')
-      || sameHerSelfLine.includes('same living line'),
+    sameLivingLineTarget: nextClosureTarget.includes('continuity line')
+      || latestLandedProgress.includes('continuity line')
+      || primaryOpenLoop.includes('continuity line')
+      || sameHerSelfLine.includes('continuity line'),
     explicitCrossModalTarget: nextClosureTarget.includes('cross-modal')
       && (
         nextClosureTarget.includes('visible reply')
@@ -459,7 +459,7 @@ export function buildActionEcology(input: {
     shouldSpeak = false
     shouldSurface = true
     why = projectStateEcologyBias.explicitCrossModalTarget
-      ? appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so the action stays lower-pressure until the return can carry more cross-modal same-her proof.')
+      ? appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so the action stays lower-pressure until the return can carry more cross-modal identity-continuity proof.')
       : projectStateEcologyBias.sameLivingLineTarget
         ? appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so the action stays lower-pressure until the return can stay coherent.')
         : appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so the action stays lower-pressure until the return can carry more proof.')
@@ -474,9 +474,9 @@ export function buildActionEcology(input: {
     suggestedStyle = 'silent-observe'
     shouldSpeak = false
     why = projectStateEcologyBias.explicitCrossModalTarget
-      ? appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so presence stays nearby for more cross-modal same-her proof.')
+      ? appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so presence stays nearby for more cross-modal identity-continuity proof.')
       : projectStateEcologyBias.sameLivingLineTarget
-        ? appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so presence stays nearby on the same living line without forcing speech.')
+        ? appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so presence stays nearby on the continuity line without forcing speech.')
         : appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so presence stays nearby without forcing speech.')
   }
 

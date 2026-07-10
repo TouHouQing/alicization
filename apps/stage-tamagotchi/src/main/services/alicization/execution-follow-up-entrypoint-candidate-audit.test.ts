@@ -33,7 +33,7 @@ describe('execution follow-up entrypoint candidate audit', () => {
 
     expect(callbackRuntimeSource).toContain('export function createAlicizationExecutionCallbackRuntime(')
     expect(consciousFrameSource).toContain('execution-callback-doctrine:')
-    expect(deliveryRuntimeSource).toContain('Execution callback delivery must stay inside the same digital life project line')
+    expect(deliveryRuntimeSource).toContain('Execution callback delivery must stay inside the current Alicization project context')
     expect(deliverySurfaceSource).toContain('export function buildAlicizationExecutionPayoffPrompt(')
     expect(obligationSource).toContain('export function deriveMainChatExecutionReplyObligation(')
     expect(responseContractSource).toContain('executionReplyObligation?: AlicizationMainChatExecutionReplyObligation | null')
@@ -46,7 +46,7 @@ describe('execution follow-up entrypoint candidate audit', () => {
     expect(remindersSource).toContain('kind: \'execution-callback\'')
     expect(source).toContain('export function createAlicizationExecutionCallbackRuntime\\(')
     expect(source).toContain('execution-callback-doctrine:')
-    expect(source).toContain('Execution callback delivery must stay inside the same digital life project line')
+    expect(source).toContain('Execution callback delivery must stay inside the current Alicization project context')
     expect(source).toContain('export function buildAlicizationExecutionPayoffPrompt\\(')
     expect(source).toContain('export function deriveMainChatExecutionReplyObligation\\(')
     expect(source).toContain('buildMainChatExecutionReplyObligationSystemBlock\\(')
@@ -59,9 +59,9 @@ describe('execution follow-up entrypoint candidate audit', () => {
     const executionSurfaceSource = readFileSync(new URL('./main-chat-execution-surface.ts', import.meta.url), 'utf8')
     const responseContractSource = readFileSync(new URL('./response-surface-contract.ts', import.meta.url), 'utf8')
 
-    expect(executionSurfaceSource).toContain('Before answering execution capability or routing questions, keep this project-state briefing explicit.')
+    expect(executionSurfaceSource).toContain('briefing_scope=execution_capability | visibility=internal-structured | facts_follow=true')
     expect(responseContractSource).toContain('executionReplyObligation: input.executionReplyObligation ?? null')
-    expect(source).toContain('Before answering execution capability or routing questions, keep this project-state briefing explicit\\.')
+    expect(source).toContain('briefing_scope=execution_capability \\| visibility=internal-structured \\| facts_follow=true')
     expect(source).toContain('executionReplyObligation: input\\.executionReplyObligation \\?\\? null')
   })
 

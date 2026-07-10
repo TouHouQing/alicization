@@ -3,8 +3,11 @@ import type { AlicizationBridgeChatStreamEvent } from '@proj-alicization/stage-u
 import type { AlicizationChatMetaEvent, AlicizationChatStartResult } from '../shared/eventa'
 
 import {
+  containsAlicizationFixedTemplateResidue,
+  formatAlicizationProjectStateAwarenessFields,
   normalizeAlicizationDigitalLifeEnvelope,
   resolveAlicizationProjectPreDialogueAwarenessLine,
+  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 import {
   normalizeStructuredPreDialogueAwarenessPayload,
@@ -13,30 +16,181 @@ import {
 } from '@proj-alicization/stage-ui/composables/alicization-structured-output'
 
 const canonicalSameHerSelfLine
-  = 'Keep one continuous her explicit from self-understanding into the final host-visible reply.'
+  = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+
+const bridgeFixedTemplateWithheldLine
+  = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
 
 function buildBridgeLatestLandedProgressReason(latestLandedProgress: string | null | undefined) {
   const normalized = latestLandedProgress?.trim()
-  if (!normalized)
+  if (!normalized || normalized === bridgeFixedTemplateWithheldLine)
     return null
 
-  return /[.。!！?？]$/u.test(normalized)
-    ? `Latest landed progress still holds at ${normalized}`
-    : `Latest landed progress still holds at ${normalized}.`
+  return `kind=latest_landed_progress; value=${normalized}`
 }
 
 function buildBridgeNextClosureTargetReason(nextClosureTarget: string | null | undefined) {
   const normalized = nextClosureTarget?.trim()
-  if (!normalized)
+  if (!normalized || normalized === bridgeFixedTemplateWithheldLine)
     return null
 
-  return /[.。!！?？]$/u.test(normalized)
-    ? `Next closure target is still ${normalized}`
-    : `Next closure target is still ${normalized}.`
+  return `kind=next_closure_target; value=${normalized}`
 }
 
 function isBridgeAwarenessReason(reason: string | null): reason is string {
-  return Boolean(reason)
+  return Boolean(reason && reason !== bridgeFixedTemplateWithheldLine)
+}
+
+function sanitizeBridgeAwarenessLine(raw: string | null | undefined) {
+  const normalized = raw?.trim().replace(/\s+/g, ' ').slice(0, 420).trim() || ''
+  if (!normalized)
+    return null
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return bridgeFixedTemplateWithheldLine
+  return normalized
+}
+
+function sanitizeBridgeMetadataText(raw: string | null | undefined) {
+  return sanitizeAlicizationProviderFacingText(raw, 420, bridgeFixedTemplateWithheldLine) || null
+}
+
+function sanitizeBridgeClosureMetadataText(raw: string | null | undefined) {
+  const sanitized = sanitizeBridgeMetadataText(raw)
+  return sanitized && sanitized !== bridgeFixedTemplateWithheldLine ? sanitized : null
+}
+
+function normalizeBridgeReasonPreviewLine(raw: string | null | undefined) {
+  const sanitized = sanitizeBridgeMetadataText(raw)
+  if (!sanitized || sanitized === bridgeFixedTemplateWithheldLine)
+    return null
+
+  const latestMatch = sanitized.match(/^Latest landed progress still holds at\s+(.+?)[.。]?$/iu)
+  if (latestMatch)
+    return buildBridgeLatestLandedProgressReason(latestMatch[1])
+
+  const nextMatch = sanitized.match(/^Next closure target is still\s+(.+?)[.。]?$/iu)
+  if (nextMatch)
+    return buildBridgeNextClosureTargetReason(nextMatch[1])
+
+  return sanitized
+}
+
+function sanitizeBridgeReasonPreview(reasons: string[] | null | undefined) {
+  return (reasons ?? [])
+    .map(reason => normalizeBridgeReasonPreviewLine(reason))
+    .filter((reason): reason is string => Boolean(reason) && reason !== bridgeFixedTemplateWithheldLine)
+}
+
+function sanitizeBridgeIdentityText(raw: string | null | undefined) {
+  const sanitized = sanitizeBridgeMetadataText(raw)
+  if (!sanitized)
+    return null
+  return sanitized === bridgeFixedTemplateWithheldLine
+    || /\blocal-first digital life project\b|\bone continuous "?her"?\b/iu.test(sanitized)
+    ? 'local_desktop_life_loop'
+    : sanitized
+}
+
+function sanitizeBridgePhaseText(raw: string | null | undefined) {
+  const sanitized = sanitizeBridgeMetadataText(raw)
+  if (!sanitized)
+    return null
+  return sanitized === bridgeFixedTemplateWithheldLine
+    || /\bphase\s*1\s*:\s*local digital life\b|\blocal digital life\b/iu.test(sanitized)
+    ? 'local_desktop_life_loop'
+    : sanitized
+}
+
+function sanitizeBridgeProjectState<T extends Record<string, any> | null>(projectState: T): T {
+  if (!projectState)
+    return projectState
+
+  return {
+    ...projectState,
+    identity: sanitizeBridgeIdentityText(projectState.identity),
+    currentPhase: sanitizeBridgePhaseText(projectState.currentPhase),
+    latestLandedProgress: sanitizeBridgeMetadataText(projectState.latestLandedProgress),
+    latestProgress: sanitizeBridgeMetadataText(projectState.latestProgress),
+    landedProgressSummary: sanitizeBridgeMetadataText(projectState.landedProgressSummary),
+    preDialogueAwarenessLine: sanitizeBridgeMetadataText(projectState.preDialogueAwarenessLine),
+    awarenessLine: sanitizeBridgeMetadataText(projectState.awarenessLine),
+    preDialogueAwarenessSummary: sanitizeBridgeMetadataText(projectState.preDialogueAwarenessSummary),
+    preflightSummary: sanitizeBridgeMetadataText(projectState.preflightSummary),
+    memoryClosureSummary: sanitizeBridgeMetadataText(projectState.memoryClosureSummary),
+    companionHeadlineLine: sanitizeBridgeMetadataText(projectState.companionHeadlineLine),
+    companionBriefingLine: sanitizeBridgeMetadataText(projectState.companionBriefingLine),
+    companionNextClosureLine: sanitizeBridgeMetadataText(projectState.companionNextClosureLine),
+    primaryOpenLoop: sanitizeBridgeMetadataText(projectState.primaryOpenLoop),
+    nextClosureTarget: sanitizeBridgeMetadataText(projectState.nextClosureTarget),
+    continuitySummary: sanitizeBridgeMetadataText(projectState.continuitySummary),
+    sameHerSelfLine: sanitizeBridgeMetadataText(projectState.sameHerSelfLine),
+    sameHerHoldDetail: sanitizeBridgeMetadataText(projectState.sameHerHoldDetail),
+    sameHerDriftRisk: sanitizeBridgeMetadataText(projectState.sameHerDriftRisk),
+    proactiveSameHerGap: sanitizeBridgeMetadataText(projectState.proactiveSameHerGap),
+    continuityCue: sanitizeBridgeMetadataText(projectState.continuityCue),
+    emotionalClosureCue: sanitizeBridgeMetadataText(projectState.emotionalClosureCue),
+  } as T
+}
+
+function sanitizeBridgePreDialogueClosure<T extends Record<string, any> | null>(closure: T): T {
+  if (!closure)
+    return closure
+
+  return {
+    ...closure,
+    summaryLine: sanitizeBridgeClosureMetadataText(closure.summaryLine),
+    companionHeadlineLine: sanitizeBridgeClosureMetadataText(closure.companionHeadlineLine),
+    companionBriefingLine: sanitizeBridgeClosureMetadataText(closure.companionBriefingLine),
+    companionNextClosureLine: sanitizeBridgeClosureMetadataText(closure.companionNextClosureLine),
+    emotionalClosureCue: sanitizeBridgeClosureMetadataText(closure.emotionalClosureCue),
+    sameHerDriftRiskLine: sanitizeBridgeClosureMetadataText(closure.sameHerDriftRiskLine),
+    companionshipReasonLine: sanitizeBridgeClosureMetadataText(closure.companionshipReasonLine),
+    briefingLines: Array.isArray(closure.briefingLines)
+      ? closure.briefingLines
+          .map(line => sanitizeBridgeClosureMetadataText(line))
+          .filter((line): line is string => Boolean(line))
+      : closure.briefingLines,
+    reasons: Array.isArray(closure.reasons)
+      ? closure.reasons
+          .map(reason => sanitizeBridgeClosureMetadataText(reason))
+          .filter((reason): reason is string => Boolean(reason))
+      : closure.reasons,
+  } as T
+}
+
+function sanitizeBridgeRuntimeDigest<T extends Record<string, any> | null>(runtimeDigest: T): T {
+  if (!runtimeDigest)
+    return runtimeDigest
+
+  const currentConsciousFrame = runtimeDigest.currentConsciousFrame
+    && typeof runtimeDigest.currentConsciousFrame === 'object'
+    && !Array.isArray(runtimeDigest.currentConsciousFrame)
+    ? runtimeDigest.currentConsciousFrame as Record<string, any>
+    : null
+
+  return {
+    ...runtimeDigest,
+    summary: sanitizeBridgeMetadataText(runtimeDigest.summary) ?? runtimeDigest.summary,
+    projectState: sanitizeBridgeProjectState(
+      runtimeDigest.projectState
+      && typeof runtimeDigest.projectState === 'object'
+      && !Array.isArray(runtimeDigest.projectState)
+        ? runtimeDigest.projectState
+        : null,
+    ),
+    currentConsciousFrame: currentConsciousFrame
+      ? {
+          ...currentConsciousFrame,
+          projectState: sanitizeBridgeProjectState(
+            currentConsciousFrame.projectState
+            && typeof currentConsciousFrame.projectState === 'object'
+            && !Array.isArray(currentConsciousFrame.projectState)
+              ? currentConsciousFrame.projectState
+              : null,
+          ),
+        }
+      : runtimeDigest.currentConsciousFrame,
+  } as T
 }
 
 function buildBridgeProjectAwarenessLine(input: {
@@ -45,26 +199,14 @@ function buildBridgeProjectAwarenessLine(input: {
   primaryOpenLoop: string
   sameHerSelfLine: string
 }) {
-  const compactIdentity = input.identity
-    .replace(/\s+rather than a better chat wrapper\.?$/u, '')
-    .replace(/\s+on the host computer\.?$/u, '')
-    .trim()
-    .slice(0, 120)
-  const compactPhase = input.currentPhase.split('. ')[0]?.trim() ?? input.currentPhase.trim()
-  const compactOpenLoop = input.primaryOpenLoop
-    .split(' so ')[0]
-    ?.replace(/[.。!！?？;；:：]+$/u, '')
-    .trim()
-    .slice(0, 120) ?? input.primaryOpenLoop.trim().slice(0, 120)
-  const compactSameHer = input.sameHerSelfLine.trim().slice(0, 110)
-  const parts = [
-    `Before answering, remember: ${compactIdentity}`,
-    `She is still inside ${compactPhase}`,
-    `The still-open closure is ${compactOpenLoop}`,
-    compactSameHer,
-  ]
-
-  return parts.join('. ').replace(/\s+/g, ' ').slice(0, 320).trim() || null
+  return formatAlicizationProjectStateAwarenessFields({
+    identity: input.identity,
+    currentPhase: input.currentPhase,
+    primaryOpenLoop: input.primaryOpenLoop,
+    continuityAnchor: input.sameHerSelfLine,
+    visibility: 'internal-structured',
+    maxChars: 320,
+  }) || null
 }
 
 function resolveBridgedChatMetaDigitalLifeAuthority(
@@ -82,7 +224,7 @@ export function bridgeAlicizationChatMetaEventToStreamEvent(
   const normalizedProjectState = normalizeStructuredProjectStatePayload(
     (payload.projectState ?? payload.runtimeDigest?.projectState ?? null) as Record<string, unknown> | null,
   )
-  const bridgedProjectState = normalizedProjectState
+  const bridgedProjectState = sanitizeBridgeProjectState(normalizedProjectState
     && !normalizedProjectState.sameHerSelfLine
     && normalizedProjectState.identity
     && normalizedProjectState.currentPhase
@@ -91,17 +233,22 @@ export function bridgeAlicizationChatMetaEventToStreamEvent(
         ...normalizedProjectState,
         sameHerSelfLine: canonicalSameHerSelfLine,
       }
-    : normalizedProjectState ?? null
+    : normalizedProjectState ?? null)
   const normalizedPreDialogueAwareness = normalizeStructuredPreDialogueAwarenessPayload(
     (payload.preDialogueAwareness ?? null) as Record<string, unknown> | null,
   )
   const normalizedPreDialogueClosure = normalizeStructuredPreDialogueClosurePayload(
     (payload.preDialogueClosure ?? null) as Record<string, unknown> | null,
   )
+  const bridgedPreDialogueClosure = sanitizeBridgePreDialogueClosure(normalizedPreDialogueClosure)
   const bridgedExplicitPreDialogueAwareness = normalizedPreDialogueAwareness
     ? {
         ...normalizedPreDialogueAwareness,
-        awarenessLine: resolveAlicizationProjectPreDialogueAwarenessLine({
+        summaryLine: sanitizeBridgeMetadataText(normalizedPreDialogueAwareness.summaryLine),
+        companionHeadlineLine: sanitizeBridgeMetadataText(normalizedPreDialogueAwareness.companionHeadlineLine),
+        companionBriefingLine: sanitizeBridgeMetadataText(normalizedPreDialogueAwareness.companionBriefingLine),
+        companionNextClosureLine: sanitizeBridgeMetadataText(normalizedPreDialogueAwareness.companionNextClosureLine),
+        awarenessLine: sanitizeBridgeAwarenessLine(resolveAlicizationProjectPreDialogueAwarenessLine({
           runtimeProjectState: {
             identity: bridgedProjectState?.identity ?? null,
             currentPhase: bridgedProjectState?.currentPhase ?? null,
@@ -110,7 +257,6 @@ export function bridgeAlicizationChatMetaEventToStreamEvent(
             companionHeadlineLine: normalizedPreDialogueAwareness.companionHeadlineLine,
             companionBriefingLine:
               normalizedPreDialogueAwareness.companionBriefingLine
-              ?? bridgedProjectState?.sameHerSelfLine
               ?? null,
             preDialogueAwarenessSummary: normalizedPreDialogueAwareness.summaryLine,
             latestLandedProgress: bridgedProjectState?.latestLandedProgress ?? null,
@@ -121,7 +267,7 @@ export function bridgeAlicizationChatMetaEventToStreamEvent(
               ?? null,
             emotionalClosureSummary:
               normalizedPreDialogueAwareness.emotionalClosureCue
-              ?? normalizedPreDialogueClosure?.emotionalClosureCue
+              ?? bridgedPreDialogueClosure?.emotionalClosureCue
               ?? bridgedProjectState?.emotionalClosureCue
               ?? null,
             sameHerSelfLine: bridgedProjectState?.sameHerSelfLine ?? null,
@@ -130,8 +276,7 @@ export function bridgeAlicizationChatMetaEventToStreamEvent(
             identity: bridgedProjectState?.identity ?? null,
             currentPhase: bridgedProjectState?.currentPhase ?? null,
             companionBriefingLine:
-              bridgedProjectState?.sameHerSelfLine
-              ?? normalizedPreDialogueAwareness.companionBriefingLine
+              normalizedPreDialogueAwareness.companionBriefingLine
               ?? null,
             latestLandedProgress: bridgedProjectState?.latestLandedProgress ?? null,
             primaryOpenLoop: bridgedProjectState?.primaryOpenLoop ?? null,
@@ -141,12 +286,14 @@ export function bridgeAlicizationChatMetaEventToStreamEvent(
               ?? null,
             emotionalClosureSummary:
               normalizedPreDialogueAwareness.emotionalClosureCue
-              ?? normalizedPreDialogueClosure?.emotionalClosureCue
+              ?? bridgedPreDialogueClosure?.emotionalClosureCue
               ?? bridgedProjectState?.emotionalClosureCue
               ?? null,
             sameHerSelfLine: bridgedProjectState?.sameHerSelfLine ?? null,
           },
-        }) || normalizedPreDialogueAwareness.awarenessLine,
+        }) || normalizedPreDialogueAwareness.awarenessLine),
+        emotionalClosureCue: sanitizeBridgeMetadataText(normalizedPreDialogueAwareness.emotionalClosureCue),
+        reasonPreview: sanitizeBridgeReasonPreview(normalizedPreDialogueAwareness.reasonPreview),
       }
     : null
   const bridgedPreDialogueAwareness = bridgedExplicitPreDialogueAwareness
@@ -159,17 +306,17 @@ export function bridgeAlicizationChatMetaEventToStreamEvent(
             status: 'grounded' as const,
             summaryLine: bridgedProjectState.latestLandedProgress ?? null,
             companionHeadlineLine: null,
-            companionBriefingLine: bridgedProjectState.sameHerSelfLine ?? canonicalSameHerSelfLine,
+            companionBriefingLine: null,
             companionNextClosureLine: bridgedProjectState.nextClosureTarget,
-            awarenessLine: buildBridgeProjectAwarenessLine({
+            awarenessLine: sanitizeBridgeAwarenessLine(buildBridgeProjectAwarenessLine({
               identity: bridgedProjectState.identity,
               currentPhase: bridgedProjectState.currentPhase,
               primaryOpenLoop: bridgedProjectState.primaryOpenLoop,
               sameHerSelfLine: bridgedProjectState.sameHerSelfLine ?? canonicalSameHerSelfLine,
-            }),
+            })),
             emotionalClosureCue:
               bridgedProjectState.emotionalClosureCue
-              ?? normalizedPreDialogueClosure?.emotionalClosureCue
+              ?? bridgedPreDialogueClosure?.emotionalClosureCue
               ?? null,
             reasonPreview: [
               buildBridgeLatestLandedProgressReason(bridgedProjectState.latestLandedProgress),
@@ -185,13 +332,13 @@ export function bridgeAlicizationChatMetaEventToStreamEvent(
     governance: payload.governance ?? null,
     projectState: bridgedProjectState,
     preDialogueAwareness: bridgedPreDialogueAwareness ?? null,
-    preDialogueClosure: normalizedPreDialogueClosure ?? null,
+    preDialogueClosure: bridgedPreDialogueClosure ?? null,
     embodiment: payload.embodiment ?? null,
     embodimentScript: payload.embodimentScript ?? null,
     speechTimeline: payload.speechTimeline ?? null,
     digitalLife: resolveBridgedChatMetaDigitalLifeAuthority(payload),
     digitalLifeSpine: payload.digitalLifeSpine ?? null,
-    runtimeDigest: payload.runtimeDigest ?? null,
+    runtimeDigest: sanitizeBridgeRuntimeDigest((payload.runtimeDigest ?? null) as Record<string, any> | null),
   }
 }
 

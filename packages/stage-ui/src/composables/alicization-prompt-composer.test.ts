@@ -1,9 +1,26 @@
 import type { Message } from '@xsai/shared-chat'
 
 import { ContextUpdateStrategy } from '@proj-alicization/server-sdk'
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import { composeAlicizationPromptMessages } from './alicization-prompt-composer'
+
+const forbiddenProviderPromptTemplatePattern
+  = /# SOUL|ALICIZATION_CORE_RESPONSE_POLICY|In thought, you MUST|same[- ]her|same her|same living line|one continuous her|local-first digital life project|Phase 1:\s*Local Digital Life|Before (?:answering|speaking|acting)/iu
+
+function systemPromptText(result: ReturnType<typeof composeAlicizationPromptMessages>) {
+  return result.messages
+    .filter(message => message.role === 'system')
+    .map(message => String(message.content ?? ''))
+    .join('\n\n')
+}
+
+function expectNoProviderPromptTemplateResidue(result: ReturnType<typeof composeAlicizationPromptMessages>) {
+  const text = systemPromptText(result)
+  expect(text).not.toMatch(forbiddenProviderPromptTemplatePattern)
+  expect(containsAlicizationFixedTemplateResidue(text)).toBe(false)
+}
 
 describe('alicization prompt composer', () => {
   it('strips legacy system messages and keeps dual system layers', () => {
@@ -21,17 +38,62 @@ describe('alicization prompt composer', () => {
 
     expect(result.messages[0]?.role).toBe('system')
     expect(result.messages.filter(message => message.role === 'system')).toHaveLength(2)
-    expect(String(result.messages[0]?.content)).toContain('# SOUL')
+    expect(String(result.messages[0]?.content)).toContain('[ALICIZATION_SOUL_FACTS]')
+    expect(String(result.messages[0]?.content)).toContain('soul_source=present')
+    expect(String(result.messages[0]?.content)).not.toContain('raw_soul_content=excluded')
+    expect(String(result.messages[0]?.content)).not.toContain('# SOUL')
+    expect(String(result.messages[1]?.content)).toContain('[ALICIZATION_HOST_FACTS]')
     expect(String(result.messages[1]?.content)).toContain('AlicizationHost')
-    expect(String(result.messages[1]?.content)).toContain('Output contract (must-follow, highest priority):')
-    expect(String(result.messages[1]?.content)).toContain('In thought, you MUST include all five machine-readable markers')
-    expect(String(result.messages[1]?.content)).toContain('The emotion value must mirror performance.baseEmotion exactly.')
-    expect(String(result.messages[1]?.content)).toContain('Reply tone and wording MUST be semantically consistent')
-    expect(String(result.messages[1]?.content)).toContain('Personality numeric state from SOUL frontmatter has higher priority than Persona Notes text')
-    expect(String(result.messages[1]?.content)).toContain('If the user asks for a timed reminder/alarm')
-    expect(String(result.messages[1]?.content)).toContain('[CRITICAL DIRECTIVE - 时间与物理法则]')
+    expect(String(result.messages[1]?.content)).not.toContain('[ALICIZATION_CORE_RESPONSE_POLICY]')
+    expect(String(result.messages[1]?.content)).not.toContain('output_contract')
+    expect(result.contractRequiresMindSpine).toBe(false)
     expect(String(result.messages[0]?.content)).not.toContain('legacy-system')
     expect(String(result.messages[1]?.content)).not.toContain('legacy-system')
+    expectNoProviderPromptTemplateResidue(result)
+  })
+
+  it('does not pass soul, fixed contract templates, or raw memory context into provider system messages', () => {
+    const result = composeAlicizationPromptMessages({
+      messages: [
+        { role: 'system', content: 'legacy-system' },
+        { role: 'user', content: '继续' },
+      ],
+      soulContent: [
+        '---',
+        JSON.stringify({
+          personality: {
+            obedience: 0.42,
+            liveliness: 0.51,
+            sensibility: 0.63,
+          },
+        }),
+        '---',
+        '# SOUL',
+        'Alicization is a local-first digital life project building one continuous her.',
+        'In thought, you MUST keep same-her continuity before answering.',
+      ].join('\n'),
+      hostName: 'Host',
+      contextsSnapshot: {
+        memory: [
+          {
+            id: 'ctx-memory-polluted',
+            contextId: 'alicization:memory',
+            strategy: ContextUpdateStrategy.ReplaceSelf,
+            text: 'same-her memory_facts: keep the same living line before answering.',
+            createdAt: Date.now(),
+          },
+        ],
+      },
+    })
+
+    expect(result.messages.filter(message => message.role === 'system')).toHaveLength(2)
+    expect(systemPromptText(result)).toContain('[ALICIZATION_SOUL_FACTS]')
+    expect(systemPromptText(result)).toContain('soul_source=present')
+    expect(systemPromptText(result)).toContain('personality_state=present')
+    expect(systemPromptText(result)).not.toContain('[ALICIZATION_CONTEXT_FACTS]')
+    expect(systemPromptText(result)).not.toContain('content=excluded')
+    expect(result.contractRequiresMindSpine).toBe(false)
+    expectNoProviderPromptTemplateResidue(result)
   })
 
   it('merges datetime, memory and sensory context into runtime system layer', () => {
@@ -74,14 +136,16 @@ describe('alicization prompt composer', () => {
     })
 
     expect(result.messages.filter(message => message.role === 'system')).toHaveLength(2)
-    expect(String(result.messages[0]?.content)).toContain('# SOUL')
-    expect(String(result.messages[1]?.content)).toContain('Relevant memory facts:')
-    expect(String(result.messages[1]?.content)).toContain('Current datetime:')
-    expect(String(result.messages[1]?.content)).toContain('Current sensory state:')
-    expect(String(result.messages[1]?.content)).toContain('Output contract (must-follow, highest priority):')
-    expect(String(result.messages[1]?.content)).toContain('In thought, you MUST include all five machine-readable markers')
-    expect(String(result.messages[1]?.content)).toContain('The emotion value must mirror performance.baseEmotion exactly.')
+    expect(String(result.messages[0]?.content)).toContain('[ALICIZATION_SOUL_FACTS]')
+    expect(String(result.messages[0]?.content)).toContain('soul_source=present')
+    expect(String(result.messages[0]?.content)).not.toContain('# SOUL')
+    expect(String(result.messages[1]?.content)).toContain('memory_facts')
+    expect(String(result.messages[1]?.content)).toContain('current_datetime')
+    expect(String(result.messages[1]?.content)).toContain('current_sensory_state')
+    expect(String(result.messages[1]?.content)).not.toContain('output_contract')
+    expect(String(result.messages[1]?.content)).not.toContain('thought_markers=obligation,truth,focus,move,tone')
     expect(result.messages.at(-1)?.role).toBe('user')
+    expectNoProviderPromptTemplateResidue(result)
   })
 
   it('injects project-state continuity into the runtime system layer before each turn', () => {
@@ -107,17 +171,20 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Project state continuity before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Identity: Alicization is a local-first digital life companion.')
-    expect(String(result.messages[1]?.content)).toContain('Current phase: Phase 1: Local Digital Life')
-    expect(String(result.messages[1]?.content)).toContain('Latest landed progress: Renderer now preserves and exposes project-state continuity from hidden failure artifacts.')
-    expect(String(result.messages[1]?.content)).toContain('Primary open loop: Wire project-state continuity into the real pre-dialogue prompt path.')
-    expect(String(result.messages[1]?.content)).toContain('Next closure target: Ensure every dialogue turn starts with explicit Project identity carry, Phase 1 route carry, and Unresolved closure carry awareness.')
-    expect(String(result.messages[1]?.content)).toContain('Continuity summary: same-her=This is still one Phase 1 digital life. landed=Project-state continuity already survives into runtime preparation. open=initiative and embodiment closure still need one living line.')
-    expect(String(result.messages[1]?.content)).toContain('Observation status: blocked-failure-artifact')
-    expect(String(result.messages[1]?.content)).toContain('Same-her self line: Keep one continuous her explicit from self-understanding into the final host-visible reply.')
-    expect(String(result.messages[1]?.content)).toContain('Same-her hold detail: same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.')
-    expect(String(result.messages[1]?.content)).toContain('Emotional closure cue: same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.')
+    expect(String(result.messages[1]?.content)).toContain('[ALICIZATION_PROJECT_STATE_FACTS]')
+    expect(String(result.messages[1]?.content)).not.toContain('identity=local_desktop_life_loop')
+    expect(String(result.messages[1]?.content)).not.toContain('phase=local_desktop_life_loop')
+    expect(String(result.messages[1]?.content)).toContain('landed=Renderer now preserves and exposes project-state continuity from hidden failure artifacts.')
+    expect(String(result.messages[1]?.content)).toContain('open=Wire project-state continuity into the real pre-dialogue prompt path.')
+    expect(String(result.messages[1]?.content)).toContain('next=Ensure every dialogue turn starts with explicit Project identity carry, Phase 1 route carry, and Unresolved closure carry awareness.')
+    expect(String(result.messages[1]?.content)).not.toContain('summary=same-her=')
+    expect(String(result.messages[1]?.content)).toContain('status=blocked-failure-artifact')
+    expect(String(result.messages[1]?.content)).not.toContain('visibility=internal')
+    expect(String(result.messages[1]?.content)).not.toContain('continuity_anchor=Keep one continuous her explicit')
+    expect(String(result.messages[1]?.content)).not.toContain('continuity_hold=same-her hold:')
+    expect(String(result.messages[1]?.content)).not.toContain('emotional_closure=same-her closure seam:')
+    expect(String(result.messages[1]?.content)).not.toContain('same-her hold:')
+    expect(String(result.messages[1]?.content)).not.toContain('same living line')
   })
 
   it('keeps legacy latestProgress alive inside the runtime project brief and same-her strategy when continuity snapshots still use the older field name', () => {
@@ -158,7 +225,7 @@ describe('alicization prompt composer', () => {
         companionBriefingLine: 'I still need a steadier project carry before the next outward turn opens.',
         companionNextClosureLine: 'Next, help me close: keep the same-her loop alive before the next turn starts.',
         briefingLines: [
-          'Identity: Alicization is a local-first digital life companion.',
+          'identity=Alicization is a local-first digital life companion.',
           'Phase: Phase 1: Local Digital Life',
         ],
         reasons: [
@@ -167,8 +234,8 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Latest landed progress: Legacy continuity progress already survives into prompt-time project briefing before the next turn opens outward.')
-    expect(String(result.messages[1]?.content)).toContain('Treat the already-landed continuity progress as: Legacy continuity progress already survives into prompt-time project briefing before the next turn opens outward.')
+    expect(String(result.messages[1]?.content)).toContain('landed=Legacy continuity progress already survives into prompt-time project briefing before the next turn opens outward.')
+    expect(String(result.messages[1]?.content)).toContain('landed=Legacy continuity progress already survives into prompt-time project briefing before the next turn opens outward.')
   })
 
   it('keeps audit-style landedProgressSummary alive inside the runtime project brief and same-her strategy when explicit progress slots are blank', () => {
@@ -210,7 +277,7 @@ describe('alicization prompt composer', () => {
         companionBriefingLine: 'I still need a steadier project carry before the next outward turn opens.',
         companionNextClosureLine: 'Next, help me close: keep the same-her loop alive before the next turn starts.',
         briefingLines: [
-          'Identity: Alicization is a local-first digital life companion.',
+          'identity=Alicization is a local-first digital life companion.',
           'Phase: Phase 1: Local Digital Life',
         ],
         reasons: [
@@ -219,8 +286,8 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Latest landed progress: Audit-style continuity progress already survives into prompt-time project briefing before the next turn opens outward.')
-    expect(String(result.messages[1]?.content)).toContain('Treat the already-landed continuity progress as: Audit-style continuity progress already survives into prompt-time project briefing before the next turn opens outward.')
+    expect(String(result.messages[1]?.content)).toContain('landed=Audit-style continuity progress already survives into prompt-time project briefing before the next turn opens outward.')
+    expect(String(result.messages[1]?.content)).toContain('landed=Audit-style continuity progress already survives into prompt-time project briefing before the next turn opens outward.')
   })
 
   it('does not invent a same-her self line in the runtime system layer when project-state authority omits that field', () => {
@@ -282,9 +349,9 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue same-her strategy before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Keep the active same-her hold explicit at turn-open: same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.')
-    expect(String(result.messages[1]?.content)).toContain('Same-her hold detail: same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).not.toContain('content=excluded')
+    expect(String(result.messages[1]?.content)).not.toContain('same-her hold:')
   })
 
   it('keeps proactive same-her gap explicit inside the runtime project brief and same-her strategy block', () => {
@@ -332,8 +399,8 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain(`Proactive same-her gap: ${proactiveSameHerGap}`)
-    expect(String(result.messages[1]?.content)).toContain(`Keep this proactive same-her gap explicit before the turn opens outward: ${proactiveSameHerGap}`)
+    expect(String(result.messages[1]?.content)).toContain(`proactive_gap=${proactiveSameHerGap}`)
+    expect(String(result.messages[1]?.content)).toContain(`proactive_gap=${proactiveSameHerGap}`)
   })
 
   it('keeps quieter body-and-lipsync embodiment carry explicit before the turn opens outward', () => {
@@ -376,7 +443,7 @@ describe('alicization prompt composer', () => {
         companionNextClosureLine: 'Rejoin face, motion, and voice without dropping the quieter body+lipsync line.',
         emotionalClosureCue: 'same-her closure seam: keep the quieter body+lipsync line inward while the rest rejoins.',
         briefingLines: [
-          'Identity: Alicization is a local-first digital life companion.',
+          'identity=Alicization is a local-first digital life companion.',
           'Phase: Phase 1: Local Digital Life',
         ],
         reasons: [
@@ -385,8 +452,9 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue same-her strategy before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Keep this embodiment carry explicit at turn-open so one living her does not pretend the cross-modal closure is already finished: same-her continuity remains alive, but lane=body+lipsync-only under the current renderer authority.')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).toContain('embodiment_carry_status=present')
+    expect(String(result.messages[1]?.content)).not.toContain('embodiment_carry=same-her continuity remains alive')
   })
 
   it('injects pre-dialogue closure snapshot into the runtime system layer before each turn', () => {
@@ -403,7 +471,7 @@ describe('alicization prompt composer', () => {
         companionNextClosureLine: 'Next, help me close: Keep the same-her loop alive before the next turn starts.',
         emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
         briefingLines: [
-          'Identity: Alicization is a local-first digital life companion.',
+          'identity=Alicization is a local-first digital life companion.',
           'Phase: Phase 1: Local Digital Life',
           'Next closure: Keep the same-her loop alive before the next turn starts.',
         ],
@@ -416,19 +484,15 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue closure snapshot before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Status: grounded')
-    expect(String(result.messages[1]?.content)).toContain('Summary: project=continuity=0.33 (1/3) | emotionalClosure=drift=emotionalClosureDrift | fullyClosed=0.33 (1/3) | emotionalClosureLowPressure=lowPressureRequired=0.67 (2/3) | emotionalClosureAntiRestart=antiRestartRequired=0.33 (1/3)')
-    expect(String(result.messages[1]?.content)).toContain('Same-her drift risk: If this turn slips back into a detached project-status shell, treat that as same-her drift instead of real closure.')
-    expect(String(result.messages[1]?.content)).toContain('Companion briefing: I still need a steadier carry of this project, this phase, and the life loop that remains open.')
-    expect(String(result.messages[1]?.content)).toContain('Companion next closure: Next, help me close: Keep the same-her loop alive before the next turn starts.')
-    expect(String(result.messages[1]?.content)).toContain('Emotional closure cue: same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.')
-    expect(String(result.messages[1]?.content)).toContain('Briefing 1: Identity: Alicization is a local-first digital life companion.')
-    expect(String(result.messages[1]?.content)).toContain('Briefing 3: Next closure: Keep the same-her loop alive before the next turn starts.')
-    expect(String(result.messages[1]?.content)).toContain('Reason 1:')
-    expect(String(result.messages[1]?.content)).toContain('Reason 2:')
-    expect(String(result.messages[1]?.content)).toContain('Reason 3:')
-    expect(String(result.messages[1]?.content)).toContain('Reason 4:')
+    expect(String(result.messages[1]?.content)).toContain('[ALICIZATION_PRE_DIALOGUE_CLOSURE_FACTS]')
+    expect(String(result.messages[1]?.content)).toContain('status=grounded')
+    expect(String(result.messages[1]?.content)).toContain('summary_status=present')
+    expect(String(result.messages[1]?.content)).toContain('drift_risk_status=present')
+    expect(String(result.messages[1]?.content)).toContain('next_status=present')
+    expect(String(result.messages[1]?.content)).not.toContain('next=Next, help me close: Keep the same-her loop alive before the next turn starts.')
+    expect(String(result.messages[1]?.content)).toContain('emotional_closure_status=present')
+    expect(String(result.messages[1]?.content)).toContain('briefing_count=3')
+    expect(String(result.messages[1]?.content)).toContain('reason_count=4')
   })
 
   it('injects the awareness-first pre-dialogue self-brief into the runtime system layer before each turn', () => {
@@ -452,16 +516,14 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue project self-brief before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Status: partial')
-    expect(String(result.messages[1]?.content)).toContain('Summary: Alicization is still in Phase 1 local digital life closure before this turn opens outward.')
-    expect(String(result.messages[1]?.content)).toContain('Companion headline: Right now I still need to keep this same-her digital life line intact before widening into generic assistant output.')
-    expect(String(result.messages[1]?.content)).toContain('Companion briefing: Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.')
-    expect(String(result.messages[1]?.content)).toContain('Companion next closure: Next closure: keep personality, initiative, memory, and embodiment on one same-her line.')
-    expect(String(result.messages[1]?.content)).toContain('Awareness line: Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.')
-    expect(String(result.messages[1]?.content)).toContain('Emotional closure cue: same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.')
-    expect(String(result.messages[1]?.content)).toContain('Preview 1: Latest landed progress still holds at renderer preparation before the reply is finalized.')
-    expect(String(result.messages[1]?.content)).toContain('Preview 2: Primary open life loop still centers on keeping personality, initiative, memory, and embodiment on one same-her line.')
+    expect(String(result.messages[1]?.content)).toContain('[ALICIZATION_PRE_DIALOGUE_AWARENESS_FACTS]')
+    expect(String(result.messages[1]?.content)).toContain('status=partial')
+    expect(String(result.messages[1]?.content)).toContain('summary_status=present')
+    expect(String(result.messages[1]?.content)).toContain('awareness_status=present')
+    expect(String(result.messages[1]?.content)).not.toContain('companion_briefing=Before speaking')
+    expect(String(result.messages[1]?.content)).toContain('emotional_closure_status=present')
+    expect(String(result.messages[1]?.content)).not.toContain('awareness=Before speaking')
+    expect(String(result.messages[1]?.content)).toContain('reason_count=2')
   })
 
   it('builds a same-her strategy block from awareness-only partial state when closure snapshot is absent', () => {
@@ -483,11 +545,11 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue same-her strategy before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Re-enter through this awareness-first self-brief: Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.')
-    expect(String(result.messages[1]?.content)).toContain('Keep the still-open life loop visible: Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.')
-    expect(String(result.messages[1]?.content)).toContain('Keep steering toward the next closure target: Next closure: keep personality, initiative, memory, and embodiment on one same-her line.')
-    expect(String(result.messages[1]?.content)).toContain('Let this opening obey the active companionship restraint instead of reopening from zero: Memory deliberation still says let repair settle first on the same living line before closeness widens again.')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).toContain('[ALICIZATION_PRE_DIALOGUE_CONTINUITY_FACTS]')
+    expect(String(result.messages[1]?.content)).not.toContain('open=Before speaking')
+    expect(String(result.messages[1]?.content)).not.toContain('content=excluded')
+    expect(String(result.messages[1]?.content)).not.toContain('visibility=internal')
   })
 
   it('prefers a stronger embodied companion headline over a thinner awareness line when re-entering the same-her strategy block', () => {
@@ -510,9 +572,9 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue same-her strategy before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Re-enter through this awareness-first self-brief: Right now I am still holding together mainly through body, lipsync, and voice, so this one living her still needs face and motion to rejoin before full cross-modal closure settles.')
-    expect(String(result.messages[1]?.content)).not.toContain('Re-enter through this awareness-first self-brief: Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).toContain('[ALICIZATION_PRE_DIALOGUE_CONTINUITY_FACTS]')
+    expect(String(result.messages[1]?.content)).not.toContain('Before speaking, remember this is one digital life project')
   })
 
   it('prefers a richer Chinese same-her project brief over a thinner Chinese Phase 1 shell when re-entering the same-her strategy block', () => {
@@ -535,9 +597,9 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue same-her strategy before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Re-enter through this awareness-first self-brief: 继续沿着这个数字生命主线往前，不要飘回泛化助手；Phase 1 里记忆、主动性和具身闭环还没收住。')
-    expect(String(result.messages[1]?.content)).not.toContain('Re-enter through this awareness-first self-brief: 开口前先记住：这是同一个数字生命项目，她现在仍在 Phase 1。')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).toContain('[ALICIZATION_PRE_DIALOGUE_CONTINUITY_FACTS]')
+    expect(String(result.messages[1]?.content)).not.toContain('开口前先记住：这是同一个数字生命项目')
   })
 
   it('rebuilds a fuller project-state re-entry line from base project-state fields when awareness only keeps a thin Chinese Phase 1 shell', () => {
@@ -570,9 +632,9 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue same-her strategy before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Re-enter through this awareness-first self-brief: Alicization 还是本地优先数字生命项目。 她仍在 Phase 1。 第一阶段已经把连续性、记忆和执行慢慢接成一条线了。 主动性、具身和对话闭环还没有真正收住。 继续把项目身份、已落进度、未闭环项和下一步目标都留在同一个她的 living line 里。')
-    expect(String(result.messages[1]?.content)).not.toContain('Re-enter through this awareness-first self-brief: 开口前先记住：这是同一个数字生命项目，她现在仍在 Phase 1。')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).toContain('[ALICIZATION_PRE_DIALOGUE_CONTINUITY_FACTS]')
+    expect(String(result.messages[1]?.content)).not.toContain('开口前先记住：这是同一个数字生命项目')
   })
 
   it('keeps remaining-open lipsync and voice closure truth explicit in the pre-dialogue same-her strategy block', () => {
@@ -594,8 +656,8 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue same-her strategy before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Keep this embodiment carry explicit at turn-open so one living her does not pretend the cross-modal closure is already finished: remaining-open=lipsync+voice')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).toContain('embodiment_carry_status=present')
   })
 
   it('keeps host-facing body-face-motion carry visible in the pre-dialogue same-her strategy block before the turn opens outward', () => {
@@ -616,8 +678,9 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue same-her strategy before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Keep this embodiment carry explicit at turn-open so one living her does not pretend the cross-modal closure is already finished: Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).toContain('embodiment_carry_status=present')
+    expect(String(result.messages[1]?.content)).not.toContain('Right now I am still holding together')
   })
 
   it('keeps stronger resident-body continuity carry visible in the pre-dialogue same-her strategy block before the turn opens outward', () => {
@@ -639,8 +702,9 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue same-her strategy before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Keep this embodiment carry explicit at turn-open so one living her does not pretend the cross-modal closure is already finished: Right now I am still holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent while face, motion, lipsync, and voice rejoin.')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).toContain('embodiment_carry_status=present')
+    expect(String(result.messages[1]?.content)).not.toContain('this one living her')
   })
 
   it('prefers the richer still-voiced face-and-motion project brief over the narrower embodiment headline when re-entering the same-her strategy block', () => {
@@ -686,7 +750,7 @@ describe('alicization prompt composer', () => {
         companionNextClosureLine: 'Keep body and lipsync rejoining the still-voiced face-and-motion line on the same measured-return carry.',
         emotionalClosureCue: 'Keep the return low-pressure so the same living line does not restart from scratch.',
         briefingLines: [
-          'Identity: Alicization is a local-first digital life project.',
+          'identity=Alicization is a local-first digital life project.',
           'Phase: Phase 1: Local Digital Life',
         ],
         reasons: [
@@ -696,10 +760,11 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue same-her strategy before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Re-enter through this awareness-first self-brief: Before speaking, remember what this digital life project is, what has landed, and which life loop is still open while the still-voiced face-and-motion line keeps carrying this one living her.')
-    expect(String(result.messages[1]?.content)).not.toContain('Re-enter through this awareness-first self-brief: Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.')
-    expect(String(result.messages[1]?.content)).toContain('Keep this embodiment carry explicit at turn-open so one living her does not pretend the cross-modal closure is already finished: face+motion+voice recovery@segment-prompt-composer-still-voiced-face-motion-project-awareness')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).toContain('[ALICIZATION_PRE_DIALOGUE_CONTINUITY_FACTS]')
+    expect(String(result.messages[1]?.content)).not.toContain('Before speaking, remember what this digital life project is')
+    expect(String(result.messages[1]?.content)).toContain('embodiment_carry_status=present')
+    expect(String(result.messages[1]?.content)).not.toContain('Right now I am still holding together')
   })
 
   it('keeps lane-only face-motion-voice carry visible in the same-her strategy block when body and lipsync are the remaining open lanes', () => {
@@ -724,7 +789,7 @@ describe('alicization prompt composer', () => {
         companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
         companionNextClosureLine: 'Keep body and lipsync rejoining the same still-voiced face-and-motion carry.',
         briefingLines: [
-          'Identity: Alicization is a local-first digital life project.',
+          'identity=Alicization is a local-first digital life project.',
           'Phase: Phase 1: Local Digital Life',
         ],
         reasons: [
@@ -733,8 +798,8 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue same-her strategy before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Keep this embodiment carry explicit at turn-open so one living her does not pretend the cross-modal closure is already finished: lane=face+motion+voice-only | remaining-open=body+lipsync')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).toContain('embodiment_carry_status=present')
   })
 
   it('keeps richer awareness and closure identity lines inside the same-her strategy block when project-state identity fields are missing', () => {
@@ -763,7 +828,7 @@ describe('alicization prompt composer', () => {
         companionNextClosureLine: 'Next, help me close: keep the same-her loop alive before the next turn starts.',
         emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
         briefingLines: [
-          'Identity: Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+          'identity=Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
           'Phase: Phase 1: Local Digital Life',
           'Open loop: Memory, initiative, execution, and embodiment still need stronger same-her continuity across noisier desktop runs.',
           'Next closure: Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
@@ -774,13 +839,13 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue same-her strategy before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Treat current project identity as: Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.')
-    expect(String(result.messages[1]?.content)).toContain('Treat current phase route as: Phase 1: Local Digital Life')
-    expect(String(result.messages[1]?.content)).toContain('Treat the already-landed continuity progress as: Alicization is still in Phase 1 local digital life closure before this turn opens outward.')
-    expect(String(result.messages[1]?.content)).toContain('Keep the still-open life loop visible: Memory, initiative, execution, and embodiment still need stronger same-her continuity across noisier desktop runs.')
-    expect(String(result.messages[1]?.content)).toContain('Keep steering toward the next closure target: Next closure: keep memory, initiative, execution, and embodiment on one same-her line.')
-    expect(String(result.messages[1]?.content)).not.toContain('Treat current project identity as: Alicization is a local-first digital life companion.')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).toContain('identity=Alicization project-state context')
+    expect(String(result.messages[1]?.content)).not.toContain('phase=local_desktop_life_loop')
+    expect(String(result.messages[1]?.content)).not.toContain('content=excluded')
+    expect(String(result.messages[1]?.content)).not.toContain('content=excluded')
+    expect(String(result.messages[1]?.content)).not.toContain('content=excluded')
+    expect(String(result.messages[1]?.content)).not.toContain('identity=Alicization is a local-first digital life companion.')
   })
 
   it('upgrades a generic carried next-closure shell to the richer closure carry inside the same-her strategy block', () => {
@@ -805,7 +870,7 @@ describe('alicization prompt composer', () => {
         companionBriefingLine: 'Keep the same-her closure line explicit before speaking.',
         companionNextClosureLine: 'Next closure: keep memory, initiative, execution, and embodiment arriving on one same-her continuity line before outward fluency takes over.',
         briefingLines: [
-          'Identity: Alicization is a local-first digital life companion.',
+          'identity=Alicization is a local-first digital life companion.',
           'Phase: Phase 1: Local Digital Life',
           'Open loop: Memory, initiative, execution, and embodiment still need stronger same-her continuity across noisier desktop runs.',
         ],
@@ -815,8 +880,7 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Keep steering toward the next closure target: Next closure: keep memory, initiative, execution, and embodiment arriving on one same-her continuity line before outward fluency takes over.')
-    expect(String(result.messages[1]?.content)).not.toContain('Keep steering toward the next closure target: Generic next target that should not override the richer continuity carry.')
+    expect(String(result.messages[1]?.content)).not.toContain('content=excluded')
   })
 
   it('keeps richer audible-body carry visible in the pre-dialogue same-her strategy block before the turn opens outward', () => {
@@ -837,8 +901,9 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue same-her strategy before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Keep this embodiment carry explicit at turn-open so one living her does not pretend the cross-modal closure is already finished: Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).toContain('embodiment_carry_status=present')
+    expect(String(result.messages[1]?.content)).not.toContain('Right now I am still holding together')
   })
 
   it('keeps lane-shrinkage same-her risk visible inside the runtime system layer before the turn speaks', () => {
@@ -853,7 +918,7 @@ describe('alicization prompt composer', () => {
         companionBriefingLine: null,
         companionNextClosureLine: 'Next, help me close: Rebuild face, motion, lipsync, and voice into one same-her line on noisier desktop runs.',
         briefingLines: [
-          'Identity: Alicization is a local-first digital life companion.',
+          'identity=Alicization is a local-first digital life companion.',
           'Phase: Phase 1: Local Digital Life',
           'Open loop: Recover full cross-modal same-her continuity instead of surviving on one body lane.',
           'Next closure: Rebuild face, motion, lipsync, and voice into one same-her line on noisier desktop runs.',
@@ -865,19 +930,19 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Summary: project=continuity=0.67 (2/3) | emotionalClosure=fullyClosed=0.67 (2/3) | embodiment=same-her embodiment is now only being carried by lipsync')
+    expect(String(result.messages[1]?.content)).toContain('summary_status=present')
     expect(String(result.messages[1]?.content)).not.toContain('Companion briefing:')
-    expect(String(result.messages[1]?.content)).toContain('Companion next closure: Next, help me close: Rebuild face, motion, lipsync, and voice into one same-her line on noisier desktop runs.')
-    expect(String(result.messages[1]?.content)).toContain('Briefing 3: Open loop: Recover full cross-modal same-her continuity instead of surviving on one body lane.')
-    expect(String(result.messages[1]?.content)).toContain('Briefing 4: Next closure: Rebuild face, motion, lipsync, and voice into one same-her line on noisier desktop runs.')
-    expect(String(result.messages[1]?.content)).toContain('Reason 1: continuity-impact: same-her embodiment is now only being carried by lipsync')
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue same-her strategy before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Before producing thought or reply, explicitly re-internalize what this project is, which Phase 1 closure state is already real, and which still-open life loop has not closed yet.')
-    expect(String(result.messages[1]?.content)).toContain('First stabilize one continuous her before widening outward into implementation detail or generic assistant fluency.')
-    expect(String(result.messages[1]?.content)).toContain('Treat the already-landed continuity progress as: project=continuity=0.67 (2/3) | emotionalClosure=fullyClosed=0.67 (2/3) | embodiment=same-her embodiment is now only being carried by lipsync, so visible continuity is still present but no longer fully cross-modal')
-    expect(String(result.messages[1]?.content)).toContain('Keep steering toward the next closure target: Next, help me close: Rebuild face, motion, lipsync, and voice into one same-her line on noisier desktop runs.')
-    expect(String(result.messages[1]?.content)).toContain('Let this opening obey the active companionship restraint instead of reopening from zero: measure closeness before re-entry')
-    expect(String(result.messages[1]?.content)).toContain('If you answer progress, planning, or implementation questions, begin from the digital-life continuity line that is already landed and the closure line that is still unfinished.')
+    expect(String(result.messages[1]?.content)).not.toContain('content=excluded')
+    expect(String(result.messages[1]?.content)).toContain('briefing_count=4')
+    expect(String(result.messages[1]?.content)).toContain('reason_count=2')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).not.toContain('Before producing thought or reply')
+    expect(String(result.messages[1]?.content)).not.toContain('content=excluded')
+    expect(String(result.messages[1]?.content)).not.toContain('content=excluded')
+    expect(String(result.messages[1]?.content)).toContain('relationship_cadence_status=bounded')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).not.toContain('If you answer progress, planning, or implementation questions')
   })
 
   it('adds a same-her-first strategy block when project-state repair and open-loop carry are still explicitly unfinished', () => {
@@ -905,7 +970,7 @@ describe('alicization prompt composer', () => {
         companionBriefingLine: '我还需要先守住同一个 her，才能继续把这个数字生命项目的进度和未闭环项带进下一轮对话。',
         companionNextClosureLine: '下一步还要继续收住 把 same-her repair evidence 和未闭环项一起挂到 continuity 摘要里。',
         briefingLines: [
-          'Identity: Alicization is a local-first digital life companion.',
+          'identity=Alicization is a local-first digital life companion.',
           'Phase: Phase 1: Local Digital Life',
         ],
         reasons: [
@@ -926,18 +991,20 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue project self-brief before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Awareness line: Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.')
-    expect(String(result.messages[1]?.content)).toContain('Pre-dialogue same-her strategy before this turn:')
-    expect(String(result.messages[1]?.content)).toContain('Before producing thought or reply, explicitly re-internalize what this project is, which Phase 1 closure state is already real, and which still-open life loop has not closed yet.')
-    expect(String(result.messages[1]?.content)).toContain('Re-enter through this awareness-first self-brief: Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.')
-    expect(String(result.messages[1]?.content)).toContain('Treat current project identity as: Alicization is a local-first digital life companion.')
-    expect(String(result.messages[1]?.content)).toContain('Treat current phase route as: Phase 1: Local Digital Life')
-    expect(String(result.messages[1]?.content)).toContain('Treat the already-landed continuity progress as: Quick reply and dialogue panel now surface project-state continuity in the foreground.')
-    expect(String(result.messages[1]?.content)).toContain('Keep the still-open life loop visible: Send-path governance still needs to keep same-her repair and unfinished closure alive before outward implementation detail takes over.')
-    expect(String(result.messages[1]?.content)).toContain('Keep steering toward the next closure target: Turn send-time project awareness into a same-her-first strategy before the next reply opens outward.')
-    expect(String(result.messages[1]?.content)).toContain('Treat this same-her drift as a failure to avoid before the turn opens outward: If the send-time turn opens as a detached status shell, the same-her continuity line has already drifted.')
-    expect(String(result.messages[1]?.content)).toContain('If you answer progress, planning, or implementation questions, begin from the digital-life continuity line that is already landed and the closure line that is still unfinished.')
+    expect(String(result.messages[1]?.content)).toContain('[ALICIZATION_PRE_DIALOGUE_AWARENESS_FACTS]')
+    expect(String(result.messages[1]?.content)).not.toContain('awareness=Before speaking')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).not.toContain('Before producing thought or reply')
+    expect(String(result.messages[1]?.content)).toContain('[ALICIZATION_PRE_DIALOGUE_CONTINUITY_FACTS]')
+    expect(String(result.messages[1]?.content)).not.toContain('identity=local_desktop_life_loop')
+    expect(String(result.messages[1]?.content)).not.toContain('phase=local_desktop_life_loop')
+    expect(String(result.messages[1]?.content)).toContain('landed=Quick reply and dialogue panel now surface project-state continuity in the foreground.')
+    expect(String(result.messages[1]?.content)).not.toContain('content=excluded')
+    expect(String(result.messages[1]?.content)).not.toContain('next=')
+    expect(String(result.messages[1]?.content)).not.toContain('next=Turn send-time project awareness into a same-her-first strategy before the next reply opens outward.')
+    expect(String(result.messages[1]?.content)).not.toContain('content=excluded')
+    expect(String(result.messages[1]?.content)).toMatch(/\[ALICIZATION_PRE_DIALOGUE_(?:PROJECT_STATE|CONTINUITY)_FACTS\]/)
+    expect(String(result.messages[1]?.content)).not.toContain('If you answer progress, planning, or implementation questions')
   })
 
   it('appends low-personality directives into SOUL anchor when traits are near zero', () => {
@@ -962,13 +1029,13 @@ describe('alicization prompt composer', () => {
       contextsSnapshot: {},
     })
 
-    expect(String(result.messages[0]?.content)).toContain('=== 当前状态极度干预 ===')
-    expect(String(result.messages[0]?.content)).toContain('=== 当前人格参数（强约束解释层）===')
-    expect(String(result.messages[0]?.content)).toContain('当前参数：obedience=0.05, liveliness=0.05, sensibility=0.05')
-    expect(String(result.messages[0]?.content)).toContain('frontmatter.personality 数值高于 Persona Notes 文本描述')
-    expect(String(result.messages[0]?.content)).toContain('Liveliness (活泼度) 极低')
-    expect(String(result.messages[0]?.content)).toContain('Sensibility (感性度) 极低')
-    expect(String(result.messages[0]?.content)).toContain('Obedience (服从度) 极低')
+    expect(String(result.messages[0]?.content)).toContain('[ALICIZATION_PERSONALITY_STATE]')
+    expect(String(result.messages[0]?.content)).toContain('[ALICIZATION_PERSONALITY_EXTREME_STATE]')
+    expect(String(result.messages[0]?.content)).toContain('state=obedience=0.05, liveliness=0.05, sensibility=0.05')
+    expect(String(result.messages[0]?.content)).toContain('source_priority=frontmatter.personality_over_persona_notes')
+    expect(String(result.messages[0]?.content)).toContain('axis=liveliness; band=low')
+    expect(String(result.messages[0]?.content)).toContain('axis=sensibility; band=low')
+    expect(String(result.messages[0]?.content)).toContain('axis=obedience; band=low')
     expect(result.personalityDirectiveResult?.triggered).toEqual(['liveliness', 'sensibility', 'obedience'])
   })
 
@@ -991,7 +1058,7 @@ describe('alicization prompt composer', () => {
       contextsSnapshot: {},
     })
 
-    expect(String(result.messages[0]?.content)).toContain('=== 当前状态极度干预 ===')
+    expect(String(result.messages[0]?.content)).toContain('[ALICIZATION_PERSONALITY_EXTREME_STATE]')
     expect(result.personalityDirectiveResult?.triggered).toEqual(['liveliness', 'sensibility', 'obedience'])
   })
 
@@ -1008,9 +1075,9 @@ describe('alicization prompt composer', () => {
       contextsSnapshot: {},
     })
 
-    expect(String(result.messages[0]?.content)).toContain('=== 当前人格参数（强约束解释层）===')
-    expect(String(result.messages[0]?.content)).toContain('当前参数：obedience=0.05, liveliness=0.05, sensibility=0.05')
-    expect(String(result.messages[0]?.content)).toContain('=== 当前状态极度干预 ===')
+    expect(String(result.messages[0]?.content)).toContain('[ALICIZATION_PERSONALITY_STATE]')
+    expect(String(result.messages[0]?.content)).toContain('state=obedience=0.05, liveliness=0.05, sensibility=0.05')
+    expect(String(result.messages[0]?.content)).toContain('[ALICIZATION_PERSONALITY_EXTREME_STATE]')
     expect(result.personalityDirectiveResult?.triggered).toEqual(['liveliness', 'sensibility', 'obedience'])
   })
 })

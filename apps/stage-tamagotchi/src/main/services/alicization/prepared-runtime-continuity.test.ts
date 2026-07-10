@@ -18,7 +18,8 @@ describe('prepared-runtime-continuity', () => {
       summary: 'quiet-companionship same living line',
     })
 
-    expect(carry).toBe('Stay lower-pressure and keep the same living line without widening closeness too early.')
+    expect(carry).toBe('relationship_carry=low_pressure; continuity=quiet_companionship; closeness=widen_later')
+    expect(carry).not.toContain('same living line')
   })
 
   it('prefers richer bundle continuity authority when the fresher runtime authority is thinner', () => {
@@ -311,7 +312,9 @@ describe('prepared-runtime-continuity', () => {
     expect(snapshot.currentPhase).toContain('Phase 1: Local Digital Life')
     expect(snapshot.latestLandedProgress).toBe('Runtime project-state continuity already survives into prepared visible reply shaping.')
     expect(snapshot.primaryOpenLoop).toBe('Embodiment still needs stronger cross-modal closure on the same living line.')
-    expect(snapshot.sameHerSelfLine).toBe('Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(snapshot.sameHerSelfLine).toContain('phase1_local_digital_life_anchor')
+    expect(snapshot.sameHerSelfLine).toContain('continuity_owner=one_her')
+    expect(snapshot.sameHerSelfLine).not.toContain('Same Phase 1 digital life')
   })
 
   it('falls back to the canonical same-her project line when the fresher runtime sameHerSelfLine has been contaminated by scene narration', () => {
@@ -334,9 +337,9 @@ describe('prepared-runtime-continuity', () => {
       },
     } as any)
 
-    expect(snapshot.sameHerSelfLine).toBe(
-      'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-    )
+    expect(snapshot.sameHerSelfLine).toContain('phase1_local_digital_life_anchor')
+    expect(snapshot.sameHerSelfLine).toContain('continuity_owner=one_her')
+    expect(snapshot.sameHerSelfLine).not.toContain('Same Phase 1 digital life')
   })
 
   it('prefers a richer runtime living-self same-her line over a thinner carried audit when prepared project-state is resolved', () => {
@@ -403,7 +406,7 @@ describe('prepared-runtime-continuity', () => {
       latestLandedProgress: 'Same-session mirror carry still survives into the visible reply path.',
       primaryOpenLoop: 'Execution, memory, and embodiment still need one same-life closure line.',
       nextClosureTarget: 'Keep extending cross-modal same-her proof across longer desktop runs.',
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerSelfLine: expect.stringContaining('phase1_local_digital_life_anchor'),
     }))
   })
 
@@ -446,17 +449,21 @@ describe('prepared-runtime-continuity', () => {
 
     expect(String(projectState?.identity ?? '')).toContain('local-first digital life project')
     expect(String(projectState?.currentPhase ?? '')).toContain('Phase 1: Local Digital Life')
-    expect(projectState?.preDialogueAwarenessLine).toBe(richerPhase1AwarenessLine)
-    expect(projectState?.awarenessLine).toBe(richerPhase1AwarenessLine)
-    expect(projectState?.preDialogueAwarenessSummary).toBe(richerPhase1AwarenessLine)
+    expect(projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
+    expect(projectState?.preDialogueAwarenessLine).toContain('landed=Richer contract-carried project awareness already survives')
+    expect(projectState?.preDialogueAwarenessLine).toContain('continuity_anchor=phase1_local_digital_life_anchor')
+    expect(projectState?.awarenessLine).toBe(projectState?.preDialogueAwarenessLine)
+    expect(projectState?.preDialogueAwarenessSummary).toBe(projectState?.preDialogueAwarenessLine)
     expect(String(projectState?.latestLandedProgress ?? '')).toContain('Richer contract-carried project awareness already survives')
     expect(String(projectState?.primaryOpenLoop ?? '')).toContain('Initiative rhythm and embodiment coherence still need to close')
     expect(String(projectState?.nextClosureTarget ?? '')).toContain('Keep the project identity, landed progress, and still-open closure explicit')
-    expect(String(projectState?.sameHerSelfLine ?? '')).toContain('Same Phase 1 digital life')
+    expect(String(projectState?.sameHerSelfLine ?? '')).toContain('phase1_local_digital_life_anchor')
     expect(String(projectState?.sameHerDriftRisk ?? '')).toContain('generic assistant shell')
     expect(String(projectState?.identity ?? '')).not.toBe('thin runtime identity only')
     expect(String(projectState?.currentPhase ?? '')).not.toBe('Phase 1')
     expect(String(projectState?.preDialogueAwarenessLine ?? '')).not.toBe('Before answering, keep the same digital life project in view.')
+    expect(String(projectState?.preDialogueAwarenessLine ?? '')).not.toContain('Before answering')
+    expect(String(projectState?.preDialogueAwarenessLine ?? '')).not.toContain('same living line')
     expect(String(projectState?.latestLandedProgress ?? '')).not.toBe('Project continuity exists.')
     expect(String(projectState?.primaryOpenLoop ?? '')).not.toBe('Project continuity still needs closure.')
     expect(String(projectState?.nextClosureTarget ?? '')).not.toBe('Carry project continuity forward.')
@@ -501,17 +508,21 @@ describe('prepared-runtime-continuity', () => {
 
     expect(String(projectState?.identity ?? '')).toContain('local-first digital life project')
     expect(String(projectState?.currentPhase ?? '')).toContain('Phase 1: Local Digital Life')
-    expect(projectState?.preDialogueAwarenessLine).toBe(richerPhase1AwarenessLine)
-    expect(projectState?.awarenessLine).toBe(richerPhase1AwarenessLine)
-    expect(projectState?.preDialogueAwarenessSummary).toBe(richerPhase1AwarenessLine)
+    expect(projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
+    expect(projectState?.preDialogueAwarenessLine).toContain('landed=Richer contract-carried project awareness already survives')
+    expect(projectState?.preDialogueAwarenessLine).toContain('continuity_anchor=phase1_local_digital_life_anchor')
+    expect(projectState?.awarenessLine).toBe(projectState?.preDialogueAwarenessLine)
+    expect(projectState?.preDialogueAwarenessSummary).toBe(projectState?.preDialogueAwarenessLine)
     expect(String(projectState?.latestLandedProgress ?? '')).toContain('Richer contract-carried project awareness already survives')
     expect(String(projectState?.primaryOpenLoop ?? '')).toContain('Initiative rhythm and embodiment coherence still need to close')
     expect(String(projectState?.nextClosureTarget ?? '')).toContain('Keep the project identity, landed progress, and still-open closure explicit')
-    expect(String(projectState?.sameHerSelfLine ?? '')).toContain('Same Phase 1 digital life')
+    expect(String(projectState?.sameHerSelfLine ?? '')).toContain('phase1_local_digital_life_anchor')
     expect(String(projectState?.sameHerDriftRisk ?? '')).toContain('generic assistant shell')
     expect(String(projectState?.identity ?? '')).not.toBe('thin runtime identity only')
     expect(String(projectState?.currentPhase ?? '')).not.toBe('Phase 1')
     expect(String(projectState?.preDialogueAwarenessLine ?? '')).not.toBe('Before answering, keep the same digital life project in view.')
+    expect(String(projectState?.preDialogueAwarenessLine ?? '')).not.toContain('Before answering')
+    expect(String(projectState?.preDialogueAwarenessLine ?? '')).not.toContain('same living line')
     expect(String(projectState?.latestLandedProgress ?? '')).not.toBe('Project continuity exists.')
     expect(String(projectState?.primaryOpenLoop ?? '')).not.toBe('Project continuity still needs closure.')
     expect(String(projectState?.nextClosureTarget ?? '')).not.toContain('Generic next closure shell')
@@ -556,9 +567,11 @@ describe('prepared-runtime-continuity', () => {
       },
     } as any)
 
-    expect(projectState?.preDialogueAwarenessLine).toBe(richerPhase1AwarenessLine)
-    expect(projectState?.awarenessLine).toBe(richerPhase1AwarenessLine)
-    expect(projectState?.preDialogueAwarenessSummary).toBe(richerPhase1AwarenessLine)
+    expect(projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
+    expect(projectState?.preDialogueAwarenessLine).toContain('landed=Richer contract-carried project awareness already survives')
+    expect(projectState?.preDialogueAwarenessLine).toContain('continuity_anchor=phase1_local_digital_life_anchor')
+    expect(projectState?.awarenessLine).toBe(projectState?.preDialogueAwarenessLine)
+    expect(projectState?.preDialogueAwarenessSummary).toBe(projectState?.preDialogueAwarenessLine)
     expect(String(projectState?.latestLandedProgress ?? '')).toContain('Richer contract-carried project awareness already survives')
     expect(String(projectState?.primaryOpenLoop ?? '')).toContain('Initiative rhythm and embodiment coherence still need to close')
     expect(String(projectState?.nextClosureTarget ?? '')).toContain('Keep the project identity, landed progress, and still-open closure explicit')
@@ -626,13 +639,15 @@ describe('prepared-runtime-continuity', () => {
     expect(String(snapshot.latestLandedProgress ?? '')).toMatch(/same-session mirror carry|runtime project-state carry|same-her continuity/i)
     expect(String(snapshot.primaryOpenLoop ?? '')).toMatch(/memory|initiative|embodiment|closure/i)
     expect(String(snapshot.nextClosureTarget ?? '')).toMatch(/next closure|same-her proof|same living line|cross-modal/i)
-    expect(String(snapshot.sameHerSelfLine ?? '')).toContain('Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(String(snapshot.sameHerSelfLine ?? '')).toContain('phase1_local_digital_life_anchor')
+    expect(String(snapshot.sameHerSelfLine ?? '')).not.toContain('Same Phase 1 digital life')
     expect(String(snapshot.sameHerDriftRisk ?? '')).toMatch(/generic assistant shell|unfinished closure drift|same-her continuity drift/i)
     expect(String(awarenessSummary ?? '')).toContain('Alicization is a local-first digital life project')
-    expect(String(awarenessSummary ?? '')).toMatch(/Landed:|What has already landed/i)
-    expect(String(awarenessSummary ?? '')).toContain('The still-open closure is')
-    expect(String(awarenessSummary ?? '')).toMatch(/memory, initiative, and embodiment still need one tighter same-her closure seam across longer desktop returns/i)
-    expect(String(awarenessSummary ?? '')).toContain('This reply should keep moving toward')
+    expect(String(awarenessSummary ?? '')).toContain('landed=')
+    expect(String(awarenessSummary ?? '')).not.toContain('The still-open closure is')
+    expect(String(awarenessSummary ?? '')).toContain('continuity_anchor=phase1_local_digital_life_anchor')
+    expect(String(awarenessSummary ?? '')).not.toContain('same living line')
+    expect(String(awarenessSummary ?? '')).not.toContain('This reply should keep moving toward')
     expect(String(awarenessSummary ?? '')).not.toBe('Before answering, keep the same digital life project in view.')
   })
 
@@ -987,7 +1002,10 @@ describe('prepared-runtime-continuity', () => {
       },
     } as any)
 
-    expect(awareness).toBe('Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.')
+    expect(awareness).toContain('visibility=internal-structured')
+    expect(awareness).toContain('continuity_anchor=phase1_local_digital_life_anchor')
+    expect(awareness).not.toContain('Right now I am still holding')
+    expect(awareness).not.toContain('same living line')
   })
 
   it('does not keep a thin chinese still-the-same-project runtime reminder shell as prepared awareness when richer phase-1 closure truth survives elsewhere', () => {
@@ -1020,7 +1038,8 @@ describe('prepared-runtime-continuity', () => {
     } as any)
 
     expect(String(awareness ?? '')).toContain('Alicization 还是本地优先数字生命项目')
-    expect(String(awareness ?? '')).toContain('The still-open closure is')
+    expect(String(awareness ?? '')).toContain('open=主动性、具身和对话闭环还没有真正收住')
+    expect(String(awareness ?? '')).not.toContain('The still-open closure is')
     expect(String(awareness ?? '')).not.toBe('开口前先记住：这还是同一个数字生命项目，她仍在 Phase 1。')
   })
 
@@ -1052,9 +1071,11 @@ describe('prepared-runtime-continuity', () => {
       },
     } as any)
 
-    expect(awareness).toBe(
-      'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.',
-    )
+    expect(awareness).toContain('visibility=internal-structured')
+    expect(awareness).toContain('continuity_anchor=phase1_local_digital_life_anchor')
+    expect(awareness).not.toContain('open=Lipsync and voice still need to rejoin')
+    expect(awareness).not.toContain('Right now I am still holding')
+    expect(awareness).not.toContain('Same Phase 1 digital life')
   })
 
   it('keeps a fuller runtime Phase 1 re-anchor over a narrower embodiment companion headline during prepared continuity resolution', () => {

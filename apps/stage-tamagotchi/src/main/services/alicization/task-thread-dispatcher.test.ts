@@ -5,9 +5,15 @@ import type {
   AlicizationTaskThreadUpsertInput,
 } from '@proj-alicization/stage-shared'
 
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import { dispatchTaskThread } from './task-thread-dispatcher'
+
+function expectNoFixedTemplateResidue(value: unknown) {
+  expect(JSON.stringify(value ?? '')).not.toMatch(/Before (?:answering|speaking|acting)|Right now I am|Same Phase 1 digital life|same[- ]her|same living line|one living her|one continuous her|local-first digital life project|Phase 1: Local Digital Life|同一个她|同一个 her|数字生命主线|女仆|\bmaid\b/iu)
+  expect(containsAlicizationFixedTemplateResidue(String(value ?? ''))).toBe(false)
+}
 
 function createThread(overrides: Partial<AlicizationTaskThreadRecord> = {}): AlicizationTaskThreadRecord {
   return {
@@ -220,7 +226,9 @@ describe('task-thread dispatcher', () => {
 
     expect(result.ok).toBe(true)
     const persistedRuntimeContext = ((port.readThread().metadata?.execution as Record<string, any> | undefined)?.runtimeContext ?? null) as AlicizationExecutionRuntimeContext | null
-    expect(persistedRuntimeContext?.projectBriefing?.preDialogueAwarenessSummary).toBe(richerStoredSummary)
+    expectNoFixedTemplateResidue(persistedRuntimeContext?.projectBriefing)
+    expect(persistedRuntimeContext?.projectBriefing?.preDialogueAwarenessSummary).toContain('visibility=internal-structured')
+    expect(persistedRuntimeContext?.projectBriefing?.preDialogueAwarenessSummary).toContain('open_loop=')
   })
 
   it('keeps non-planned threads from dispatching', async () => {
@@ -632,22 +640,22 @@ describe('task-thread dispatcher', () => {
 
     expect(result.ok).toBe(true)
     expect(result.summary).toContain('project_continuity=')
-    expect(result.summary).toContain('Phase 1: Local Digital Life')
     expect(result.summary).toContain('Project identity carry')
+    expectNoFixedTemplateResidue(port.readThread().metadata)
     expect(port.readThread().metadata).toEqual(expect.objectContaining({
       execution: expect.objectContaining({
         runtimeContext: expect.objectContaining({
           cardId: 'default',
           turnId: 'turn-dispatch-1',
           projectBriefing: expect.objectContaining({
-            identity: expect.stringContaining('local-first digital life project'),
-            currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
+            identity: expect.stringContaining('phase1_local_digital_life'),
+            currentPhase: expect.stringContaining('phase1_local_digital_life'),
             latestLandedProgress: expect.stringContaining('Same-session mirror carry'),
             primaryOpenLoop: expect.stringContaining('Project identity carry'),
-            nextClosureTarget: expect.stringContaining('Phase 1 route carry'),
-            sameHerSelfLine: expect.stringContaining('same living line'),
-            sameHerDriftRisk: expect.stringContaining('generic guidance'),
-            preDialogueAwarenessLine: expect.stringContaining('Before answering, remember this is still the same local-first digital life project'),
+            nextClosureTarget: expect.stringContaining('life_loop_continuity'),
+            sameHerSelfLine: expect.stringContaining('phase1_local_digital_life'),
+            sameHerDriftRisk: expect.stringContaining('generic_guidance'),
+            preDialogueAwarenessLine: expect.stringContaining('visibility=internal-structured'),
           }),
         }),
       }),
@@ -680,7 +688,7 @@ describe('task-thread dispatcher', () => {
     expect(result.thread.status).toBe('completed')
     expect(result.summary).toContain('stored runtime context reused')
     expect(result.summary).toContain('project_continuity=')
-    expect(result.summary).toContain('Phase 1: Local Digital Life')
+    expectNoFixedTemplateResidue(result.summary)
   })
 
   it('keeps stored project briefing when dispatch payload refreshes sensory context without project briefing', async () => {
@@ -724,15 +732,16 @@ describe('task-thread dispatcher', () => {
     })
 
     expect(result.ok).toBe(true)
-    expect(result.summary).toContain('Terminal:Phase 1: Local Digital Life')
+    expect(result.summary).toContain('Terminal:phase1_local_digital_life')
     expect(result.summary).toContain('project_continuity=')
+    expectNoFixedTemplateResidue(port.readThread().metadata)
     expect(port.readThread().metadata).toEqual(expect.objectContaining({
       execution: expect.objectContaining({
         runtimeContext: expect.objectContaining({
           generatedAt: 1_710_000_000_500,
           projectBriefing: expect.objectContaining({
-            identity: expect.stringContaining('local-first digital life project'),
-            currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
+            identity: expect.stringContaining('phase1_local_digital_life'),
+            currentPhase: expect.stringContaining('phase1_local_digital_life'),
             primaryOpenLoop: expect.stringContaining('Project identity carry'),
           }),
           sensory: expect.objectContaining({
@@ -886,20 +895,21 @@ describe('task-thread dispatcher', () => {
     })
 
     expect(result.ok).toBe(true)
-    expect(result.summary).toContain('local-first digital life project')
-    expect(result.summary).toContain('Payload refreshed phase wording')
+    expectNoFixedTemplateResidue(result.summary)
+    expect(result.summary).toContain('phase1_local_digital_life')
     expect(result.summary).toContain('Project identity carry')
     expect(result.summary).toContain('Payload asks dispatcher to keep the refreshed closure target')
+    expectNoFixedTemplateResidue(port.readThread().metadata)
     expect(port.readThread().metadata).toEqual(expect.objectContaining({
       execution: expect.objectContaining({
         runtimeContext: expect.objectContaining({
           projectBriefing: expect.objectContaining({
-            identity: expect.stringContaining('local-first digital life project'),
-            currentPhase: 'Phase 1: Local Digital Life. Payload refreshed phase wording.',
+            identity: expect.stringContaining('phase1_local_digital_life'),
+            currentPhase: 'phase1_local_digital_life',
             latestLandedProgress: expect.stringContaining('Same-session mirror carry'),
             primaryOpenLoop: expect.stringContaining('Project identity carry'),
             nextClosureTarget: 'Payload asks dispatcher to keep the refreshed closure target.',
-            sameHerSelfLine: expect.stringContaining('same living line'),
+            sameHerSelfLine: expect.stringContaining('phase1_local_digital_life'),
           }),
         }),
       }),
@@ -939,14 +949,15 @@ describe('task-thread dispatcher', () => {
     })
 
     expect(result.ok).toBe(true)
-    expect(result.summary).toContain('same-her hold: keep this execution thread on the same living Phase 1 line before widening into generic task narration.')
+    expectNoFixedTemplateResidue(result.summary)
+    expect(result.summary).toContain('project_continuity=')
     expect(port.readThread().metadata).toEqual(expect.objectContaining({
       execution: expect.objectContaining({
         runtimeContext: expect.objectContaining({
           generatedAt: 1_710_000_000_700,
           projectBriefing: expect.objectContaining({
-            sameHerHoldDetail: 'same-her hold: keep this execution thread on the same living Phase 1 line before widening into generic task narration.',
-            continuityCue: 'same living line: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.',
+            sameHerHoldDetail: expect.stringContaining('continuity_line'),
+            continuityCue: expect.stringContaining('continuity_line'),
           }),
         }),
       }),

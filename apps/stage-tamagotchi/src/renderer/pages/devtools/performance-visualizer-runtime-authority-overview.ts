@@ -640,7 +640,7 @@ function buildSameHerContinuitySummaryEntry(input: {
 
   const mismatchDriversDisplay = formatSameHerMismatchDriverList(selectedCandidate.mismatchDrivers)
   const valueParts = [
-    `当前 same-her continuity 主要由${selectedCandidate.source === 'frame' ? '渲染帧线' : '执行线'}继续托住`,
+    `当前 identity-continuity continuity 主要由${selectedCandidate.source === 'frame' ? '渲染帧线' : '执行线'}继续托住`,
     selectedCandidate.segmentId ? `活跃片段 ${selectedCandidate.segmentId}` : null,
     input.embodimentClosureStage ? `处在 ${input.embodimentClosureStage}` : null,
     mismatchDriversDisplay ? `${mismatchDriversDisplay} 还没重新接回` : null,
@@ -656,7 +656,7 @@ function buildSameHerContinuitySummaryEntry(input: {
   ].filter((part): part is string => Boolean(part))
 
   return {
-    key: 'same-her-continuity',
+    key: 'identity-continuity-continuity',
     label: '同一生命线总览',
     value: `${valueParts.join('，')}。`,
     technicalValue: technicalParts.join(' | '),
@@ -1036,42 +1036,42 @@ export function buildRuntimeAuthorityOverview(input: {
     summaryEntries.push(sameHerContinuitySummaryEntry)
   if (sameHerFrameSummary) {
     summaryEntries.push({
-      key: 'same-her-frame-summary',
+      key: 'identity-continuity-frame-summary',
       label: '同一生命线帧摘要',
       value: sameHerFrameSummary,
     })
   }
   if (sameHerFrameAligned != null) {
     summaryEntries.push({
-      key: 'same-her-frame-aligned',
+      key: 'identity-continuity-frame-aligned',
       label: '同一生命线帧对齐',
       value: String(sameHerFrameAligned),
     })
   }
   if (sameHerFrameMismatchDrivers.length > 0) {
     summaryEntries.push({
-      key: 'same-her-frame-mismatch-drivers',
+      key: 'identity-continuity-frame-mismatch-drivers',
       label: '同一生命线漂移驱动',
       value: sameHerFrameMismatchDrivers.join(', '),
     })
   }
   if (sameHerExecutionSummary) {
     summaryEntries.push({
-      key: 'same-her-execution-summary',
+      key: 'identity-continuity-execution-summary',
       label: '同一生命线执行摘要',
       value: sameHerExecutionSummary,
     })
   }
   if (sameHerExecutionAligned != null) {
     summaryEntries.push({
-      key: 'same-her-execution-aligned',
+      key: 'identity-continuity-execution-aligned',
       label: '同一生命线执行对齐',
       value: String(sameHerExecutionAligned),
     })
   }
   if (sameHerExecutionMismatchDrivers.length > 0) {
     summaryEntries.push({
-      key: 'same-her-execution-mismatch-drivers',
+      key: 'identity-continuity-execution-mismatch-drivers',
       label: '同一生命线执行漂移驱动',
       value: sameHerExecutionMismatchDrivers.join(', '),
     })

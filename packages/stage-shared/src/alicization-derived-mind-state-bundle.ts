@@ -70,7 +70,7 @@ function summarizeBundle(input: {
     input.activeContinuityGovernance?.mode ? `continuity=${input.activeContinuityGovernance.mode}` : '',
     input.activeContinuityGovernance?.candidateId ? `anchor=${sanitizeText(input.activeContinuityGovernance.candidateId, 120)}` : '',
     input.sameHerCausalityRepairPressure?.lanes?.length
-      ? `same_her_causality_repair=${input.sameHerCausalityRepairPressure.lanes.map(item => item.lane).join(',')}`
+      ? `continuity_causality_repair=${input.sameHerCausalityRepairPressure.lanes.map(item => item.lane).join(',')}`
       : '',
     input.emotionalTransitionLedger?.transitionKind ? `emotion_transition=${input.emotionalTransitionLedger.transitionKind}` : '',
     input.emotionalTransitionLedger?.selfRevisionCandidate.shouldPropose

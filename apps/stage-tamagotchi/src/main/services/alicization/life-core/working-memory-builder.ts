@@ -5,13 +5,19 @@ import type {
 } from '../../../../shared/eventa'
 import type {
   WorkingMemoryAuditState,
+  WorkingMemoryFailureKind,
   WorkingMemoryLongTermCandidate,
   WorkingMemoryQuestion,
-  WorkingMemoryFailureKind,
   WorkingMemorySnapshot,
   WorkingMemoryTask,
   WorkingMemoryTurn,
 } from './working-memory'
+
+import {
+  alicizationFixedTemplateReplacement,
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
 
 import {
   createEmptyWorkingMemorySnapshot,
@@ -48,7 +54,7 @@ export interface BuildWorkingMemorySnapshotInput {
 function detectCorrectionScope(text: string) {
   if (/人格|固定回复|固定模板|旧模板|模板化|数字生命|persona|same-her/iu.test(text))
     return 'persona' as const
-  if (/记忆|回想|长期|短期/iu.test(text))
+  if (/记忆|回想|长期|短期/u.test(text))
     return 'memory' as const
   if (/任务|执行|工具|commit|push|编译/iu.test(text))
     return 'task' as const
@@ -59,6 +65,26 @@ function detectCorrectionScope(text: string) {
 
 function looksLikeCorrection(text: string) {
   return /不是这个|不想要|不要固定|固定回复|固定模板|我需要|你搞错|你错了|别这样|不要这样/u.test(text)
+}
+
+function looksLikeTemplateRejectionCorrection(text: string) {
+  return /(?:不要|别|不想要|禁止|移除|清除|别再|不要再)[^。.!?]*(?:固定模板|固定回复|模板化|same-her|one continuous her|Before (?:answering|speaking|acting)|Right now I am|local-first digital life project|同一个她|同一个\s*her|数字生命主线)/iu.test(text)
+}
+
+function sanitizeWorkingMemoryStoredText(raw: unknown, maxChars: number) {
+  const normalized = normalizeWorkingMemoryText(raw, maxChars)
+  if (!normalized)
+    return ''
+  if (looksLikeTemplateRejectionCorrection(normalized))
+    return '不要使用固定模板；用户反对模板化人格/记忆回复。'
+  if (containsAlicizationFixedTemplateResidue(normalized)) {
+    return sanitizeAlicizationProviderFacingText(
+      normalized,
+      maxChars,
+      alicizationFixedTemplateReplacement,
+    )
+  }
+  return normalized
 }
 
 function looksLikeThinContinuationCue(text: string) {
@@ -87,7 +113,7 @@ function filterResolvedWorkingMemoryEntries<T extends { text: string }>(entries:
   return entries.filter(entry => !matchesResolvedWorkingMemoryText(entry.text, resolvedTexts))
 }
 
-function mergeWorkingMemoryTextEntries<T extends { text: string; sourceTurnId: string | null }>(
+function mergeWorkingMemoryTextEntries<T extends { text: string, sourceTurnId: string | null }>(
   current: T[],
   previous: T[] | null | undefined,
   maxItems = 8,
@@ -124,8 +150,8 @@ function mergeLongTermCandidates(
   const result: WorkingMemoryLongTermCandidate[] = []
   const seen = new Set<string>()
   for (const candidate of [...current, ...(previous ?? [])]) {
-    const summary = normalizeWorkingMemoryText(candidate.summary, 260)
-    const reason = normalizeWorkingMemoryText(candidate.reason, 260)
+    const summary = sanitizeWorkingMemoryStoredText(candidate.summary, 260)
+    const reason = sanitizeWorkingMemoryStoredText(candidate.reason, 260)
     const sourceTurnIds = uniqueWorkingMemoryTexts(candidate.sourceTurnIds, 12, 120)
     const key = [
       candidate.kind,
@@ -162,7 +188,7 @@ function mergeAudit(current: WorkingMemoryAuditState, previous: WorkingMemoryAud
 }
 
 function detectFailureKindFromVisibleText(text: string): WorkingMemoryFailureKind | null {
-  if (/^超时了[。.]?$/u.test(text))
+  if (/^超时了[。.]?$/u.test(text) || /\b(?:timed out|timeout)\b|请求超时|模型超时|provider timeout/iu.test(text))
     return 'timeout'
   if (/execution_callback_status:failed|execution_status:failed|callback failed|tool failed|执行回调失败|工具失败/iu.test(text))
     return 'tool-error'
@@ -178,8 +204,8 @@ function mapRecentTurns(input: BuildWorkingMemorySnapshotInput): WorkingMemoryTu
   for (const [index, turn] of (input.recentTurns ?? []).entries()) {
     const createdAt = Number.isFinite(turn.createdAt) ? Number(turn.createdAt) : input.now - (index + 2)
     const turnId = normalizeWorkingMemoryText(turn.turnId, 120) || `recent-${index + 1}`
-    const userText = normalizeWorkingMemoryText(turn.userText, 900)
-    const assistantText = normalizeWorkingMemoryText(turn.assistantText, 900)
+    const userText = sanitizeWorkingMemoryStoredText(turn.userText, 900)
+    const assistantText = sanitizeWorkingMemoryStoredText(turn.assistantText, 900)
     if (userText) {
       turns.push(normalizeWorkingMemoryTurn({
         turnId: `${turnId}:user`,
@@ -205,7 +231,7 @@ function mapRecentTurns(input: BuildWorkingMemorySnapshotInput): WorkingMemoryTu
     }
   }
 
-  const currentText = normalizeWorkingMemoryText(input.currentUserText, 1200)
+  const currentText = sanitizeWorkingMemoryStoredText(input.currentUserText, 1200)
   if (currentText) {
     turns.push(normalizeWorkingMemoryTurn({
       turnId: 'current-user',

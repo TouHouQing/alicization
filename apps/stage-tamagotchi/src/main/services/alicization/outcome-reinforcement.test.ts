@@ -396,17 +396,16 @@ describe('outcome reinforcement closure', () => {
       } as any,
     })
 
-    expect(closure.memoryFacts.some(fact =>
-      fact.subject === 'project'
-      && fact.predicate === 'closure'
-      && String(fact.object).includes('same-her')
-      && String(fact.object).includes('Phase 1'),
-    )).toBe(true)
-    expect(closure.memoryFacts.some(fact =>
-      fact.subject === 'project'
-      && fact.predicate === 'closure'
-      && String(fact.object).includes('lower-pressure same-her carry'),
-    )).toBe(true)
+    const projectClosureFacts = closure.memoryFacts
+      .filter(fact => fact.subject === 'project' && fact.predicate === 'closure')
+      .map(fact => String(fact.object))
+      .join('\n')
+    expect(projectClosureFacts).toContain('continuity_scope=local_runtime')
+    expect(projectClosureFacts).toContain('project_phase=local_desktop_life_loop')
+    expect(projectClosureFacts).toContain('proactive_continuity_gap=open')
+    expect(projectClosureFacts).not.toContain('same-her')
+    expect(projectClosureFacts).not.toContain('Same Phase 1 digital life')
+    expect(projectClosureFacts).not.toContain('Before answering')
     expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('same local-first digital life project')
     expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('tool shell')
     expect(closure.episodicEvents[0]?.lesson).toContain('steady gaze')
@@ -476,22 +475,21 @@ describe('outcome reinforcement closure', () => {
       } as any,
     })
 
-    expect(closure.memoryFacts.some(fact =>
-      fact.subject === 'project'
-      && fact.predicate === 'closure'
-      && String(fact.object).includes('Alicization is a local-first digital life project'),
-    )).toBe(true)
-    expect(closure.memoryFacts.some(fact =>
-      fact.subject === 'project'
-      && fact.predicate === 'closure'
-      && String(fact.object).includes('Phase 1'),
-    )).toBe(true)
+    const projectClosureFacts = closure.memoryFacts
+      .filter(fact => fact.subject === 'project' && fact.predicate === 'closure')
+      .map(fact => String(fact.object))
+      .join('\n')
+    expect(projectClosureFacts).toContain('continuity_scope=local_runtime')
+    expect(projectClosureFacts).toContain('project_phase=local_desktop_life_loop')
+    expect(projectClosureFacts).not.toContain('Alicization is a local-first digital life project')
+    expect(projectClosureFacts).not.toContain('same digital life')
     expect(closure.memoryFacts.some(fact =>
       fact.subject === 'project'
       && fact.predicate === 'closure'
       && String(fact.object).includes(thinProjectAwarenessShell),
     )).toBe(false)
-    expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('local-first digital life project')
+    expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('identity=local_desktop_life_loop')
+    expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('local_first=true')
     expect(closure.episodicEvents[0]?.relationshipMeaning).not.toContain(thinProjectAwarenessShell)
     expect(closure.episodicEvents[0]?.lesson).toContain('same-her')
     expect(closure.episodicEvents[0]?.tags).toEqual(expect.arrayContaining([
@@ -746,13 +744,14 @@ describe('outcome reinforcement closure', () => {
     expect(closure.reinforcementEvents.some(event => event.dimension === 'companionship' && event.valence === 'reinforce')).toBe(true)
     expect(closure.reinforcementEvents.some(event => event.dimension === 'temper-guardedness' && event.valence === 'suppress')).toBe(true)
     expect(closure.memoryFacts[0]?.object).toContain('natural')
-    expect(closure.memoryFacts.some(fact =>
-      fact.subject === 'project'
-      && fact.predicate === 'closure'
-      && String(fact.object).includes('Same Phase 1 digital life')
-      && /Memory still needs stronger end-to-end closure|still needs stronger end-to-end closure/i.test(String(fact.object)),
-    )).toBe(true)
-    expect(closure.episodicEvents[0]?.lesson).toContain('same digital life')
+    const projectClosureFacts = closure.memoryFacts
+      .filter(fact => fact.subject === 'project' && fact.predicate === 'closure')
+      .map(fact => String(fact.object))
+      .join('\n')
+    expect(projectClosureFacts).toContain('memory_continuity=local_runtime')
+    expect(projectClosureFacts).toContain('verified_closure_progress=partial')
+    expect(projectClosureFacts).not.toContain('Same Phase 1 digital life')
+    expect(closure.episodicEvents[0]?.lesson).toContain('one continuous response context')
   })
 
   it('writes robotic reply feedback as a same-her shell-repair event with direct body carry', () => {
@@ -953,26 +952,15 @@ describe('outcome reinforcement closure', () => {
       },
     })
 
-    expect(closure.memoryFacts.some(fact =>
-      fact.subject === 'project'
-      && fact.predicate === 'closure'
-      && String(fact.object).includes('same-her'),
-    )).toBe(true)
-    expect(closure.memoryFacts.some(fact =>
-      fact.subject === 'project'
-      && fact.predicate === 'closure'
-      && String(fact.object).includes('Phase 1'),
-    )).toBe(true)
-    expect(closure.memoryFacts.some(fact =>
-      fact.subject === 'project'
-      && fact.predicate === 'closure'
-      && String(fact.object).includes('Initiative still needs to remember host boundaries'),
-    )).toBe(true)
-    expect(closure.memoryFacts.some(fact =>
-      fact.subject === 'project'
-      && fact.predicate === 'closure'
-      && String(fact.object).includes('proactive same-her carry across host confirmation turns'),
-    )).toBe(true)
+    const projectClosureFacts = closure.memoryFacts
+      .filter(fact => fact.subject === 'project' && fact.predicate === 'closure')
+      .map(fact => String(fact.object))
+      .join('\n')
+    expect(projectClosureFacts).toContain('continuity_scope=local_runtime')
+    expect(projectClosureFacts).toContain('project_phase=local_desktop_life_loop')
+    expect(projectClosureFacts).toContain('proactive_continuity_gap=open')
+    expect(projectClosureFacts).not.toContain('same-her')
+    expect(projectClosureFacts).not.toContain('Initiative still needs to remember host boundaries')
     expect(closure.episodicEvents[0]?.lesson).toContain('same-her')
     expect(closure.episodicEvents[0]?.lesson).toContain('Phase 1')
     expect(closure.episodicEvents[0]?.tags).toEqual(expect.arrayContaining([
@@ -1173,18 +1161,13 @@ describe('outcome reinforcement closure', () => {
       },
     })
 
-    expect(closure.memoryFacts.some(fact =>
-      fact.subject === 'project'
-      && fact.predicate === 'closure'
-      && String(fact.object).includes('same-her'),
-    )).toBe(true)
-    expect(closure.memoryFacts.some(fact =>
-      fact.subject === 'project'
-      && fact.predicate === 'closure'
-      && String(fact.object).includes('Phase 1'),
-    )).toBe(true)
+    const projectClosureFacts = closure.memoryFacts
+      .filter(fact => fact.subject === 'project' && fact.predicate === 'closure')
+      .map(fact => String(fact.object))
+      .join('\n')
+    expect(projectClosureFacts).toContain('continuity_scope=local_runtime')
+    expect(projectClosureFacts).not.toContain('same-her')
     expect(closure.episodicEvents[0]?.lesson).toContain('same-her')
-    expect(closure.episodicEvents[0]?.lesson).toContain('Phase 1')
     expect(closure.episodicEvents[0]?.tags).toEqual(expect.arrayContaining([
       'same-her',
       'closure-carry',
@@ -1368,23 +1351,16 @@ describe('outcome reinforcement closure', () => {
       },
     })
 
-    expect(closure.memoryFacts.some(fact =>
-      fact.subject === 'project'
-      && fact.predicate === 'closure'
-      && String(fact.object).includes('same-her'),
-    )).toBe(true)
-    expect(closure.memoryFacts.some(fact =>
-      fact.subject === 'project'
-      && fact.predicate === 'closure'
-      && String(fact.object).includes('Phase 1'),
-    )).toBe(true)
-    expect(closure.memoryFacts.some(fact =>
-      fact.subject === 'project'
-      && fact.predicate === 'closure'
-      && String(fact.object).includes('proactive same-her carry across callback reunion turns'),
-    )).toBe(true)
-    expect(closure.episodicEvents[0]?.lesson).toContain('same-her')
-    expect(closure.episodicEvents[0]?.lesson).toContain('Phase 1')
+    const projectClosureFacts = closure.memoryFacts
+      .filter(fact => fact.subject === 'project' && fact.predicate === 'closure')
+      .map(fact => String(fact.object))
+      .join('\n')
+    expect(projectClosureFacts).toContain('continuity_scope=local_runtime')
+    expect(projectClosureFacts).toContain('project_phase=local_desktop_life_loop')
+    expect(projectClosureFacts).toContain('proactive_continuity_gap=open')
+    expect(projectClosureFacts).not.toContain('same-her')
+    expect(closure.episodicEvents[0]?.lesson).toContain('same digital-life line')
+    expect(closure.episodicEvents[0]?.lesson).not.toContain('same-her')
     expect(closure.episodicEvents[0]?.tags).toContain('proactive-same-her-gap')
     expect(closure.episodicEvents[0]?.tags).toContain('same-her-drift-risk')
   })

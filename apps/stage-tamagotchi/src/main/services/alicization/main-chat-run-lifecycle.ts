@@ -8,6 +8,11 @@ import type { AlicizationTurnRuntimeContext } from './turn-os/runtime'
 import type { AlicizationResolvedVisibleReply } from './visible-reply/facade'
 
 import {
+  alicizationFixedTemplateReplacement,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+
+import {
   isAlicizationThinProjectAwarenessLine,
   resolveAlicizationProjectStateBrief,
 } from './project-state-brief'
@@ -224,9 +229,66 @@ function settleRecoveredVisibleReply(input: {
   })
 }
 
+function sanitizeRecoveredReplyCarryValue(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return sanitizeAlicizationProviderFacingText(
+      value,
+      1200,
+      alicizationFixedTemplateReplacement,
+    )
+  }
+  if (Array.isArray(value))
+    return value.map(item => sanitizeRecoveredReplyCarryValue(item))
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .map(([key, entry]) => [key, sanitizeRecoveredReplyCarryValue(entry)]),
+    )
+  }
+  return value
+}
+
+function sanitizeRecoveredReplyCarryObject<T extends Record<string, unknown> | null>(value: T): T {
+  return value
+    ? sanitizeRecoveredReplyCarryValue(value) as T
+    : value
+}
+
+function sanitizeRecoveredParsedStructuredCarry(parsed: Record<string, unknown>) {
+  return {
+    ...parsed,
+    ...(parsed.projectState && typeof parsed.projectState === 'object' && !Array.isArray(parsed.projectState)
+      ? { projectState: sanitizeRecoveredReplyCarryObject(parsed.projectState as Record<string, unknown>) }
+      : {}),
+    ...(parsed.preDialogueAwareness && typeof parsed.preDialogueAwareness === 'object' && !Array.isArray(parsed.preDialogueAwareness)
+      ? { preDialogueAwareness: sanitizeRecoveredReplyCarryObject(parsed.preDialogueAwareness as Record<string, unknown>) }
+      : {}),
+    ...(parsed.preDialogueClosure && typeof parsed.preDialogueClosure === 'object' && !Array.isArray(parsed.preDialogueClosure)
+      ? { preDialogueClosure: sanitizeRecoveredReplyCarryObject(parsed.preDialogueClosure as Record<string, unknown>) }
+      : {}),
+    ...(parsed.visibleReplyRealization && typeof parsed.visibleReplyRealization === 'object' && !Array.isArray(parsed.visibleReplyRealization)
+      ? { visibleReplyRealization: sanitizeRecoveredReplyCarryObject(parsed.visibleReplyRealization as Record<string, unknown>) }
+      : {}),
+    ...(parsed.projectStateAudit && typeof parsed.projectStateAudit === 'object' && !Array.isArray(parsed.projectStateAudit)
+      ? { projectStateAudit: sanitizeRecoveredReplyCarryObject(parsed.projectStateAudit as Record<string, unknown>) }
+      : {}),
+  }
+}
+
+function hasRecoveredStructuredCarry(parsed: Record<string, unknown>) {
+  return Boolean(
+    parsed.projectState && typeof parsed.projectState === 'object' && !Array.isArray(parsed.projectState)
+    || parsed.preDialogueAwareness && typeof parsed.preDialogueAwareness === 'object' && !Array.isArray(parsed.preDialogueAwareness)
+    || parsed.preDialogueClosure && typeof parsed.preDialogueClosure === 'object' && !Array.isArray(parsed.preDialogueClosure)
+    || parsed.visibleReplyRealization && typeof parsed.visibleReplyRealization === 'object' && !Array.isArray(parsed.visibleReplyRealization)
+    || parsed.projectStateAudit && typeof parsed.projectStateAudit === 'object' && !Array.isArray(parsed.projectStateAudit),
+  )
+}
+
 function ensureStructuredRecoveredReplyFullText(reply: AlicizationResolvedVisibleReply): AlicizationResolvedVisibleReply {
   const parsed = parseJsonObjectFromText(reply.fullText)
   if (parsed) {
+    const sanitizedParsed = sanitizeRecoveredParsedStructuredCarry(parsed)
     const projectStateBrief = resolveAlicizationProjectStateBrief()
     type ProjectStateAuditArtifact = NonNullable<ReturnType<typeof buildAlicizationVisibleReplyRealizationArtifact>['projectStateAudit']>
     const rawProjectState = parsed.projectState && typeof parsed.projectState === 'object'
@@ -320,11 +382,17 @@ function ensureStructuredRecoveredReplyFullText(reply: AlicizationResolvedVisibl
         ?? (audit?.rewriteClosureApplied === true),
     })
     if (!thinSummaryOnly && !shouldPromoteRicherAuditAwareness && !shouldPreserveVerbatimCompanionBriefing) {
-      if (!shouldBridgeTopLevelProjectStateAudit)
-        return reply
+      if (!shouldBridgeTopLevelProjectStateAudit) {
+        return hasRecoveredStructuredCarry(parsed)
+          ? {
+              ...reply,
+              fullText: JSON.stringify(sanitizedParsed),
+            }
+          : reply
+      }
 
       const bridgedProjectStateAudit = rawProjectStateAudit
-        ? buildRecoveredProjectStateAudit(rawProjectStateAudit)
+        ? sanitizeRecoveredReplyCarryObject(buildRecoveredProjectStateAudit(rawProjectStateAudit))
         : null
       const bridgedRealization: AlicizationResolvedVisibleReply['realization'] = {
         ...reply.realization,
@@ -336,9 +404,9 @@ function ensureStructuredRecoveredReplyFullText(reply: AlicizationResolvedVisibl
         ...reply,
         realization: bridgedRealization,
         fullText: JSON.stringify({
-          ...parsed,
+          ...sanitizedParsed,
           visibleReplyRealization: {
-            ...rawVisibleReplyRealization,
+            ...sanitizeRecoveredReplyCarryObject(rawVisibleReplyRealization),
             ...(bridgedProjectStateAudit
               ? { projectStateAudit: bridgedProjectStateAudit }
               : {}),
@@ -367,7 +435,7 @@ function ensureStructuredRecoveredReplyFullText(reply: AlicizationResolvedVisibl
       = (typeof rawProjectStateAudit?.continuitySummary === 'string' && rawProjectStateAudit.continuitySummary.trim())
         || buildPrioritizedProjectStateRewritePreserveLines({
           projectStateContinuityAnchors: [
-            sameHerSummary ? `same-her=${sameHerSummary}` : '',
+            sameHerSummary ? `continuity_anchor=${sameHerSummary}` : '',
             projectStateBrief.currentPhase ? `phase=${projectStateBrief.currentPhase}` : '',
             landedProgressSummary ? `landed=${landedProgressSummary}` : '',
             openClosureSummary ? `open=${openClosureSummary}` : '',
@@ -380,14 +448,14 @@ function ensureStructuredRecoveredReplyFullText(reply: AlicizationResolvedVisibl
       : shouldPromoteRicherAuditAwareness
         ? awarenessSummary
         : (sameHerSummary || projectStateBrief.preDialogueAwarenessLine || null)
-    const normalizedProjectStateAudit = buildRecoveredProjectStateAudit(rawProjectStateAudit, {
+    const normalizedProjectStateAudit = sanitizeRecoveredReplyCarryObject(buildRecoveredProjectStateAudit(rawProjectStateAudit, {
       sameHerSummary,
       landedProgressSummary,
       openClosureSummary,
       nextClosureTargetSummary,
       preDialogueAwarenessSummary: preferredRebuiltAwarenessLine,
       continuitySummary,
-    })
+    }))
     const normalizedRealization: AlicizationResolvedVisibleReply['realization'] = {
       ...reply.realization,
       projectStateAudit: normalizedProjectStateAudit,
@@ -397,39 +465,39 @@ function ensureStructuredRecoveredReplyFullText(reply: AlicizationResolvedVisibl
       ...reply,
       realization: normalizedRealization,
       fullText: JSON.stringify({
-        ...parsed,
+        ...sanitizedParsed,
         projectState: {
-          ...rawProjectState,
-          ...resolveCanonicalStructuredProjectState({
+          ...sanitizeRecoveredReplyCarryObject(rawProjectState),
+          ...sanitizeRecoveredReplyCarryObject(resolveCanonicalStructuredProjectState({
             normalizedProjectState: rawProjectState,
             runtimePreflightSummary: preflightSummary || (projectStateBrief.preflightSummary ?? null),
             runtimePreDialogueAwarenessLine: preferredRebuiltAwarenessLine,
-          }),
-          preflightSummary: preflightSummary || (projectStateBrief.preflightSummary ?? null),
-          preDialogueAwarenessLine: preferredRebuiltAwarenessLine,
-          awarenessLine: preferredRebuiltAwarenessLine,
-          preDialogueAwarenessSummary: preferredRebuiltAwarenessLine,
+          })),
+          preflightSummary: sanitizeRecoveredReplyCarryValue(preflightSummary || (projectStateBrief.preflightSummary ?? null)),
+          preDialogueAwarenessLine: sanitizeRecoveredReplyCarryValue(preferredRebuiltAwarenessLine),
+          awarenessLine: sanitizeRecoveredReplyCarryValue(preferredRebuiltAwarenessLine),
+          preDialogueAwarenessSummary: sanitizeRecoveredReplyCarryValue(preferredRebuiltAwarenessLine),
           companionBriefingLine: shouldPreserveVerbatimCompanionBriefing
-            ? companionBriefingLine
-            : rawProjectState?.companionBriefingLine,
+            ? sanitizeRecoveredReplyCarryValue(companionBriefingLine)
+            : sanitizeRecoveredReplyCarryValue(rawProjectState?.companionBriefingLine),
         },
         preDialogueAwareness: rawPreDialogueAwareness
           ? {
-              ...rawPreDialogueAwareness,
-              awarenessLine: preferredRebuiltAwarenessLine,
-              summaryLine: preferredRebuiltAwarenessLine,
-              companionBriefingLine: companionBriefingLine || rawPreDialogueAwareness.companionBriefingLine,
+              ...sanitizeRecoveredReplyCarryObject(rawPreDialogueAwareness),
+              awarenessLine: sanitizeRecoveredReplyCarryValue(preferredRebuiltAwarenessLine),
+              summaryLine: sanitizeRecoveredReplyCarryValue(preferredRebuiltAwarenessLine),
+              companionBriefingLine: sanitizeRecoveredReplyCarryValue(companionBriefingLine || rawPreDialogueAwareness.companionBriefingLine),
             }
           : rawPreDialogueAwareness,
         preDialogueClosure: rawPreDialogueClosure
           ? {
-              ...rawPreDialogueClosure,
-              summaryLine: preferredRebuiltAwarenessLine,
-              companionBriefingLine: companionBriefingLine || rawPreDialogueClosure.companionBriefingLine,
+              ...sanitizeRecoveredReplyCarryObject(rawPreDialogueClosure),
+              summaryLine: sanitizeRecoveredReplyCarryValue(preferredRebuiltAwarenessLine),
+              companionBriefingLine: sanitizeRecoveredReplyCarryValue(companionBriefingLine || rawPreDialogueClosure.companionBriefingLine),
             }
           : rawPreDialogueClosure,
         visibleReplyRealization: {
-          ...rawVisibleReplyRealization,
+          ...sanitizeRecoveredReplyCarryObject(rawVisibleReplyRealization),
           projectStateAudit: normalizedProjectStateAudit,
         },
       }),

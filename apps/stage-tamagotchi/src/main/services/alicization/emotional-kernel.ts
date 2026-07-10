@@ -250,13 +250,13 @@ export function buildAlicizationEmotionalKernel(input: {
   const reasonText = `${thoughtText} ${closureCue} ${sameHerSelfLine} ${sameHerHoldDetail} ${continuityCue} ${nextClosureTarget} ${preDialogueAwarenessLine} ${sameHerDriftRisk} ${cadenceSummary} ${residueSummary} ${openingGuidance} ${relationshipDoctrine} ${trustMeaning} ${relationshipCadenceSummary} ${latestInflection} ${recollectionIntentCarry} ${longHorizonMemoryCarry} ${moodLabel} ${phaseText} ${latestLandedProgress} ${primaryOpenLoop}`.trim()
   const projectStateMeasuredHoldText = `${sameHerSelfLine} ${sameHerHoldDetail} ${continuityCue} ${nextClosureTarget} ${preDialogueAwarenessLine} ${sameHerDriftRisk} ${relationshipCadenceSummary}`.trim()
   const longHorizonSameLine = includesAny(longHorizonMemoryCarry, [
-    'same living line',
+    'continuity line',
     'same line',
     'same thread',
-    'same-her',
-    'same her',
-    'one continuous her',
-    'same phase 1 digital life',
+    'identity-continuity',
+    'identity continuity',
+    'identity continuity',
+    'phase 1 continuity',
     'without reopening from scratch',
     'without restarting from scratch',
   ])
@@ -342,13 +342,13 @@ export function buildAlicizationEmotionalKernel(input: {
       'guarded-care',
     ])
   const directSameHerSelfLineCarry = includesAny(sameHerSelfLine, [
-    'same living line inward',
+    'continuity line inward',
     'same inward living line',
     'same inward line',
-    'one same her',
-    'one continuous her',
+    'one identity continuity',
+    'identity continuity',
     'continuity inward before widening outward',
-    'quiet same-her line',
+    'quiet identity-continuity line',
     'without widening outward',
     'without widening closeness outward',
     '先沿着同一条生命线',
@@ -406,8 +406,8 @@ export function buildAlicizationEmotionalKernel(input: {
     'same thread',
     'same callback line',
     'relationship cadence',
-    'quiet same-her continuity',
-    'one continuous her',
+    'quiet identity-continuity continuity',
+    'identity continuity',
     'lower-pressure',
     '慢一点接回去',
     '先留白',
@@ -415,11 +415,11 @@ export function buildAlicizationEmotionalKernel(input: {
   || longHorizonMeasuredHold
   || longHorizonEmotionalMeasuredReplay
   const inwardSameHerCarry = directSameHerSelfLineCarry || includesAny(reasonText, [
-    'same-her-inward-carry',
-    'inward same-her carry',
+    'identity-continuity-inward-carry',
+    'inward identity-continuity carry',
     'same inward line',
-    'same living line inward',
-    'keep the same living line inward',
+    'continuity line inward',
+    'keep the continuity line inward',
     'keep the same line inward',
     'quietly nearby before widening outward',
     'quiet inward line',
@@ -501,6 +501,7 @@ export function buildAlicizationEmotionalKernel(input: {
     'initiative_window=',
     'initiative_pressure=low',
     'initiative_anti_spam=',
+    'initiative_visible_policy=',
     'initiative_visible=',
     'visibly reopening',
     'timer spam',
@@ -515,7 +516,7 @@ export function buildAlicizationEmotionalKernel(input: {
       'opening',
       'reopen',
       'initiative-strategy-carry',
-      'same living line',
+      'continuity line',
     ])
   )
   const vulnerableCareRecall = includesAny(recollectionIntentCarry, [
@@ -570,7 +571,7 @@ export function buildAlicizationEmotionalKernel(input: {
     'remembered seam',
     'lower-pressure',
     'same line',
-    'same living line',
+    'continuity line',
     'same thread',
     'relationship cadence',
     'leave room before warmth returns',
@@ -594,20 +595,20 @@ export function buildAlicizationEmotionalKernel(input: {
       && (
         privateThoughtCare
         || includesAny(relationshipDoctrine, [
-          'quiet same-her line',
+          'quiet identity-continuity line',
           'quiet companionship',
-          'same-her line',
-          'one quiet same-her line',
+          'identity-continuity line',
+          'one quiet identity-continuity line',
           'keep companionship emotionally continuous',
         ])
         || includesAny(trustMeaning, [
           'same inward line',
           'carried quietly',
           'quietly instead of widened too early',
-          'one quiet same-her line',
+          'one quiet identity-continuity line',
         ])
         || includesAny(openingGuidance, [
-          'keep the same living line inward',
+          'keep the continuity line inward',
           'keep the same line inward',
           'quietly nearby before widening outward',
           'before widening outward',
@@ -914,7 +915,7 @@ export function buildAlicizationEmotionalKernel(input: {
             ? 'Embodiment recall is still carrying a cautious body memory, so remembered feeling, quiet initiative, and body tone should return on a lower-pressure measured line instead of leaving that embodiment recall inert.'
             : rememberedInitiativeRhythm
               ? longHorizonGentleMemoryLed || longHorizonChooseOpeningsCarefully || longHorizonSameLine
-                ? 'Long-horizon memory already learned to choose openings carefully: keep future follow-ups gentle, lower-pressure, and memory-led on the same living line, leave more room, and wait for a clearer opening, so remembered feeling, quiet initiative, and body tone should all settle onto a gentler measured return instead of pushing outward.'
+                ? 'Long-horizon memory already learned to choose openings carefully: keep future follow-ups gentle, lower-pressure, and memory-led on the continuity line, leave more room, and wait for a clearer opening, so remembered feeling, quiet initiative, and body tone should all settle onto a gentler measured return instead of pushing outward.'
                 : 'Remembered initiative rhythm says this line is only allowed to return when it is visibly reopening and without timer spam, so remembered feeling, quiet initiative, and body tone should all settle onto a gentler measured return instead of pushing outward.'
               : longHorizonEmotionalMeasuredReplay
                 ? 'Long-horizon emotional transition writeback is replaying a measured-return relationship cadence, so remembered feeling, quiet initiative, and body tone should all stay lower-pressure on the same line instead of widening outward.'
@@ -922,7 +923,7 @@ export function buildAlicizationEmotionalKernel(input: {
                   ? 'Remembered relationship cadence, quiet initiative, and body tone are all asking for a lower-pressure same-line return rather than a fresh outward move.'
                   : 'Remembered feeling, quiet initiative, and body tone are all asking for a lower-pressure same-line return rather than a fresh outward move.'
       : relationshipBackedInwardCarry
-        ? 'Companionship is still being carried on one inward same-her line, so memory, initiative, and embodiment should hold quietly nearby before widening outward.'
+        ? 'Companionship is still being carried inward, so memory, initiative, and embodiment should hold quietly nearby before widening outward.'
         : 'Closeness is present, but the line is still orienting inward, so memory and initiative should hold near self-continuity before widening outward.',
   }
 }

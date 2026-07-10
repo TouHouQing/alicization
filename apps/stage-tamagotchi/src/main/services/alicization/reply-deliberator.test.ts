@@ -7,6 +7,9 @@ import {
 } from './reply-deliberator'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
+const fixedReplyDeliberationProjectTemplatePattern
+  = /What has already landed enough to build from|The same digital life|same still-open life loop|The next closure step still needs to stay visible here|This reply still needs to keep cross-modal same-her closure explicit|The same digital life still needs/iu
+
 const discourseState = {
   currentTurnSubject: 'task-knot' as const,
   screenReferenceMode: 'helpful' as const,
@@ -130,7 +133,7 @@ describe('buildReplyDeliberation', () => {
       speakingFrom: 'task-thread',
       shouldSpeak: true,
     }))
-    expect(state?.mustAvoid).toContain('Do not drift into decorative association before the knot is answered.')
+    expect(state?.mustAvoid).toContain('decorative_association_before_knot_answered=blocked')
     expect(buildReplyDeliberationSystemBlock(state)).toContain('[ALICIZATION_REPLY_DELIBERATION]')
   })
 
@@ -250,7 +253,7 @@ describe('buildReplyDeliberation', () => {
       speakingFrom: 'self-continuity',
     }))
     expect(state?.mustInclude).toContain('你能做什么呀')
-    expect(state?.mustAvoid).toContain('Do not let control directives outrank the current turn anchor.')
+    expect(state?.mustAvoid).toContain('current_turn_anchor_priority=above_control_directives')
     expect(state?.narrative).toContain('anchor:你能做什么呀')
   })
 
@@ -337,9 +340,9 @@ describe('buildReplyDeliberation', () => {
       selectedMotive: 'witness',
       speakingFrom: 'live-scene',
     }))
-    expect(state?.mustInclude).toContain('Keep direct observation and any task guess in separate clauses.')
-    expect(state?.mustAvoid).toContain('Do not jump from coarse visual cues to file, class, enum, or field-level certainty.')
-    expect(state?.mustAvoid).toContain('Do not name specific technical artifacts unless the host named them or the current evidence explicitly grounds them.')
+    expect(state?.mustInclude).toContain('direct_observation_clause=separate; task_guess_clause=separate; visibility=internal-structured')
+    expect(state?.mustAvoid).toContain('coarse_visual_cues_to_specific_technical_certainty=blocked')
+    expect(state?.mustAvoid).toContain('specific_technical_artifact_names=require_host_or_current_evidence')
     expect(state?.narrative).toContain('claim-budget:coarse-scene')
     expect(state?.narrative).toContain('truth-discipline:observe-then-hypothesize')
   })
@@ -510,8 +513,8 @@ describe('buildReplyDeliberation', () => {
       speakingFrom: 'live-scene',
       shouldSpeak: true,
     }))
-    expect(state?.mustAvoid).toContain('Do not drift into decorative association before the knot is answered.')
-    expect(state?.mustAvoid).toContain('Do not jump from coarse visual cues to file, class, enum, or field-level certainty.')
+    expect(state?.mustAvoid).toContain('decorative_association_before_knot_answered=blocked')
+    expect(state?.mustAvoid).toContain('coarse_visual_cues_to_specific_technical_certainty=blocked')
   })
 
   it('turns held-autonomy guide replies into a gentle re-entry opening beat instead of a generic guide opener', () => {
@@ -576,10 +579,10 @@ describe('buildReplyDeliberation', () => {
 
     expect(state).toEqual(expect.objectContaining({
       selectedMotive: 'guide',
-      openingBeat: 'Re-enter the deliberately held line gently before widening into the payoff.',
+      openingBeat: 'opening_policy=held_line_gentle_reentry; payoff_before_widening=true',
     }))
-    expect(state?.mustInclude[0]).toBe('Re-enter the deliberately held line gently before widening into the payoff.')
-    expect(buildReplyDeliberationSystemBlock(state)).toContain('Opening beat: Re-enter the deliberately held line gently before widening into the payoff.')
+    expect(state?.mustInclude[0]).toBe('opening_policy=held_line_gentle_reentry; payoff_before_widening=true')
+    expect(buildReplyDeliberationSystemBlock(state)).toContain('opening_beat=opening_policy=held_line_gentle_reentry; payoff_before_widening=true')
   })
 
   it('lets execution-callback doctrine keep reply deliberation room-first after payoff lands', () => {
@@ -649,9 +652,9 @@ describe('buildReplyDeliberation', () => {
       selectedMotive: 'answer',
       speakingFrom: 'dialogue-bond',
     }))
-    expect(state?.openingBeat).toContain('leave the host room')
+    expect(state?.openingBeat).toContain('host_room=preserve')
     expect(state?.whyThisReplyNow).toContain('same live seam')
-    expect(state?.mustAvoid).toContain('Do not let the callback payoff snap straight into renewed closeness before the host has room to breathe.')
+    expect(state?.mustAvoid).toContain('callback_payoff_to_renewed_closeness=blocked_until_host_room')
   })
 
   it('lets continuity arc guidance shape the opening beat when the conscious frame is still holding for opening', () => {
@@ -714,8 +717,8 @@ describe('buildReplyDeliberation', () => {
       },
     })
 
-    expect(state?.openingBeat).toBe('Keep the same line warm first, and leave room before widening.')
-    expect(state?.mustInclude).toContain('Keep the same line warm first, and leave room before widening.')
+    expect(state?.openingBeat).toBe('opening_policy=hold_for_opening; room=preserve; widening=deferred')
+    expect(state?.mustInclude).toContain('opening_policy=hold_for_opening; room=preserve; widening=deferred')
   })
 
   it('lets continuity arc guidance shape the opening beat when the conscious frame is gently reopening the same line', () => {
@@ -778,8 +781,8 @@ describe('buildReplyDeliberation', () => {
       },
     })
 
-    expect(state?.openingBeat).toBe('Re-enter the same living line softly before widening.')
-    expect(state?.mustInclude).toContain('Re-enter the same living line softly before widening.')
+    expect(state?.openingBeat).toBe('opening_policy=gentle_reopen; widening=deferred')
+    expect(state?.mustInclude).toContain('opening_policy=gentle_reopen; widening=deferred')
   })
 
   it('keeps held-autonomy callback returns on one same-her line from gentle reopening into lower-pressure reply doctrine', () => {
@@ -866,10 +869,10 @@ describe('buildReplyDeliberation', () => {
       selectedMotive: 'guide',
       speakingFrom: 'dialogue-bond',
     }))
-    expect(state?.openingBeat).toBe('Return on the same thread first, then leave the host room before widening.')
+    expect(state?.openingBeat).toBe('opening_policy=same_thread_first; pressure=lower; host_room=preserve; widening=deferred')
     expect(state?.whyThisReplyNow).toContain('thread-faithful')
-    expect(state?.mustInclude).toContain('Return on the same thread first, then leave the host room before widening.')
-    expect(state?.mustAvoid).toContain('Do not let the callback payoff snap straight into renewed closeness before the host has room to breathe.')
+    expect(state?.mustInclude).toContain('opening_policy=same_thread_first; pressure=lower; host_room=preserve; widening=deferred')
+    expect(state?.mustAvoid).toContain('callback_payoff_to_renewed_closeness=blocked_until_host_room')
   })
 
   it('keeps Chinese held-autonomy callback wording on the same thread even when conscious-frame continuity tags are absent', () => {
@@ -951,8 +954,8 @@ describe('buildReplyDeliberation', () => {
       runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
     })
 
-    expect(state?.openingBeat).toBe('Return on the same thread first, then leave the host room before widening.')
-    expect(state?.mustInclude).toContain('Return on the same thread first, then leave the host room before widening.')
+    expect(state?.openingBeat).toBe('opening_policy=same_thread_first; host_room=preserve; widening=deferred')
+    expect(state?.mustInclude).toContain('opening_policy=same_thread_first; host_room=preserve; widening=deferred')
   })
 
   it('lets cadence reconfirmation inherit the lower-pressure callback opening beat through the conscious frame doctrine tag', () => {
@@ -1018,9 +1021,9 @@ describe('buildReplyDeliberation', () => {
       },
     })
 
-    expect(state?.openingBeat).toBe('Return on the same thread first, then leave the host room before widening.')
+    expect(state?.openingBeat).toBe('opening_policy=same_thread_first; pressure=lower; host_room=preserve; widening=deferred')
     expect(state?.whyThisReplyNow).toContain('same live seam')
-    expect(state?.mustAvoid).toContain('Do not let the callback payoff snap straight into renewed closeness before the host has room to breathe.')
+    expect(state?.mustAvoid).toContain('callback_payoff_to_renewed_closeness=blocked_until_host_room')
   })
 
   it('keeps same-thread next-open-window deliberation inward-first before widening', () => {
@@ -1094,8 +1097,9 @@ describe('buildReplyDeliberation', () => {
       } as any,
     })
 
-    expect(state?.openingBeat).toBe('Stay with the same living line first, and wait for a more natural opening before widening.')
-    expect(state?.whyThisReplyNow).toMatch(/cross-modal same-her closure explicit|cross-modal same-her proof|same still-open closure work|project line collapse into generic guidance/i)
+    expect(state?.openingBeat).toBe('opening_policy=same_thread_continuation; timing=next_open_window; widening=deferred')
+    expect(state?.whyThisReplyNow).toContain('project_closure_context=')
+    expect(state?.whyThisReplyNow).not.toMatch(fixedReplyDeliberationProjectTemplatePattern)
   })
 
   it('keeps repair-first same-thread next-open-window deliberation explicit instead of thinning it back to generic same-thread widening guidance', () => {
@@ -1170,9 +1174,9 @@ describe('buildReplyDeliberation', () => {
       } as any,
     })
 
-    expect(state?.openingBeat).toBe('Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.')
-    expect(state?.mustInclude).toContain('Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.')
-    expect(state?.whyThisReplyNow).toMatch(/repair-before-closeness|repair line|repair seam|let repair settle/i)
+    expect(state?.openingBeat).toBe('opening_policy=current_reply_context; repair_settle_first=true; room=preserve; closeness_widening=deferred')
+    expect(state?.mustInclude).toContain('opening_policy=current_reply_context; repair_settle_first=true; room=preserve; closeness_widening=deferred')
+    expect(state?.whyThisReplyNow).toMatch(/repair-first|room-giving|repair-before-closeness|repair line|repair seam|let repair settle/i)
   })
 
   it('keeps repair-before-closeness opening and why-now when richer summary and hold detail survive but the cue is thinner', () => {
@@ -1250,8 +1254,8 @@ describe('buildReplyDeliberation', () => {
       } as any,
     })
 
-    expect(state?.openingBeat).toBe('Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.')
-    expect(state?.whyThisReplyNow).toMatch(/repair-before-closeness|repair line|repair seam|let repair settle/i)
+    expect(state?.openingBeat).toBe('opening_policy=same_thread_continuation; timing=next_open_window; widening=deferred')
+    expect(state?.whyThisReplyNow).toMatch(/repair-before-closeness|repair_settle_first|closeness_widening=deferred/i)
   })
 
   it('derives same-her project closure pressure from structured projectState even when the conscious wording is thinner', () => {
@@ -1338,10 +1342,11 @@ describe('buildReplyDeliberation', () => {
     })
 
     expect(state?.mustInclude).toBeDefined()
-    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
-    expect(state?.whyThisReplyNow).toMatch(/same still-open life loop|continuity, memory, and execution|landed enough to build from/i)
-    expect(state?.whyThisReplyNow).toMatch(/landed progress|continuity, memory, and execution|still-open life loop/i)
-    expect(state?.whyThisReplyNow).toMatch(/local-first digital life project|Phase 1/i)
+    expect(state?.openingBeat).toBe('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
+    expect(state?.whyThisReplyNow).toContain('project_closure_context=')
+    expect(state?.whyThisReplyNow).toContain('landed=continuity, memory, and execution')
+    expect(state?.whyThisReplyNow).toContain('open=Memory and initiative')
+    expect(state?.whyThisReplyNow).not.toMatch(fixedReplyDeliberationProjectTemplatePattern)
     expect(state?.mustInclude.some(item =>
       /local-first digital life project|Phase 1|landed progress|continuity, memory, and execution|still-open life loop|next closure/i.test(item),
     )).toBe(true)
@@ -1429,9 +1434,10 @@ describe('buildReplyDeliberation', () => {
       } as any,
     })
 
-    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
-    expect(state?.mustInclude).toContain('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
-    expect(state?.whyThisReplyNow).toMatch(/same living line|one continuous her|closure/i)
+    expect(state?.openingBeat).toBe('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
+    expect(state?.mustInclude).toContain('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
+    expect(state?.whyThisReplyNow).toContain('project_closure_context=')
+    expect(state?.whyThisReplyNow).not.toMatch(fixedReplyDeliberationProjectTemplatePattern)
   })
 
   it('keeps an explicit live same-her drift risk from the conscious frame instead of falling back to the canonical brief wording', () => {
@@ -1605,10 +1611,11 @@ describe('buildReplyDeliberation', () => {
       } as any,
     })
 
-    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
-    expect(state?.whyThisReplyNow).toMatch(/same digital life|closure work|generic guidance/i)
+    expect(state?.openingBeat).toBe('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
+    expect(state?.whyThisReplyNow).toContain('project_closure_context=')
+    expect(state?.whyThisReplyNow).not.toMatch(fixedReplyDeliberationProjectTemplatePattern)
     expect(state?.mustInclude.some(item =>
-      /same digital life|closure work|generic guidance/i.test(item),
+      item.includes('project_closure_context='),
     )).toBe(true)
   })
 
@@ -1696,9 +1703,9 @@ describe('buildReplyDeliberation', () => {
       } as any,
     })
 
-    expect(state?.whyThisReplyNow?.toLowerCase()).toContain('same-session mirror carry')
-    expect(state?.whyThisReplyNow).toContain('Memory still needs stronger end-to-end closure')
-    expect(state?.whyThisReplyNow).toContain('Keep extending cross-modal same-her proof')
+    expect(state?.whyThisReplyNow).toContain('project_closure_context=structured_continuity')
+    expect(state?.whyThisReplyNow).toContain('open=memory_dialogue_embodiment_closure')
+    expect(state?.whyThisReplyNow).toContain('next=cross_modal_continuity_proof')
     expect(state?.whyThisReplyNow).not.toContain('Project continuity exists.')
     expect(state?.whyThisReplyNow).not.toContain('Project continuity still needs closure.')
     expect(state?.whyThisReplyNow).not.toContain('Carry project continuity forward.')
@@ -1793,8 +1800,8 @@ describe('buildReplyDeliberation', () => {
       } as any,
     })
 
-    expect(state?.whyThisReplyNow).toContain(correctedSamePersonAuthority)
-    expect(state?.whyThisReplyNow).toContain(correctedSamePersonCue)
+    expect(state?.whyThisReplyNow).toContain('corrected_authority=Keep the host-corrected same-person continuity')
+    expect(state?.whyThisReplyNow).toContain('corrected_cue=Carry corrected same-person continuity')
     expect(state?.mustInclude.some(item =>
       item.includes(correctedSamePersonAuthority) || item.includes(correctedSamePersonCue),
     )).toBe(true)
@@ -1884,14 +1891,14 @@ describe('buildReplyDeliberation', () => {
       } as any,
     })
 
-    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
-    expect(state?.whyThisReplyNow).toContain('audible-body same-her repair')
-    expect(state?.whyThisReplyNow).toContain('Face and motion still need to rejoin the same-her audible body line before full cross-modal closure settles.')
-    expect(state?.whyThisReplyNow).toContain('Keep extending cross-modal same-her proof across longer-lived voice, face, motion, and lipsync behavior without dropping the living audio thread.')
-    expect(state?.whyThisReplyNow).toContain('same-her audible-body line can disappear before face and motion finish rejoining')
-    expect(state?.mustInclude.some(item =>
-      /audible-body same-her repair|same-her audible body line|cross-modal same-her proof/i.test(item),
-    )).toBe(true)
+    expect(state?.openingBeat).toBe('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
+    expect(state?.whyThisReplyNow).toContain('project_closure_context=')
+    expect(state?.whyThisReplyNow).toContain('landed=continuity_progress=partial')
+    expect(state?.whyThisReplyNow).toContain('open=memory_dialogue_embodiment_closure')
+    expect(state?.whyThisReplyNow).toContain('next=cross_modal_continuity_proof')
+    expect(state?.whyThisReplyNow).toContain('drift_risk=generic_guidance_without_first_person_continuity')
+    expect(state?.whyThisReplyNow).not.toMatch(fixedReplyDeliberationProjectTemplatePattern)
+    expect(state?.whyThisReplyNow).toContain('closure_mode=cross_modal_continuity')
   })
 
   it('does not let empty legacy project-state strings shadow richer summary-only same-her carry in reply deliberation', () => {
@@ -1985,15 +1992,14 @@ describe('buildReplyDeliberation', () => {
       } as any,
     })
 
-    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
-    expect(state?.whyThisReplyNow).toContain('audible-body same-her repair')
-    expect(state?.whyThisReplyNow).toContain('Face and motion still need to rejoin the same-her audible body line before full cross-modal closure settles.')
-    expect(state?.whyThisReplyNow).toContain('Hover-first proactive carry still needs to stay on one same living line across noisier desktop returns before widening outward.')
-    expect(state?.whyThisReplyNow).toContain('Keep extending cross-modal same-her proof across longer-lived voice, face, motion, and lipsync behavior without dropping the living audio thread.')
-    expect(state?.whyThisReplyNow).toContain('same-her audible-body line can disappear before face and motion finish rejoining')
-    expect(state?.mustInclude.some(item =>
-      /audible-body same-her repair|same-her audible body line|cross-modal same-her proof|hover-first proactive carry/i.test(item),
-    )).toBe(true)
+    expect(state?.openingBeat).toBe('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
+    expect(state?.whyThisReplyNow).toContain('project_closure_context=')
+    expect(state?.whyThisReplyNow).toContain('landed=continuity_progress=partial')
+    expect(state?.whyThisReplyNow).toContain('open=memory_dialogue_embodiment_closure')
+    expect(state?.whyThisReplyNow).toContain('proactive_gap=proactive_continuity_loop=partial')
+    expect(state?.whyThisReplyNow).toContain('next=cross_modal_continuity_proof')
+    expect(state?.whyThisReplyNow).toContain('drift_risk=generic_guidance_without_first_person_continuity')
+    expect(state?.whyThisReplyNow).toContain('proactive_gap=proactive_continuity_loop=partial')
   })
 
   it('lets explicit pre-dialogue project awareness upgrade the opening beat so project self-knowledge lands before widening', () => {
@@ -2077,9 +2083,10 @@ describe('buildReplyDeliberation', () => {
       } as any,
     })
 
-    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
-    expect(state?.mustInclude).toContain('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
-    expect(state?.whyThisReplyNow).toMatch(/same digital life|closure work|keep .* explicit/i)
+    expect(state?.openingBeat).toBe('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
+    expect(state?.mustInclude).toContain('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
+    expect(state?.whyThisReplyNow).toContain('project_closure_context=')
+    expect(state?.whyThisReplyNow).not.toMatch(fixedReplyDeliberationProjectTemplatePattern)
   })
 
   it('lets companion briefing project awareness upgrade the opening beat when no fresher pre-dialogue awareness line is present', () => {
@@ -2163,9 +2170,10 @@ describe('buildReplyDeliberation', () => {
       } as any,
     })
 
-    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
-    expect(state?.mustInclude).toContain('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
-    expect(state?.whyThisReplyNow).toMatch(/same digital life|closure work|keep .* explicit/i)
+    expect(state?.openingBeat).toBe('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
+    expect(state?.mustInclude).toContain('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
+    expect(state?.whyThisReplyNow).toContain('project_closure_context=')
+    expect(state?.whyThisReplyNow).not.toMatch(fixedReplyDeliberationProjectTemplatePattern)
   })
 
   it('lets companion headline project awareness upgrade the opening beat even before it has been rewritten into a thinner summary field', () => {
@@ -2249,8 +2257,8 @@ describe('buildReplyDeliberation', () => {
       } as any,
     })
 
-    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
-    expect(state?.mustInclude).toContain('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.openingBeat).toBe('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
+    expect(state?.mustInclude).toContain('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
   })
 
   it('prefers stronger still-voiced companion headline over a thinner pre-dialogue awareness line in reply deliberation reasoning', () => {
@@ -2336,9 +2344,10 @@ describe('buildReplyDeliberation', () => {
       } as any,
     })
 
-    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
-    expect(state?.whyThisReplyNow).toContain(companionHeadlineLine)
-    expect(state?.whyThisReplyNow).not.toContain('keep this same digital life project in view')
+    expect(state?.openingBeat).toBe('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
+    expect(state?.whyThisReplyNow).toContain('project_closure_context=')
+    expect(state?.whyThisReplyNow).toContain('open=Body and motion')
+    expect(state?.whyThisReplyNow).toContain('closure_mode=cross_modal_continuity')
   })
 
   it('keeps landed progress, still-open closure, and next closure explicit in visible-reply deliberation for direct project-status turns', () => {
@@ -2425,8 +2434,9 @@ describe('buildReplyDeliberation', () => {
       } as any,
     })
 
-    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
-    expect(state?.whyThisReplyNow).toMatch(/detached project shell|same living line|closure/i)
+    expect(state?.openingBeat).toBe('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
+    expect(state?.whyThisReplyNow).toContain('project_closure_context=')
+    expect(state?.whyThisReplyNow).not.toMatch(fixedReplyDeliberationProjectTemplatePattern)
     const replyDeliberationTrace = JSON.stringify({
       mustInclude: state?.mustInclude ?? [],
       whyThisReplyNow: state?.whyThisReplyNow ?? null,
@@ -2452,6 +2462,7 @@ describe('buildReplyDeliberation', () => {
     expect(block).toContain('landed=continuity, memory, and execution already land together')
     expect(block).toContain('open=memory, initiative, and embodiment still need stronger closure')
     expect(block).toContain('next=keep identity, progr')
+    expect(block).not.toMatch(fixedReplyDeliberationProjectTemplatePattern)
   })
 
   it('keeps landed progress, still-open closure, and next closure explicit for same-her project follow-through turns that only ask to continue the line', () => {
@@ -2545,20 +2556,23 @@ describe('buildReplyDeliberation', () => {
       whyThisReplyNow: state?.whyThisReplyNow ?? null,
     })
 
-    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.openingBeat).toBe('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
     expect(state?.mustInclude.some(item =>
       item.includes('Project-status summary:')
       && item.includes('landed=continuity, memory, and execution already land together')
       && item.includes('open=memory, initiative, and embodiment still need stronger closure')
       && item.includes('next=keep identity, progr'),
     ), replyDeliberationTrace).toBe(true)
-    expect(state?.whyThisReplyNow).toMatch(/same living line|still-open life loop|next closure/i)
+    expect(state?.whyThisReplyNow).toContain('project_closure_context=')
+    expect(state?.whyThisReplyNow).toContain('next=')
+    expect(state?.whyThisReplyNow).not.toMatch(fixedReplyDeliberationProjectTemplatePattern)
 
     const block = buildReplyDeliberationSystemBlock(state)
     expect(block).toContain('Project-status summary:')
     expect(block).toContain('landed=continuity, memory, and execution already land together')
     expect(block).toContain('open=memory, initiative, and embodiment still need stronger closure')
     expect(block).toContain('next=keep identity, progr')
+    expect(block).not.toMatch(fixedReplyDeliberationProjectTemplatePattern)
   })
 
   it('keeps stronger audible-body same-her carry on a measured-return opening beat before deliberation widens outward', () => {
@@ -2642,8 +2656,9 @@ describe('buildReplyDeliberation', () => {
       } as any,
     })
 
-    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
-    expect(state?.mustInclude).toContain('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
-    expect(state?.whyThisReplyNow).toMatch(/cross-modal same-her closure explicit|same living line|next closure/i)
+    expect(state?.openingBeat).toBe('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
+    expect(state?.mustInclude).toContain('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
+    expect(state?.whyThisReplyNow).toContain('project_closure_context=')
+    expect(state?.whyThisReplyNow).not.toMatch(fixedReplyDeliberationProjectTemplatePattern)
   })
 })

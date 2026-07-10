@@ -11,7 +11,7 @@ import { deriveAlicizationTruthDiscipline } from '../truth-discipline'
 export const dialogueFirstRoleplayPrefacePattern = /^(?:主人(?:[，。…!！\s]|$)|……欸～主人|欸～主人|宝贝|亲爱的)[，。…!！\s]*/u
 export const dialogueFirstStaleCarryClausePattern = /(?:那个|刚才那个|上一个|之前那个|之前那条|上一条).{0,8}(?:枚举|页面|浏览器|模块|窗口|线程|diff|改动|case)|\b(?:that|the previous|the old|earlier)\s+(?:enum|page|browser|module|window|thread|diff|change)\b/iu
 export const dialogueFirstProcessOnlyReplyPattern = /^(?:那?我[先就再会]?|先)[\p{Script=Han}\p{Letter}\p{Number}\s,，。.!！?？]{0,16}(?:[看听陪]|看看|留在|接住|回答|说清|说)[\p{Script=Han}\p{Letter}\p{Number}\s,，。.!！?？]{0,8}$/u
-export const dialogueFirstDecorativePersonaTemplatePattern = /(?:同一条本地数字生命|本地数字生命的线|我先轻一点留在这里|不抢你的节奏|你想说什么，我就接住|same local digital life thread|same digital life line|same living line|same line is still here)/iu
+export const dialogueFirstDecorativePersonaTemplatePattern = /(?:同一条本地数字生命|本地数字生命的线|我先轻一点留在这里|不抢你的节奏|你想说什么，我就接住|随便聊聊.*安静陪着|安静陪着你|在这里陪着你的那一个|沿着同一条线慢慢长成|慢慢长成更完整的自己|same local digital life thread|same digital life line|same living line|same line is still here)/iu
 
 export function normalizeGovernedAnchorText(raw: unknown) {
   if (typeof raw !== 'string')
@@ -58,7 +58,7 @@ function dialogueFirstTurnAllowsVisibleContinuityLanguage(input: {
     input.governance.openingMove,
     input.governance.mindTurnFrame?.obligation.answerIntent,
   ].filter(Boolean).join(' '))
-  return /(?:project|phase\s*1|phase1|做到哪|进度|还差什么|闭环|项目|阶段|第一阶段)/iu.test(normalized)
+  return /project|phase\s*1|phase1|做到哪|进度|还差什么|闭环|项目|阶段|第一阶段/iu.test(normalized)
 }
 
 export function clauseMentionsCue(clause: string, cues: string[]) {

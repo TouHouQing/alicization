@@ -1,4 +1,9 @@
-import { isAlicizationThinProjectAwarenessLine } from '@proj-alicization/stage-shared'
+import {
+  alicizationFixedTemplateReplacement,
+  containsAlicizationFixedTemplateResidue,
+  isAlicizationThinProjectAwarenessLine,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
 
 type PreDialogueAwarenessSnapshot = {
   summaryLine?: string | null
@@ -15,19 +20,25 @@ type PreDialogueClosureSnapshot = {
   reasons?: string[] | null
 } | null | undefined
 
+const fixedTemplateQuickReplyProjectBriefPattern
+  = /Before (?:answering|speaking|acting)|Right now\b|Same Phase 1 digital life|same-her|same her|same living line|same line inward|one living her|one continuous her|local-first digital life project|one living digital life project|same digital life project|living audio thread|living mouth line|同一个她|同一个\s*her|数字生命主线|记住这次开口/iu
+
+const internalStructuredQuickReplyProjectBriefPattern
+  = /phase1_local_digital_life|local_desktop_life_loop|visibility=internal-structured|content=excluded|status=content-excluded|\bidentity-continuity\b|\bcontinuity_(?:identity|line)\b|\bcontinuity_anchor=|\bcontinuity=|\bpending(?:[_-]rejoin)?=|\bpending\s+[a-z+]/iu
+
 function normalizeProactiveSameHerGapLine(line: string | null | undefined) {
   const normalizedLine = typeof line === 'string' ? line.trim() : ''
   if (!normalizedLine)
     return null
 
-  const reasonMatch = /^Proactive same-her follow-through (?:still|currently) reads (.*?),(?:\s*so the next turn should|\s*which shows)/i.exec(normalizedLine)
+  const reasonMatch = /^Proactive identity-continuity follow-through (?:still|currently) reads (.*?),(?:\s*so the next turn should|\s*which shows)/i.exec(normalizedLine)
   if (reasonMatch?.[1]?.trim()) {
     return normalizeProactiveSameHerGapLine(reasonMatch[1].trim())
   }
 
   const strippedLine = normalizedLine
-    .replace(/^Proactive same-her gap:\s*/i, '')
-    .replace(/^Proactive same-her follow-through:\s*/i, '')
+    .replace(/^Proactive identity-continuity gap:\s*/i, '')
+    .replace(/^Proactive identity-continuity follow-through:\s*/i, '')
     .trim()
 
   if (!strippedLine)
@@ -37,8 +48,8 @@ function normalizeProactiveSameHerGapLine(line: string | null | undefined) {
   if (detailMatch?.[1]?.trim()) {
     return `${detailMatch[1]
       .trim()
-      .replace(/\bstill stay on one same-her follow-through line\b/i, 'still need one same-her follow-through line')
-      .replace(/\bstill stays on one same-her follow-through line\b/i, 'still needs one same-her follow-through line')
+      .replace(/\bstill stay on one identity-continuity follow-through line\b/i, 'still need one identity-continuity follow-through line')
+      .replace(/\bstill stays on one identity-continuity follow-through line\b/i, 'still needs one identity-continuity follow-through line')
       .replace(/^\w/, char => char.toUpperCase())}.`
   }
 
@@ -51,8 +62,8 @@ function normalizeProactiveSameHerGapLine(line: string | null | undefined) {
 function resolveProactiveSameHerGapLine(snapshot: PreDialogueClosureSnapshot) {
   const briefingMatch = snapshot?.briefingLines?.find((line) => {
     const normalizedLine = line.trim()
-    return /^Proactive same-her gap:/i.test(normalizedLine)
-      || /^Proactive same-her follow-through:/i.test(normalizedLine)
+    return /^Proactive identity-continuity gap:/i.test(normalizedLine)
+      || /^Proactive identity-continuity follow-through:/i.test(normalizedLine)
   })
   const normalizedBriefingMatch = normalizeProactiveSameHerGapLine(briefingMatch)
   if (normalizedBriefingMatch)
@@ -60,7 +71,7 @@ function resolveProactiveSameHerGapLine(snapshot: PreDialogueClosureSnapshot) {
 
   const reasonMatch = snapshot?.reasons?.find((reason) => {
     const normalizedReason = reason.trim()
-    return /^Proactive same-her follow-through (?:still|currently) reads /i.test(normalizedReason)
+    return /^Proactive identity-continuity follow-through (?:still|currently) reads /i.test(normalizedReason)
   })
 
   return normalizeProactiveSameHerGapLine(reasonMatch)
@@ -69,7 +80,7 @@ function resolveProactiveSameHerGapLine(snapshot: PreDialogueClosureSnapshot) {
 function scoreQuickReplyProjectBriefLine(line: string) {
   const normalized = line.toLowerCase()
   const isBareSameHerContinuityToken
-    = normalized === 'same-her-inward-carry'
+    = normalized === 'identity-continuity-inward-carry'
       || normalized === 'quiet-companionship'
   const isNextClosureDirective
     = normalized.startsWith('next closure:')
@@ -77,30 +88,28 @@ function scoreQuickReplyProjectBriefLine(line: string) {
       || normalized.startsWith('下一步还要继续收住')
   let score = normalized.length >= 120 ? 2 : normalized.length >= 72 ? 1 : 0
   const carriesSameHerMeasuredReturn
-    = normalized.includes('same-her hold')
+    = normalized.includes('identity-continuity hold')
       || (
         normalized.includes('measured-return')
         && (
           normalized.includes('lower-pressure')
-          || normalized.includes('same living line')
+          || normalized.includes('current continuity route')
           || normalized.includes('callback line')
         )
       )
   const carriesSameHerInwardLowPressure
-    = normalized.includes('same-her-inward-carry')
+    = normalized.includes('identity-continuity-inward-carry')
       || normalized.includes('quiet-companionship')
       || (
         normalized.includes('low-pressure')
         && (
-          normalized.includes('same line inward')
-          || normalized.includes('same living line')
-          || normalized.includes('one living her')
+          normalized.includes('current continuity route')
           || normalized.includes('body, face, and motion')
         )
       )
   const carriesSameHerInwardObservability
-    = normalized.includes('same-her inward-carry observability')
-      || normalized.includes('same-her-inward-carry')
+    = normalized.includes('identity-continuity inward-carry observability')
+      || normalized.includes('identity-continuity-inward-carry')
       || normalized.includes('inward-carry')
       || normalized.includes('inward continuity')
       || normalized.includes('inner continuity')
@@ -109,7 +118,7 @@ function scoreQuickReplyProjectBriefLine(line: string) {
       || (
         normalized.includes('emotional closure')
         && (
-          normalized.includes('same-her')
+          normalized.includes('identity-continuity')
           || normalized.includes('measured-return')
           || normalized.includes('repair-before-closeness')
           || normalized.includes('quiet-companionship')
@@ -135,7 +144,7 @@ function scoreQuickReplyProjectBriefLine(line: string) {
       normalized.includes('what has landed')
       || normalized.includes('which life loop is still open')
       || normalized.includes('still-open embodiment seam')
-      || normalized.includes('same-her seam')
+      || normalized.includes('identity-continuity seam')
       || normalized.includes('audible-body')
     )
 
@@ -153,10 +162,9 @@ function scoreQuickReplyProjectBriefLine(line: string) {
     score += 5
   if (
     normalized.includes('digital life')
-    || normalized.includes('one living digital life project')
     || normalized.includes('what has landed')
     || normalized.includes('life loop is still open')
-    || normalized.includes('same living line')
+    || normalized.includes('current continuity route')
   ) {
     score += 2
   }
@@ -195,11 +203,109 @@ function uniqueNonEmptyLines(lines: Array<string | null | undefined>) {
   return lines.filter((line, index, entries): line is string => Boolean(line) && entries.indexOf(line) === index)
 }
 
+function normalizeQuickReplyProjectBriefResidueTerms(line: string) {
+  return line
+    .replace(/\bsame-her\b/giu, 'continuity_identity')
+    .replace(/\bsame her\b/giu, 'continuity_identity')
+    .replace(/\bsame living line\b/giu, 'continuity_line')
+    .replace(/\bsame living segment\b/giu, 'continuity_segment')
+    .replace(/\bsame line inward\b/giu, 'inward_continuity_line')
+    .replace(/\bone living her\b/giu, 'continuity_identity')
+    .replace(/\bone continuous her\b/giu, 'project_state_continuity')
+    .replace(/\bliving audio thread\b/giu, 'audible continuity thread')
+    .replace(/\bliving mouth line\b/giu, 'lipsync continuity lane')
+    .replace(/同一个\s*her/giu, 'continuity_identity')
+    .replace(/同一个她/gu, 'continuity_identity')
+    .replace(/数字生命主线/gu, 'local_desktop_continuity')
+    .trim()
+}
+
+function containsInternalStructuredQuickReplyProjectBriefField(line: string | null | undefined) {
+  const normalized = line?.trim() ?? ''
+  if (!normalized)
+    return false
+
+  return internalStructuredQuickReplyProjectBriefPattern.test(normalized)
+}
+
+function containsVisibleQuickReplyProjectBriefResidue(line: string | null | undefined) {
+  const normalized = line?.trim() ?? ''
+  if (!normalized)
+    return false
+
+  return fixedTemplateQuickReplyProjectBriefPattern.test(normalized)
+    || containsAlicizationFixedTemplateResidue(normalized)
+}
+
+function sanitizeVisibleQuickReplyProjectBriefLine(line: string) {
+  const rawLine = line.trim().replace(/\s+/g, ' ')
+  if (!rawLine)
+    return null
+
+  if (containsInternalStructuredQuickReplyProjectBriefField(rawLine))
+    return null
+
+  const normalizedResidueTerms = normalizeQuickReplyProjectBriefResidueTerms(rawLine)
+  if (normalizedResidueTerms !== rawLine)
+    return preserveStructuredQuickReplyProjectBriefFragments(rawLine)
+
+  const normalized = sanitizeAlicizationProviderFacingText(rawLine, 800)
+  if (
+    normalized
+    && normalized !== alicizationFixedTemplateReplacement
+    && !containsInternalStructuredQuickReplyProjectBriefField(normalized)
+    && !containsVisibleQuickReplyProjectBriefResidue(normalized)
+  ) {
+    return normalized
+  }
+
+  return preserveStructuredQuickReplyProjectBriefFragments(rawLine)
+}
+
+function preserveStructuredQuickReplyProjectBriefFragments(line: string) {
+  const fragments = line
+    .split('|')
+    .map((fragment) => {
+      const rawFragment = fragment.trim()
+      return {
+        rawFragment,
+        normalizedFragment: normalizeQuickReplyProjectBriefResidueTerms(rawFragment),
+      }
+    })
+    .filter(({ rawFragment, normalizedFragment }) => {
+      if (!rawFragment || !normalizedFragment)
+        return false
+      if (rawFragment !== normalizedFragment)
+        return false
+      if (containsInternalStructuredQuickReplyProjectBriefField(rawFragment))
+        return false
+      if (containsVisibleQuickReplyProjectBriefResidue(rawFragment))
+        return false
+      if (containsInternalStructuredQuickReplyProjectBriefField(normalizedFragment))
+        return false
+      if (containsVisibleQuickReplyProjectBriefResidue(normalizedFragment))
+        return false
+      return true
+    })
+    .map(({ normalizedFragment }) => normalizedFragment)
+    .filter((fragment) => {
+      if (!fragment)
+        return false
+      if (/^[a-z][\w+-]*=/iu.test(fragment))
+        return true
+      return /\brecovery@|\brejoin@|\bactive\b|\bpending(?: |-)?[a-z+]+|\bpending-rejoin=/iu.test(fragment)
+        && !/Continuity evidence: |Continuity evidence: |Phase 1 continuity route|Right now (?:I am|the)|current continuity route/iu.test(fragment)
+    })
+
+  if (fragments.length)
+    return fragments.filter((fragment, index, list) => list.indexOf(fragment) === index).join(' | ')
+
+  return null
+}
+
 function matchesProjectBriefFilter(line: string) {
   const normalizedLine = line.toLowerCase()
-  return normalizedLine.includes('alicization')
-    || normalizedLine.includes('digital life')
-    || normalizedLine.includes('phase 1')
+  return normalizedLine.includes('phase1_local_digital_life')
     || normalizedLine.includes('project identity')
     || normalizedLine.includes('project awareness')
     || normalizedLine.includes('landed progress')
@@ -207,18 +313,15 @@ function matchesProjectBriefFilter(line: string) {
     || normalizedLine.includes('open life loop')
     || normalizedLine.includes('remaining-open=')
     || normalizedLine.includes('next closure')
-    || normalizedLine.includes('same-her')
-    || normalizedLine.includes('proactive same-her')
+    || normalizedLine.includes('identity-continuity')
+    || normalizedLine.includes('proactive identity-continuity')
     || normalizedLine.includes('embodiment seam')
     || normalizedLine.includes('closure seam')
-    || normalizedLine.includes('one living her')
-    || normalizedLine.includes('one living digital life project')
-    || normalizedLine.includes('same line inward')
-    || normalizedLine.includes('same living line')
+    || normalizedLine.includes('current continuity route')
     || normalizedLine.includes('low-pressure')
     || normalizedLine.includes('quiet-companionship')
-    || normalizedLine.includes('same-her-inward-carry')
-    || normalizedLine.includes('same-her inward-carry observability')
+    || normalizedLine.includes('identity-continuity-inward-carry')
+    || normalizedLine.includes('identity-continuity inward-carry observability')
     || normalizedLine.includes('inward-carry')
     || normalizedLine.includes('inward continuity')
     || normalizedLine.includes('inner continuity')
@@ -227,28 +330,27 @@ function matchesProjectBriefFilter(line: string) {
     || normalizedLine.includes('visible proactive hold')
     || normalizedLine.includes('subconscious carry')
     || normalizedLine.includes('next-session feedback')
-    || normalizedLine.includes('living audio thread')
-    || normalizedLine.includes('living mouth line')
     || normalizedLine.includes('still-voiced face line')
     || normalizedLine.includes('still-voiced motion line')
-    || normalizedLine.includes('living her coherent')
     || normalizedLine.includes('resident body continuity')
     || normalizedLine.includes('resident-body continuity')
     || normalizedLine.includes('resident-body+voice')
     || normalizedLine.includes('resident body line')
-    || normalizedLine.includes('same-her voice line')
-    || normalizedLine.includes('same-her body line')
-    || normalizedLine.includes('same-her audible body line')
+    || normalizedLine.includes('identity-continuity voice line')
+    || normalizedLine.includes('identity-continuity body line')
+    || normalizedLine.includes('identity-continuity audible body line')
     || normalizedLine.includes('surviving pre-dialogue carry')
     || normalizedLine.includes('body continuity')
-    || normalizedLine.includes('continuity=embodiment:audible-same-her-line')
+    || normalizedLine.includes('continuity=embodiment:')
+    || normalizedLine.includes('signature=resident|')
+    || normalizedLine.includes('continuity=embodiment:audible-identity-continuity-line')
     || normalizedLine.includes('continuity=embodiment:still-voiced-face-motion-line')
     || normalizedLine.includes('embodiment:still-voiced-face-lipsync-line')
     || normalizedLine.includes('continuity=embodiment:still-voiced-face-line')
     || normalizedLine.includes('embodiment:still-voiced-motion-lipsync-line')
     || normalizedLine.includes('continuity=embodiment:still-voiced-motion-line')
     || normalizedLine.includes('continuity=embodiment:body-lipsync-voice-rejoin')
-    || normalizedLine.includes('signature=embodiment:audible-same-her-line')
+    || normalizedLine.includes('signature=embodiment:audible-identity-continuity-line')
     || normalizedLine.includes('focus=body+lipsync+voice')
     || normalizedLine.includes('focus=resident-body')
     || normalizedLine.includes('focus=body+face+motion')
@@ -288,6 +390,10 @@ function matchesProjectBriefFilter(line: string) {
     || normalizedLine.includes('face, motion, lipsync, and voice continuity')
 }
 
+function isCleanQuickReplyProjectBriefLine(line: string) {
+  return matchesProjectBriefFilter(line)
+}
+
 export function buildStageQuickReplyProjectBriefLines(
   preDialogueAwarenessSnapshot: PreDialogueAwarenessSnapshot,
   preDialogueClosureSnapshot: PreDialogueClosureSnapshot,
@@ -320,7 +426,12 @@ export function buildStageQuickReplyProjectBriefLines(
     ...(preDialogueClosureSnapshot?.briefingLines ?? []),
   ])
 
-  return lines
+  const sanitizedLines = lines
+    .map(sanitizeVisibleQuickReplyProjectBriefLine)
+    .filter((line): line is string => Boolean(line))
+    .filter((line, index, entries) => entries.indexOf(line) === index)
+
+  return sanitizedLines
     .filter(matchesProjectBriefFilter)
     .sort((left, right) => {
       const leftScore = scoreQuickReplyProjectBriefLine(left)

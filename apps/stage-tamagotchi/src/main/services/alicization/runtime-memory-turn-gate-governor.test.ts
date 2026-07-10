@@ -21,11 +21,11 @@ describe('runtime-memory-turn-gate-governor', () => {
       } as any,
     })
 
-    expect(result?.mustDo).toContain('Honor the turn memory gate before speaking: inward-only.')
-    expect(result?.mustDo).toContain('Let memory shape caution, ordering, care, and uncertainty inwardly without narrating recall this turn.')
-    expect(result?.mustNotDo).toContain('Do not visibly cite, narrate, or dramatize recalled material while the turn memory gate is inward-only or closed.')
-    expect(result?.mustNotDo).toContain('Do not let low memory precision claim exact detail or settled continuity.')
-    expect(result?.mustNotDo).toContain('Do not merge competing or wrong-thread memory into the current answer.')
+    expect(result?.mustDo).toContain('memory_turn_gate.status=inward-only')
+    expect(result?.mustDo).toContain('memory_surface.visibility=inward_only; memory_influence=caution,ordering,care,uncertainty')
+    expect(result?.mustNotDo).toContain('memory_surface.visible_citation=blocked; memory_surface.recall_narration=blocked')
+    expect(result?.mustNotDo).toContain('memory_precision.exact_detail_claim=blocked; memory_precision.settled_continuity_claim=blocked')
+    expect(result?.mustNotDo).toContain('memory_wrong_thread.merge_into_current_answer=blocked')
   })
 
   it('turns memory closure trace into same-her initiative, execution, and embodiment governance', () => {
@@ -89,12 +89,12 @@ describe('runtime-memory-turn-gate-governor', () => {
     })
 
     expect(result?.mustDo).toEqual(expect.arrayContaining([
-      'Use the Memory OS closure trace as the authority for this turn\'s same-her memory carry.',
-      'Keep proactive pressure measured-return and wait for after-payoff before widening the memory line.',
-      'Carry execution feedback forward: The execution callback should be carried into the next same-person reply.',
-      'Keep embodied delivery coherent with memory: Keep voice, gaze, motion, and lipsync on one lower-pressure measured-return line.',
-      'If memory becomes visible, reduce it to a brief gist that serves the current payoff.',
+      'memory_closure_trace.authority=memory_os',
+      'memory_closure_trace.initiative_restraint=measured-return; initiative_timing=after-payoff',
+      'memory_closure_trace.execution_carry=The execution callback should be carried into the next same-person reply.',
+      'memory_closure_trace.embodiment_cadence=Keep voice, gaze, motion, and lipsync on one lower-pressure measured-return line.',
+      'memory_surface.visibility=gist_only; memory_surface.payoff_role=support_current_turn',
     ]))
-    expect(result?.mustNotDo).toContain('Do not close, revise away, or over-certify this memory line; the Memory OS trace still marks it open or revision-required.')
+    expect(result?.mustNotDo).toContain('memory_closure_trace.close_or_over_certify=blocked; closure_state=open_or_revision_required')
   })
 })

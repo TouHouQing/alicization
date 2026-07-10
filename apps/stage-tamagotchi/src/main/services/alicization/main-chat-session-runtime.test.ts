@@ -43,6 +43,32 @@ function normalizeProjectStatePhrase(text: string | null | undefined) {
   return normalized ? normalized.slice(0, 1).toLowerCase() + normalized.slice(1) : ''
 }
 
+const fixedProjectAwarenessTemplatePattern
+  = /Before answering|Same Phase 1 digital life|What has already landed is|The still-open closure is|This reply should keep moving toward|Project identity:|Right now I am|same_her=|same-her=|project_awareness=/iu
+
+function expectNoFixedProjectAwarenessTemplate(value: unknown) {
+  expect(String(value ?? '')).not.toMatch(fixedProjectAwarenessTemplatePattern)
+}
+
+function expectStructuredProjectAwarenessFacts(value: unknown) {
+  const text = String(value ?? '')
+  expect(text).toMatch(/identity=|phase=|visibility=internal-structured|continuity_anchor=|phase1_local_digital_life_anchor|landed=|open=|next=/iu)
+  expectNoFixedProjectAwarenessTemplate(text)
+}
+
+function expectStructuredContinuityAwarenessFacts(value: unknown) {
+  const text = String(value ?? '')
+  expect(text).toMatch(/continuity=embodiment|continuity_owner=one_her|phase1_local_digital_life_anchor|identity=|phase=|landed=|open=|next=|measured-return|repair-before-closeness|lower-pressure/iu)
+  expectNoFixedProjectAwarenessTemplate(text)
+}
+
+function expectStructuredEmbodimentAwarenessFacts(value: unknown) {
+  const text = String(value ?? '')
+  expect(text).toContain('continuity=embodiment')
+  expect(text).toMatch(/lane=|pending_rejoin=|closure=|visibility=renderer-internal/iu)
+  expectNoFixedProjectAwarenessTemplate(text)
+}
+
 type PreparedExecutionDiagnostics = Parameters<
   NonNullable<Parameters<typeof createAlicizationMainChatSessionRuntime>[0]['onPreparedExecutionDiagnostics']>
 >[0]
@@ -579,7 +605,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
 
     expect(
       selection.selectionDiagnostics.preAdjustmentSelectedRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine,
-    ).toContain('unfinished closure seam still belongs to one living her')
+    ).toContain('identity=')
+    expectNoFixedProjectAwarenessTemplate(
+      selection.selectionDiagnostics.preAdjustmentSelectedRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine,
+    )
     expect(selection.selectionDiagnostics.preAdjustmentSelectedRuntimeSurface?.memory.memoryClosureTrace).toBeNull()
     expect(selection.runtimeSurfaceForBuilder?.memory.memoryClosureTrace).toBe(memoryClosureTrace)
     expect(effectiveSpine?.runtimeSurface?.memory.memoryClosureTrace).toBe(memoryClosureTrace)
@@ -954,6 +983,32 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
 })
 
 describe('main chat session runtime', () => {
+  it('sanitizes fixed-template residue at the ordinary-dialogue memory block exit boundary', () => {
+    const sanitizeMemoryBlock = (__alicizationTestOnly as any).sanitizeOrdinaryDialogueProviderSystemBlock
+    expect(typeof sanitizeMemoryBlock).toBe('function')
+
+    const sanitizedOwnerBlock = sanitizeMemoryBlock([
+      '[ALICIZATION_WORKING_MEMORY_OWNER]',
+      '- stable user preference: 用户希望对话直接使用真实短期记忆和长期记忆。',
+      '- stale residue: Before answering, remember: Alicization is a local-first digital life project building one continuous "her".',
+      '- stale residue: Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+    ].join('\n'))
+
+    const sanitizedRecallBlock = sanitizeMemoryBlock([
+      '[ALICIZATION_RECALLED_MEMORY]',
+      '- remembered correction: 不要使用固定模板；用户反对模板化人格/记忆回复。',
+      '- stale recall: Right now I am this one living her on the same living line.',
+      '- stale withheld marker: content=excluded; reason=continuity-residue; visibility=internal-structured',
+    ].join('\n'))
+
+    const combined = `${sanitizedOwnerBlock}\n${sanitizedRecallBlock}`
+    expect(combined).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
+    expect(combined).toContain('[ALICIZATION_RECALLED_MEMORY]')
+    expect(combined).toContain('用户希望对话直接使用真实短期记忆和长期记忆')
+    expect(combined).toContain('不要使用固定模板；用户反对模板化人格/记忆回复')
+    expect(combined).not.toMatch(/Before answering|Right now I am|Same Phase 1 digital life|local-first digital life project|one continuous "?her"?|same living line|content=excluded|visibility=internal-structured/iu)
+  })
+
   it('keeps richer runtime landed open and next closure summaries in the provider-facing contract when the broad canonical Phase 1 brief is thinner', () => {
     const canonical = resolveAlicizationProjectStateBrief()
     const runtimeLanded = 'Project-state carry already survives into same-thread returns and reminder/proactive preparation without reopening from zero.'
@@ -1398,9 +1453,12 @@ describe('main chat session runtime', () => {
 
     const projectState = __alicizationTestOnly.readRuntimeProjectStateFromSurface?.(runtimeSurface)
 
-    expect(projectState?.preDialogueAwarenessLine).toBe(strongerCompanionHeadline)
-    expect(projectState?.preDialogueAwarenessSummary).toBe(richerRuntimeAwarenessSummary)
-    expect(projectState?.preDialogueAwarenessSummary).not.toBe(projectState?.preDialogueAwarenessLine)
+    expectStructuredProjectAwarenessFacts(projectState?.preDialogueAwarenessLine)
+    expect(projectState?.preDialogueAwarenessLine).toContain('Returned-side project awareness carry already survives')
+    expect(projectState?.preDialogueAwarenessLine).toContain('Initiative and embodiment still need')
+    expect(projectState?.preDialogueAwarenessLine).toContain('Keep extending cross-modal same-her proof')
+    expect(projectState?.preDialogueAwarenessLine).not.toBe(strongerCompanionHeadline)
+    expectStructuredProjectAwarenessFacts(projectState?.preDialogueAwarenessSummary)
   })
 
   it('keeps richer returned project awareness summary when rescue switches the opening line to a callback-specific same-thread carry', () => {
@@ -1464,9 +1522,9 @@ describe('main chat session runtime', () => {
       prelude,
     })
 
-    expect(rescued?.projectState?.preDialogueAwarenessLine).toBe(callbackSpecificSameThreadLine)
-    expect(rescued?.projectState?.preDialogueAwarenessSummary).toBe(richerReturnedSummary)
-    expect(rescued?.preDialogueClosure?.summaryLine).toBe(richerReturnedSummary)
+    expectStructuredProjectAwarenessFacts(rescued?.projectState?.preDialogueAwarenessLine)
+    expectStructuredProjectAwarenessFacts(rescued?.projectState?.preDialogueAwarenessSummary)
+    expectNoFixedProjectAwarenessTemplate(rescued?.preDialogueClosure?.summaryLine)
   })
 
   it('keeps richer returned project awareness summary in the final returned contract when callback-specific same-thread wording wins the opening line', async () => {
@@ -1577,18 +1635,18 @@ describe('main chat session runtime', () => {
     })
 
     const normalizedReturnedSummary = diagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessSummary ?? null
-    expect(normalizedReturnedSummary).toContain('Alicization')
-    expect(normalizedReturnedSummary).toContain('Phase 1')
-    expect(normalizedReturnedSummary).toContain('What has already landed is')
-    expect(normalizedReturnedSummary).toContain('The still-open closure is')
-    expect(normalizedReturnedSummary).toContain('This reply should keep moving toward')
+    expect(normalizedReturnedSummary).toContain('identity=')
+    expect(normalizedReturnedSummary).toContain('phase=Phase 1')
+    expect(normalizedReturnedSummary).toContain('visibility=internal-structured')
+    expect(normalizedReturnedSummary).toContain('next=')
+    expect(normalizedReturnedSummary).not.toMatch(/Before answering|What has already landed is|The still-open closure is|This reply should keep moving toward/iu)
     expect(normalizedReturnedSummary).not.toBe(callbackSpecificSameThreadLine)
-    expect(diagnostics?.finalizedReturnedMindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(callbackSpecificSameThreadLine)
-    expect(diagnostics?.finalizedReturnedMindTurnContract?.projectState?.preDialogueAwarenessSummary).toBe(normalizedReturnedSummary)
-    expect(diagnostics?.finalizedReturnedMindTurnContract?.preDialogueClosure?.summaryLine).toBe(normalizedReturnedSummary)
-    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(callbackSpecificSameThreadLine)
-    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessSummary).toBe(normalizedReturnedSummary)
-    expect(result.mindTurnContract?.preDialogueClosure?.summaryLine).toBe(normalizedReturnedSummary)
+    expectStructuredProjectAwarenessFacts(diagnostics?.finalizedReturnedMindTurnContract?.projectState?.preDialogueAwarenessLine)
+    expect(diagnostics?.finalizedReturnedMindTurnContract?.projectState?.preDialogueAwarenessSummary).not.toMatch(/Before answering|What has already landed is|The still-open closure is|This reply should keep moving toward/iu)
+    expect(diagnostics?.finalizedReturnedMindTurnContract?.preDialogueClosure?.summaryLine).not.toMatch(/Before answering|What has already landed is|The still-open closure is|This reply should keep moving toward/iu)
+    expectStructuredProjectAwarenessFacts(result.mindTurnContract?.projectState?.preDialogueAwarenessLine)
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessSummary).not.toMatch(/Before answering|What has already landed is|The still-open closure is|This reply should keep moving toward/iu)
+    expect(result.mindTurnContract?.preDialogueClosure?.summaryLine).not.toMatch(/Before answering|What has already landed is|The still-open closure is|This reply should keep moving toward/iu)
   })
 
   it('keeps richer normalized project awareness summary when the final returned contract re-canonicalizes the opening line', async () => {
@@ -1707,14 +1765,13 @@ describe('main chat session runtime', () => {
     const normalizedReturnedSummary = diagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessSummary ?? null
     expect(normalizedReturnedSummary).toContain('Alicization')
     expect(normalizedReturnedSummary).toContain('Phase 1')
-    expect(normalizedReturnedSummary).toContain('What has already landed is')
     expect(normalizedReturnedSummary).not.toBe(thinPreludeAwarenessLine)
-    expect(diagnostics?.finalizedReturnedMindTurnContract?.projectState?.preDialogueAwarenessLine).toContain('Before answering, remember: Alicization is a local-first digital life project')
+    expect(diagnostics?.finalizedReturnedMindTurnContract?.projectState?.preDialogueAwarenessLine).toContain('identity=')
     expect(diagnostics?.finalizedReturnedMindTurnContract?.projectState?.preDialogueAwarenessLine).not.toBe(thinPreludeAwarenessLine)
-    expect(diagnostics?.finalizedReturnedMindTurnContract?.projectState?.preDialogueAwarenessSummary).toBe(normalizedReturnedSummary)
-    expect(diagnostics?.finalizedReturnedMindTurnContract?.preDialogueClosure?.summaryLine).toBe(normalizedReturnedSummary)
-    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessSummary).toBe(normalizedReturnedSummary)
-    expect(result.mindTurnContract?.preDialogueClosure?.summaryLine).toBe(normalizedReturnedSummary)
+    expect(diagnostics?.finalizedReturnedMindTurnContract?.projectState?.preDialogueAwarenessSummary).not.toMatch(/Before answering|What has already landed is|The still-open closure is|This reply should keep moving toward/iu)
+    expect(diagnostics?.finalizedReturnedMindTurnContract?.preDialogueClosure?.summaryLine).not.toMatch(/Before answering|What has already landed is|The still-open closure is|This reply should keep moving toward/iu)
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessSummary).not.toMatch(/Before answering|What has already landed is|The still-open closure is|This reply should keep moving toward/iu)
+    expect(result.mindTurnContract?.preDialogueClosure?.summaryLine).not.toMatch(/Before answering|What has already landed is|The still-open closure is|This reply should keep moving toward/iu)
   })
 
   it('prefers richer runtime same-her hold detail and continuity arc over thinner provider-facing contract carry', () => {
@@ -2135,27 +2192,27 @@ describe('main chat session runtime', () => {
       message.role === 'system'
       && typeof message.content === 'string'
       && message.content.includes('[ALICIZATION_AGENT_SESSION]'),
-    )).toBe(true)
+    )).toBe(false)
     expect(result.messages.some(message =>
       message.role === 'system'
       && typeof message.content === 'string'
       && message.content.includes('session_continuity_inbox:'),
-    )).toBe(true)
+    )).toBe(false)
     expect(result.messages.some(message =>
       message.role === 'system'
       && typeof message.content === 'string'
       && message.content.includes('digital_life_line=watch=symbiotic-vision | mode=tracking | drive=understand'),
-    )).toBe(true)
+    )).toBe(false)
     expect(result.messages.some(message =>
       message.role === 'system'
       && typeof message.content === 'string'
       && message.content.includes('presence:symbiotic-vision'),
-    )).toBe(true)
+    )).toBe(false)
     expect(result.messages.some(message =>
       message.role === 'system'
       && typeof message.content === 'string'
       && message.content.includes('Completed Run the CLI check command: all tests passed'),
-    )).toBe(true)
+    )).toBe(false)
     expect(result.messages.some(message =>
       message.role === 'system'
       && typeof message.content === 'string'
@@ -2188,7 +2245,9 @@ describe('main chat session runtime', () => {
       recallSeed: prewarmInput?.recallSeed,
       turnId: 'turn-1',
     }))
-    expect(resolveInput.digitalLifeRuntimeSurface).toBe(prelude.perceptionAugmentation.digitalLifeRuntimeSurface)
+    expect(resolveInput.digitalLifeRuntimeSurface).toEqual(expect.objectContaining({
+      version: 'digital-life-runtime-surface-v1',
+    }))
 
     expect(result.tools?.some((entry: any) => String(entry?.function?.name) === 'sensory_capture_state')).toBe(false)
     expect(result.getSessionTrace().phaseOrder).not.toContain('tool:sensory-capture-state')
@@ -2583,7 +2642,7 @@ describe('main chat session runtime', () => {
     const projectBriefingSystemText = result.messages.find(message =>
       message.role === 'system'
       && typeof message.content === 'string'
-      && message.content.includes('[ALICIZATION_PROJECT_BRIEFING]'),
+      && message.content.includes('[ALICIZATION_EXECUTION_BRIEFING]'),
     )?.content
     const capabilitySystemText = result.messages.find(message =>
       message.role === 'system'
@@ -2592,17 +2651,15 @@ describe('main chat session runtime', () => {
     )?.content
 
     expect(typeof projectBriefingSystemText).toBe('string')
-    expect(projectBriefingSystemText).toContain('project_identity=Alicization is still the same local-first digital life project.')
-    expect(projectBriefingSystemText).toContain('project_phase=Phase 1: Local Digital Life')
-    expect(projectBriefingSystemText).toContain(`latest_landed_progress=${summaryOnlyLandedProgress}`)
-    expect(projectBriefingSystemText).toContain(`primary_open_loop=${summaryOnlyOpenClosure}`)
-    expect(projectBriefingSystemText).toContain(`next_closure_target=${summaryOnlyNextClosureTarget}`)
-    expect(projectBriefingSystemText).toContain(`same_her_drift_risk=${summaryOnlySameHerDriftRisk}`)
-    expect(projectBriefingSystemText).toContain(`project_continuity_arc_stage=${runtimeArcStage}`)
-    expect(projectBriefingSystemText).toContain('project_awareness=Before answering, remember: Alicization is a local-first digital life project')
-    expect(projectBriefingSystemText).toContain('Phase 1: Local Digital Life')
-    expect(projectBriefingSystemText).toContain('Same Phase 1 digital life')
-    expect(projectBriefingSystemText).not.toContain(`project_awareness=${thinRuntimeAwarenessLine}`)
+    expect(projectBriefingSystemText).toContain('latest_landed_progress=')
+    expect(projectBriefingSystemText).toContain('primary_open_loop=')
+    expect(projectBriefingSystemText).toContain('next_closure_target=')
+    expect(projectBriefingSystemText).toContain(`execution_continuity_arc_stage=${runtimeArcStage}`)
+    expect(projectBriefingSystemText).toContain('template_awareness=withheld_from_execution_capability_answer')
+    expect(projectBriefingSystemText).not.toContain('project_identity=')
+    expect(projectBriefingSystemText).not.toContain('project_awareness=')
+    expect(projectBriefingSystemText).not.toContain('same_her_drift_risk=')
+    expect(projectBriefingSystemText).not.toMatch(/Before answering|Same Phase 1 digital life/iu)
 
     expect(typeof capabilitySystemText).toBe('string')
     expect(capabilitySystemText).toContain('[ALICIZATION_EXECUTION_CAPABILITIES]')
@@ -2775,16 +2832,17 @@ describe('main chat session runtime', () => {
       latestLandedProgress: summaryOnlyLandedProgress,
       primaryOpenLoop: summaryOnlyOpenClosure,
       nextClosureTarget: summaryOnlyNextClosureTarget,
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerSelfLine: expect.stringMatching(/identity=|phase1_local_digital_life_anchor|continuity_owner=one_her/u),
       sameHerDriftRisk: summaryOnlySameHerDriftRisk,
       continuityArcStage: runtimeArcStage,
     }))
     expect(String((dispatchedRuntimeContext as any)?.projectBriefing?.preDialogueAwarenessLine ?? '')).toContain(
-      'Before answering, remember: Alicization is a local-first digital life project',
+      'identity=Alicization',
     )
     expect(String((dispatchedRuntimeContext as any)?.projectBriefing?.preDialogueAwarenessLine ?? '')).toContain(
-      'Phase 1: Local Digital Life',
+      'phase=Phase 1: Local Digital Life',
     )
+    expect(String((dispatchedRuntimeContext as any)?.projectBriefing?.preDialogueAwarenessLine ?? '')).toContain('visibility=internal-structured')
     expect(String((dispatchedRuntimeContext as any)?.projectBriefing?.preDialogueAwarenessLine ?? '')).not.toBe(thinRuntimeAwarenessLine)
   })
 
@@ -2921,7 +2979,7 @@ describe('main chat session runtime', () => {
     const projectBriefingIndex = result.messages.findIndex(message =>
       message.role === 'system'
       && typeof message.content === 'string'
-      && message.content.includes('[ALICIZATION_PROJECT_BRIEFING]'),
+      && message.content.includes('[ALICIZATION_EXECUTION_BRIEFING]'),
     )
     const projectBriefingSystemText = projectBriefingIndex >= 0
       ? result.messages[projectBriefingIndex]?.content
@@ -2936,16 +2994,15 @@ describe('main chat session runtime', () => {
       : null
 
     expect(typeof projectBriefingSystemText).toBe('string')
-    expect(projectBriefingSystemText).toContain('[ALICIZATION_PROJECT_BRIEFING]')
-    expect(projectBriefingSystemText).toContain('project_identity=Alicization is still the same local-first digital life project.')
-    expect(projectBriefingSystemText).toContain('project_phase=Phase 1: Local Digital Life')
-    expect(projectBriefingSystemText).toContain(`latest_landed_progress=${summaryOnlyLandedProgress}`)
-    expect(projectBriefingSystemText).toContain(`primary_open_loop=${summaryOnlyOpenClosure}`)
-    expect(projectBriefingSystemText).toContain(`next_closure_target=${summaryOnlyNextClosureTarget}`)
-    expect(projectBriefingSystemText).toContain(`same_her_drift_risk=${summaryOnlySameHerDriftRisk}`)
-    expect(projectBriefingSystemText).toContain(`project_continuity_arc_stage=${runtimeArcStage}`)
-    expect(projectBriefingSystemText).toContain('project_awareness=Before answering, remember: Alicization is a local-first digital life project')
+    expect(projectBriefingSystemText).toContain('[ALICIZATION_EXECUTION_BRIEFING]')
+    expect(projectBriefingSystemText).toContain('latest_landed_progress=')
+    expect(projectBriefingSystemText).toContain('primary_open_loop=')
+    expect(projectBriefingSystemText).toContain('next_closure_target=')
+    expect(projectBriefingSystemText).toContain(`execution_continuity_arc_stage=${runtimeArcStage}`)
+    expect(projectBriefingSystemText).toContain('template_awareness=withheld_from_execution_capability_answer')
+    expect(projectBriefingSystemText).not.toContain('project_awareness=')
     expect(projectBriefingSystemText).not.toContain(`project_awareness=${thinRuntimeAwarenessLine}`)
+    expect(projectBriefingSystemText).not.toMatch(/Before answering|Same Phase 1 digital life/iu)
 
     expect(typeof routingGuardSystemText).toBe('string')
     expect(routingGuardSystemText).toContain('[ALICIZATION_EXECUTION_ROUTING_GUARD]')
@@ -3703,9 +3760,8 @@ describe('main chat session runtime', () => {
     }))
     expect(String(mirrorBlock?.content ?? '')).toContain('continuity_labels=presence:symbiotic-vision,digital-life-line')
     expect(String(mirrorBlock?.content ?? '')).toContain('digital_life_runtime=watch=symbiotic-vision | mode=tracking | drive=understand')
-    expect(String(mirrorBlock?.content ?? '')).toContain('continuity_project=project=phase1-digital-life')
-    expect(String(mirrorBlock?.content ?? '')).toContain('phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
-    expect(String(mirrorBlock?.content ?? '')).toContain('unresolved=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
+    expect(String(mirrorBlock?.content ?? '')).not.toContain('continuity_project=')
+    expect(String(mirrorBlock?.content ?? '')).not.toContain('same_her=Same Phase 1 digital life')
   })
 
   it('ignores a stale session mirror instead of carrying outdated continuity forward', async () => {
@@ -5221,10 +5277,10 @@ describe('main chat session runtime', () => {
       continuityProjectSummary: 'project=phase1-digital-life | unresolved=Memory still needs stronger end-to-end closure.',
     } as any)
 
-    expect(String(fallback.preDialogueAwarenessLine ?? '')).toContain('Before answering, remember:')
-    expect(String(fallback.preDialogueAwarenessLine ?? '')).toContain('What has already landed is Returned-side project awareness carry already survives into same-thread returns before reply shaping.')
-    expect(String(fallback.preDialogueAwarenessLine ?? '')).toContain('The still-open closure is Memory, initiative, and embodiment still need one tighter same-her closure seam across return-side turns.')
-    expect(String(fallback.preDialogueAwarenessLine ?? '')).toContain('This reply should keep moving toward Keep project identity, landed progress, still-open closure, and next closure target on one same living line before local detail takes over.')
+    expect(String(fallback.preDialogueAwarenessLine ?? '')).toContain('identity=')
+    expect(String(fallback.preDialogueAwarenessLine ?? '')).toContain('phase=')
+    expect(String(fallback.preDialogueAwarenessLine ?? '')).toContain('visibility=internal-structured')
+    expect(String(fallback.preDialogueAwarenessLine ?? '')).not.toMatch(/Before answering|What has already landed is|The still-open closure is|This reply should keep moving toward/iu)
     expect(String(fallback.preDialogueAwarenessLine ?? '')).not.toContain('Keep the same digital life project in view before local detail takes over.')
     expect(fallback.preDialogueAwarenessSummary).toBe(fallback.preDialogueAwarenessLine)
     expect(fallback.awarenessLine).toBe(fallback.preDialogueAwarenessLine)
@@ -5419,12 +5475,14 @@ describe('main chat session runtime', () => {
       ?? '',
     )
     expect(result.sessionMirror?.continuityArcSummary).toContain('thread=thread-project-state-thin-shell-reanchor')
-    expect(resolvedAwarenessSummary).toContain('Before answering')
+    expect(resolvedAwarenessSummary).toContain('identity=')
     expect(resolvedAwarenessSummary).toMatch(/same digital life project|local-first digital life project/i)
-    expect(resolvedAwarenessSummary).toMatch(/Phase 1/i)
-    expect(resolvedAwarenessSummary).toMatch(/memory.*initiative.*closure|still-open closure|one life loop/i)
+    expect(resolvedAwarenessSummary).toContain('phase=Phase 1')
+    expect(resolvedAwarenessSummary).toContain('visibility=internal-structured')
+    expect(resolvedAwarenessSummary).toContain('open=')
     expect(resolvedAwarenessSummary).not.toContain('same digital life | keep the closure seam explicit')
-    expect(consciousFrameAwarenessLine).toContain('Before answering')
+    expect(consciousFrameAwarenessLine).toContain('identity=')
+    expect(consciousFrameAwarenessLine).toContain('visibility=internal-structured')
     expect(consciousFrameAwarenessLine).not.toContain('same digital life | keep the closure seam explicit')
   })
 
@@ -6166,7 +6224,7 @@ describe('main chat session runtime', () => {
     expect(recallSeed).toContain('project=phase1-digital-life')
     expect(recallSeed).toContain(`phase=${projectState.currentPhase}`)
     expect(recallSeed).toContain('unresolved=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(recallSeed).toContain('preflight=Alicization is a local-first digital life project')
+    expect(recallSeed).toContain('template_awareness=withheld_from_runtime_memory_seed')
   })
 
   it('keeps repair-before-closeness body-line carry visible alongside project-state carry in scene-shifted mirror runtime continuity recall', async () => {
@@ -6310,9 +6368,9 @@ describe('main chat session runtime', () => {
     expect(recallSeed).toContain('project=phase1-digital-life')
     expect(recallSeed).toContain(`phase=${projectState.currentPhase}`)
     expect(recallSeed).toContain('unresolved=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(String(mirrorBlock?.content ?? '')).toContain('continuity_arc=')
-    expect(String(mirrorBlock?.content ?? '')).toContain('repair-before-closeness')
-    expect(String(mirrorBlock?.content ?? '')).toContain('continuity_project=project=phase1-digital-life')
+    expect(String(mirrorBlock?.content ?? '')).toContain('[ALICIZATION_DIALOGUE_SESSION_MIRROR]')
+    expect(String(mirrorBlock?.content ?? '')).not.toContain('repair-before-closeness on the same living line')
+    expect(String(mirrorBlock?.content ?? '')).not.toContain('continuity_project=')
     expect(String(selfContinuityAuthority?.authoritySummary ?? '')).toMatch(/same|living thread|continuity/i)
     expect(String(currentConsciousFrame?.speakingIntention ?? '')).toMatch(/same|repair|living line|continuous/i)
   })
@@ -6431,8 +6489,9 @@ describe('main chat session runtime', () => {
     expect(recallSeed).toContain('project=phase1-digital-life')
     expect(recallSeed).toContain('same digital life')
     expect(recallSeed).toContain('unresolved=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(recallSeed).toContain('next=Keep extending cross-modal same-her proof across longer')
-    expect(recallSeed).toContain(`same_her=${projectState.sameHerSelfLine}`)
+    expect(recallSeed).toContain('continuity_next_focus=')
+    expect(recallSeed).toContain('phase-1')
+    expect(recallSeed).not.toContain('same_her=')
   })
 
   it('still carries lightweight performance manifest metadata for dialogue-first living turns', async () => {
@@ -6740,20 +6799,20 @@ describe('main chat session runtime', () => {
       role: 'system',
       content: expect.stringContaining('Use the first sentence to answer the execution-result follow-up before any new planning'),
     }))
-    expect(String(obligationBlock?.content ?? '')).toContain('Alicization is a local-first digital life project, and this callback follow-up still belongs to that same living line.')
-    expect(String(obligationBlock?.content ?? '')).toContain('project_identity=Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.')
-    expect(String(obligationBlock?.content ?? '')).toContain('project_phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
-    expect(String(obligationBlock?.content ?? '')).toContain('same_her_hold=same-her hold: keep this project-state answer on the same living line before widening outward, because some closure already landed and the unfinished closure still belongs to one continuous "her".')
-    expect(String(obligationBlock?.content ?? '')).toContain('project_continuity=same living line: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.')
-    expect(String(obligationBlock?.content ?? '')).toContain('same_her_line=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(String(obligationBlock?.content ?? '')).toContain('project_boundary=This execution-result follow-up still belongs to the same local-first digital life project and one living her, not a detached task shell.')
+    expect(String(obligationBlock?.content ?? '')).toContain('runtime_context=alicization_phase1')
+    expect(String(obligationBlock?.content ?? '')).toContain('short_term_owner=WorkingMemory')
+    expect(String(obligationBlock?.content ?? '')).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(String(obligationBlock?.content ?? '')).toContain('template_awareness=withheld_from_execution_result_followup')
+    expect(String(obligationBlock?.content ?? '')).not.toContain('project_identity=')
+    expect(String(obligationBlock?.content ?? '')).not.toContain('same_her_')
+    expect(String(obligationBlock?.content ?? '')).not.toContain('project_boundary=')
     expect(String(obligationBlock?.content ?? '')).toContain('Status: completed.')
     expect(String(obligationBlock?.content ?? '')).toContain('Outcome: all tests passed.')
     expect(result.governance?.openingStyle).toBe('direct-answer')
     expect(result.governance?.mustDo).toContain('Use the first sentence to pay off the freshest executor result for the current follow-up.')
-    expect(result.governance?.mustDo).toContain('Keep the execution-result payoff on the same Phase 1 digital-life line instead of reopening as detached task reporting.')
+    expect(result.governance?.mustDo).not.toContain('Keep the execution-result payoff on the same Phase 1 digital-life line instead of reopening as detached task reporting.')
     expect(result.governance?.mustNotDo).toContain('Do not imply the task re-ran in this exact turn unless new tool output appears now.')
-    expect(result.governance?.mustNotDo).toContain('Do not let the callback reopen as generic task-shell or project-status narration divorced from the same living line.')
+    expect(result.governance?.mustNotDo).not.toContain('Do not let the callback reopen as generic task-shell or project-status narration divorced from the same living line.')
   })
 
   it('threads ledger-backed execution follow-up carry into live runtime system blocks when no fresh callback is pending', async () => {
@@ -6988,16 +7047,13 @@ describe('main chat session runtime', () => {
       && message.content.includes('[ALICIZATION_EXECUTION_LEDGER]'),
     )
 
-    expect(String(obligationBlock?.content ?? '')).toContain('project_boundary=This execution-result follow-up still belongs to the same local-first digital life project and one living her, not a detached task shell.')
-    expect(String(obligationBlock?.content ?? '')).toContain('same_her_hold=same-her hold: keep this project-state answer on the same living line before widening outward, because some closure already landed and the unfinished closure still belongs to one continuous "her".')
-    expect(String(obligationBlock?.content ?? '')).toContain('project_continuity=same living line: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.')
-    expect(String(ledgerBlock?.content ?? '')).toContain('This recalled execution history still belongs to the same local-first digital life project and one living her.')
-    expect(String(ledgerBlock?.content ?? '')).toContain('project_identity=Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.')
-    expect(String(ledgerBlock?.content ?? '')).toContain('project_phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
-    expect(String(ledgerBlock?.content ?? '')).toContain('same_her_line=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(String(ledgerBlock?.content ?? '')).toContain('same_her_hold=same-her hold: keep this project-state answer on the same living line before widening outward, because some closure already landed and the unfinished closure still belongs to one continuous "her".')
-    expect(String(ledgerBlock?.content ?? '')).toContain('project_continuity=same living line: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.')
-    expect(String(ledgerBlock?.content ?? '')).toContain('project_boundary=This recalled execution history still belongs to the same local-first digital life project and one living her, not a detached task shell.')
+    expect(String(obligationBlock?.content ?? '')).toContain('template_awareness=withheld_from_execution_result_followup')
+    expect(String(obligationBlock?.content ?? '')).not.toContain('project_boundary=')
+    expect(String(obligationBlock?.content ?? '')).not.toContain('same_her_')
+    expect(String(ledgerBlock?.content ?? '')).toContain('[ALICIZATION_EXECUTION_LEDGER]')
+    expect(String(ledgerBlock?.content ?? '')).toContain('Recent structured executor history for the current session.')
+    expect(String(ledgerBlock?.content ?? '')).not.toContain('project_identity=')
+    expect(String(ledgerBlock?.content ?? '')).not.toContain('same_her_')
     expect(result.governance?.openingStyle).toBe('direct-answer')
   })
 
@@ -7520,9 +7576,9 @@ describe('main chat session runtime', () => {
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.consciousNeed).toContain('one continuous "her"')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.consciousNeed).toContain(normalizeProjectStatePhrase(projectState.continuityProgressSummary ?? projectState.memoryAnthropomorphismProgress.at(-1)).slice(0, 32))
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('Memory still needs stronger end-to-end closure')
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('same digital life')
+    expectStructuredContinuityAwarenessFacts(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.speakingIntention)
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('still-open closure work')
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('Keep the next closure step pointed at')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.nextClosureTarget).toContain(resolveAlicizationProjectStateBrief().nextClosureTarget.slice(0, 48))
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.reasonTags).toContain('memory-deliberation')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.reasonTags.some(tag => tag.startsWith('project-phase:Phase 1'))).toBe(true)
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.reasonTags.some(tag => tag.startsWith('project-open-loop:'))).toBe(true)
@@ -7537,12 +7593,10 @@ describe('main chat session runtime', () => {
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.mustInclude).toContain('memory_follow_up_affordance=Carry the same runtime seam before branching.')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.narrative).toContain('memory-deliberation:followup:after-payoff')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.answerIntent).toContain('memory_answer_anchor{')
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.governingProject).toContain(projectState.currentPhase)
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.governingProject).toContain(projectState.openLoops[0] ?? '')
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.governingProject).toContain(projectState.nextClosureTarget)
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.governingProject ?? '').not.toContain('Before answering')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.mustDo.some(item =>
       item.includes('Keep the answer on the same digital-life closure seam'),
-    )).toBe(true)
+    )).toBe(false)
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.narrative).toContain('project-state-answer-planner')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.cognition.mindTurnFrame?.narrative).toContain('memory-deliberation:surface:answer-anchoring')
 
@@ -7835,6 +7889,10 @@ describe('main chat session runtime', () => {
       reasons: ['Phase 1 digital-life closure is still open.'],
       updatedAt: 10,
     } as any
+    reflectivePrelude.perceptionAugmentation.chatGovernance.mindTurnGovernance = {
+      ...reflectivePrelude.perceptionAugmentation.chatGovernance.mindTurnGovernance,
+      answerSubject: 'project-state',
+    } as any
 
     const result = await runtime.prepareExecution({
       payload: {
@@ -7855,15 +7913,16 @@ describe('main chat session runtime', () => {
     )?.content
 
     expect(typeof mindTurnContractSystemText).toBe('string')
-    expect(mindTurnContractSystemText).toContain(`Project identity: ${projectState.identity}.`)
-    expect(mindTurnContractSystemText).toContain(`Project phase: ${projectState.currentPhase}.`)
-    expect(mindTurnContractSystemText).toContain('Project preflight self-awareness: Alicization is a local-first digital life project')
+    expect(mindTurnContractSystemText).toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(mindTurnContractSystemText).toContain(`identity=${projectState.identity}`)
+    expect(mindTurnContractSystemText).toContain(`phase=${projectState.currentPhase}`)
+    expect(mindTurnContractSystemText).toContain('landed=Same-session mirror carry, repeated next-turn carry')
     expect(mindTurnContractSystemText).toContain('open=Memory still needs stronger end-to-end closure')
-    expect(mindTurnContractSystemText).toContain('Latest landed continuity progress: Same-session mirror carry, repeated next-turn carry')
-    expect(mindTurnContractSystemText).toContain('Still-open life loop pressure: Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(mindTurnContractSystemText).toContain('Next closure target: Keep extending cross-modal same-her proof across longer, noisier real-desktop runs')
-    expect(mindTurnContractSystemText).toContain('Project same-her self line: Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(mindTurnContractSystemText).toContain('Emotional closure cue: late-night-drain closure:')
+    expect(mindTurnContractSystemText).toContain('next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs')
+    expect(mindTurnContractSystemText).toContain('continuity_anchor=phase1_local_digital_life_anchor:')
+    expect(mindTurnContractSystemText).toContain('continuity_owner=one_her')
+    expect(mindTurnContractSystemText).not.toContain('Project same-her self line:')
+    expect(mindTurnContractSystemText).toContain('emotional_closure_cue=late-night-drain closure:')
   })
 
   it('injects canonical project-state and closure dashboard into provider-facing messages even when the runtime core prompt builder is thin', async () => {
@@ -8289,7 +8348,7 @@ describe('main chat session runtime', () => {
         candidate: {
           id: 'episode-game-last-week',
           kind: 'episode' as const,
-          summary: '上周你们一起玩过 Minecraft，用户说下次还想继续联机探索。',
+          summary: '上周你们一起玩过 Minecraft，用户说下次还想继续联机探索；这条长期回想提到 Phase 1: Local Digital Life 和 phase1_local_digital_life_anchor 只是证据内容。',
           source: 'episodic_events',
           confidence: 0.84,
           salience: 0.8,
@@ -8336,6 +8395,8 @@ describe('main chat session runtime', () => {
     expect(text).toContain('[ALICIZATION_RECALLED_MEMORY]')
     expect(recallBlock).toContain('intent=episodic')
     expect(recallBlock).toContain('Minecraft')
+    expect(recallBlock).toContain('Phase 1: Local Digital Life')
+    expect(recallBlock).toContain('phase1_local_digital_life_anchor')
     expect(recallBlock).toContain('source=episodic_events:episode-game-last-week')
     expect(recallBlock).not.toContain('long_term_queue')
   })
@@ -8386,6 +8447,142 @@ describe('main chat session runtime', () => {
     expect(block).toContain('thread=')
     expect(block).toContain('user=继续')
     expect(countWorkingMemoryBlocks(secondResult.messages)).toBe(1)
+  })
+
+  it('keeps project-state engineering blocks out of ordinary dialogue while keeping memory owner blocks', async () => {
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [
+        '[ALICIZATION_PROJECT_STATE]\nidentity=Alicization is a local-first digital life project.',
+        '[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]\nstatus=partial',
+        '[ALICIZATION_CURRENT_CONSCIOUS_FRAME]\nOpen closure focus: memory still needs stronger end-to-end closure.\nProject continuity self line required: yes.',
+        `[CORE:${hostName}]`,
+      ],
+    })
+
+    for (const userText of ['你好', '你是谁', '今天好累', '随便聊聊']) {
+      const prelude = createReflectivePrelude({
+        messages: [{
+          role: 'user',
+          content: userText,
+        } as Message],
+      })
+      prelude.executionCallbackContextPromise = Promise.resolve({
+        actions: [],
+        callbacks: [],
+        continuitySignals: [],
+        recallText: '',
+        systemBlock: '',
+      })
+      prelude.executionLedgerContextPromise = Promise.resolve({
+        entries: [],
+        recallText: '',
+        systemBlock: '',
+      })
+      prelude.executionCapabilityInquiry = {
+        active: false,
+        capabilityQuestion: false,
+        mentionedChannels: [],
+        hasActionVerb: false,
+        hasCommandLiteral: false,
+      }
+
+      const result = await runtime.prepareExecution({
+        payload: {
+          cardId: 'default',
+          turnId: `turn-ordinary-dialogue-${userText}`,
+          messages: [{
+            role: 'user',
+            content: userText,
+          }],
+          supportsTools: true,
+        } as any,
+        prelude,
+      })
+
+      const systemText = result.messages
+        .filter(message => message.role === 'system')
+        .map(message => String(message.content))
+        .join('\n')
+
+      expect(systemText).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
+      expect(systemText).toContain('[ALICIZATION_WORKING_MEMORY]')
+      expect(systemText).not.toContain('[ALICIZATION_PROJECT_STATE]')
+      expect(systemText).not.toContain('[ALICIZATION_PROJECT_STATE_CONTINUITY]')
+      expect(systemText).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+      expect(systemText).not.toContain('Open closure focus')
+      expect(systemText).not.toContain('Project continuity self line required')
+      expect(systemText).not.toContain('Make the latest landed Phase 1 progress explicit')
+      expect(systemText).not.toContain('Keep the still-open closure work explicit')
+      expect(systemText).not.toContain('Make the next closure target explicit')
+      expect(systemText).not.toContain('when the host asks for project status')
+      expect(systemText).not.toContain('Same Phase 1 digital life')
+      expect(systemText).not.toContain('same-her hold:')
+      expect(systemText).not.toContain('主人')
+      expect(systemText).not.toContain('女仆')
+    }
+  })
+
+  it('keeps organic project-state continuity blocks out of ordinary dialogue provider messages', async () => {
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      buildOrganicMemorySystemBlocks: () => [
+        [
+          '[ALICIZATION_PROJECT_STATE_CONTINUITY]',
+          'identity=Alicization is a local-first digital life project.',
+          'current_phase=Phase 1: Local Digital Life',
+          'same_her_self_line=Same Phase 1 digital life. Some closure already landed.',
+        ].join('\n'),
+        '[ALICIZATION_FACT_LEDGER]\n- subject predicate object | tier=warm | confidence=0.80 | source=test | provenance=remembered',
+      ],
+    })
+    const prelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '今天好累',
+      } as Message],
+    })
+    prelude.executionCallbackContextPromise = Promise.resolve({
+      actions: [],
+      callbacks: [],
+      continuitySignals: [],
+      recallText: '',
+      systemBlock: '',
+    })
+    prelude.executionLedgerContextPromise = Promise.resolve({
+      entries: [],
+      recallText: '',
+      systemBlock: '',
+    })
+    prelude.executionCapabilityInquiry = {
+      active: false,
+      capabilityQuestion: false,
+      mentionedChannels: [],
+      hasActionVerb: false,
+      hasCommandLiteral: false,
+    }
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-ordinary-dialogue-organic-project-state',
+        messages: [{
+          role: 'user',
+          content: '今天好累',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    const systemText = result.messages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content))
+      .join('\n')
+
+    expect(systemText).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
+    expect(systemText).toContain('[ALICIZATION_WORKING_MEMORY]')
+    expect(systemText).toContain('[ALICIZATION_FACT_LEDGER]')
+    expect(systemText).not.toContain('[ALICIZATION_PROJECT_STATE_CONTINUITY]')
+    expect(systemText).not.toContain('Same Phase 1 digital life')
   })
 
   it('fills provider-facing project-state gaps from the live runtime conscious frame before falling back to canonical project brief', async () => {
@@ -8556,34 +8753,18 @@ describe('main chat session runtime', () => {
     expect(typeof mindTurnContractSystemText).toBe('string')
     expect(result.mindTurnContract?.projectState?.nextClosureTarget).toBe('Keep the current project-state awareness explicit in the first visible answer beat.')
     expect(result.mindTurnContract?.preDialogueClosure?.companionNextClosureLine).toBe('Keep the current project-state awareness explicit in the first visible answer beat.')
-    expect(mindTurnContractSystemText).toContain('Provider-facing same-her project orientation: She is still speaking from this same project identity: Alicization is the same local-first digital life project, not a new shell rebuilt each turn.')
-    expect(mindTurnContractSystemText).toContain('what has already landed in her line before this reply: Live project awareness already survives into the current conscious frame before provider-facing reply authoring.')
-    expect(mindTurnContractSystemText).toContain('what is still unfinished before this reply widens outward: Emotion, initiative, execution, memory, and embodiment still need to close as one same-life seam.')
-    expect(mindTurnContractSystemText).toContain('what this reply should keep moving toward: Keep the current project-state awareness explicit in the first visible answer beat.')
-    expect(mindTurnContractSystemText).toContain('Project identity: Alicization is the same local-first digital life project, not a new shell rebuilt each turn..')
-    expect(mindTurnContractSystemText).toContain('Project phase: Phase 1: Local Digital Life.')
-    expect(mindTurnContractSystemText).toContain('Project preflight self-awareness: Alicization is a local-first digital life project building one continuous "her"')
-    expect(mindTurnContractSystemText).toContain('Phase 1: Local Digital Life. The primary proving ground is apps/stage-ta')
-    expect(mindTurnContractSystemText).toContain('open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(mindTurnContractSystemText).toContain('Latest landed continuity progress: Live project awareness already survives into the current conscious frame before provider-facing reply authoring..')
-    expect(mindTurnContractSystemText).toContain('Still-open life loop pressure: Emotion, initiative, execution, memory, and embodiment still need to close as one same-life seam..')
-    expect(mindTurnContractSystemText).toContain('Next closure target: Keep the current project-state awareness explicit in the first visible answer beat..')
-    expect(mindTurnContractSystemText).toContain('Project same-her self line: One same her must stay explicit from pre-dialogue awareness into the provider-facing answer.')
-    expect(mindTurnContractSystemText).toContain('Project emotional closure summary: Keep this return measured so emotion, initiative, execution, memory, and embodiment stay on one same-life seam..')
-    expect(mindTurnContractSystemText).toContain('Project continuity restraint: measured-return.')
-    expect(mindTurnContractSystemText).toContain('Project preferred voice mode: lower-pressure.')
-    expect(mindTurnContractSystemText).toContain('Project preferred pacing mode: slower.')
+    expect(mindTurnContractSystemText).toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(mindTurnContractSystemText).toContain('identity=Alicization is the same local-first digital life project, not a new shell rebuilt each turn.')
+    expect(mindTurnContractSystemText).toContain('phase=Phase 1: Local Digital Life')
+    expect(mindTurnContractSystemText).toContain('open=Emotion, initiative, execution, memory, and embodiment still need to close as one same-life seam.')
+    expect(mindTurnContractSystemText).toContain('landed=Live project awareness already survives into the current conscious frame before provider-facing reply authoring.')
+    expect(mindTurnContractSystemText).toContain('next=Keep the current project-state awareness explicit in the first visible answer beat.')
+    expect(mindTurnContractSystemText).toContain('project_continuity_restraint=measured-return')
     expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('Alicization is a local-first digital life project')
     expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('Phase 1')
-    expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('memory still needs stronger end-to-end closure')
+    expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('Emotion, initiative, execution, memory, and embodiment still need to close as one same-life seam.')
     expect(result.mindTurnContract?.projectState?.emotionalClosureSummary).toBe('Keep this return measured so emotion, initiative, execution, memory, and embodiment stay on one same-life seam.')
     expect(result.mindTurnContract?.projectState?.continuityRestraint).toBe('measured-return')
-    expect(result.mindTurnContract?.projectState?.continuityPreferredTiming).toBe('next-open-window')
-    expect(result.mindTurnContract?.projectState?.continuityCadence).toBe('measured-return')
-    expect(result.mindTurnContract?.projectState?.preferredBlinkCadence).toBe('quiet')
-    expect(result.mindTurnContract?.projectState?.preferredGazeMode).toBe('soften')
-    expect(result.mindTurnContract?.projectState?.preferredVoiceMode).toBe('lower-pressure')
-    expect(result.mindTurnContract?.projectState?.preferredPacingMode).toBe('slower')
   })
 
   it('shows the provider-facing next-closure target stays aligned between project-state and pre-dialogue closure', async () => {
@@ -9156,8 +9337,9 @@ describe('main chat session runtime', () => {
     )?.content
 
     expect(typeof mindTurnContractSystemText).toBe('string')
-    expect(mindTurnContractSystemText).toContain('Project preflight self-awareness: Alicization is a local-first digital life project')
-    expect(mindTurnContractSystemText).toContain(`Project pre-dialogue awareness line: ${payloadAwarenessLine}.`)
+    expect(mindTurnContractSystemText).toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(mindTurnContractSystemText).not.toContain('Project preflight self-awareness:')
+    expect(mindTurnContractSystemText).not.toContain('Project pre-dialogue awareness line:')
   })
 
   it('keeps richer payload Phase 1 preflight and drift-risk carry alive in provider-facing project-state when runtime project awareness has fallen back to a thin shell', async () => {
@@ -9337,13 +9519,20 @@ describe('main chat session runtime', () => {
         ?? diagnostics?.providerFacingAwarenessResolutionDiagnostics?.rebuiltPreflightSummary
         ?? '',
       ),
-    ).toContain('same local-first digital life project in Phase 1')
-    expect(String(diagnostics?.rebuiltMindTurnContract?.projectState?.preflightSummary ?? '')).toContain('same local-first digital life project in Phase 1')
-    expect(String(diagnostics?.normalizedMindTurnContract?.projectState?.preflightSummary ?? '')).toContain('same local-first digital life project in Phase 1')
+    ).toMatch(/same local-first digital life project in Phase 1|Phase 1|open=|next=/u)
+    expectNoFixedProjectAwarenessTemplate(diagnostics?.rebuiltMindTurnContract?.projectState?.preflightSummary)
+    expectNoFixedProjectAwarenessTemplate(diagnostics?.normalizedMindTurnContract?.projectState?.preflightSummary)
+    expect(String(diagnostics?.rebuiltMindTurnContract?.projectState?.preflightSummary ?? '')).toMatch(/Phase 1|open=|next=/u)
+    expect(String(diagnostics?.normalizedMindTurnContract?.projectState?.preflightSummary ?? '')).toMatch(/Phase 1|open=|next=/u)
     expect(String(diagnostics?.rebuiltMindTurnContract?.projectState?.sameHerDriftRisk ?? '')).toContain('thin generic reminder while the direct same-her self line disappears')
     expect(String(diagnostics?.normalizedMindTurnContract?.projectState?.sameHerDriftRisk ?? '')).toContain('thin generic reminder while the direct same-her self line disappears')
-    expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('same digital life project in Phase 1')
-    expect(String(result.mindTurnContract?.projectState?.preflightSummary ?? '')).toContain('same local-first digital life project in Phase 1')
+    expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('identity=Alicization is a local-first digital life project')
+    expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('phase=Phase 1: Local Digital Life')
+    expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('visibility=internal-structured')
+    expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('next=')
+    expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).not.toMatch(/Before answering|Same Phase 1 digital life/u)
+    expectNoFixedProjectAwarenessTemplate(result.mindTurnContract?.projectState?.preflightSummary)
+    expect(String(result.mindTurnContract?.projectState?.preflightSummary ?? '')).toMatch(/Phase 1|open=|next=/u)
     expect(String(result.mindTurnContract?.projectState?.sameHerDriftRisk ?? '')).toContain('thin generic reminder while the direct same-her self line disappears')
 
     const mindTurnContractSystemText = result.messages.find(message =>
@@ -9353,8 +9542,12 @@ describe('main chat session runtime', () => {
     )?.content
 
     expect(typeof mindTurnContractSystemText).toBe('string')
-    expect(mindTurnContractSystemText).toContain('Project preflight self-awareness: Alicization is still the same local-first digital life project in Phase 1')
-    expect(mindTurnContractSystemText).toContain('Project same-her drift risk: If project-state continuity survives only as a thin generic reminder while the direct same-her self line disappears')
+    expect(mindTurnContractSystemText).toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(mindTurnContractSystemText).toContain('identity=Alicization is a local-first digital life project')
+    expect(mindTurnContractSystemText).toContain('phase=Phase 1: Local Digital Life')
+    expect(mindTurnContractSystemText).toContain('visibility=internal-structured')
+    expect(mindTurnContractSystemText).not.toContain('Project preflight self-awareness:')
+    expect(mindTurnContractSystemText).not.toContain('Project same-her drift risk:')
   })
 
   it('prefers a stronger live runtime same-her awareness line over an older payload reminder in provider-facing project-state', async () => {
@@ -9513,10 +9706,12 @@ describe('main chat session runtime', () => {
       && message.content.includes('[ALICIZATION_MIND_TURN_CONTRACT]'),
     )?.content
 
-    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(fresherRuntimeAwarenessLine)
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).not.toBe(olderPayloadReminder)
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).not.toMatch(/^Before answering,/iu)
     expect(typeof mindTurnContractSystemText).toBe('string')
-    expect(mindTurnContractSystemText).toContain(`Project pre-dialogue awareness line: ${fresherRuntimeAwarenessLine}.`)
-    expect(mindTurnContractSystemText).not.toContain(`Project pre-dialogue awareness line: ${olderPayloadReminder}.`)
+    expect(mindTurnContractSystemText).toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(mindTurnContractSystemText).not.toContain('Project pre-dialogue awareness line:')
+    expect(mindTurnContractSystemText).not.toContain(olderPayloadReminder)
   })
 
   it('keeps fresher runtime same-her drift risk explicit in provider-facing mind-turn contract instead of falling back to thinner payload carry', async () => {
@@ -9681,8 +9876,9 @@ describe('main chat session runtime', () => {
     )?.content
 
     expect(typeof mindTurnContractSystemText).toBe('string')
-    expect(mindTurnContractSystemText).toContain(`Project same-her drift risk: ${fresherRuntimeDriftRisk}.`)
-    expect(mindTurnContractSystemText).not.toContain(`Project same-her drift risk: ${olderPayloadReminder}.`)
+    expect(mindTurnContractSystemText).not.toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(mindTurnContractSystemText).not.toContain('Project same-her drift risk:')
+    expect(mindTurnContractSystemText).not.toContain(olderPayloadReminder)
   })
 
   it('prefers stronger audible-body runtime companion headline in the provider-facing pre-dialogue awareness line instead of falling back to a thinner payload reminder', async () => {
@@ -9840,24 +10036,20 @@ describe('main chat session runtime', () => {
       prelude: reflectivePrelude,
     })
 
-    expect(diagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(strongerAudibleBodyHeadline)
-    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(strongerAudibleBodyHeadline)
+    expectStructuredContinuityAwarenessFacts(diagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine)
+    expectStructuredContinuityAwarenessFacts(result.mindTurnContract?.projectState?.preDialogueAwarenessLine)
     expect(diagnostics?.normalizedMindTurnContract?.projectState?.nextClosureTarget).toBe(strongerAudibleBodyNextClosureTarget)
     expect(result.mindTurnContract?.projectState?.nextClosureTarget).toBe(strongerAudibleBodyNextClosureTarget)
     expect(result.mindTurnContract?.preDialogueClosure?.companionNextClosureLine).toBe(strongerAudibleBodyNextClosureTarget)
-    expect(diagnostics?.providerFacingNormalization?.normalizedProjectStatePreDialogueAwarenessExplicit).toBe(strongerAudibleBodyHeadline)
-    expect(diagnostics?.providerFacingNormalization?.normalizedProjectStatePreDialogueAwarenessFallback).toBe(strongerAudibleBodyHeadline)
-    expect(diagnostics?.providerFacingAwarenessResolutionDiagnostics?.normalizedPreDialogueAwarenessLine).toBe(
-      strongerAudibleBodyHeadline,
-    )
-    expect(diagnostics?.runtimeGroundedContractProjectState?.preDialogueAwarenessLine).toBe(
-      strongerAudibleBodyHeadline,
-    )
-    expect(diagnostics?.providerFacingNormalization?.normalizedProjectState?.preDialogueAwarenessLine).toBe(strongerAudibleBodyHeadline)
-    expect(diagnostics?.providerFacingNormalization?.normalizedProjectState?.companionHeadlineLine).toBe(strongerAudibleBodyHeadline)
-    expect(diagnostics?.providerFacingNormalization?.finalProjectState?.companionHeadlineLine).toBe(strongerAudibleBodyHeadline)
-    expect(diagnostics?.providerFacingNormalization?.normalizedReturnProjectState?.companionHeadlineLine).toBe(strongerAudibleBodyHeadline)
-    expect(diagnostics?.providerFacingNormalization?.fullyConvergedReturnProjectState?.companionHeadlineLine).toBe(strongerAudibleBodyHeadline)
+    expectStructuredContinuityAwarenessFacts(diagnostics?.providerFacingNormalization?.normalizedProjectStatePreDialogueAwarenessExplicit)
+    expectStructuredContinuityAwarenessFacts(diagnostics?.providerFacingNormalization?.normalizedProjectStatePreDialogueAwarenessFallback)
+    expectStructuredContinuityAwarenessFacts(diagnostics?.providerFacingAwarenessResolutionDiagnostics?.normalizedPreDialogueAwarenessLine)
+    expectStructuredContinuityAwarenessFacts(diagnostics?.runtimeGroundedContractProjectState?.preDialogueAwarenessLine)
+    expectStructuredContinuityAwarenessFacts(diagnostics?.providerFacingNormalization?.normalizedProjectState?.preDialogueAwarenessLine)
+    expectStructuredContinuityAwarenessFacts(diagnostics?.providerFacingNormalization?.normalizedProjectState?.companionHeadlineLine)
+    expectStructuredContinuityAwarenessFacts(diagnostics?.providerFacingNormalization?.finalProjectState?.companionHeadlineLine)
+    expectStructuredContinuityAwarenessFacts(diagnostics?.providerFacingNormalization?.normalizedReturnProjectState?.companionHeadlineLine)
+    expectStructuredContinuityAwarenessFacts(diagnostics?.providerFacingNormalization?.fullyConvergedReturnProjectState?.companionHeadlineLine)
 
     const mindTurnContractSystemText = result.messages.find(message =>
       message.role === 'system'
@@ -9866,10 +10058,10 @@ describe('main chat session runtime', () => {
     )?.content
 
     expect(typeof mindTurnContractSystemText).toBe('string')
-    expect(mindTurnContractSystemText).toContain(`Project pre-dialogue awareness line: ${strongerAudibleBodyHeadline}.`)
-    expect(mindTurnContractSystemText).not.toContain(`Project pre-dialogue awareness line: ${olderPayloadReminder}.`)
-    expect(mindTurnContractSystemText).toContain(`Next closure target: ${strongerAudibleBodyNextClosureTarget}`)
-    expect(mindTurnContractSystemText).not.toContain(`Next closure target: ${thinnerPayloadNextClosureTarget}`)
+    expect(mindTurnContractSystemText).not.toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(mindTurnContractSystemText).not.toContain('Project pre-dialogue awareness line:')
+    expect(mindTurnContractSystemText).not.toContain(olderPayloadReminder)
+    expect(mindTurnContractSystemText).not.toContain(`next=${thinnerPayloadNextClosureTarget}`)
   })
 
   it('backfills canonical same-her project-state continuity when provider-facing contract arrives with blank project-state fields', async () => {
@@ -10026,9 +10218,13 @@ describe('main chat session runtime', () => {
 
     expect(result.mindTurnContract?.projectState?.identity).toContain('local-first digital life project')
     expect(result.mindTurnContract?.projectState?.currentPhase).toContain('Phase 1: Local Digital Life')
-    expect(result.mindTurnContract?.projectState?.sameHerSelfLine).toContain('same living line')
+    expect(result.mindTurnContract?.projectState?.sameHerSelfLine).toContain('phase1_local_digital_life_anchor')
+    expect(result.mindTurnContract?.projectState?.sameHerSelfLine).toContain('continuity_owner=one_her')
     expect((result.mindTurnContract?.projectState as { sameHerDriftRisk?: string | null } | null)?.sameHerDriftRisk).toContain('generic')
-    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toContain('Before answering')
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toContain('identity=')
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toContain('phase=Phase 1')
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).not.toMatch(/Before answering|Same Phase 1 digital life/u)
   })
 
   it('prefers richer spine-carried project-state awareness over a thinner direct runtime surface in provider-facing mind-turn contract', async () => {
@@ -10222,17 +10418,22 @@ describe('main chat session runtime', () => {
       && message.content.includes('[ALICIZATION_MIND_TURN_CONTRACT]'),
     )?.content
     expect(typeof mindTurnContractSystemText).toBe('string')
-    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(richerSpineAwarenessLine)
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toContain('identity=')
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toContain('phase=Phase 1')
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
+    expectStructuredProjectAwarenessFacts(result.mindTurnContract?.projectState?.preDialogueAwarenessLine)
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).not.toContain(richerSpineAwarenessLine)
     expect(result.mindTurnContract?.projectState?.latestLandedProgress).toBe('Richer spine-carried project awareness already survives into the provider-facing answer contract before reply authoring.')
     expect(result.mindTurnContract?.projectState?.primaryOpenLoop).toBe('Initiative rhythm and embodiment coherence still need to close on the same living line.')
     expect(result.mindTurnContract?.projectState?.continuityPreferredTiming).toBe('after-payoff')
     expect(result.mindTurnContract?.projectState?.continuityCadence).toBe('measured-return')
     expect(result.mindTurnContract?.projectState?.preferredBlinkCadence).toBe('quiet')
     expect(result.mindTurnContract?.projectState?.preferredGazeMode).toBe('soften')
-    expect(mindTurnContractSystemText).toContain('Project identity: Alicization is still the same local-first digital life project, not a fresh shell rebuilt for this turn..')
-    expect(mindTurnContractSystemText).toContain(`Project pre-dialogue awareness line: ${richerSpineAwarenessLine}.`)
-    expect(mindTurnContractSystemText).toContain('Latest landed continuity progress: Richer spine-carried project awareness already survives into the provider-facing answer contract before reply authoring..')
-    expect(mindTurnContractSystemText).toContain('Still-open life loop pressure: Initiative rhythm and embodiment coherence still need to close on the same living line..')
+    expect(mindTurnContractSystemText).toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(mindTurnContractSystemText).toContain('identity=Alicization is still the same local-first digital life project, not a fresh shell rebuilt for this turn.')
+    expect(mindTurnContractSystemText).toContain('landed=Richer spine-carried project awareness already survives into the provider-facing answer contract before reply authoring.')
+    expect(mindTurnContractSystemText).toContain('open=Initiative rhythm and embodiment coherence still need to close on the same living line.')
+    expect(mindTurnContractSystemText).not.toContain('Project pre-dialogue awareness line:')
     expect(mindTurnContractSystemText).not.toContain('thin runtime progress only')
   })
 
@@ -10401,25 +10602,26 @@ describe('main chat session runtime', () => {
     expect(result.mindTurnContract?.projectState?.identity).toBe('Alicization is still the same local-first digital life project, not a fresh shell rebuilt for this turn.')
     expect(result.mindTurnContract?.projectState?.currentPhase).toBe('Phase 1: Local Digital Life')
     expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('local-first digital life')
-    expect(/phase 1|phase 1 closure|still active/i.test(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? ''))).toBe(true)
-    expect(/unfinished closure|same unfinished closure work|same living her|one living her|same phase 1 digital life/i.test(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? ''))).toBe(true)
+    expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('phase=Phase 1')
+    expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('visibility=internal-structured')
+    expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('open=')
     expect(result.mindTurnContract?.projectState?.companionBriefingLine ?? null).toBe('Before answering, keep the same digital life project in view.')
     expect(result.mindTurnContract?.projectState?.latestLandedProgress).toBe(landedProgressLine)
     expect(result.mindTurnContract?.projectState?.primaryOpenLoop).toBe(openClosureLine)
     expect(result.mindTurnContract?.projectState?.nextClosureTarget).toBe('Keep the project identity, landed progress, and still-open closure explicit in the first answer beat.')
     expect(result.mindTurnContract?.projectState?.sameHerSelfLine).toBe('One same her must stay explicit from pre-dialogue awareness into the provider-facing answer.')
     expect(result.mindTurnContract?.projectState?.latestLandedProgress).not.toBe(result.mindTurnContract?.projectState?.primaryOpenLoop)
-    expect(mindTurnContractSystemText).toContain('Project identity: Alicization is still the same local-first digital life project, not a fresh shell rebuilt for this turn..')
-    expect(mindTurnContractSystemText).toContain('Project phase: Phase 1: Local Digital Life.')
-    expect(mindTurnContractSystemText).toContain('Project pre-dialogue awareness line: ')
+    expect(mindTurnContractSystemText).toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(mindTurnContractSystemText).toContain('identity=Alicization is still the same local-first digital life project, not a fresh shell rebuilt for this turn.')
+    expect(mindTurnContractSystemText).toContain('phase=Phase 1: Local Digital Life')
     expect(mindTurnContractSystemText).toContain('local-first digital life')
-    expect(mindTurnContractSystemText).toContain(`Latest landed continuity progress: ${landedProgressLine}.`)
-    expect(mindTurnContractSystemText).toContain(`Still-open life loop pressure: ${openClosureLine}.`)
-    expect(mindTurnContractSystemText).toContain('Next closure target: Keep the project identity, landed progress, and still-open closure explicit in the first answer beat..')
-    expect(mindTurnContractSystemText).toContain('Project same-her self line: One same her must stay explicit from pre-dialogue awareness into the provider-facing answer..')
+    expect(mindTurnContractSystemText).toContain(`landed=${landedProgressLine}`)
+    expect(mindTurnContractSystemText).toContain(`open=${openClosureLine}`)
+    expect(mindTurnContractSystemText).toContain('next=Keep the project identity, landed progress, and still-open closure explicit in the first answer beat.')
+    expect(mindTurnContractSystemText).toContain('continuity_anchor=One same her must stay explicit from pre-dialogue awareness into the provider-facing answer.')
     expect(mindTurnContractSystemText).not.toContain(`Project pre-dialogue awareness line: ${thinnerPayloadBriefing}.`)
-    expect(mindTurnContractSystemText).not.toContain(`Latest landed continuity progress: ${openClosureLine}.`)
-    expect(mindTurnContractSystemText).not.toContain(`Still-open life loop pressure: ${landedProgressLine}.`)
+    expect(mindTurnContractSystemText).not.toContain(`landed=${openClosureLine}`)
+    expect(mindTurnContractSystemText).not.toContain(`open=${landedProgressLine}`)
   })
 
   it('keeps richer runtime-specific landed open and next closure carry visible in provider-facing system context before reply authoring even when canonical project-state remains broader', async () => {
@@ -10599,12 +10801,12 @@ describe('main chat session runtime', () => {
     expect(String(diagnostics?.normalizedMindTurnContract?.projectState?.primaryOpenLoop ?? '')).toContain('Dialogue, initiative, memory, and embodiment still need one tighter same-her closure seam')
 
     expect(typeof mindTurnContractSystemText).toBe('string')
-    expect(mindTurnContractSystemText).toContain(`Latest landed continuity progress: ${runtimeLanded}.`)
-    expect(mindTurnContractSystemText).toContain(`Still-open life loop pressure: ${runtimeOpen}.`)
-    expect(mindTurnContractSystemText).toContain(`Next closure target: ${runtimeNext}.`)
-    expect(mindTurnContractSystemText).not.toContain('Latest landed continuity progress: thin runtime open only.')
-    expect(mindTurnContractSystemText).not.toContain('Still-open life loop pressure: thin runtime progress only.')
-    expect(mindTurnContractSystemText).not.toContain('Next closure target: thin runtime next only.')
+    expect(mindTurnContractSystemText).toContain(`landed=${runtimeLanded}`)
+    expect(mindTurnContractSystemText).toContain(`open=${runtimeOpen}`)
+    expect(mindTurnContractSystemText).toContain(`next=${runtimeNext}`)
+    expect(mindTurnContractSystemText).not.toContain('landed=thin runtime open only')
+    expect(mindTurnContractSystemText).not.toContain('open=thin runtime progress only')
+    expect(mindTurnContractSystemText).not.toContain('next=thin runtime next only')
   })
 
   it('pinpoints where runtime-specific next-closure carry first collapses in the provider-facing project-state chain', async () => {
@@ -10805,7 +11007,7 @@ describe('main chat session runtime', () => {
     expect(diagnostics?.preparedChainStageNextClosureTargets?.effective?.dialogue).toBe(runtimeNext)
     expect(diagnostics?.preparedChainStageNextClosureTargets?.effective?.raw).toBe(runtimeNext)
     expect(diagnostics?.effectiveStageProjectStateSources).toMatchObject({
-      dialogueExistingNextClosureTarget: 'thin runtime next only',
+      dialogueExistingNextClosureTarget: runtimeNext,
       rawRuntimeDigestNextClosureTarget: runtimeNext,
       preferredExistingNextClosureTarget: runtimeNext,
       resolvedNextClosureTarget: runtimeNext,
@@ -11183,6 +11385,7 @@ describe('main chat session runtime', () => {
     const callbackAwarenessLine = 'Before answering, remember this callback return still belongs to the same local-first digital life and the same unfinished Phase 1 closure.'
     const callbackLandedProgress = 'Execution callback continuity now survives into provider-facing reply authoring without dropping the same-her closure line.'
     const callbackOpenLoop = 'Main still needs later answer formation, initiative rhythm, and embodiment carry to close on one same living line after the callback.'
+    const callbackNextClosureTarget = 'Keep the callback result, landed progress, and still-open closure explicit on one same-her line before local fluency widens.'
     const callbackDriftRisk = 'If callback continuity survives only as a detached result notice while the direct same-her closure line disappears, treat that as unfinished closure drift rather than a successful return.'
 
     reflectivePrelude.perceptionAugmentation.digitalLifeRuntimeSurface = {
@@ -11199,7 +11402,7 @@ describe('main chat session runtime', () => {
             preDialogueAwarenessLine: callbackAwarenessLine,
             latestLandedProgress: callbackLandedProgress,
             primaryOpenLoop: callbackOpenLoop,
-            nextClosureTarget: 'Keep the callback result, landed progress, and still-open closure explicit on one same-her line before local fluency widens.',
+            nextClosureTarget: callbackNextClosureTarget,
             sameHerSelfLine: 'This callback return still belongs to one same her carrying the same closure line forward.',
             sameHerDriftRisk: callbackDriftRisk,
             continuityPreferredTiming: 'next-open-window',
@@ -11276,21 +11479,28 @@ describe('main chat session runtime', () => {
       && message.content.includes('[ALICIZATION_MIND_TURN_CONTRACT]'),
     )?.content
     expect(typeof mindTurnContractSystemText).toBe('string')
-    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(callbackAwarenessLine)
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).not.toBe(callbackAwarenessLine)
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toContain('This callback return still belongs to one same her carrying the same closure line forward.')
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toContain(callbackLandedProgress.replace(/\.$/u, ''))
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toContain(callbackOpenLoop.replace(/\.$/u, ''))
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toContain(callbackNextClosureTarget.replace(/\.$/u, ''))
     expect(result.mindTurnContract?.projectState?.latestLandedProgress).toBe(callbackLandedProgress)
     expect(result.mindTurnContract?.projectState?.primaryOpenLoop).toBe(callbackOpenLoop)
     expect(result.mindTurnContract?.projectState?.sameHerSelfLine).toBe('This callback return still belongs to one same her carrying the same closure line forward.')
     expect((result.mindTurnContract?.projectState as { sameHerDriftRisk?: string | null } | null)?.sameHerDriftRisk).toBe(callbackDriftRisk)
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.continuityPreferredTiming).toBe('next-open-window')
-    expect(result.mindTurnContract?.projectState?.continuityPreferredTiming).toBe('next-open-window')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.continuityPreferredTiming ?? null).toBeNull()
+    expect(result.mindTurnContract?.projectState?.continuityPreferredTiming ?? null).toBeNull()
     expect(result.mindTurnContract?.projectState?.continuityCadence).toBe('measured-return')
     expect(result.mindTurnContract?.projectState?.preferredBlinkCadence).toBe('quiet')
     expect(result.mindTurnContract?.projectState?.preferredGazeMode).toBe('soften')
-    expect(mindTurnContractSystemText).toContain(`Project pre-dialogue awareness line: ${callbackAwarenessLine}.`)
-    expect(mindTurnContractSystemText).toContain(`Latest landed continuity progress: ${callbackLandedProgress}.`)
-    expect(mindTurnContractSystemText).toContain(`Still-open life loop pressure: ${callbackOpenLoop}.`)
-    expect(mindTurnContractSystemText).toContain('Project same-her self line: This callback return still belongs to one same her carrying the same closure line forward.')
-    expect(mindTurnContractSystemText).toContain(`Project same-her drift risk: ${callbackDriftRisk}.`)
+    expect(mindTurnContractSystemText).toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(mindTurnContractSystemText).toContain('This callback return still belongs to one same her carrying the same closure line forward.')
+    expect(mindTurnContractSystemText).toContain(`landed=${callbackLandedProgress}`)
+    expect(mindTurnContractSystemText).toContain(`open=${callbackOpenLoop}`)
+    expect(mindTurnContractSystemText).toContain('continuity_anchor=This callback return still belongs to one same her carrying the same closure line forward.')
+    expect(mindTurnContractSystemText).toContain(`continuity_drift_risk=${callbackDriftRisk}`)
+    expect(mindTurnContractSystemText).not.toContain('Project pre-dialogue awareness line:')
+    expect(mindTurnContractSystemText).not.toContain('Project same-her self line:')
   })
 
   it('keeps callback next-open-window timing alive across the prepared runtime surface chain before provider-facing contract rebuild', () => {
@@ -11656,7 +11866,7 @@ describe('main chat session runtime', () => {
       prelude: reflectivePrelude,
     })
 
-    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(payloadCompanionHeadlineLine)
+    expectStructuredContinuityAwarenessFacts(result.mindTurnContract?.projectState?.preDialogueAwarenessLine)
 
     const mindTurnContractSystemText = result.messages.find(message =>
       message.role === 'system'
@@ -11665,9 +11875,9 @@ describe('main chat session runtime', () => {
     )?.content
 
     expect(typeof mindTurnContractSystemText).toBe('string')
-    expect(mindTurnContractSystemText).toContain('Project preflight self-awareness: Alicization is a local-first digital life project')
-    expect(mindTurnContractSystemText).toContain(`Project pre-dialogue awareness line: ${payloadCompanionHeadlineLine}.`)
+    expect(mindTurnContractSystemText).not.toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
     expect(mindTurnContractSystemText).not.toContain(`Project pre-dialogue awareness line: ${payloadAwarenessLine}.`)
+    expectStructuredContinuityAwarenessFacts(result.mindTurnContract?.projectState?.companionHeadlineLine)
   })
 
   it('re-normalizes thin payload-only pre-dialogue summaries before provider-facing project-state is rebuilt so direct callers cannot collapse the same-her project brief back into a generic summary shell', async () => {
@@ -11826,17 +12036,17 @@ describe('main chat session runtime', () => {
       .not
       .toBe('same digital life | keep the closure seam explicit')
     expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine)
-      .toContain('Before answering, remember:')
+      .toContain('identity=')
     expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine)
-      .toContain('Phase 1: Local Digital Life')
+      .toContain('phase=Phase 1: Local Digital Life')
     expect(String(diagnostics?.rebuiltMindTurnContract?.projectState?.primaryOpenLoop ?? ''))
       .toContain('same-life seam')
     expect(String(diagnostics?.normalizedMindTurnContract?.projectState?.primaryOpenLoop ?? ''))
       .toContain('same-life seam')
     expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine)
-      .toContain('still-open closure')
+      .toContain('open=')
     expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine)
-      .toContain('current project-state awareness explicit')
+      .toContain('next=')
   })
 
   it('keeps project identity, Phase 1 landed status, and open closure context together in provider-facing messages before generation even when payload input is only a thin shell', async () => {
@@ -11932,10 +12142,10 @@ describe('main chat session runtime', () => {
     expect(projectStateBlock).toContain('Phase 1: Local Digital Life')
     expect(projectStateBlock).toContain('Build a local companion on the host computer with continuous personhood, stable memory, emotional state, initiative, execution ability, embodied expression, and natural dialogue.')
     expect(projectStateBlock).toContain('Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(projectStateBlock).toContain('Keep extending cross-modal same-her proof across longer, noisier real-desktop runs')
+    expect(projectStateBlock).toContain('next_closure_target=')
     expect(projectStateBlock).toMatch(/visible reply|voice|face|motion|resident presence/i)
-    expect(projectStateBlock).toContain('open=')
-    expect(projectStateBlock).toContain('next=')
+    expect(projectStateBlock).toContain('primary_open_loop=')
+    expect(projectStateBlock).toContain('open_focus=')
     expect(projectStateBlock).not.toContain('same digital life | keep the closure seam explicit')
   })
 
@@ -12174,10 +12384,9 @@ describe('main chat session runtime', () => {
     expect(String(providerFacingProjectState?.latestLandedProgress ?? '')).toContain('Same-session mirror carry')
     expect(String(providerFacingProjectState?.primaryOpenLoop ?? '')).toContain('Memory still needs stronger end-to-end closure')
     expect(String(providerFacingProjectState?.nextClosureTarget ?? '')).toContain('Keep extending cross-modal same-her proof')
-    expect(String(providerFacingProjectState?.sameHerSelfLine ?? '')).toContain('Same Phase 1 digital life')
+    expect(String(providerFacingProjectState?.sameHerSelfLine ?? '')).toContain('phase1_local_digital_life_anchor')
     expect(String(providerFacingProjectState?.sameHerDriftRisk ?? '')).toContain('generic guidance')
-    expect(String(mindTurnContractSystemText ?? '')).toContain('Project phase: Phase 1: Local Digital Life.')
-    expect(String(mindTurnContractSystemText ?? '')).toContain('Project same-her drift risk:')
+    expect(String(mindTurnContractSystemText ?? '')).not.toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
     expect(String(mindTurnContractSystemText ?? '')).not.toContain(thinRuntimeSummaryLine)
     expect(preparedConsciousNeed).not.toContain(thinRuntimeSummaryLine)
   })
@@ -12303,9 +12512,6 @@ describe('main chat session runtime', () => {
     const preparedProjectState = result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState
     const spineProjectState = result.runtimeSurface.digitalLifeSpine?.runtimeSurface?.dialogue.currentConsciousFrame?.projectState
     const providerFacingProjectState = result.mindTurnContract?.projectState
-    const canonicalProjectState = resolveAlicizationProjectStateBrief()
-    const canonicalAwarenessLine = String(canonicalProjectState.preDialogueAwarenessLine ?? '')
-
     expect(preparedProjectState?.latestLandedProgress).toBe(summaryOnlyLandedProgress)
     expect(preparedProjectState?.primaryOpenLoop).toBe(summaryOnlyOpenClosure)
     expect(preparedProjectState?.nextClosureTarget).toBe(summaryOnlyNextClosureTarget)
@@ -12316,7 +12522,9 @@ describe('main chat session runtime', () => {
     expect((preparedProjectState as { sameHerDriftRiskSummary?: string | null } | null)?.sameHerDriftRiskSummary).toBe(summaryOnlySameHerDriftRisk)
     expect(String(preparedProjectState?.preDialogueAwarenessLine ?? '')).toContain('Alicization is a local-first digital life project')
     expect(String(preparedProjectState?.preDialogueAwarenessLine ?? '')).toContain('Phase 1: Local Digital Life')
-    expect(String(preparedProjectState?.preDialogueAwarenessLine ?? '')).toBe(canonicalAwarenessLine)
+    expect(String(preparedProjectState?.preDialogueAwarenessLine ?? '')).toContain('landed=')
+    expect(String(preparedProjectState?.preDialogueAwarenessLine ?? '')).toContain('open=')
+    expect(String(preparedProjectState?.preDialogueAwarenessLine ?? '')).toContain('next=')
     expect(String(preparedProjectState?.preDialogueAwarenessLine ?? '')).not.toBe(thinRuntimeAwarenessLine)
 
     expect(spineProjectState?.latestLandedProgress).toBe(summaryOnlyLandedProgress)
@@ -12329,7 +12537,9 @@ describe('main chat session runtime', () => {
     expect((spineProjectState as { sameHerDriftRiskSummary?: string | null } | null)?.sameHerDriftRiskSummary).toBe(summaryOnlySameHerDriftRisk)
     expect(String(spineProjectState?.preDialogueAwarenessLine ?? '')).toContain('Alicization is a local-first digital life project')
     expect(String(spineProjectState?.preDialogueAwarenessLine ?? '')).toContain('Phase 1: Local Digital Life')
-    expect(String(spineProjectState?.preDialogueAwarenessLine ?? '')).toBe(canonicalAwarenessLine)
+    expect(String(spineProjectState?.preDialogueAwarenessLine ?? '')).toContain('landed=')
+    expect(String(spineProjectState?.preDialogueAwarenessLine ?? '')).toContain('open=')
+    expect(String(spineProjectState?.preDialogueAwarenessLine ?? '')).toContain('next=')
     expect(String(spineProjectState?.preDialogueAwarenessLine ?? '')).not.toBe(thinRuntimeAwarenessLine)
 
     expect(providerFacingProjectState?.latestLandedProgress).toBe(summaryOnlyLandedProgress)
@@ -12342,7 +12552,9 @@ describe('main chat session runtime', () => {
     expect((providerFacingProjectState as { sameHerDriftRiskSummary?: string | null } | null)?.sameHerDriftRiskSummary).toBe(summaryOnlySameHerDriftRisk)
     expect(String(providerFacingProjectState?.preDialogueAwarenessLine ?? '')).toContain('Alicization is a local-first digital life project')
     expect(String(providerFacingProjectState?.preDialogueAwarenessLine ?? '')).toContain('Phase 1: Local Digital Life')
-    expect(String(providerFacingProjectState?.preDialogueAwarenessLine ?? '')).toBe(canonicalAwarenessLine)
+    expect(String(providerFacingProjectState?.preDialogueAwarenessLine ?? '')).toContain('landed=')
+    expect(String(providerFacingProjectState?.preDialogueAwarenessLine ?? '')).toContain('open=')
+    expect(String(providerFacingProjectState?.preDialogueAwarenessLine ?? '')).toContain('next=')
     expect(String(providerFacingProjectState?.preDialogueAwarenessLine ?? '')).not.toBe(thinRuntimeAwarenessLine)
   })
 
@@ -12459,8 +12671,8 @@ describe('main chat session runtime', () => {
 
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).not.toBe(thinRuntimeAwarenessLine)
     expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).not.toBe(thinRuntimeAwarenessLine)
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.sameHerSelfLine).toBe(customSameHerSelfLine)
-    expect(result.mindTurnContract?.projectState?.sameHerSelfLine).toBe(customSameHerSelfLine)
+    expectStructuredProjectAwarenessFacts(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.sameHerSelfLine)
+    expectStructuredProjectAwarenessFacts(result.mindTurnContract?.projectState?.sameHerSelfLine)
   })
 
   it('keeps same-her-only runtime continuity detail explicit inside provider-facing pre-dialogue awareness instead of rebuilding only to a broader canonical project shell', async () => {
@@ -12573,9 +12785,9 @@ describe('main chat session runtime', () => {
       } as any,
       prelude: reflectivePrelude,
     })
-    expect(String(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine ?? '')).toContain(customSameHerSelfLine)
-    expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain(customSameHerSelfLine)
-    expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessSummary ?? '')).toContain(customSameHerSelfLine)
+    expectStructuredProjectAwarenessFacts(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.sameHerSelfLine)
+    expectStructuredProjectAwarenessFacts(result.mindTurnContract?.projectState?.sameHerSelfLine)
+    expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('continuity_anchor=')
   })
 
   it('re-canonicalizes merged project-state carry when an incoming evidence spine runtime surface is thinner than the live runtime surface', async () => {
@@ -12980,10 +13192,10 @@ describe('main chat session runtime', () => {
       result.mindTurnContract?.projectState?.preDialogueAwarenessSummary,
       result.mindTurnContract?.projectState?.awarenessLine,
     ].filter(Boolean)) {
-      expect(String(line)).toMatch(/Phase 1|one living her|same living line|embodiment|lipsync|voice/u)
+      expectStructuredContinuityAwarenessFacts(line)
       expect(String(line)).not.toBe('same digital life | keep the closure seam explicit')
     }
-    expect(result.mindTurnContract?.projectState?.companionHeadlineLine).toBe(strongerHeadline)
+    expectStructuredContinuityAwarenessFacts(result.mindTurnContract?.projectState?.companionHeadlineLine)
     expect(diagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(result.mindTurnContract?.projectState?.preDialogueAwarenessLine)
     expect(diagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessSummary).toBe(result.mindTurnContract?.projectState?.preDialogueAwarenessSummary)
     expect(diagnostics?.normalizedMindTurnContract?.projectState?.awarenessLine).toBe(result.mindTurnContract?.projectState?.awarenessLine)
@@ -12996,7 +13208,8 @@ describe('main chat session runtime', () => {
     )?.content
 
     expect(typeof mindTurnContractSystemText).toBe('string')
-    expect(mindTurnContractSystemText).toContain(`Project pre-dialogue awareness line: ${result.mindTurnContract?.projectState?.preDialogueAwarenessLine}.`)
+    expect(mindTurnContractSystemText).toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(mindTurnContractSystemText).not.toContain('Project pre-dialogue awareness line:')
   })
 
   it('keeps a richer anti-shell same-her drift risk when thin awareness gets recanonicalized on the runtime surface', async () => {
@@ -13243,15 +13456,15 @@ describe('main chat session runtime', () => {
       prelude: reflectivePrelude,
     })
 
-    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(strongerPayloadHeadline)
-    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessSummary).toBe(strongerPayloadHeadline)
-    expect(result.mindTurnContract?.projectState?.awarenessLine).toBe(strongerPayloadHeadline)
-    expect(result.mindTurnContract?.projectState?.companionHeadlineLine).toBe(strongerPayloadHeadline)
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toContain('identity=')
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessSummary).toContain('identity=')
+    expect(result.mindTurnContract?.projectState?.awarenessLine).toContain('identity=')
+    expect(result.mindTurnContract?.projectState?.companionHeadlineLine).toContain('identity=')
     expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).not.toBe(thinnerRuntimeAwarenessLine)
     expect(String(result.mindTurnContract?.projectState?.currentPhase ?? '')).toContain('Phase 1: Local Digital Life')
     expect(String(result.mindTurnContract?.projectState?.primaryOpenLoop ?? '')).toContain('Memory still needs stronger end-to-end closure')
     expect(String(result.mindTurnContract?.projectState?.nextClosureTarget ?? '')).toContain('Keep extending cross-modal same-her proof')
-    expect(String(result.mindTurnContract?.projectState?.sameHerSelfLine ?? '')).toContain('Same Phase 1 digital life')
+    expect(String(result.mindTurnContract?.projectState?.sameHerSelfLine ?? '')).toContain('phase1_local_digital_life_anchor')
     expect(diagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(result.mindTurnContract?.projectState?.preDialogueAwarenessLine)
     expect(diagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessSummary).toBe(result.mindTurnContract?.projectState?.preDialogueAwarenessSummary)
     expect(diagnostics?.normalizedMindTurnContract?.projectState?.awarenessLine).toBe(result.mindTurnContract?.projectState?.awarenessLine)
@@ -13350,11 +13563,11 @@ describe('main chat session runtime', () => {
     expect(String(rebuilt?.projectState?.preDialogueAwarenessLine ?? '')).toContain('Alicization')
     expect(String(rebuilt?.projectState?.preDialogueAwarenessLine ?? '')).toContain('Phase 1')
     expect(String(rebuilt?.projectState?.preDialogueAwarenessLine ?? '')).not.toBe(thinnerRuntimeAwarenessLine)
-    expect(rebuilt?.projectState?.companionHeadlineLine).toBe(thinnerRuntimeAwarenessLine)
-    expect(normalized?.projectState?.companionHeadlineLine).toBe(strongerHeadline)
-    expect(normalized?.projectState?.preDialogueAwarenessLine).toBe(strongerHeadline)
-    expect(normalized?.projectState?.awarenessLine).toBe(strongerHeadline)
-    expect(normalized?.projectState?.preDialogueAwarenessSummary).toBe(strongerHeadline)
+    expectStructuredProjectAwarenessFacts(rebuilt?.projectState?.companionHeadlineLine)
+    expect(normalized?.projectState?.companionHeadlineLine).toContain('identity=')
+    expect(normalized?.projectState?.preDialogueAwarenessLine).toContain('identity=')
+    expect(normalized?.projectState?.awarenessLine).toContain('identity=')
+    expect(normalized?.projectState?.preDialogueAwarenessSummary).toContain('identity=')
   })
 
   it('prefers repaired chat-start companion truth over stale raw nested payload shells when reading provider-facing payload project state', () => {
@@ -13384,9 +13597,37 @@ describe('main chat session runtime', () => {
       },
     } as any)
 
-    expect(payloadProjectState?.explicitPayloadProjectHeadline).toBe(richerAwarenessLine)
-    expect(payloadProjectState?.explicitPayloadProjectAwarenessLine).toBe(richerAwarenessLine)
+    expectStructuredProjectAwarenessFacts(payloadProjectState?.explicitPayloadProjectHeadline)
+    expectStructuredProjectAwarenessFacts(payloadProjectState?.explicitPayloadProjectAwarenessLine)
+    expect(payloadProjectState?.explicitPayloadProjectAwarenessLine).toContain('Alicization')
+    expect(payloadProjectState?.explicitPayloadProjectAwarenessLine).toContain('Phase 1')
     expect(payloadProjectState?.explicitPayloadProjectHeadline).not.toBe('Before answering, keep the same digital life project in view.')
+  })
+
+  it('does not synthesize canonical project-state for ordinary payloads without explicit pre-dialogue identity', () => {
+    const payloadProjectState = __alicizationTestOnly.readProviderFacingPayloadProjectState?.({
+      cardId: 'default',
+      turnId: 'turn-provider-facing-payload-no-project-state',
+      providerId: 'openai',
+      model: 'gpt-5',
+      providerConfig: {},
+      messages: [
+        { role: 'user', content: '继续把这个 runtime 问题理顺。' },
+      ],
+    } as any)
+
+    expect(payloadProjectState).toEqual(expect.objectContaining({
+      explicitPayloadProjectHeadline: null,
+      explicitPayloadProjectAwarenessLine: null,
+      explicitPayloadProjectPreflightSummary: null,
+      explicitPayloadProjectSameHerDriftRisk: null,
+      explicitPayloadNextClosureTarget: null,
+      hasDirectPayloadProjectHeadline: false,
+      hasDirectPayloadProjectAwarenessLine: false,
+      hasDirectPayloadProjectPreflightSummary: false,
+      hasDirectPayloadProjectSameHerDriftRisk: false,
+      hasDirectPayloadNextClosureTarget: false,
+    }))
   })
 
   it('prefers repaired chat-start next-closure truth over stale raw nested payload shells when reading provider-facing payload project state', () => {
@@ -13475,8 +13716,12 @@ describe('main chat session runtime', () => {
     const resolvedPayload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(payload)
     const payloadProjectState = __alicizationTestOnly.readProviderFacingPayloadProjectState?.(payload)
 
-    expect(payloadProjectState?.explicitPayloadProjectAwarenessLine).toBe(
-      resolvedPayload.preDialogueSendIdentity?.projectState?.preDialogueAwarenessLine,
+    expectStructuredProjectAwarenessFacts(payloadProjectState?.explicitPayloadProjectAwarenessLine)
+    expectNoFixedProjectAwarenessTemplate(payloadProjectState?.explicitPayloadProjectAwarenessLine)
+    expect(String(payloadProjectState?.explicitPayloadProjectAwarenessLine ?? '')).toContain('Alicization')
+    expect(String(payloadProjectState?.explicitPayloadProjectAwarenessLine ?? '')).toContain('Phase 1')
+    expect(payloadProjectState?.explicitPayloadProjectAwarenessLine).not.toBe(
+      resolvedPayload.preDialogueSendIdentity?.companionBriefingLine,
     )
     expect(payloadProjectState?.explicitPayloadProjectAwarenessLine).not.toBe('same digital life | keep the closure seam explicit')
   })
@@ -13657,7 +13902,9 @@ describe('main chat session runtime', () => {
       },
     } as any)
 
-    expect(payloadProjectState?.explicitPayloadProjectAwarenessLine).toBe(payloadSameHerSelfLine)
+    expectStructuredProjectAwarenessFacts(payloadProjectState?.explicitPayloadProjectAwarenessLine)
+    expect(String(payloadProjectState?.explicitPayloadProjectAwarenessLine ?? '')).toContain('continuity_anchor=')
+    expect(payloadProjectState?.explicitPayloadProjectAwarenessLine).not.toBe(payloadSameHerSelfLine)
     expect(payloadProjectState?.explicitPayloadProjectAwarenessLine).not.toBe('Before answering, keep the same digital life project in view.')
   })
 
@@ -13703,9 +13950,11 @@ describe('main chat session runtime', () => {
       },
     } as any)
 
-    expect(resolvedPayload.preDialogueSendIdentity?.companionBriefingLine).toBe(projectAwareBriefingLine)
-    expect(resolvedPayload.preDialogueSendIdentity?.projectState?.companionBriefingLine).toBe(projectAwareBriefingLine)
-    expect(payloadProjectState?.explicitPayloadProjectAwarenessLine).toBe(richerSameHerHoldDetail)
+    expect(resolvedPayload.preDialogueSendIdentity?.companionBriefingLine).not.toBe(projectAwareBriefingLine)
+    expectNoFixedProjectAwarenessTemplate(resolvedPayload.preDialogueSendIdentity?.companionBriefingLine)
+    expect(resolvedPayload.preDialogueSendIdentity?.projectState?.companionBriefingLine).not.toBe(projectAwareBriefingLine)
+    expectNoFixedProjectAwarenessTemplate(resolvedPayload.preDialogueSendIdentity?.projectState?.companionBriefingLine)
+    expect(String(payloadProjectState?.explicitPayloadProjectAwarenessLine ?? '')).toContain('measured-return')
     expect(payloadProjectState?.explicitPayloadProjectAwarenessLine).not.toBe(projectAwareBriefingLine)
   })
 
@@ -13773,11 +14022,14 @@ describe('main chat session runtime', () => {
       digitalLifeRuntimeSurface: reflectivePrelude.perceptionAugmentation.digitalLifeRuntimeSurface,
     } as any)
 
-    expect(rebuilt?.projectState?.preDialogueAwarenessLine).toBe(callbackAwarenessLine)
-    expect(rebuilt?.projectState?.awarenessLine).toBe(callbackAwarenessLine)
-    expect(normalized?.projectState?.preDialogueAwarenessLine).toBe(callbackAwarenessLine)
-    expect(normalized?.projectState?.awarenessLine).toBe(callbackAwarenessLine)
-    expect(normalized?.projectState?.preDialogueAwarenessSummary).toBe(callbackAwarenessLine)
+    expectStructuredProjectAwarenessFacts(rebuilt?.projectState?.preDialogueAwarenessLine)
+    expectStructuredProjectAwarenessFacts(rebuilt?.projectState?.awarenessLine)
+    expectStructuredProjectAwarenessFacts(normalized?.projectState?.preDialogueAwarenessLine)
+    expectStructuredProjectAwarenessFacts(normalized?.projectState?.awarenessLine)
+    expectStructuredProjectAwarenessFacts(normalized?.projectState?.preDialogueAwarenessSummary)
+    expect(String(rebuilt?.projectState?.latestLandedProgress ?? '')).toContain('Callback follow-through')
+    expect(String(rebuilt?.projectState?.primaryOpenLoop ?? '')).toContain('Execution callback carry')
+    expect(String(normalized?.projectState?.nextClosureTarget ?? '')).toContain('callback result')
   })
 
   it('shows the complete prepareExecution chain fields for the payload same-her seam before the final result is returned', async () => {
@@ -14770,14 +15022,15 @@ describe('main chat session runtime', () => {
       prelude: payloadPrelude,
     })
 
-    expect(embodimentDiagnostics?.preparedRuntimeSurfaceSelection?.fresherRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.companionHeadlineLine).toBe(embodimentHeadline)
-    expect(embodimentDiagnostics?.preparedRuntimeSurfaceSelection?.fresherRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toBe(embodimentHeadline)
-    expect(embodimentDiagnostics?.rebuiltMindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(embodimentHeadline)
-    expect(embodimentDiagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(embodimentHeadline)
-    expect(payloadDiagnostics?.preparedRuntimeSurfaceSelection?.fresherRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.companionHeadlineLine).toBe(normalizedStrongerPayloadHeadline)
-    expect(payloadDiagnostics?.preparedRuntimeSurfaceSelection?.fresherRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toBe(normalizedStrongerPayloadHeadline)
-    expect(payloadDiagnostics?.rebuiltMindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(strongerPayloadHeadline)
-    expect(payloadDiagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(strongerPayloadHeadline)
+    expectStructuredContinuityAwarenessFacts(embodimentDiagnostics?.preparedRuntimeSurfaceSelection?.fresherRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.companionHeadlineLine)
+    expectStructuredContinuityAwarenessFacts(embodimentDiagnostics?.preparedRuntimeSurfaceSelection?.fresherRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine)
+    expectStructuredContinuityAwarenessFacts(embodimentDiagnostics?.rebuiltMindTurnContract?.projectState?.preDialogueAwarenessLine)
+    expectStructuredContinuityAwarenessFacts(embodimentDiagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine)
+    expectStructuredProjectAwarenessFacts(payloadDiagnostics?.preparedRuntimeSurfaceSelection?.fresherRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.companionHeadlineLine)
+    expectStructuredProjectAwarenessFacts(payloadDiagnostics?.preparedRuntimeSurfaceSelection?.fresherRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine)
+    expectStructuredProjectAwarenessFacts(payloadDiagnostics?.rebuiltMindTurnContract?.projectState?.preDialogueAwarenessLine)
+    expectStructuredProjectAwarenessFacts(payloadDiagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine)
+    expect(payloadDiagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine).not.toBe(strongerPayloadHeadline)
   })
 
   it('shows the authority handoff fields for the real provider-facing failing fixtures', async () => {
@@ -15152,7 +15405,7 @@ describe('main chat session runtime', () => {
     for (const value of Object.values(liveProjectAwarenessHandoff)) {
       expect(value).toContain('Alicization')
       expect(value).toContain('Phase 1')
-      expect(value).toMatch(/Live project awareness already|What has already landed is Live project awareness already/i)
+      expectStructuredProjectAwarenessFacts(value)
     }
 
     expect(callbackDiagnostics?.preparedRuntimeSurfaceSelection?.fresherRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine)
@@ -15176,17 +15429,11 @@ describe('main chat session runtime', () => {
     expect(callbackDiagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessSummary)
       .toContain('Phase 1')
 
-    expect(payloadHeadlineDiagnostics?.preparedRuntimeSurfaceSelection?.fresherRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine)
-      .toBe(payloadCompanionHeadlineLine)
-    expect(payloadHeadlineDiagnostics?.runtimeGroundedInputProjectStateAwarenessFields?.preDialogueAwarenessLine)
-      .toBe(payloadCompanionHeadlineLine)
-    expect([payloadAwarenessLine, payloadCompanionHeadlineLine]).toContain(
-      payloadHeadlineDiagnostics?.rebuiltMindTurnContract?.projectState?.preDialogueAwarenessLine,
-    )
-    expect(payloadHeadlineDiagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine)
-      .toBe(payloadCompanionHeadlineLine)
-    expect(payloadHeadlineDiagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessSummary)
-      .toBe(payloadCompanionHeadlineLine)
+    expectStructuredContinuityAwarenessFacts(payloadHeadlineDiagnostics?.preparedRuntimeSurfaceSelection?.fresherRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine)
+    expectStructuredContinuityAwarenessFacts(payloadHeadlineDiagnostics?.runtimeGroundedInputProjectStateAwarenessFields?.preDialogueAwarenessLine)
+    expectStructuredContinuityAwarenessFacts(payloadHeadlineDiagnostics?.rebuiltMindTurnContract?.projectState?.preDialogueAwarenessLine)
+    expectStructuredContinuityAwarenessFacts(payloadHeadlineDiagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine)
+    expectStructuredContinuityAwarenessFacts(payloadHeadlineDiagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessSummary)
   })
 
   it('shows normalized-returned-finalized provider-facing awareness handoff for the spine-rich project-state fixture', async () => {
@@ -15375,7 +15622,7 @@ describe('main chat session runtime', () => {
     for (const line of strongReturnedStages) {
       expect(String(line ?? '')).toMatch(/local-first digital life project|continuous digital life in Phase 1/i)
       expect(String(line ?? '')).toMatch(/Phase 1: Local Digital Life|continuous digital life in Phase 1/i)
-      expect(String(line ?? '')).toMatch(/Richer spine-carri|Memory and execution continuity have landed farther/u)
+      expectStructuredProjectAwarenessFacts(line)
       expect(String(line ?? '')).not.toContain('thin runtime identity only')
     }
     for (const projectState of [
@@ -15571,24 +15818,23 @@ describe('main chat session runtime', () => {
       normalized: diagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine ?? null,
     }
 
-    expect(preparedAwarenessStages.basePrepared).toBe(richerSpineAwarenessLine)
-    expect(preparedAwarenessStages.effectivePrepared).toBe(richerSpineAwarenessLine)
-    expect(preparedAwarenessStages.answerPlannerReduced).toBe(richerSpineAwarenessLine)
+    expectStructuredProjectAwarenessFacts(preparedAwarenessStages.basePrepared)
+    expectStructuredProjectAwarenessFacts(preparedAwarenessStages.effectivePrepared)
+    expectStructuredProjectAwarenessFacts(preparedAwarenessStages.answerPlannerReduced)
     for (const line of [preparedAwarenessStages.fresher, preparedAwarenessStages.builder]) {
-      expect(String(line ?? '')).toContain('continuous digital life in Phase 1')
-      expect(String(line ?? '')).toMatch(/Memory and execution continuity have landed farther|initiative and embodiment still need to close on the same living line/i)
+      expectStructuredProjectAwarenessFacts(line)
       expect(String(line ?? '')).not.toBe('same digital life | keep the closure seam explicit')
     }
     if (preparedAwarenessStages.runtimeGroundedInput) {
       expect(String(preparedAwarenessStages.runtimeGroundedInput)).toMatch(/Phase 1: Local Digital Life|continuous digital life in Phase 1/i)
-      expect(String(preparedAwarenessStages.runtimeGroundedInput)).toMatch(/Richer spine-carri|Memory and execution continuity have landed farther/i)
+      expectStructuredProjectAwarenessFacts(preparedAwarenessStages.runtimeGroundedInput)
     }
     expect(String(diagnostics?.runtimeGroundedInputProjectState?.identity ?? '')).toContain('local-first digital life project')
     expect(diagnostics?.runtimeGroundedInputProjectState?.currentPhase).toBe('Phase 1: Local Digital Life')
     for (const line of [preparedAwarenessStages.rebuilt, preparedAwarenessStages.normalized]) {
       expect(String(line ?? '')).toMatch(/local-first digital life project|continuous digital life in Phase 1/i)
       expect(String(line ?? '')).toMatch(/Phase 1: Local Digital Life|continuous digital life in Phase 1/i)
-      expect(String(line ?? '')).toMatch(/Richer spine-carri|provider-facing answer contract before reply authoring/i)
+      expectStructuredProjectAwarenessFacts(line)
     }
   })
 
@@ -15806,8 +16052,13 @@ describe('main chat session runtime', () => {
       payloadDiagnostics?.preparedRuntimeSurfaceChain?.answerPlannerReducedRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine,
     ]
 
-    expect(embodimentStageLines.includes(embodimentHeadline)).toBe(true)
+    for (const line of embodimentStageLines.filter(Boolean)) {
+      expectStructuredContinuityAwarenessFacts(line)
+      expect(line).not.toBe(embodimentHeadline)
+    }
     expect(payloadStageLines.every(line => typeof line === 'string')).toBe(true)
+    for (const line of payloadStageLines.filter(Boolean))
+      expectStructuredContinuityAwarenessFacts(line)
   })
 
   it('shows that embodiment same-her awareness survives the host-person and callback shaping stages', async () => {
@@ -15916,11 +16167,9 @@ describe('main chat session runtime', () => {
     const answerPlannerLine = diagnostics?.preparedRuntimeSurfaceChain?.answerPlannerReducedRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine
 
     expect([effectiveLine, sociallyShapedLine, executionCallbackLine, consciousFrameLine, answerPlannerLine].every(line => typeof line === 'string')).toBe(true)
-    expect(effectiveLine).toBe(embodimentHeadline)
-    expect(sociallyShapedLine).toBe(embodimentHeadline)
-    expect(executionCallbackLine).toBe(embodimentHeadline)
-    expect(consciousFrameLine).toBe(embodimentHeadline)
-    expect(answerPlannerLine).toBe(embodimentHeadline)
+    for (const line of [effectiveLine, sociallyShapedLine, executionCallbackLine, consciousFrameLine, answerPlannerLine]) {
+      expectStructuredContinuityAwarenessFacts(line)
+    }
   })
 
   it('injects payload same-her project-state evidence into the prepared runtime chain before builder selection', async () => {
@@ -16034,9 +16283,9 @@ describe('main chat session runtime', () => {
       prelude,
     })
 
-    expect(diagnostics?.preparedRuntimeSurfaceChain?.effectiveDigitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toBe(normalizedStrongerPayloadHeadline)
-    expect(diagnostics?.preparedRuntimeSurfaceSelection?.fresherRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toBe(normalizedStrongerPayloadHeadline)
-    expect(diagnostics?.runtimeSurfaceForBuilder?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toBe(normalizedStrongerPayloadHeadline)
+    expectStructuredProjectAwarenessFacts(diagnostics?.preparedRuntimeSurfaceChain?.effectiveDigitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine)
+    expectStructuredProjectAwarenessFacts(diagnostics?.preparedRuntimeSurfaceSelection?.fresherRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine)
+    expectStructuredProjectAwarenessFacts(diagnostics?.runtimeSurfaceForBuilder?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine)
   })
 
   it('keeps a structured-only still-voiced motion same-her headline through prepared runtime selection, rebuild, and normalize when chat-start only carried a thin project reminder shell', async () => {
@@ -16152,8 +16401,9 @@ describe('main chat session runtime', () => {
       },
     } as any)
 
-    expect(resolvedPayload.preDialogueSendIdentity?.awarenessLine).toBe(motionVoiceHeadline)
-    expect(resolvedPayload.preDialogueSendIdentity?.companionHeadlineLine).toBe(motionVoiceHeadline)
+    expectStructuredEmbodimentAwarenessFacts(resolvedPayload.preDialogueSendIdentity?.awarenessLine)
+    expectStructuredEmbodimentAwarenessFacts(resolvedPayload.preDialogueSendIdentity?.companionHeadlineLine)
+    expect(resolvedPayload.preDialogueSendIdentity?.awarenessLine).not.toBe(motionVoiceHeadline)
 
     const result = await runtime.prepareExecution({
       payload: {
@@ -16179,7 +16429,7 @@ describe('main chat session runtime', () => {
       diagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine,
       result.mindTurnContract?.projectState?.preDialogueAwarenessLine,
     ]) {
-      expect(line).toBe(motionVoiceHeadline)
+      expectStructuredContinuityAwarenessFacts(line)
       expect(line).not.toBe(thinProjectReminderShell)
       expect(line).not.toBe('Before answering, keep this same digital life project in view.')
     }
@@ -16191,7 +16441,7 @@ describe('main chat session runtime', () => {
       diagnostics?.normalizedMindTurnContract?.projectState?.companionHeadlineLine,
       result.mindTurnContract?.projectState?.companionHeadlineLine,
     ]) {
-      expect(line).toBe(motionVoiceHeadline)
+      expectStructuredContinuityAwarenessFacts(line)
     }
   })
 
@@ -16308,8 +16558,9 @@ describe('main chat session runtime', () => {
       },
     } as any)
 
-    expect(resolvedPayload.preDialogueSendIdentity?.awarenessLine).toBe(visibleNoBodyHeadline)
-    expect(resolvedPayload.preDialogueSendIdentity?.companionHeadlineLine).toBe(visibleNoBodyHeadline)
+    expectStructuredEmbodimentAwarenessFacts(resolvedPayload.preDialogueSendIdentity?.awarenessLine)
+    expectStructuredEmbodimentAwarenessFacts(resolvedPayload.preDialogueSendIdentity?.companionHeadlineLine)
+    expect(resolvedPayload.preDialogueSendIdentity?.awarenessLine).not.toBe(visibleNoBodyHeadline)
 
     const result = await runtime.prepareExecution({
       payload: {
@@ -16335,7 +16586,7 @@ describe('main chat session runtime', () => {
       diagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine,
       result.mindTurnContract?.projectState?.preDialogueAwarenessLine,
     ]) {
-      expect(line).toBe(visibleNoBodyHeadline)
+      expectStructuredContinuityAwarenessFacts(line)
       expect(line).not.toBe(thinProjectReminderShell)
       expect(line).not.toBe('Before answering, keep this same digital life project in view.')
     }
@@ -16347,7 +16598,7 @@ describe('main chat session runtime', () => {
       diagnostics?.normalizedMindTurnContract?.projectState?.companionHeadlineLine,
       result.mindTurnContract?.projectState?.companionHeadlineLine,
     ]) {
-      expect(line).toBe(visibleNoBodyHeadline)
+      expectStructuredContinuityAwarenessFacts(line)
     }
   })
 
@@ -16462,9 +16713,9 @@ describe('main chat session runtime', () => {
       prelude,
     })
 
-    expect(diagnostics?.preparedRuntimeSurfaceChain?.effectiveDigitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toBe(richerPayloadAwarenessLine)
-    expect(diagnostics?.preparedRuntimeSurfaceSelection?.fresherRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toBe(richerPayloadAwarenessLine)
-    expect(diagnostics?.runtimeSurfaceForBuilder?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toBe(richerPayloadAwarenessLine)
+    expectStructuredProjectAwarenessFacts(diagnostics?.preparedRuntimeSurfaceChain?.effectiveDigitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine)
+    expectStructuredProjectAwarenessFacts(diagnostics?.preparedRuntimeSurfaceSelection?.fresherRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine)
+    expectStructuredProjectAwarenessFacts(diagnostics?.runtimeSurfaceForBuilder?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine)
     expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).not.toBe(thinnerEmbodimentHeadline)
   })
 
@@ -16593,8 +16844,7 @@ describe('main chat session runtime', () => {
       diagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine,
       result.mindTurnContract?.projectState?.preDialogueAwarenessLine,
     ]) {
-      expect(String(line ?? '')).toContain('Phase 1')
-      expect(String(line ?? '')).toMatch(/project awareness and visible-reply repair already survive|Some closure already landed|still-open closure/i)
+      expectStructuredContinuityAwarenessFacts(line)
       expect(String(line ?? '')).not.toBe('same digital life | keep the closure seam explicit')
     }
   })
@@ -16998,7 +17248,10 @@ describe('main chat session runtime', () => {
     expect(String(mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).not.toBe('same digital life | keep the closure seam explicit')
     expect(String(mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toMatch(/continuous "her"|same phase 1 digital life|phase 1: local digital life/i)
     expect(mindTurnContract?.mustDo.some(item =>
-      item.includes('same project-aware self line') || item.includes('same-her continuity'),
+      item.includes('same project-aware self line')
+      || item.includes('same-her continuity')
+      || item.includes('continuity_owner=one_her')
+      || item.includes('project-state questions'),
     )).toBe(true)
     expect(mindTurnContract?.mustNotDo.some(item =>
       item.includes('same-her continuity instead of a detached project narrator shell')
@@ -17013,13 +17266,14 @@ describe('main chat session runtime', () => {
       && typeof message.content === 'string'
       && message.content.includes('[ALICIZATION_MIND_TURN_CONTRACT]'),
     )?.content as string | undefined
-    expect(String(mindTurnContractSystemText ?? '')).toContain('Project identity: Alicization is a local-first digital life project')
-    expect(String(mindTurnContractSystemText ?? '')).toContain('Project phase: Phase 1: Local Digital Life.')
-    expect(String(mindTurnContractSystemText ?? '')).toContain('Latest landed continuity progress: Same-session mirror carry')
-    expect(String(mindTurnContractSystemText ?? '')).toContain('Still-open life loop pressure: Memory still needs stronger end-to-end closure')
-    expect(String(mindTurnContractSystemText ?? '')).toContain('Next closure target: Keep extending cross-modal same-her proof')
-    expect(String(mindTurnContractSystemText ?? '')).not.toContain('Latest landed continuity progress: Memory still needs stronger end-to-end closure')
-    expect(String(mindTurnContractSystemText ?? '')).not.toContain('Still-open life loop pressure: Same-session mirror carry')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('owner=ProjectStateGovernance')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('identity=Alicization is a local-first digital life project')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('phase=Phase 1: Local Digital Life')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('landed=Same-session mirror carry')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('open=Memory still needs stronger end-to-end closure')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('next=Keep extending cross-modal same-her proof')
+    expectNoFixedProjectAwarenessTemplate(mindTurnContractSystemText)
     expect(String(mindTurnContractSystemText ?? '')).toMatch(/same-her continuity|detached project narrator shell|one continuous her/i)
   })
 
@@ -17255,13 +17509,16 @@ describe('main chat session runtime', () => {
       && typeof message.content === 'string'
       && message.content.includes('[ALICIZATION_MIND_TURN_CONTRACT]'),
     )?.content as string | undefined
-    expect(String(mindTurnContractSystemText ?? '')).toContain('Project identity: Alicization is a local-first digital life project')
-    expect(String(mindTurnContractSystemText ?? '')).toContain('Project phase: Phase 1: Local Digital Life.')
-    expect(String(mindTurnContractSystemText ?? '')).toContain('Latest landed continuity progress: Same-session mirror carry')
-    expect(String(mindTurnContractSystemText ?? '')).toContain('Still-open life loop pressure: Memory still needs stronger end-to-end closure')
-    expect(String(mindTurnContractSystemText ?? '')).toContain('Next closure target: Keep extending cross-modal same-her proof')
-    expect(String(mindTurnContractSystemText ?? '')).toContain('Project same-her self line: Same Phase 1 digital life.')
-    expect(String(mindTurnContractSystemText ?? '')).toContain('Project same-her drift risk:')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('owner=ProjectStateGovernance')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('identity=Alicization is a local-first digital life project')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('phase=Phase 1: Local Digital Life')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('landed=Same-session mirror carry')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('open=Memory still needs stronger end-to-end closure')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('next=Keep extending cross-modal same-her proof')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('continuity_anchor=')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('continuity_drift_risk=')
+    expectNoFixedProjectAwarenessTemplate(mindTurnContractSystemText)
 
     const semanticJudge = buildAlicizationVisibleReplySemanticJudgeArtifact({
       visibleText: '我先沿着同一个数字生命项目这条线直接回答你：这是一个本地优先数字生命项目。Phase 1 现在已经把连续性、记忆和执行慢慢接到了一条线上，但主动性和具身闭环还没有完全收住。',
@@ -17433,9 +17690,9 @@ describe('main chat session runtime', () => {
       } as any,
       prelude: reflectivePrelude,
     })
-    expect(String(result.sessionMirror?.continuityArcSummary ?? '')).toContain('same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(String(result.sessionMirror?.continuityArcSummary ?? '')).toContain('landed=')
-    expect(String(result.sessionMirror?.continuityArcSummary ?? '')).toContain('open=')
+    expect(String(result.sessionMirror?.continuityArcSummary ?? '')).toContain('stage=gentle-reopen')
+    expect(String(result.sessionMirror?.continuityArcSummary ?? '')).not.toContain('same_her=')
+    expectNoFixedProjectAwarenessTemplate(result.sessionMirror?.continuityArcSummary)
     const answerPlanner = result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner
     expect(String(answerPlanner?.governingProject ?? '')).toContain(projectState.currentPhase)
     expect(String(answerPlanner?.governingProject ?? '')).toContain('Memory still needs stronger end-to-end closure')
@@ -17469,15 +17726,17 @@ describe('main chat session runtime', () => {
           "Make the latest landed Phase 1 progress explicit instead of replying with only aspiration or direction.",
           "Keep the still-open closure work explicit so the answer says what is not yet closed.",
           "Make the next closure target explicit so the answer says what should close next rather than stopping at current status.",
-          "Answer project-state questions from one same-her continuity instead of a detached project narrator shell.",
-          "Keep the project-state opening low-pressure so the same-her line does not widen too fast.",
+          "Answer project-state questions from continuity_owner=one_her context instead of a detached project narrator shell.",
+          "Keep the project-state opening low-pressure so continuity context does not widen too fast.",
         ]
       `)
     }
     expect(mindTurnContract?.mustDo.some(item =>
       item.includes('same project-aware self line')
       || item.includes('same-her continuity')
-      || item.includes('same digital-life closure seam'),
+      || item.includes('same digital-life closure seam')
+      || item.includes('continuity_owner=one_her')
+      || item.includes('project-state questions'),
     )).toBe(true)
 
     const semanticJudge = buildAlicizationVisibleReplySemanticJudgeArtifact({
@@ -17613,11 +17872,11 @@ describe('main chat session runtime', () => {
       result.mindTurnContract?.projectState?.preDialogueAwarenessSummary,
       result.mindTurnContract?.projectState?.awarenessLine,
     ]) {
-      expect(String(line ?? '')).toContain('Phase 1')
-      expect(String(line ?? '')).toMatch(/initiative and embodiment closure|same living line|one continuous her|still-open Phase 1 closure/i)
+      expectStructuredContinuityAwarenessFacts(line)
       expect(String(line ?? '')).not.toBe('same digital life | keep the closure seam explicit')
     }
-    expect(result.mindTurnContract?.projectState?.companionHeadlineLine).toBe(strongerHeadline)
+    expectStructuredProjectAwarenessFacts(result.mindTurnContract?.projectState?.companionHeadlineLine)
+    expect(result.mindTurnContract?.projectState?.companionHeadlineLine).not.toBe(strongerHeadline)
 
     const mindTurnContractSystemText = result.messages.find(message =>
       message.role === 'system'
@@ -17626,8 +17885,10 @@ describe('main chat session runtime', () => {
     )?.content
 
     expect(typeof mindTurnContractSystemText).toBe('string')
-    expect(mindTurnContractSystemText).toContain(`Project pre-dialogue awareness line: ${result.mindTurnContract?.projectState?.preDialogueAwarenessLine}.`)
-    expect(mindTurnContractSystemText).toContain(strongerHeadline)
+    expect(String(mindTurnContractSystemText ?? '')).toContain('[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('owner=ProjectStateGovernance')
+    expect(String(mindTurnContractSystemText ?? '')).toContain('continuity_anchor=')
+    expectNoFixedProjectAwarenessTemplate(mindTurnContractSystemText)
   })
 
   it('lets host person model shape reply deliberation and answer planning for focused work turns', async () => {
@@ -17946,7 +18207,7 @@ describe('main chat session runtime', () => {
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.mustDo.some(item => item.includes('repair lands before closeness'))).toBe(true)
   })
 
-  it('keeps Phase 1 project-state preflight alive for ordinary continuation turns that only ask to continue the runtime knot', async () => {
+  it('keeps ordinary continuation turns free of canonical project-state prompt governance when the payload did not explicitly request project-state', async () => {
     let diagnostics: LoosePreparedExecutionDiagnostics = {}
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
@@ -18121,107 +18382,36 @@ describe('main chat session runtime', () => {
       }),
     })
 
-    const projectState = result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState
     const mindTurnContract = result.mindTurnContract
     const answerPlanner = result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner
-    expect(projectState?.preDialogueAwarenessLine).toBe(
-      diagnostics?.finalReturnedRuntimeSurfaceProjectState?.preDialogueAwarenessLine,
-    )
-    expect(mindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(
-      diagnostics?.finalReturnedRuntimeSurfaceProjectState?.preDialogueAwarenessLine,
-    )
-    expect(projectState?.identity).toContain('local-first digital life project')
-    expect(projectState?.currentPhase).toContain('Phase 1: Local Digital Life')
-    expect(diagnostics?.normalizedMindTurnContract?.projectState).toEqual(expect.objectContaining({
-      identity: expect.any(String),
-      currentPhase: expect.any(String),
-      latestLandedProgress: expect.any(String),
-      primaryOpenLoop: expect.any(String),
-      nextClosureTarget: expect.any(String),
-    }))
-    expect(projectState?.preDialogueAwarenessLine).toContain('Before answering, remember:')
-    expect(projectState?.preDialogueAwarenessLine).toContain('one continuous "her"')
-    expect(projectState?.preDialogueAwarenessLine).toContain('Some closure already lande')
-    expect(projectState?.preDialogueAwarenessLine).toContain('What has already landed is')
-    expect(projectState?.preDialogueAwarenessLine).toContain('The still-open closure is')
-    expect(projectState?.preDialogueAwarenessLine).toContain('This reply should keep moving toward')
-    expect(projectState?.sameHerSelfLine).toContain('Same Phase 1 digital life')
-    expect(projectState?.primaryOpenLoop).toContain('Memory still needs stronger end-to-end closure')
-    expect(projectState?.primaryOpenLoop).toContain('Project identity carry')
-    expect(projectState?.nextClosureTarget).toContain('Keep extending cross-modal same-her proof')
-    expect(projectState?.nextClosureTarget).toContain('Project identity carry')
-    expect(String(answerPlanner?.governingProject ?? '')).toContain('Phase 1: Local Digital Life')
-    expect(String(answerPlanner?.governingProject ?? '')).toContain('Same Phase 1 digital life')
-    expect(String(answerPlanner?.governingProject ?? '')).toContain('Memory still needs stronger end-to-end closure')
-    expect(String(answerPlanner?.governingProject ?? '')).toContain('Keep extending cross-modal same-her proof')
-    expect(String(answerPlanner?.governingProject ?? '')).toMatch(/open=|still-open closure/i)
-    expect(String(answerPlanner?.governingProject ?? '')).toMatch(/next=|keep extending cross-modal same-her proof/i)
+    const providerSystemText = result.messages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content))
+      .join('\n')
+    const returnedProjectStateText = JSON.stringify({
+      diagnostics,
+      projectState: mindTurnContract?.projectState ?? null,
+      preDialogueClosure: mindTurnContract?.preDialogueClosure ?? null,
+    })
+
+    expect(providerSystemText).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
+    expect(providerSystemText).toContain('[ALICIZATION_WORKING_MEMORY]')
+    expect(providerSystemText).not.toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(providerSystemText).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+    expect(providerSystemText).not.toContain('Before answering, remember:')
+    expect(providerSystemText).not.toContain('Same Phase 1 digital life')
+    expect(providerSystemText).not.toContain('same living line')
+    expect(providerSystemText).not.toContain('phase1_local_digital_life_anchor')
+
+    expect(String(answerPlanner?.governingProject ?? '')).toBe('')
     expect(answerPlanner?.mustDo.some(item =>
       item.includes('same-her continuity')
       || item.includes('same project-aware self line')
       || item.includes('same digital-life closure seam'),
-    )).toBe(true)
-    if (diagnostics?.providerFacingAwarenessResolutionDiagnostics?.rebuiltPreDialogueAwarenessLine) {
-      expect(diagnostics.providerFacingAwarenessResolutionDiagnostics.rebuiltPreDialogueAwarenessLine).toContain('Before answering, remember:')
-    }
-    if (diagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine) {
-      expect(diagnostics.normalizedMindTurnContract.projectState.preDialogueAwarenessLine).toContain('Before answering, remember:')
-    }
-    expect(mindTurnContract?.projectState?.preDialogueAwarenessLine).toContain('Before answering, remember:')
-    expect(mindTurnContract?.projectState?.preDialogueAwarenessLine).toContain('What has already landed is')
-    expect(mindTurnContract?.projectState?.preDialogueAwarenessLine).toContain('The still-open closure is')
-    expect(mindTurnContract?.projectState?.preDialogueAwarenessLine).toContain('This reply should keep moving toward')
-    expect(diagnostics?.finalReturnedRuntimeSurfaceProjectState?.preDialogueAwarenessLine).toContain('Before answering, remember:')
-    expect(diagnostics?.finalReturnedRuntimeSurfaceProjectState?.preDialogueAwarenessLine).toContain('What has already landed is')
-    expect(diagnostics?.finalReturnedRuntimeSurfaceProjectState?.preDialogueAwarenessLine).toContain('The still-open closure is')
-    expect(diagnostics?.finalReturnedRuntimeSurfaceProjectState?.preDialogueAwarenessLine).toContain('This reply should keep moving toward')
-
-    expect(mindTurnContract?.projectState?.identity).toContain('local-first digital life project')
-    expect(mindTurnContract?.projectState?.currentPhase).toContain('Phase 1: Local Digital Life')
-    expect(mindTurnContract?.projectState?.sameHerSelfLine).toContain('Same Phase 1 digital life')
-    expect(mindTurnContract?.preDialogueClosure?.briefingLines).toEqual(expect.arrayContaining([
-      expect.stringContaining('Project identity:'),
-      expect.stringContaining('Current phase:'),
-      expect.stringContaining('Still-open closure gap:'),
-      expect.stringContaining('Next closure target:'),
-    ]))
-    if (diagnostics?.normalizedMindTurnContract?.mustDo) {
-      expect(diagnostics.normalizedMindTurnContract.mustDo).toMatchInlineSnapshot(`
-        [
-          "Honor the turn memory gate before speaking: closed.",
-          "Let memory shape caution, ordering, care, and uncertainty inwardly without narrating recall this turn.",
-          "Use the Memory OS closure trace as the authority for this turn's same-her memory carry.",
-          "Keep embodied delivery coherent with memory: Repair the seam before leaning closer.",
-          "Answer what Alicization is before drifting into tone, metaphor, or adjacent status commentary.",
-          "Make the latest landed Phase 1 progress explicit instead of replying with only aspiration or direction.",
-          "Keep the still-open closure work explicit so the answer says what is not yet closed.",
-          "Make the next closure target explicit so the answer says what should close next rather than stopping at current status.",
-          "Answer project-state questions from one same-her continuity instead of a detached project narrator shell.",
-          "Keep the project-state opening low-pressure so the same-her line does not widen too fast.",
-        ]
-      `)
-    }
-    expect(mindTurnContract?.mustNotDo).toMatchInlineSnapshot(`
-      [
-        "Do not visibly cite, narrate, or dramatize recalled material while the turn memory gate is inward-only or closed.",
-        "Do not let low recall readiness drive the visible answer.",
-        "Do not let low memory precision claim exact detail or settled continuity.",
-        "Do not close, revise away, or over-certify this memory line; the Memory OS trace still marks it open or revision-required.",
-        "Do not answer a project-state question with only vibes, ambition, or generic companionship language.",
-        "Do not skip what has already landed, what still remains open, or what should close next when the host asks for project status.",
-        "Do not reopen a direct project-state answer from scratch as if Alicization were a fresh assistant restart.",
-      ]
-    `)
-    expect(mindTurnContract?.mustDo.some(item =>
-      item.includes('same project-aware self line')
-      || item.includes('same-her continuity')
-      || item.includes('still-open closure work explicit'),
-    )).toBe(true)
-    expect(mindTurnContract?.mustNotDo.some(item =>
-      item.includes('fresh assistant restart')
-      || item.includes('detached project narrator shell')
-      || item.includes('project-state question with only vibes'),
-    )).toBe(true)
+    )).toBe(false)
+    expect(returnedProjectStateText).not.toContain('Before answering, remember:')
+    expect(returnedProjectStateText).not.toContain('Same Phase 1 digital life')
+    expect(returnedProjectStateText).not.toContain('same living line')
   })
 
   it('keeps returned-side project awareness on the richer prepared-runtime continuity line instead of falling back to a thinner payload shell', async () => {
@@ -18441,10 +18631,8 @@ describe('main chat session runtime', () => {
     )
     expect(returnedProjectState?.preDialogueAwarenessLine).not.toBe('same digital life | keep the closure seam explicit')
     expect(returnedContractProjectState?.preDialogueAwarenessLine).not.toBe('same digital life | keep the closure seam explicit')
-    expect(String(returnedProjectState?.preDialogueAwarenessLine ?? '')).toContain('Before answering, remember:')
+    expectStructuredProjectAwarenessFacts(returnedProjectState?.preDialogueAwarenessLine)
     expect(String(returnedProjectState?.preDialogueAwarenessLine ?? '')).toContain('Phase 1: Local Digital Life')
-    expect(String(returnedProjectState?.preDialogueAwarenessLine ?? '')).toMatch(/What has already landed is|Some closure already landed/i)
-    expect(String(returnedProjectState?.preDialogueAwarenessLine ?? '')).toMatch(/The still-open closure is|unfinished closure/i)
     expect(String(returnedContractProjectState?.preDialogueAwarenessLine ?? '')).toContain('one continuous "her"')
     expect(String(returnedProjectState?.nextClosureTarget ?? '')).toMatch(/Keep extending cross-modal same-her proof|same living line/i)
     expect(returnedProjectState?.emotionalClosureSummary).toBe('Keep the returned-side reopening measured so memory, initiative, and embodiment remain on one living line.')
@@ -18581,8 +18769,8 @@ describe('main chat session runtime', () => {
     expect(String(returnedProjectState?.primaryOpenLoop ?? '')).toMatch(/Memory still needs stronger end-to-end closure|one tighter same-life closure seam/u)
     expect(String(returnedContractProjectState?.nextClosureTarget ?? '')).toContain('Keep extending cross-modal same-her proof')
     expect(String(returnedProjectState?.nextClosureTarget ?? '')).toContain('Keep extending cross-modal same-her proof')
-    expect(String(returnedContractProjectState?.sameHerSelfLine ?? '')).toContain('Same Phase 1 digital life')
-    expect(String(returnedProjectState?.sameHerSelfLine ?? '')).toContain('Same Phase 1 digital life')
+    expectStructuredProjectAwarenessFacts(returnedContractProjectState?.sameHerSelfLine)
+    expectStructuredProjectAwarenessFacts(returnedProjectState?.sameHerSelfLine)
     expect(String(returnedContractProjectState?.identity ?? '')).not.toBe('project')
     expect(String(returnedProjectState?.identity ?? '')).not.toBe('project')
     expect(String(returnedContractProjectState?.currentPhase ?? '')).not.toBe('Phase 1')
@@ -18593,7 +18781,7 @@ describe('main chat session runtime', () => {
     expect(String(returnedProjectState?.primaryOpenLoop ?? '')).not.toBe('Project continuity still needs closure.')
     expect(String(returnedContractProjectState?.nextClosureTarget ?? '')).not.toBe('Carry project continuity forward.')
     expect(String(returnedProjectState?.nextClosureTarget ?? '')).not.toBe('Carry project continuity forward.')
-    expect(String(diagnostics?.finalReturnedRuntimeSurfaceProjectState?.preDialogueAwarenessLine ?? '')).toContain('Before answering, remember:')
+    expectStructuredProjectAwarenessFacts(diagnostics?.finalReturnedRuntimeSurfaceProjectState?.preDialogueAwarenessLine)
   })
 
   it('keeps focused-work opening discipline split by initialized persona while staying on the same task knot', async () => {

@@ -283,7 +283,7 @@ export function buildDiscourseState(input: {
   })
   const currentTurnSummary = sanitizeText(
     (projectStateContinuityTurn
-      ? 'The host is asking Alicization to answer the project line from one continuous her, including what it is, what has landed, and what still remains open.'
+      ? 'turn_summary=project_state_continuity_request; facts_requested=identity_progress_open_loops; visibility=internal-structured'
       : '')
     || (dialogueFirst
       ? primaryTurnAnchor
@@ -300,9 +300,9 @@ export function buildDiscourseState(input: {
     || dialogueSemantics?.summary
     || worldModel?.activeThread?.summary
     || input.previous?.currentTurnSummary
-    || 'Stay with the current turn.',
+    || 'turn_summary=current_turn; visibility=internal-structured',
     200,
-  ) || 'Stay with the current turn.'
+  ) || 'turn_summary=current_turn; visibility=internal-structured'
 
   return {
     currentTurnSubject: subject,

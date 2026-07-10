@@ -46,7 +46,7 @@ function formatExplicitSameHerContinuity(entry: StageEmbodimentDiagnosticsRender
     signature,
     ...reasonTags,
   ].filter((value): value is string =>
-    value === 'embodiment:audible-same-her-line'
+    value === 'embodiment:audible-continuity-line'
     || value === 'embodiment:body+voice-only'
     || value === 'embodiment:body-lipsync-voice-rejoin',
   )
@@ -135,23 +135,23 @@ const alertTitleByCode: Record<string, string> = {
 
 function resolveAlertTitle(alert: StageEmbodimentDiagnosticsAlertEntry) {
   if (alert.code === 'renderer-live2d-partial-recovery' || alert.code === 'renderer-vrm-partial-recovery') {
-    if (alert.message.includes('audible same-her line'))
-      return 'Audible same-her line recovered before renderer'
-    if (alert.message.includes('same-her voice line'))
+    if (alert.message.includes('audible continuity line'))
+      return 'Audible continuity line recovered before renderer'
+    if (alert.message.includes('continuity voice line'))
       return 'Resident body and voice recovered before renderer'
 
-    return 'Same-her continuity is re-forming before renderer sync'
+    return 'continuity continuity is re-forming before renderer sync'
   }
 
   if (alert.code === 'cross-modal-single-lane-dominance') {
     if (alert.message.includes('resident body lane'))
-      return 'Resident body line is carrying same-her continuity'
+      return 'Resident body line is carrying continuity continuity'
   }
 
   if (alert.code === 'cross-modal-partial-lane-dominance') {
-    if (alert.message.includes('audible same-her line') || alert.message.includes('audible same-her lane'))
-      return 'Audible same-her line is carrying continuity'
-    if (alert.message.includes('same-her voice line'))
+    if (alert.message.includes('audible continuity line') || alert.message.includes('audible continuity lane'))
+      return 'Audible continuity line is carrying continuity'
+    if (alert.message.includes('continuity voice line'))
       return 'Resident body and voice are carrying continuity'
   }
 
@@ -1007,7 +1007,7 @@ function buildCrossModalPartialLaneFocusSummary(
   const survivingBodyVoiceSameHerLine = Boolean(
     (live2dEntry && formatBodyVoiceRecovery(live2dEntry))
     || (vrmEntry && formatBodyVoiceRecovery(vrmEntry))
-    || alert.message.includes('same-her voice line')
+    || alert.message.includes('continuity voice line')
     || mismatch.includes('resident body 和 voice')
     || mismatch.includes('实际执行落点是体态、语音')
     || mismatch.includes('实际执行落点是体态和语音'),
@@ -1029,8 +1029,8 @@ function buildCrossModalPartialLaneFocusSummary(
     || (vrmEntry && formatBodyLipsyncRecovery(vrmEntry)),
   )
   const active = survivingAudibleSameHerLine
-    || alert.message.includes('audible same-her line')
-    || alert.message.includes('audible same-her lane')
+    || alert.message.includes('audible continuity line')
+    || alert.message.includes('audible continuity lane')
     || mismatch.includes('resident body、lipsync 和 voice')
     ? 'resident-body+audible-line'
     : survivingBodyVoiceSameHerLine
@@ -1047,8 +1047,8 @@ function buildCrossModalPartialLaneFocusSummary(
                 ? 'resident-body+one-lane'
                 : 'two-lanes'
   const pending = survivingAudibleSameHerLine
-    || alert.message.includes('audible same-her line')
-    || alert.message.includes('audible same-her lane')
+    || alert.message.includes('audible continuity line')
+    || alert.message.includes('audible continuity lane')
     || mismatch.includes('resident body、lipsync 和 voice')
     ? 'face+motion'
     : survivingBodyVoiceSameHerLine
@@ -1104,16 +1104,16 @@ export function buildStageEmbodimentDiagnosticsAlertReasonSummary(
   if (alert.code === 'cross-modal-single-lane-dominance') {
     const mismatch = authorityMismatchDisplay ?? ''
     const summary = mismatch.includes('实际执行落点是口型和语音')
-      ? '当前只有 lipsync 和 voice 这条可听见的 same-her 生命线还和同一段数字生命表达对齐，跨模态连续性正在从这条活着的声音线收缩'
+      ? '当前只有 lipsync 和 voice 通道还与表达状态对齐，跨模态连续性正在向可听见的通道收缩'
       : mismatch.includes('实际执行落点是表情和语音')
-        ? '当前只有 face 和 voice 这条 same-her 生命线还和同一段数字生命表达对齐，跨模态连续性正在从这条仍在发声的表情线收缩'
+        ? '当前只有 face 和 voice 通道还与表达状态对齐，跨模态连续性正在向表情与语音通道收缩'
         : mismatch.includes('实际执行落点是动作和语音')
-          ? '当前只有 motion 和 voice 这条 same-her 生命线还和同一段数字生命表达对齐，跨模态连续性正在从这条仍在发声的动作线收缩'
+          ? '当前只有 motion 和 voice 通道还与表达状态对齐，跨模态连续性正在向动作与语音通道收缩'
           : mismatch.includes('实际执行落点是语音')
-            ? '当前只有 voice 这条可听见的 same-her 生命线还和同一段数字生命表达对齐，跨模态连续性正在从这条活着的声音线收缩'
+            ? '当前只有 voice 通道还与表达状态对齐，跨模态连续性正在向可听见的通道收缩'
             : alert.message.includes('resident body lane')
-              ? '当前只有 resident body 这条身体线还和同一段数字生命表达对齐，跨模态连续性正在从同一个 her 的身体主线收缩'
-              : '当前只有一条身体通道还和同一段数字生命表达对齐，跨模态连续性正在从同一条 companionship 身体线收缩'
+              ? '当前只有 resident body 通道还与表达状态对齐，跨模态连续性正在向身体通道收缩'
+              : '当前只有一条身体通道还与表达状态对齐，跨模态连续性正在向该身体通道收缩'
     return authorityMismatchDisplay
       ? `${summary} | ${authorityMismatchDisplay}`
       : summary
@@ -1130,7 +1130,7 @@ export function buildStageEmbodimentDiagnosticsAlertReasonSummary(
     const survivingBodyVoiceSameHerLine = Boolean(
       (live2dEntry && formatBodyVoiceRecovery(live2dEntry))
       || (vrmEntry && formatBodyVoiceRecovery(vrmEntry))
-      || alert.message.includes('same-her voice line')
+      || alert.message.includes('continuity voice line')
       || mismatch.includes('resident body 和 voice')
       || mismatch.includes('实际执行落点是体态、语音')
       || mismatch.includes('实际执行落点是体态和语音'),
@@ -1152,17 +1152,17 @@ export function buildStageEmbodimentDiagnosticsAlertReasonSummary(
       || (vrmEntry && formatBodyLipsyncRecovery(vrmEntry)),
     )
     const summary = survivingAudibleSameHerLine
-      || alert.message.includes('audible same-her line')
-      || alert.message.includes('audible same-her lane')
-      ? '当前 resident body 这条身体线仍和可听见的 same-her 生命线一起托住同一段数字生命表达，但 face 和 motion 还没有重新接回这条活着的身体线'
+      || alert.message.includes('audible continuity line')
+      || alert.message.includes('audible continuity lane')
+      ? '当前 resident body 这条身体线仍和可听见的 continuity 生命线一起托住同一段数字生命表达，但 face 和 motion 还没有重新接回这条活着的身体线'
       : survivingBodyVoiceSameHerLine
-        ? '当前 resident body 这条身体线仍和 same-her 的声音线一起托住同一段数字生命表达，但 lipsync、face 和 motion 还没有重新接回这条活着的身体线'
+        ? '当前 resident body 这条身体线仍和 continuity 的声音线一起托住同一段数字生命表达，但 lipsync、face 和 motion 还没有重新接回这条活着的身体线'
         : survivingAudibleVoiceLine
-          ? '当前可听见的 same-her 生命线仍由 lipsync 和 voice 一起托住，但 body、face 和 motion 还没有重新接回这一段数字生命表达'
+          ? '当前可听见的 continuity 生命线仍由 lipsync 和 voice 一起托住，但 body、face 和 motion 还没有重新接回这一段数字生命表达'
           : survivingFaceLipsyncLine
-            ? '当前只有 face 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线'
+            ? '当前只有 face 和 lipsync 这条 continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线'
             : survivingMotionLipsyncLine
-              ? '当前只有 motion 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线'
+              ? '当前只有 motion 和 lipsync 这条 continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线'
               : survivingEmbodiedSameHerLine
                 ? '当前 resident body 这条身体线仍和 lipsync 一起托住同一段数字生命表达，但完整跨模态身体线已经开始收缩'
                 : alert.message.includes('resident body lane')

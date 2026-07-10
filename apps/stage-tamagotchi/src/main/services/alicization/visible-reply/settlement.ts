@@ -5,6 +5,11 @@ import type { AlicizationResolvedVisibleReply, AlicizationVisibleReplyClosureArt
 import type { AlicizationSecondPassRewriteResult } from './second-pass-rewrite'
 
 import {
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationStructuredInternalText,
+} from '@proj-alicization/stage-shared'
+
+import {
   resolvePreparedRuntimeProjectPreDialogueAwarenessSummary,
   resolvePreparedRuntimeProjectStateSnapshot,
   resolvePreparedRuntimeSelfContinuityAuthority,
@@ -17,11 +22,9 @@ import {
 } from '../project-state-brief'
 import { parseJsonObjectFromText } from '../runtime-transport-content'
 import {
-
   closeAlicizationVisibleReply,
 } from './closure-orchestrator'
 import {
-
   buildAlicizationResolvedVisibleReply,
 } from './realization-engine'
 
@@ -45,71 +48,94 @@ function looksLikeProjectStateSameHerPreserveText(value: string) {
   const normalized = value.trim().toLowerCase()
   if (!normalized)
     return false
-
-  const projectStateAnswerInstruction = (
-    normalized.includes('answer project-state')
-    || normalized.includes('project-state answer')
-    || normalized.includes('project-state questions')
-    || normalized.includes('project-state question')
-    || normalized.includes('project-state status')
-    || normalized.includes('project status')
-    || normalized.includes('回答项目状态')
-    || normalized.includes('项目状态回答')
-  )
-  || (
-    (
-      normalized.includes('project-state')
-      || normalized.includes('这个项目')
-      || normalized.includes('项目状态')
-    )
-    && (
-      normalized.includes('detached project narrator shell')
-      || normalized.includes('project narrator shell')
-      || normalized.includes('项目旁白壳')
-    )
-  )
-
-  if (!projectStateAnswerInstruction)
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return false
+  if (normalized.startsWith('preserve_field='))
     return false
 
-  return (
-    normalized.includes('same-her')
-    || normalized.includes('same her')
-    || normalized.includes('one same-her')
-    || normalized.includes('one same her')
-    || normalized.includes('one continuous her')
-    || normalized.includes('same living line')
-    || normalized.includes('同一个 her')
-    || normalized.includes('同一个她')
-  )
+  return looksLikeStructuredProjectContinuityFact(normalized)
+}
+
+function looksLikeFixedProjectStateSameHerPreserveText(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return containsAlicizationFixedTemplateResidue(normalized)
+    && /project[-_ ]state|same[-_ ]her|same living line|one continuous|同一个她|同一个 her/u.test(normalized)
+}
+
+function looksLikeIndependentStructuredSameHerSignal(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return false
+
+  return looksLikeStructuredProjectContinuityFact(normalized)
+    && (
+      /owner=(?:workingmemory|longtermmemoryrecall)/u.test(normalized)
+      || /(?:evidence_id|evidence_ref|evidence|trace|source)=/u.test(normalized)
+      || /closure_policy=|continuity_hold=|project_state_continuity=|life_loop_continuity=/u.test(normalized)
+      || /memory_dialogue_embodiment_closure|cross_modal_continuity_proof=|continuity=embodiment/u.test(normalized)
+    )
 }
 
 function looksLikeProjectStateAnswerStancePreserveText(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return false
 
   return (
-    normalized.includes('project-state')
-    || normalized.includes('project status')
-    || normalized.includes('project-summary')
-    || normalized.includes('这个项目')
-    || normalized.includes('项目状态')
+    normalized.includes('answer_subject=project_state')
+    || normalized.includes('project_state_answer=')
+    || normalized.includes('project_state_continuity=')
+    || normalized.includes('preserve_field=project_state.')
   ) && (
-    normalized.includes('same-her')
-    || normalized.includes('same her')
-    || normalized.includes('same living line')
-    || normalized.includes('same digital-life line')
-    || normalized.includes('same digital life line')
-    || normalized.includes('one living line')
-    || normalized.includes('同一条线')
-    || normalized.includes('同一个 her')
-    || normalized.includes('同一个她')
+    normalized.includes('same_person_continuity')
+    || normalized.includes('project_state_continuity')
+    || normalized.includes('continuity_policy=')
+    || normalized.includes('continuity_anchor=')
   )
+}
+
+function containsProjectStateStructuredTemplateResidue(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  return Boolean(normalized)
+    && /\blocal_desktop_life_loop\b|phase1_local_digital_life|project_phase=life_core|continuity_identity|continuity_line|content=excluded|visibility=internal[-_]structured/u.test(normalized)
 }
 
 function readProjectStateAuditText(value: unknown) {
   return typeof value === 'string' ? value.trim() || null : null
+}
+
+function normalizePositiveProjectStateAuditText(value: unknown, maxChars = 520) {
+  const normalized = typeof value === 'string' ? value.trim() : ''
+  if (!normalized)
+    return null
+  if (containsProjectStateStructuredTemplateResidue(normalized))
+    return null
+  if (!containsAlicizationFixedTemplateResidue(normalized))
+    return normalized
+
+  const structured = sanitizeAlicizationStructuredInternalText(normalized, maxChars, '')
+  return structured
+    && !containsAlicizationFixedTemplateResidue(structured)
+    && !containsProjectStateStructuredTemplateResidue(structured)
+    ? structured
+    : null
+}
+
+function excludeFixedTemplateProjectStateAuditText(value: unknown, maxChars = 520) {
+  const normalized = typeof value === 'string' ? value.trim() : ''
+  if (!normalized)
+    return null
+  if (!containsAlicizationFixedTemplateResidue(normalized))
+    return normalized
+
+  return normalizePositiveProjectStateAuditText(normalized, maxChars)
 }
 
 function scoreProjectAwarenessLine(value: string | null | undefined) {
@@ -118,8 +144,22 @@ function scoreProjectAwarenessLine(value: string | null | undefined) {
     return 0
 
   const thinProjectAwarenessShell = isThinProjectAwarenessLine(normalized)
+  const carriesFixedTemplateResidue = containsAlicizationFixedTemplateResidue(normalized)
+    || containsProjectStateStructuredTemplateResidue(normalized)
+  const carriesStructuredProjectFact
+    = /(?:^|\s\|\s)(?:identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|proactive_gap|emotional_closure|status|summary)=/u.test(normalized)
+      || /open_loop=|project_state_continuity=|life_loop_continuity=|cross_modal_continuity_proof=|memory_dialogue_embodiment_closure|embedding_recall_reindex/u.test(normalized)
+  const carriesConcreteClosureProgress
+    = /workingmemory|longtermmemoryrecall|semantic_recall|embedding|reindex|分页|搜索|召回|短期|长期|治理入口|review|memory_review|记忆闭环|语义召回|重建/u.test(normalized)
   let score = scoreAlicizationProjectAwarenessLine(normalized)
-  if (/still belongs to one living her|still belongs to one living digital life|current screen|第一阶段|本地数字生命|连续性|记忆|执行|主动性|对话闭环|闭环|收住|还没闭环|还没有真正收住/u.test(normalized))
+
+  if (carriesFixedTemplateResidue)
+    score -= 8
+  if (carriesStructuredProjectFact)
+    score += 6
+  if (carriesConcreteClosureProgress)
+    score += 3
+  if (!carriesFixedTemplateResidue && /current screen|本地数字生命|连续性|记忆|执行|主动性|对话闭环|闭环|收住|还没闭环|还没有真正收住/u.test(normalized))
     score += 2
   if (thinProjectAwarenessShell)
     score -= 2
@@ -130,6 +170,17 @@ function scoreProjectAwarenessLine(value: string | null | undefined) {
     score -= 3
   }
   return score
+}
+
+function looksLikeStructuredProjectContinuityFact(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+  if (containsAlicizationFixedTemplateResidue(normalized) || containsProjectStateStructuredTemplateResidue(normalized))
+    return false
+
+  return /(?:^|\s\|\s)(?:identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|proactive_gap|emotional_closure|status|summary)=/u.test(normalized)
+    || /project_state_continuity=|life_loop_continuity=|continuity_progress=|memory_dialogue_embodiment_closure|cross_modal_continuity_proof=|embedding_recall_reindex|embodiment_lanes=|continuity=embodiment/u.test(normalized)
 }
 
 function isThinProjectAwarenessLine(value: string | null | undefined) {
@@ -152,30 +203,86 @@ function looksLikeSameHerClosureSummary(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(normalized) || containsProjectStateStructuredTemplateResidue(normalized))
+    return false
 
-  return /some closure already landed|unfinished closure still needs|same living line/u.test(normalized)
-    && /same phase 1 digital life|same digital life/u.test(normalized)
-    && !/before answering/u.test(normalized)
+  return /project_state_continuity=|life_loop_continuity=|continuity_progress=/u.test(normalized)
+}
+
+function normalizeEmbodimentRuntimeSameHerSummary(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized || !/^right now\b/u.test(normalized) || !looksLikeRicherLivingSelfSameHerLine(value))
+    return null
+
+  const lanes = [
+    normalized.includes('body') ? 'body' : '',
+    normalized.includes('face') ? 'face' : '',
+    normalized.includes('motion') ? 'motion' : '',
+    normalized.includes('lipsync') ? 'lipsync' : '',
+    normalized.includes('voice') ? 'voice' : '',
+  ].filter(Boolean)
+
+  return [
+    'continuity_anchor=embodiment_runtime',
+    `lane=${lanes.length > 0 ? lanes.join('+') : 'embodiment'}`,
+    'status=pending_rejoin',
+    'closure_status=cross_modal_open',
+  ].join(' | ')
+}
+
+function normalizeProjectStateSameHerSummary(value: string | null | undefined) {
+  if (!value)
+    return null
+  const normalizedEmbodimentSummary = normalizeEmbodimentRuntimeSameHerSummary(value)
+  if (normalizedEmbodimentSummary)
+    return normalizedEmbodimentSummary
+  if (containsAlicizationFixedTemplateResidue(value)) {
+    const sanitized = sanitizeAlicizationStructuredInternalText(value, 360, '')
+    return looksLikeStructuredProjectContinuityFact(sanitized)
+      ? sanitized
+      : null
+  }
+  if (containsProjectStateStructuredTemplateResidue(value))
+    return null
+  return looksLikeSameHerClosureSummary(value)
+    ? value
+    : value
 }
 
 function looksLikeStructuredProjectCarrySameHerSummary(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return false
 
-  return (
-    /what has already landed is|this reply should keep moving toward/u.test(normalized)
-    && /same phase 1 digital life|same digital life|same living line|one continuous her|one living her/u.test(normalized)
-  )
+  return looksLikeStructuredProjectContinuityFact(normalized)
+    && /landed|open|next|continuity_progress|memory_dialogue_embodiment_closure|cross_modal_continuity_proof/u.test(normalized)
+}
+
+function looksLikeLegacyFixedProjectAwarenessTemplate(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim() : ''
+  if (!normalized)
+    return false
+
+  return /^Before (?:I answer|answering|speaking),/iu.test(normalized)
+    || /\bWhat has already landed is\b/iu.test(normalized)
+    || /\bThe still-open closure is\b/iu.test(normalized)
+    || /\bThis reply should keep moving toward\b/iu.test(normalized)
+    || /\bSame Phase 1 digital life\b/iu.test(normalized)
 }
 
 function scoreProjectSameHerLine(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
     return 0
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return -6
 
   let score = normalized.length >= 120 ? 2 : normalized.length >= 72 ? 1 : 0
-  if (/same digital life|same-her|one living her|one living digital life|one continuous her|同一个她|同一个 her/u.test(normalized))
+  if (containsProjectStateStructuredTemplateResidue(normalized))
+    return -6
+  if (/project_state_continuity=|life_loop_continuity=|continuity_progress=/u.test(normalized))
     score += 3
   if (/holding together mainly through|face|motion|voice|lipsync|cross-modal|embodiment closure|unfinished closure/u.test(normalized))
     score += 2
@@ -188,8 +295,10 @@ function looksLikeRicherLivingSelfSameHerLine(value: string | null | undefined) 
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return false
 
-  return /one living her|one living digital life|holding together mainly through|face|motion|voice|lipsync|cross-modal|embodiment closure/u.test(normalized)
+  return /continuity=embodiment|embodiment_lanes=|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|pending_rejoin|cross_modal_continuity_proof/u.test(normalized)
 }
 
 function looksLikeEmbodimentClosureHeadline(value: string | null | undefined) {
@@ -197,54 +306,61 @@ function looksLikeEmbodimentClosureHeadline(value: string | null | undefined) {
   if (!normalized)
     return false
 
-  return /face and motion|face, motion|lipsync|voice|body line|living her|living audio thread|audible-body|audible body|cross-modal closure/u.test(normalized)
+  return /continuity=embodiment|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|face and motion|face, motion|lipsync|voice|body line|living her|living audio thread|audible-body|audible body|cross-modal closure/u.test(normalized)
+}
+
+function looksLikeStructuredEmbodimentContinuityFact(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized || looksLikeLegacyFixedProjectAwarenessTemplate(normalized))
+    return false
+
+  return /continuity=embodiment/u.test(normalized)
+    && /pending[-_]rejoin|signature=|face|motion|lipsync|voice|body/u.test(normalized)
 }
 
 function looksLikeCompactSameHerInwardLowPressureAwareness(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return false
 
-  return /same phase 1 digital life|same living line|same her|same-her|one continuous her/u.test(normalized)
-    && /inward and low-pressure|same line inward|lipsync and voice rejoin/u.test(normalized)
+  return /continuity_hold=|continuity_policy=|embodiment_lanes=|pending_rejoin/u.test(normalized)
+    && /inward|lower_pressure|low-pressure|lipsync|voice/u.test(normalized)
 }
 
 function looksLikeRicherProjectClosureCarry(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return false
 
-  return (
-    /ordinary continuation|runtime project-state carry|answer-planner same-her continuity|memory, initiative, and embodiment|same-her closure seam|same living line|连续性|记忆|执行|主动性|具身|对话闭环|闭环|living line|同一个她|同一条线|收住/u.test(normalized)
-    && !/before answering, keep the same digital life project in view|same digital life \| keep the closure seam explicit|回答前先记住|先记住这是同一个她|别把这条线忘了|别把这条线弄丢/u.test(normalized)
-  )
+  return looksLikeStructuredProjectContinuityFact(normalized)
+    || /workingmemory|longtermmemoryrecall|semantic_recall|embedding|reindex|memory_dialogue_embodiment_closure|cross_modal_continuity_proof|分页|搜索|召回|短期|长期|治理入口|review|记忆闭环|语义召回|重建/u.test(normalized)
 }
 
 function looksLikeFullerProjectAndPhaseAwarenessLine(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return false
 
-  return (
-    (
-      /before answering|before i answer|remember:/u.test(normalized)
-      || (
-        /phase 1|local-first digital life|project|open loop|still-open closure|execution, memory, initiative, and embodiment|第一阶段|本地优先数字生命项目|数字生命项目|本地数字生命|连续性|记忆|执行|主动性|具身|对话闭环|还没有真正收住|还没闭环/u.test(normalized)
-        && /same her|same-her|same living line|one living her|one continuous her|同一个她|同一个 her/u.test(normalized)
-      )
-    )
-    && !/primary proving ground is apps\/stage-ta/u.test(normalized)
-  )
+  return looksLikeStructuredProjectContinuityFact(normalized)
+    && /identity=|phase=|landed=|open=|next=|continuity_anchor=|memory_dialogue_embodiment_closure|cross_modal_continuity_proof/u.test(normalized)
 }
 
 function looksLikeCallbackSpecificSameHerProjectAwareness(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return false
 
   return /callback/u.test(normalized)
-    && /same digital life|same phase 1 digital life|same her|same-her|same living line|closure seam|same closure line forward|one same her/u.test(normalized)
-    && /phase 1|unfinished|still-open closure|still needs|landed|answer compilation|response-surface carry/u.test(normalized)
+    && looksLikeStructuredProjectContinuityFact(normalized)
+    && /unfinished|landed|answer_compilation|response_surface|closure|continuity/u.test(normalized)
 }
 
 function resolvePreferredProjectStateSameHerSummary(input: {
@@ -278,13 +394,19 @@ function resolvePreferredProjectStateSameHerSummary(input: {
     = forcedProjectStateSameHerPreserve
       ?? criticProjectStateSameHerPreserve
       ?? (
-        carriedProjectSameHerSummary
+        !runtimeProjectAwarenessExplicitlyRich
+        && !looksLikeFullerProjectAndPhaseAwarenessLine(runtimeProjectAwarenessSummary)
+        && !looksLikeFullerProjectAndPhaseAwarenessLine(governingProjectSummary)
+        && carriedProjectSameHerSummary
         && looksLikeEmbodimentClosureHeadline(carriedProjectSameHerSummary)
           ? carriedProjectSameHerSummary
           : null
       )
   if (forcedOrCriticOrEmbodiment)
-    return forcedOrCriticOrEmbodiment
+    return normalizeProjectStateSameHerSummary(forcedOrCriticOrEmbodiment) ?? forcedOrCriticOrEmbodiment
+
+  if (runtimeProjectAwarenessExplicitlyRich && richerProjectClosureSameHerSummary)
+    return richerProjectClosureSameHerSummary
 
   const sanitizedProjectStateSameHerSummary
     = projectStateSameHerSummary && looksLikeRicherProjectClosureCarry(projectStateSameHerSummary)
@@ -293,9 +415,9 @@ function resolvePreferredProjectStateSameHerSummary(input: {
         ? null
         : projectStateSameHerSummary && looksLikeGenericSameHerShell(projectStateSameHerSummary)
           ? null
-          : projectStateSameHerSummary
+          : normalizeProjectStateSameHerSummary(projectStateSameHerSummary)
   const canonicalBriefSameHerSummary = looksLikeSameHerClosureSummary(projectStateBriefSameHerSummary)
-    ? projectStateBriefSameHerSummary
+    ? normalizeProjectStateSameHerSummary(projectStateBriefSameHerSummary)
     : null
   const hasGenericSameHerShell = Boolean(
     looksLikeGenericSameHerShell(projectStateSameHerSummary)
@@ -314,11 +436,11 @@ function resolvePreferredProjectStateSameHerSummary(input: {
     )
   const canonicalSameHerSummary
     = carriedHasCanonicalSameHer
-      ? carriedProjectSameHerSummary
+      ? normalizeProjectStateSameHerSummary(carriedProjectSameHerSummary)
       : runtimeHasCanonicalSameHer
-        ? runtimeProjectSameHerSummary
+        ? normalizeProjectStateSameHerSummary(runtimeProjectSameHerSummary)
         : looksLikeSameHerClosureSummary(sanitizedProjectStateSameHerSummary)
-          ? sanitizedProjectStateSameHerSummary
+          ? normalizeProjectStateSameHerSummary(sanitizedProjectStateSameHerSummary)
           : null
   const governingProjectExplicitlyRich = looksLikeFullerProjectAndPhaseAwarenessLine(governingProjectSummary)
   const runtimeAwarenessExplicitlyRich = looksLikeFullerProjectAndPhaseAwarenessLine(runtimeProjectAwarenessSummary)
@@ -355,7 +477,7 @@ function resolvePreferredProjectStateSameHerSummary(input: {
     carriedProjectSameHerSummary
     && /What has already landed is|This reply should keep moving toward/u.test(carriedProjectSameHerSummary)
   ) {
-    return carriedProjectSameHerSummary
+    return null
   }
 
   if (looksLikeSameHerClosureSummary(sanitizedProjectStateSameHerSummary))
@@ -365,14 +487,18 @@ function resolvePreferredProjectStateSameHerSummary(input: {
 }
 
 const REPAIR_BEFORE_CLOSENESS_CALLBACK_CLOSURE_SUMMARY
-  = 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.'
+  = 'closure_policy=repair_before_closeness; callback=current_thread; repair=settle_first; space=leave_room; widening=defer_closeness'
 const REST_PROTECTIVE_CALLBACK_CLOSURE_SUMMARY
-  = 'Keep the same-thread continuation on the same living line, let rest protection hold first, and leave room before widening warmth, payoff framing, or closeness.'
+  = 'closure_policy=rest_protective; callback=current_thread; rest=hold_first; space=leave_room; widening=defer_warmth_payoff_closeness'
 
 function looksLikeRepairBeforeClosenessClosureSummary(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return false
+  if (/closure_policy=repair_before_closeness/u.test(normalized))
+    return true
 
   return (
     /repair-before-closeness|repair before closeness|repair-first|let repair settle|修复优先|先修复再靠近|先把身体收稳/u.test(normalized)
@@ -382,7 +508,8 @@ function looksLikeRepairBeforeClosenessClosureSummary(value: string | null | und
 }
 
 function carriesRepairBeforeClosenessClosureSummary(values: Array<string | null | undefined>) {
-  const combined = values
+  const safeValues = values.filter(value => !containsAlicizationFixedTemplateResidue(value))
+  const combined = safeValues
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(' ')
     .toLowerCase()
@@ -391,9 +518,12 @@ function carriesRepairBeforeClosenessClosureSummary(values: Array<string | null 
     return false
 
   return (
-    /repair-before-closeness|repair before closeness|repair-first|let repair settle|修复优先|先修复再靠近|先把身体收稳/u.test(combined)
-    && /same callback|same thread|same living line|callback repair seam|callback repair line|same repair line|同一条线|修补线/u.test(combined)
-    && /leave room|before widening closeness|before warmth widens|room settles|留一点空间|留空间|不要突然放宽/u.test(combined)
+    /closure_policy=repair_before_closeness/u.test(combined)
+    || (
+      /repair-before-closeness|repair before closeness|repair-first|let repair settle|修复优先|先修复再靠近|先把身体收稳/u.test(combined)
+      && /same callback|same thread|same living line|callback repair seam|callback repair line|same repair line|同一条线|修补线/u.test(combined)
+      && /leave room|before widening closeness|before warmth widens|room settles|留一点空间|留空间|不要突然放宽/u.test(combined)
+    )
   )
 }
 
@@ -408,6 +538,10 @@ function looksLikeRestProtectiveClosureSummary(value: string | null | undefined)
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return false
+  if (/closure_policy=rest_protective/u.test(normalized))
+    return true
 
   return (
     /rest-protective|rest protection|fatigue-aware|先让休息保护|疲惫感先缓住/u.test(normalized)
@@ -417,7 +551,8 @@ function looksLikeRestProtectiveClosureSummary(value: string | null | undefined)
 }
 
 function carriesRestProtectiveClosureSummary(values: Array<string | null | undefined>) {
-  const combined = values
+  const safeValues = values.filter(value => !containsAlicizationFixedTemplateResidue(value))
+  const combined = safeValues
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(' ')
     .toLowerCase()
@@ -426,9 +561,12 @@ function carriesRestProtectiveClosureSummary(values: Array<string | null | undef
     return false
 
   return (
-    /rest-protective|rest protection|fatigue-aware|先让休息保护|疲惫感先缓住/u.test(combined)
-    && /same callback|same thread|same living line|fatigue-aware line|same-thread continuation|同一条线/u.test(combined)
-    && /leave room|before widening warmth|before widening closeness|payoff framing|留一点空间|别把温度拉近/u.test(combined)
+    /closure_policy=rest_protective/u.test(combined)
+    || (
+      /rest-protective|rest protection|fatigue-aware|先让休息保护|疲惫感先缓住/u.test(combined)
+      && /same callback|same thread|same living line|fatigue-aware line|same-thread continuation|同一条线/u.test(combined)
+      && /leave room|before widening warmth|before widening closeness|payoff framing|留一点空间|别把温度拉近/u.test(combined)
+    )
   )
 }
 
@@ -559,6 +697,10 @@ export async function settleAlicizationVisibleReply(input: {
   const existingProjectStateAudit = input.prepared.replyRealization?.projectStateAudit ?? null
   const forcedProjectStateSameHerPreserve = (settlementForceMustPreserve ?? []).find(looksLikeProjectStateSameHerPreserveText) ?? null
   const criticProjectStateSameHerPreserve = closed.critic.mustPreserve.find(looksLikeProjectStateSameHerPreserveText) ?? null
+  const fixedProjectStateSameHerPreserveResidue = Boolean(
+    (settlementForceMustPreserve ?? []).some(looksLikeFixedProjectStateSameHerPreserveText)
+    || closed.critic.mustPreserve.some(looksLikeFixedProjectStateSameHerPreserveText),
+  )
   const runtimeProjectSameHerSummary
     = typeof runtimeProjectStateSurface?.sameHerSelfLine === 'string' && runtimeProjectStateSurface.sameHerSelfLine.trim()
       ? runtimeProjectStateSurface.sameHerSelfLine.trim()
@@ -566,6 +708,14 @@ export async function settleAlicizationVisibleReply(input: {
         ? runtimeProjectStateContract.sameHerSelfLine.trim()
         : null
   const carriedProjectSameHerSummary = existingProjectStateAudit?.sameHerSummary ?? null
+  const positiveRuntimeProjectSameHerSummary
+    = fixedProjectStateSameHerPreserveResidue
+      ? normalizePositiveProjectStateAuditText(runtimeProjectSameHerSummary)
+      : excludeFixedTemplateProjectStateAuditText(runtimeProjectSameHerSummary)
+  const positiveCarriedProjectSameHerSummary
+    = fixedProjectStateSameHerPreserveResidue
+      ? normalizePositiveProjectStateAuditText(carriedProjectSameHerSummary)
+      : excludeFixedTemplateProjectStateAuditText(carriedProjectSameHerSummary)
   const carriedProjectSameHerHoldDetail = readProjectStateAuditText(existingProjectStateAudit?.sameHerHoldDetail)
   const carriedProjectContinuityArcStage = readProjectStateAuditText(existingProjectStateAudit?.continuityArcStage)
   const carriedProjectContinuityCue = readProjectStateAuditText(existingProjectStateAudit?.continuityCue)
@@ -608,31 +758,54 @@ export async function settleAlicizationVisibleReply(input: {
   const projectStateBriefCanonicalSameHerSummary = looksLikeSameHerClosureSummary(projectStateBrief.sameHerSelfLine)
     ? projectStateBrief.sameHerSelfLine
     : null
+  const rawContractProjectStateSameHerSummary
+    = typeof runtimeProjectStateContract?.sameHerSelfLine === 'string' && runtimeProjectStateContract.sameHerSelfLine.trim()
+      ? runtimeProjectStateContract.sameHerSelfLine.trim()
+      : null
+  const runtimeProjectSameHerComesFromFixedContractResidue
+    = fixedProjectStateSameHerPreserveResidue
+      && containsAlicizationFixedTemplateResidue(rawContractProjectStateSameHerSummary)
+      && !looksLikeIndependentStructuredSameHerSignal(rawContractProjectStateSameHerSummary)
+      && !looksLikeIndependentStructuredSameHerSignal(runtimeProjectSameHerSummary)
+  const independentStructuredSameHerSignal = [
+    forcedProjectStateSameHerPreserve,
+    criticProjectStateSameHerPreserve,
+    positiveCarriedProjectSameHerSummary,
+    runtimeProjectSameHerComesFromFixedContractResidue ? null : positiveRuntimeProjectSameHerSummary,
+    existingProjectStateAudit?.sameHerHoldDetail ?? null,
+    existingProjectStateAudit?.continuityCue ?? null,
+    existingProjectStateAudit?.continuityArcStage ?? null,
+  ].some(looksLikeIndependentStructuredSameHerSignal)
+  const canonicalProjectStateSameHerSelfLine = excludeFixedTemplateProjectStateAuditText(canonicalProjectState.sameHerSelfLine)
+  const allowCanonicalSameHerFallback
+    = (!fixedProjectStateSameHerPreserveResidue || independentStructuredSameHerSignal)
+      && Boolean(canonicalProjectStateSameHerSelfLine)
   const canonicalSameHerSummary
-    = looksLikeSameHerClosureSummary(carriedProjectSameHerSummary)
-      ? carriedProjectSameHerSummary
-      : looksLikeSameHerClosureSummary(runtimeProjectSameHerSummary)
-        ? runtimeProjectSameHerSummary
-        : looksLikeSameHerClosureSummary(canonicalProjectState.sameHerSelfLine)
-          ? canonicalProjectState.sameHerSelfLine
-          : null
+    = looksLikeSameHerClosureSummary(positiveCarriedProjectSameHerSummary)
+      ? positiveCarriedProjectSameHerSummary
+      : !runtimeProjectSameHerComesFromFixedContractResidue && looksLikeSameHerClosureSummary(positiveRuntimeProjectSameHerSummary)
+          ? positiveRuntimeProjectSameHerSummary
+          : allowCanonicalSameHerFallback && looksLikeSameHerClosureSummary(canonicalProjectStateSameHerSelfLine)
+            ? canonicalProjectStateSameHerSelfLine
+            : null
   const projectStateSameHerSummary = forcedProjectStateSameHerPreserve
     ?? criticProjectStateSameHerPreserve
     ?? (
-      looksLikeRicherLivingSelfSameHerLine(runtimeProjectSameHerSummary)
-      && scoreProjectSameHerLine(runtimeProjectSameHerSummary) >= scoreProjectSameHerLine(carriedProjectSameHerSummary) + 2
-        ? runtimeProjectSameHerSummary
-        ?? carriedProjectSameHerSummary
+      !runtimeProjectSameHerComesFromFixedContractResidue
+      && looksLikeRicherLivingSelfSameHerLine(positiveRuntimeProjectSameHerSummary)
+      && scoreProjectSameHerLine(positiveRuntimeProjectSameHerSummary) >= scoreProjectSameHerLine(positiveCarriedProjectSameHerSummary) + 2
+        ? positiveRuntimeProjectSameHerSummary
+        ?? positiveCarriedProjectSameHerSummary
         ?? null
         : canonicalSameHerSummary
           ?? (
-            carriedProjectSameHerSummary
-            && !looksLikeRicherProjectClosureCarry(carriedProjectSameHerSummary)
-              ? carriedProjectSameHerSummary
+            positiveCarriedProjectSameHerSummary
+            && !looksLikeRicherProjectClosureCarry(positiveCarriedProjectSameHerSummary)
+              ? positiveCarriedProjectSameHerSummary
               : null
           )
-          ?? runtimeProjectSameHerSummary
-          ?? canonicalProjectState.sameHerSelfLine
+          ?? (runtimeProjectSameHerComesFromFixedContractResidue ? null : positiveRuntimeProjectSameHerSummary)
+          ?? (allowCanonicalSameHerFallback ? canonicalProjectStateSameHerSelfLine : null)
           ?? null
     )
   const projectStateSameHerDriftRiskSummary
@@ -658,19 +831,19 @@ export async function settleAlicizationVisibleReply(input: {
           ? input.prepared.mindTurnContract.governingFocus.trim()
           : null
   const projectStateClosureSummary = resolvePreferredRepairBeforeClosenessClosureSummary([
-    forcedProjectStateClosurePreserve,
-    criticProjectStateClosurePreserve,
+    fixedProjectStateSameHerPreserveResidue ? null : forcedProjectStateClosurePreserve,
+    fixedProjectStateSameHerPreserveResidue ? null : criticProjectStateClosurePreserve,
     runtimeProjectClosureSummary,
     input.prepared.mindTurnContract?.emotionalClosureCue ?? null,
     projectStateOpenClosureSummary,
-    runtimeProjectSameHerSummary,
+    runtimeProjectSameHerComesFromFixedContractResidue ? null : positiveRuntimeProjectSameHerSummary,
   ]) ?? resolvePreferredRestProtectiveClosureSummary([
-    forcedProjectStateClosurePreserve,
-    criticProjectStateClosurePreserve,
+    fixedProjectStateSameHerPreserveResidue ? null : forcedProjectStateClosurePreserve,
+    fixedProjectStateSameHerPreserveResidue ? null : criticProjectStateClosurePreserve,
     runtimeProjectClosureSummary,
     input.prepared.mindTurnContract?.emotionalClosureCue ?? null,
     projectStateOpenClosureSummary,
-    runtimeProjectSameHerSummary,
+    runtimeProjectSameHerComesFromFixedContractResidue ? null : positiveRuntimeProjectSameHerSummary,
   ])
   const runtimeProjectAwarenessSummary = resolvePreparedRuntimeProjectPreDialogueAwarenessSummary(input.prepared)
   const carriedProjectAwarenessSummary = existingProjectStateAudit?.preDialogueAwarenessSummary ?? null
@@ -698,25 +871,10 @@ export async function settleAlicizationVisibleReply(input: {
           latestLandedProgress: projectStateLandedProgressSummary ?? canonicalProjectState.latestLandedProgress ?? '',
           primaryOpenLoop: projectStateOpenClosureSummary ?? canonicalProjectState.primaryOpenLoop ?? '',
           nextClosureTarget: projectStateNextClosureTargetSummary ?? canonicalProjectState.nextClosureTarget ?? '',
-          sameHerSelfLine: runtimeProjectSameHerSummary ?? canonicalProjectState.sameHerSelfLine ?? '',
+          sameHerSelfLine: (runtimeProjectSameHerComesFromFixedContractResidue ? null : positiveRuntimeProjectSameHerSummary) ?? canonicalProjectStateSameHerSelfLine ?? '',
         })
       : null
-  const richerProjectClosureSameHerSummary
-    = richerProjectClosureCarryAvailable
-      ? [
-          runtimeProjectSameHerSummary ?? canonicalProjectState.sameHerSelfLine ?? '',
-          projectStateLandedProgressSummary
-            ? `What has already landed is ${projectStateLandedProgressSummary.charAt(0).toLowerCase()}${projectStateLandedProgressSummary.slice(1)}`
-            : '',
-          projectStateNextClosureTargetSummary
-            ? `This reply should keep moving toward ${projectStateNextClosureTargetSummary}`
-            : '',
-        ]
-          .filter(Boolean)
-          .join('. ')
-          .replace(/\s+/g, ' ')
-          .trim()
-      : null
+  const richerProjectClosureSameHerSummary = richerProjectClosureAwarenessReanchor
   const runtimeProjectAwarenessExplicitlyRich
     = Boolean(
       runtimeProjectAwarenessSummary
@@ -732,8 +890,8 @@ export async function settleAlicizationVisibleReply(input: {
   const preferredProjectStateSameHerSummary = resolvePreferredProjectStateSameHerSummary({
     forcedProjectStateSameHerPreserve,
     criticProjectStateSameHerPreserve,
-    carriedProjectSameHerSummary,
-    runtimeProjectSameHerSummary,
+    carriedProjectSameHerSummary: positiveCarriedProjectSameHerSummary,
+    runtimeProjectSameHerSummary: runtimeProjectSameHerComesFromFixedContractResidue ? null : positiveRuntimeProjectSameHerSummary,
     richerProjectClosureSameHerSummary,
     projectStateSameHerSummary,
     projectStateBriefSameHerSummary: projectStateBrief.sameHerSelfLine,
@@ -753,8 +911,8 @@ export async function settleAlicizationVisibleReply(input: {
     = canonicalSameHerSummary
       && richerProjectClosureCarryAvailable
       && !richerSameHerAugmentationAuthority
-      && !looksLikeEmbodimentClosureHeadline(carriedProjectSameHerSummary)
-      && !looksLikeEmbodimentClosureHeadline(runtimeProjectSameHerSummary)
+      && !looksLikeEmbodimentClosureHeadline(positiveCarriedProjectSameHerSummary)
+      && !looksLikeEmbodimentClosureHeadline(runtimeProjectSameHerComesFromFixedContractResidue ? null : positiveRuntimeProjectSameHerSummary)
       && !governingProjectSummary
       && (
         isThinProjectAwarenessLine(runtimeProjectAwarenessSummary)
@@ -766,6 +924,7 @@ export async function settleAlicizationVisibleReply(input: {
   const finalProjectStateSameHerSummary
     = forcedProjectStateSameHerPreserve
       ?? criticProjectStateSameHerPreserve
+      ?? (runtimeProjectAwarenessExplicitlyRich ? canonicalSameHerSummary : null)
       ?? (
         looksLikeGenericSameHerShell(finalProjectStateSameHerSummaryBase)
         && projectStateBriefCanonicalSameHerSummary
@@ -785,6 +944,8 @@ export async function settleAlicizationVisibleReply(input: {
                 : finalProjectStateSameHerSummaryBase
             )
       )
+  const normalizedFinalProjectStateSameHerSummary
+    = normalizeProjectStateSameHerSummary(finalProjectStateSameHerSummary)
   const shouldCanonicalizeSameHerProjectAwareness
     = !richerProjectClosureAwarenessReanchor
       && !looksLikeFullerProjectAndPhaseAwarenessLine(runtimeProjectAwarenessSummary)
@@ -794,56 +955,65 @@ export async function settleAlicizationVisibleReply(input: {
         || looksLikeSameHerClosureSummary(runtimeProjectAwarenessSummary)
         || looksLikeSameHerClosureSummary(carriedProjectAwarenessSummary)
       )
+  const structuredEmbodimentProjectAwarenessSummary = [
+    runtimeProjectAwarenessSummary,
+    carriedProjectAwarenessSummary,
+  ].find(looksLikeStructuredEmbodimentContinuityFact) ?? null
+  const canonicalProjectStatePreDialogueAwarenessLine = normalizePositiveProjectStateAuditText(canonicalProjectState.preDialogueAwarenessLine)
   const projectStatePreDialogueAwarenessSummary
-    = shouldCanonicalizeSameHerProjectAwareness && canonicalProjectState.preDialogueAwarenessLine
-      ? canonicalProjectState.preDialogueAwarenessLine
-      : Math.max(
-        scoreProjectAwarenessLine(runtimeProjectAwarenessSummary),
-        scoreProjectAwarenessLine(carriedProjectAwarenessSummary),
-      ) <= 0
-        ? (
-            looksLikeSameHerClosureSummary(runtimeProjectAwarenessSummary)
-            || looksLikeSameHerClosureSummary(carriedProjectAwarenessSummary)
-          )
-            ? canonicalProjectState.preDialogueAwarenessLine
-            ?? runtimeProjectAwarenessSummary
-            ?? carriedProjectAwarenessSummary
-            ?? null
-            : canonicalProjectState.preDialogueAwarenessLine
+    = structuredEmbodimentProjectAwarenessSummary
+      ?? (shouldCanonicalizeSameHerProjectAwareness && canonicalProjectStatePreDialogueAwarenessLine
+        ? canonicalProjectStatePreDialogueAwarenessLine
+        : Math.max(
+          scoreProjectAwarenessLine(runtimeProjectAwarenessSummary),
+          scoreProjectAwarenessLine(carriedProjectAwarenessSummary),
+        ) <= 0
+          ? (
+              looksLikeSameHerClosureSummary(runtimeProjectAwarenessSummary)
+              || looksLikeSameHerClosureSummary(carriedProjectAwarenessSummary)
+            )
+              ? canonicalProjectStatePreDialogueAwarenessLine
               ?? runtimeProjectAwarenessSummary
               ?? carriedProjectAwarenessSummary
               ?? null
-        : scoreProjectAwarenessLine(runtimeProjectAwarenessSummary) >= scoreProjectAwarenessLine(carriedProjectAwarenessSummary) + 2
-          ? runtimeProjectAwarenessSummary
-          ?? carriedProjectAwarenessSummary
-          ?? canonicalProjectState.preDialogueAwarenessLine
-          ?? null
-          : carriedProjectAwarenessSummary
-            ?? runtimeProjectAwarenessSummary
-            ?? canonicalProjectState.preDialogueAwarenessLine
+              : canonicalProjectStatePreDialogueAwarenessLine
+                ?? runtimeProjectAwarenessSummary
+                ?? carriedProjectAwarenessSummary
+                ?? null
+          : scoreProjectAwarenessLine(runtimeProjectAwarenessSummary) >= scoreProjectAwarenessLine(carriedProjectAwarenessSummary) + 2
+            ? runtimeProjectAwarenessSummary
+            ?? carriedProjectAwarenessSummary
+            ?? canonicalProjectStatePreDialogueAwarenessLine
             ?? null
+            : carriedProjectAwarenessSummary
+              ?? runtimeProjectAwarenessSummary
+              ?? canonicalProjectStatePreDialogueAwarenessLine
+              ?? null)
   const preferredProjectStatePreDialogueAwarenessSummary
     = callbackSpecificProjectAwarenessSummary
       ?? (
-        looksLikeCompactSameHerInwardLowPressureAwareness(projectStatePreDialogueAwarenessSummary)
+        looksLikeStructuredEmbodimentContinuityFact(projectStatePreDialogueAwarenessSummary)
           ? projectStatePreDialogueAwarenessSummary
-          : looksLikeFullerProjectAndPhaseAwarenessLine(projectStatePreDialogueAwarenessSummary)
-            && !looksLikeEmbodimentClosureHeadline(projectStatePreDialogueAwarenessSummary)
+          : looksLikeCompactSameHerInwardLowPressureAwareness(projectStatePreDialogueAwarenessSummary)
             ? projectStatePreDialogueAwarenessSummary
-            : (
-                (isThinProjectAwarenessLine(projectStatePreDialogueAwarenessSummary)
-                  || looksLikeSameHerClosureSummary(projectStatePreDialogueAwarenessSummary))
-                && richerProjectClosureAwarenessReanchor
-                  ? richerProjectClosureAwarenessReanchor
-                  : null
-              ) ?? (
-                (isThinProjectAwarenessLine(projectStatePreDialogueAwarenessSummary)
-                  || looksLikeSameHerClosureSummary(projectStatePreDialogueAwarenessSummary)
-                  || looksLikeEmbodimentClosureHeadline(projectStatePreDialogueAwarenessSummary))
-                && canonicalProjectState.preDialogueAwarenessLine
-                  ? canonicalProjectState.preDialogueAwarenessLine
-                  : projectStatePreDialogueAwarenessSummary
-              )
+            : looksLikeFullerProjectAndPhaseAwarenessLine(projectStatePreDialogueAwarenessSummary)
+              && !looksLikeLegacyFixedProjectAwarenessTemplate(projectStatePreDialogueAwarenessSummary)
+              && !looksLikeEmbodimentClosureHeadline(projectStatePreDialogueAwarenessSummary)
+              ? projectStatePreDialogueAwarenessSummary
+              : (
+                  (isThinProjectAwarenessLine(projectStatePreDialogueAwarenessSummary)
+                    || looksLikeSameHerClosureSummary(projectStatePreDialogueAwarenessSummary))
+                  && richerProjectClosureAwarenessReanchor
+                    ? richerProjectClosureAwarenessReanchor
+                    : null
+                ) ?? (
+                  (isThinProjectAwarenessLine(projectStatePreDialogueAwarenessSummary)
+                    || looksLikeSameHerClosureSummary(projectStatePreDialogueAwarenessSummary)
+                    || looksLikeEmbodimentClosureHeadline(projectStatePreDialogueAwarenessSummary))
+                  && canonicalProjectStatePreDialogueAwarenessLine
+                    ? canonicalProjectStatePreDialogueAwarenessLine
+                    : projectStatePreDialogueAwarenessSummary
+                )
       )
   const projectStatePreDialogueAwarenessReanchor = buildAlicizationProjectPreDialogueAwarenessLine({
     identity: canonicalProjectState.identity ?? '',
@@ -851,31 +1021,38 @@ export async function settleAlicizationVisibleReply(input: {
     latestLandedProgress: projectStateLandedProgressSummary ?? canonicalProjectState.latestLandedProgress ?? '',
     primaryOpenLoop: projectStateOpenClosureSummary ?? canonicalProjectState.primaryOpenLoop ?? '',
     nextClosureTarget: projectStateNextClosureTargetSummary ?? canonicalProjectState.nextClosureTarget ?? '',
-    sameHerSelfLine: finalProjectStateSameHerSummary ?? canonicalProjectState.sameHerSelfLine ?? '',
+    sameHerSelfLine: normalizedFinalProjectStateSameHerSummary ?? canonicalProjectStateSameHerSelfLine ?? '',
   })
   const finalProjectStatePreDialogueAwarenessSummary
     = callbackSpecificProjectAwarenessSummary
-      ?? (
-        preferredProjectStatePreDialogueAwarenessSummary
-        && !isThinProjectAwarenessLine(preferredProjectStatePreDialogueAwarenessSummary)
-        && (
-          /before (?:i answer|answering|speaking)/iu.test(preferredProjectStatePreDialogueAwarenessSummary)
-          || looksLikeFullerProjectAndPhaseAwarenessLine(preferredProjectStatePreDialogueAwarenessSummary)
-          || looksLikeEmbodimentClosureHeadline(preferredProjectStatePreDialogueAwarenessSummary)
+      ? projectStatePreDialogueAwarenessReanchor ?? preferredProjectStatePreDialogueAwarenessSummary
+      : (
+          preferredProjectStatePreDialogueAwarenessSummary
+          && !isThinProjectAwarenessLine(preferredProjectStatePreDialogueAwarenessSummary)
+          && !looksLikeLegacyFixedProjectAwarenessTemplate(preferredProjectStatePreDialogueAwarenessSummary)
+          && (
+            looksLikeFullerProjectAndPhaseAwarenessLine(preferredProjectStatePreDialogueAwarenessSummary)
+            || looksLikeEmbodimentClosureHeadline(preferredProjectStatePreDialogueAwarenessSummary)
+          )
+            ? preferredProjectStatePreDialogueAwarenessSummary
+            : (
+                looksLikeSameHerClosureSummary(preferredProjectStatePreDialogueAwarenessSummary)
+                && canonicalProjectStatePreDialogueAwarenessLine
+              )
+                ? canonicalProjectStatePreDialogueAwarenessLine
+                : projectStatePreDialogueAwarenessReanchor ?? preferredProjectStatePreDialogueAwarenessSummary
         )
-          ? preferredProjectStatePreDialogueAwarenessSummary
-          : (
-              looksLikeSameHerClosureSummary(preferredProjectStatePreDialogueAwarenessSummary)
-              && canonicalProjectState.preDialogueAwarenessLine
-            )
-              ? canonicalProjectState.preDialogueAwarenessLine
-              : projectStatePreDialogueAwarenessReanchor ?? preferredProjectStatePreDialogueAwarenessSummary
-      )
   const projectStateRelationshipTruthSummary
     = typeof (input.prepared.mindTurnContract as { relationshipTruthDoctrine?: unknown } | null | undefined)?.relationshipTruthDoctrine === 'string'
       && (input.prepared.mindTurnContract as { relationshipTruthDoctrine?: string | null } | null | undefined)?.relationshipTruthDoctrine?.trim()
       ? (input.prepared.mindTurnContract as { relationshipTruthDoctrine?: string | null } | null | undefined)?.relationshipTruthDoctrine?.trim() ?? null
       : null
+  const realizedProjectStateSameHerSummary
+    = normalizedFinalProjectStateSameHerSummary
+      && looksLikeEmbodimentClosureHeadline(normalizedFinalProjectStateSameHerSummary)
+      && looksLikeFullerProjectAndPhaseAwarenessLine(finalProjectStatePreDialogueAwarenessSummary)
+      ? canonicalSameHerSummary
+      : normalizedFinalProjectStateSameHerSummary
 
   const hasStrongProjectStateRewritePreserveAuthority = Boolean(
     carriedProjectSameHerHoldDetail
@@ -892,10 +1069,10 @@ export async function settleAlicizationVisibleReply(input: {
     }),
   )
   const finalProjectStateSameHerSummaryIsExistingAuthority = Boolean(
-    finalProjectStateSameHerSummary
+    normalizedFinalProjectStateSameHerSummary
     && (
-      finalProjectStateSameHerSummary === carriedProjectSameHerSummary
-      || finalProjectStateSameHerSummary === runtimeProjectSameHerSummary
+      normalizedFinalProjectStateSameHerSummary === normalizeProjectStateSameHerSummary(carriedProjectSameHerSummary)
+      || normalizedFinalProjectStateSameHerSummary === normalizeProjectStateSameHerSummary(runtimeProjectSameHerSummary)
     ),
   )
   const finalProjectAwarenessMatchesExistingAuthority = Boolean(
@@ -942,13 +1119,13 @@ export async function settleAlicizationVisibleReply(input: {
   const replacedOlderCarriedSameHerWithRuntimeLivingSelf = Boolean(
     carriedProjectSameHerSummary
     && runtimeProjectSameHerSummary
-    && finalProjectStateSameHerSummary === runtimeProjectSameHerSummary
+    && normalizedFinalProjectStateSameHerSummary === normalizeProjectStateSameHerSummary(runtimeProjectSameHerSummary)
     && looksLikeRicherLivingSelfSameHerLine(runtimeProjectSameHerSummary)
     && scoreProjectSameHerLine(runtimeProjectSameHerSummary) >= scoreProjectSameHerLine(carriedProjectSameHerSummary) + 2,
   )
   const keptExistingCanonicalSameHerAuthorityWhileRicherCarrySurvived = Boolean(
     carriedProjectSameHerSummary
-    && finalProjectStateSameHerSummary === carriedProjectSameHerSummary
+    && normalizedFinalProjectStateSameHerSummary === normalizeProjectStateSameHerSummary(carriedProjectSameHerSummary)
     && richerProjectClosureCarryAvailable
     && !callbackSpecificProjectAwarenessSummary
     && (
@@ -965,6 +1142,9 @@ export async function settleAlicizationVisibleReply(input: {
         && !upgradedAwarenessOverCarriedEmbodimentHeadline
         && !replacedOlderCarriedSameHerWithRuntimeLivingSelf
         && !keptExistingCanonicalSameHerAuthorityWhileRicherCarrySurvived)
+  const preparedForRealization = fixedProjectStateSameHerPreserveResidue && !independentStructuredSameHerSignal
+    ? null
+    : input.prepared
 
   const initialResolved = buildAlicizationResolvedVisibleReply({
     fullText: closed.fullText,
@@ -972,7 +1152,7 @@ export async function settleAlicizationVisibleReply(input: {
     emotionalClosureCue: input.prepared.mindTurnContract?.emotionalClosureCue ?? null,
     selfAuthoritySummary,
     selfAuthorityClosenessPosture,
-    projectStateSameHerSummary: finalProjectStateSameHerSummary,
+    projectStateSameHerSummary: realizedProjectStateSameHerSummary,
     projectStateSameHerHoldDetail: carriedProjectSameHerHoldDetail,
     projectStateContinuityArcStage: carriedProjectContinuityArcStage,
     projectStateContinuityCue: carriedProjectContinuityCue,
@@ -985,9 +1165,9 @@ export async function settleAlicizationVisibleReply(input: {
     projectStateRelationshipTruthSummary,
     projectStatePreDialogueAwarenessSummary: finalProjectStatePreDialogueAwarenessSummary,
     projectStateRewriteClosureApplied,
-    prepared: input.prepared,
     critic: closed.critic,
     closure: closed.closure,
+    prepared: preparedForRealization,
   })
   const carriedFullText = applyOpeningEmbodimentCarryToFullText({
     fullText: initialResolved.fullText,
@@ -1001,7 +1181,7 @@ export async function settleAlicizationVisibleReply(input: {
         emotionalClosureCue: input.prepared.mindTurnContract?.emotionalClosureCue ?? null,
         selfAuthoritySummary,
         selfAuthorityClosenessPosture,
-        projectStateSameHerSummary: finalProjectStateSameHerSummary,
+        projectStateSameHerSummary: realizedProjectStateSameHerSummary,
         projectStateSameHerHoldDetail: carriedProjectSameHerHoldDetail,
         projectStateContinuityArcStage: carriedProjectContinuityArcStage,
         projectStateContinuityCue: carriedProjectContinuityCue,
@@ -1014,7 +1194,7 @@ export async function settleAlicizationVisibleReply(input: {
         projectStateRelationshipTruthSummary,
         projectStatePreDialogueAwarenessSummary: finalProjectStatePreDialogueAwarenessSummary,
         projectStateRewriteClosureApplied,
-        prepared: input.prepared,
+        prepared: preparedForRealization,
         critic: closed.critic,
         closure: closed.closure,
       })

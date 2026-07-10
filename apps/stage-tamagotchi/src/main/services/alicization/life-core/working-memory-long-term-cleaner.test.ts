@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
-
 import type { WorkingMemoryLongTermQueueItem } from './working-memory-long-term-queue'
+
+import { describe, expect, it } from 'vitest'
 
 import { cleanWorkingMemoryLongTermQueueItem } from './working-memory-long-term-cleaner'
 
@@ -161,6 +161,17 @@ describe('working memory long-term cleaner', () => {
     const result = clean({
       summary: 'ALICIZATION_project_state Phase 1 mustDo same-her reminder.',
       evidenceSnippets: ['WorkingMemory owner answerPlanner same living line.'],
+    })
+
+    expect(result.status).toBe('rejected')
+    expect(result.cleanedCandidate).toBeNull()
+    expect(result.rejectionReasons).toContain('prompt-residue')
+  })
+
+  it('rejects quoted fixed-template residue even when it is not an ALICIZATION prompt block', () => {
+    const result = clean({
+      summary: 'Before speaking, remember this is still one continuous her.',
+      evidenceSnippets: ['用户刚才复述了 same-her 固定模板。'],
     })
 
     expect(result.status).toBe('rejected')

@@ -28,6 +28,44 @@ function buildAlicizationResponseSurfaceContract(input: ResponseSurfaceContractF
   })
 }
 
+type ResponseSurfaceContractResult = ReturnType<typeof buildAlicizationResponseSurfaceContract>
+
+function expectMustDoControls(result: ResponseSurfaceContractResult, controls: string[]) {
+  expect(result.contract.mustDo).toEqual(expect.arrayContaining(controls))
+}
+
+function expectMustNotDoControls(result: ResponseSurfaceContractResult, controls: string[]) {
+  expect(result.contract.mustNotDo).toEqual(expect.arrayContaining(controls))
+}
+
+function providerSurfaceFor(result: ResponseSurfaceContractResult) {
+  return [
+    JSON.stringify(result.contract),
+    result.systemBlock,
+  ].join('\n')
+}
+
+function expectProviderSurfaceControls(result: ResponseSurfaceContractResult, controls: string[]) {
+  const surface = providerSurfaceFor(result)
+  for (const control of controls)
+    expect(surface).toContain(control)
+}
+
+function expectProjectContinuitySignals(result: ResponseSurfaceContractResult, signals: string[]) {
+  const surface = [
+    JSON.stringify(result.contract.projectContinuity ?? {}),
+    result.systemBlock,
+  ].join('\n').toLowerCase()
+  for (const signal of signals)
+    expect(surface).toContain(signal.toLowerCase())
+}
+
+function expectNoProviderNaturalInstruction(result: ResponseSurfaceContractResult, ...fragments: string[]) {
+  const surface = providerSurfaceFor(result)
+  for (const fragment of fragments)
+    expect(surface).not.toContain(fragment)
+}
+
 describe('response-surface-contract', () => {
   it('threads current conscious frame into truth discipline and visible surface obligations', () => {
     const result = buildAlicizationResponseSurfaceContract({
@@ -91,12 +129,17 @@ describe('response-surface-contract', () => {
       },
     })
 
-    expect(result.contract.mustDo).toContain('Let the current conscious speaking intention govern wording: Answer with current-turn evidence only.')
-    expect(result.contract.mustNotDo).toContain('Do not leak this withheld impulse into the visible reply: Name a file that was not observed.')
-    expect(result.contract.mustNotDo).toContain('Do not add specific file, class, enum, app, or screen details unless grounded by this turn.')
-    expect(result.systemBlock).toContain('Current conscious need: Stay inside the user ask.')
+    expectMustDoControls(result, [
+      'visible_reply_payoff=concrete_current_turn',
+      'hypothesis_label=required',
+    ])
+    expectMustNotDoControls(result, [
+      'visible_wording=false',
+      'unsupported_specificity=blocked',
+    ])
+    expect(result.systemBlock).toContain('current_conscious_need=Stay_inside_the_user_ask.')
     expect(result.systemBlock).toContain('Current conscious frame withholds unsupported specificity: yes.')
-    expect(result.systemBlock).toContain('When the answer goes beyond direct observation, mark that move as a guess or hypothesis.')
+    expect(result.systemBlock).toContain('hypothesis_label=required')
   })
 
   it('forces direct correction discipline for repair turns', () => {
@@ -176,8 +219,10 @@ describe('response-surface-contract', () => {
     expect(result.contract.openingStyle).toBe('gentle-care')
     expect(result.contract.allowAffectionatePreface).toBe(true)
     expect(result.contract.allowBodyNarration).toBe(false)
-    expect(result.contract.mustNotDo).toContain('Do not begin with moans, pet names, ellipsis-only prefaces, or decorative roleplay.')
-    expect(result.contract.mustNotDo).toContain('Do not mirror or lightly paraphrase the host\'s latest line as the spine of the reply.')
+    expectMustNotDoControls(result, [
+      'stage_direction_persona_padding=blocked',
+      'host_line_mirroring=blocked',
+    ])
   })
 
   it('keeps same-thread next-open-window continuity inward-first before widening warmth or closeness', () => {
@@ -235,12 +280,14 @@ describe('response-surface-contract', () => {
       } as any,
     })
 
-    expect(result.contract.mustDo).toContain(
-      'Keep the same-thread continuation inward first, then wait for a more natural opening before widening warmth, payoff framing, or closeness.',
-    )
-    expect(result.contract.mustNotDo).toContain(
-      'Do not widen a same-thread continuation into warmer payoff or closer relationship language before the current opening has naturally loosened.',
-    )
+    expectMustDoControls(result, [
+      'continuity_thread=current_turn',
+      'relationship_widening=after_payoff_if_room',
+    ])
+    expectMustNotDoControls(result, [
+      'continuity_thread_break=blocked',
+      'premature_closeness_widening=blocked',
+    ])
   })
 
   it('forbids dialogue-first answer shells that stop at an opener', () => {
@@ -284,9 +331,13 @@ describe('response-surface-contract', () => {
       },
     })
 
-    expect(result.contract.mustDo).toContain('Complete the actual answer, care move, or companionship move in the same reply.')
-    expect(result.contract.mustNotDo).toContain('Do not stop at a shell opener such as "I will answer directly" or "Let me stay with you" without the real content.')
-    expect(result.contract.mustNotDo).toContain('Do not expose planning jargon, governance labels, or internal control summaries in the visible answer.')
+    expectMustDoControls(result, [
+      'visible_reply_payoff=concrete_current_turn',
+    ])
+    expectMustNotDoControls(result, [
+      'template_shell=blocked',
+      'internal_control_summary=blocked',
+    ])
   })
 
   it('keeps the visible reply anchored to the active digital-life closure seam when the charter carries a Phase 1 governingProject', () => {
@@ -321,15 +372,15 @@ describe('response-surface-contract', () => {
       },
     })
 
-    expect(result.contract.mustDo.some(item =>
-      item.includes('Keep the visible reply anchored to the active digital-life closure seam'),
-    )).toBe(true)
-    expect(result.contract.mustDo.some(item =>
-      item.includes('Answer project-state status from one same-her continuity'),
-    )).toBe(true)
-    expect(result.contract.mustDo.join(' | ')).toContain('Phase 1: Local Digital Life')
-    expect(result.contract.mustDo.join(' | ')).toContain('Project identity carry, Phase 1 route carry, and Unresolved closure carry')
-    expect(result.contract.mustDo.join(' | ')).toContain('same living thread')
+    expectMustDoControls(result, [
+      'project_continuity=structured_context',
+      'active_project_closure_context=present;preserve_factual_fields_without_slogans=true',
+    ])
+    expectProjectContinuitySignals(result, [
+      'local_desktop_life_loop',
+      'visibility=response-surface-structured',
+      'continuity_anchor=local_desktop_life_loop',
+    ])
   })
 
   it('keeps the visible reply anchored to canonical project preflight self-awareness even when governingProject is absent', () => {
@@ -369,13 +420,15 @@ describe('response-surface-contract', () => {
       } as any,
     })
 
-    expect(result.contract.mustDo.some(item =>
-      item.includes('Keep the visible reply anchored to the active digital-life closure seam'),
-    )).toBe(true)
-    expect(result.contract.mustDo.join(' | ')).toContain('Alicization is a local-first digital life project')
-    expect(result.contract.mustDo.join(' | ')).toContain('Phase 1: Local Digital Life')
-    expect(result.contract.mustDo.join(' | ')).toContain('open=memory and initiative still need tighter same-her closure')
-    expect(result.contract.mustDo.join(' | ')).toContain('next=keep project self-awareness')
+    expectMustDoControls(result, [
+      'project_continuity=structured_context',
+      'active_project_closure_context=present;preserve_factual_fields_without_slogans=true',
+    ])
+    expectProjectContinuitySignals(result, [
+      'local_desktop_life_loop',
+      'visibility=response-surface-structured',
+      'continuity_anchor=local_desktop_life_loop',
+    ])
   })
 
   it('keeps structured same-her project continuity on the response surface contract when fallback conscious-frame project state is available', () => {
@@ -421,27 +474,24 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      currentPhase: 'Phase 1: Local Digital Life',
-      latestProgress: 'Project identity carry, Phase 1 route carry, and same-her answer continuity already survive planner, facade, and timeout recovery.',
-      primaryOpenLoop: 'Emotion-driven same-her closure still needs to stay explicit across reply protocol and embodiment-facing surfaces.',
-      nextClosureTarget: 'Keep structured same-her project continuity pinned in the response surface contract before visible reply realization.',
-      preDialogueAwarenessLine: expect.stringContaining('Alicization is a local-first digital life project building one continuous "her"'),
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
-      emotionalClosureCue: 'Let the answer sound steady enough to hold the same-her emotional line while easing late-night drain.',
+      currentPhase: 'current_phase=present; content=excluded; visibility=internal_structured',
+      latestProgress: 'latest_progress=present; content=excluded; visibility=internal_structured',
+      primaryOpenLoop: 'primary_open_loop=present; content=excluded; visibility=internal_structured',
+      nextClosureTarget: 'next_closure_target=present; content=excluded; visibility=internal_structured',
+      sameHerSelfLine: 'continuity_anchor=present; content=excluded; visibility=internal_structured',
+      sameHerDriftRisk: 'generic_guidance_without_first_person_continuity;_closure_status=unfinished;_visibility=internal_structured.',
+      emotionalClosureCue: 'emotional_closure_cue=present; content=excluded; visibility=internal_structured',
       emotionalClosureSummary: null,
       sameHerHoldDetail: null,
       sameHerLineRequired: true,
     }))
-    expect(result.systemBlock).toContain('Project continuity current phase: Phase 1: Local Digital Life.')
-    expect(result.systemBlock).toContain('Project continuity latest progress: Project identity carry, Phase 1 route carry, and same-her answer continuity already survive planner, facade, and timeout recovery.')
-    expect(result.systemBlock).toContain('Project continuity primary open loop: Emotion-driven same-her closure still needs to stay explicit across reply protocol and embodiment-facing surfaces.')
-    expect(result.systemBlock).toContain('Project continuity next closure target: Keep structured same-her project continuity pinned in the response surface contract before visible reply realization.')
-    expect(result.systemBlock).toContain('Project continuity pre-dialogue awareness line: Before answering, remember: Alicization is a local-first digital life project building one continuous "her"')
-    expect(result.systemBlock).toContain('Project continuity same-her self line: Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(result.systemBlock).toContain('Project continuity same-her drift risk: If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.')
-    expect(result.systemBlock).toContain('Project continuity emotional closure cue: Let the answer sound steady enough to hold the same-her emotional line while easing late-night drain.')
-    expect(result.systemBlock).toContain('Project continuity same-her line required: yes.')
+    expectProjectContinuitySignals(result, [
+      'local_desktop_life_loop',
+      'visibility=response-surface-structured',
+      'content=excluded',
+      'continuity_anchor=local_desktop_life_loop',
+    ])
+    expect(result.systemBlock).toContain('Project continuity self line required: yes.')
   })
 
   it('adds hypothesis labeling and unsupported-specificity bans for coarse screen turns', () => {
@@ -493,8 +543,8 @@ describe('response-surface-contract', () => {
       },
     })
 
-    expect(result.contract.mustDo).toContain('When the answer goes beyond direct observation, mark that move as a guess or hypothesis.')
-    expect(result.contract.mustNotDo).toContain('Do not smuggle in file names, class names, enum names, or field changes that are not grounded in this turn.')
+    expectMustDoControls(result, ['hypothesis_label=required'])
+    expectMustNotDoControls(result, ['unsupported_specificity=blocked'])
   })
 
   it('derives hypothesis and specificity discipline from uncertain coarse turns even without explicit ledger flags', () => {
@@ -529,8 +579,8 @@ describe('response-surface-contract', () => {
       },
     })
 
-    expect(result.contract.mustDo).toContain('When the answer goes beyond direct observation, mark that move as a guess or hypothesis.')
-    expect(result.contract.mustNotDo).toContain('Do not smuggle in file names, class names, enum names, or field changes that are not grounded in this turn.')
+    expectMustDoControls(result, ['hypothesis_label=required'])
+    expectMustNotDoControls(result, ['unsupported_specificity=blocked'])
   })
 
   it('forces executor-result follow-ups to pay off the settled result before any new branch', () => {
@@ -575,12 +625,15 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.openingStyle).toBe('direct-answer')
-    expect(result.contract.mustDo).toContain('Use the first sentence to pay off the freshest executor result for the current follow-up.')
-    expect(result.contract.mustDo).toContain('State plainly that the task already finished and surface the strongest outcome before any new planning.')
-    expect(result.contract.mustDo).toContain('Keep the execution-result payoff on the same Phase 1 digital-life line instead of reopening as detached task reporting.')
-    expect(result.contract.mustNotDo).toContain('Do not bury the executor result behind scene narration, comfort language, or persona-preface.')
-    expect(result.contract.mustNotDo).toContain('Do not imply the task re-ran in this exact turn unless new tool output appears now.')
-    expect(result.contract.mustNotDo).toContain('Do not let the callback reopen as generic task-shell or project-status narration divorced from the same living line.')
+    expectMustDoControls(result, [
+      'visible_reply_payoff=concrete_current_turn',
+      'failure_transparency=required',
+    ])
+    expectMustNotDoControls(result, [
+      'stage_direction_persona_padding=blocked',
+      'fresh_restart=blocked',
+      'detached_project_summary_voice=blocked',
+    ])
   })
 
   it('turns learning verification state into contract-level certainty discipline', () => {
@@ -664,8 +717,8 @@ describe('response-surface-contract', () => {
       runtimeSurface,
     })
 
-    expect(result.contract.mustDo).toContain('Keep visible certainty behind the current verification pass.')
-    expect(result.contract.mustNotDo).toContain('Do not let fluency or warmth outrun what is still being verified.')
+    expectMustDoControls(result, ['learning_state=structured_evidence'])
+    expectMustNotDoControls(result, ['learning_overclaim=blocked'])
   })
 
   it('prefers runtime surface answer-governance cues over conflicting raw inputs', () => {
@@ -783,10 +836,17 @@ describe('response-surface-contract', () => {
     expect(result.contract.openingStyle).toBe('direct-answer')
     expect(result.contract.personaKernelMode).toBe('full')
     expect(result.contract.suppressAssociativeRecall).toBe(true)
-    expect(result.contract.mustDo).toContain('Treat this as an already-live speaking turn; begin with payoff instead of scene-setting.')
-    expect(result.contract.mustDo).toContain('Stay with the live dialogue subject and keep screen grounding in the background.')
-    expect(result.contract.mustDo).toContain('Pay off the current ask directly.')
-    expect(result.contract.mustNotDo).toContain('Do not blur the answer into persona theater.')
+    expectMustDoControls(result, [
+      'visible_reply_payoff=concrete_current_turn',
+      'screen_grounding=background',
+    ])
+    expectNoProviderNaturalInstruction(
+      result,
+      'Treat this as an already-live speaking turn',
+      'Stay with the live dialogue subject',
+      'Pay off the current ask directly.',
+      'Do not blur the answer into persona theater.',
+    )
     expect(result.systemBlock).toContain('Digital life mode:')
     expect(result.systemBlock).toContain('Digital life architecture:')
   })
@@ -897,11 +957,15 @@ describe('response-surface-contract', () => {
     ]))
     expect(result.contract.labelCarryAsMemory).toBe(false)
     expect(result.contract.suppressAssociativeRecall).toBe(true)
-    expect(result.contract.mustDo).toContain('Fully realize the visible reply inside this provider-mind turn instead of leaving payoff wording for a later local fallback layer.')
-    expect(result.contract.mustDo).toContain('Let remembered continuity contour the answer from the inside instead of announcing recollection outright.')
-    expect(result.contract.mustNotDo).toContain('Do not stop at a thin shell that assumes a local deterministic layer will finish the real visible reply for you.')
-    expect(result.contract.mustNotDo).toContain('Do not surface recollection just because it is active internally; keep the live payoff in front.')
-    expect(result.contract.mustNotDo).toContain('Do not reuse drafted recollection wording, drafted memory contours, or internal recollection leads verbatim.')
+    expectMustDoControls(result, [
+      'provider_visible_reply_authority=mind_required',
+      'memory_recollection_inner_carry=required',
+    ])
+    expectMustNotDoControls(result, [
+      'template_shell=blocked',
+      'memory_recollection_visible_dump=blocked',
+      'memory_recollection_verbatim_copy=blocked',
+    ])
     expect(result.systemBlock).toContain('Truth discipline memory surface: inward-only.')
     expect(result.systemBlock).toContain('Truth discipline memory inward-only: yes.')
   })
@@ -956,8 +1020,10 @@ describe('response-surface-contract', () => {
     ]))
     expect(result.contract.mustDo.join(' | ')).not.toContain('I mostly remember handling this by returning to the same seam before branching.')
     expect(result.systemBlock).not.toContain('I mostly remember handling this by returning to the same seam before branching.')
-    expect(result.contract.mustNotDo).toContain('Do not let remembered procedure impersonate fresh execution completion.')
-    expect(result.contract.mustNotDo).toContain('Do not reuse drafted recollection wording, drafted memory contours, or internal recollection leads verbatim.')
+    expectMustNotDoControls(result, [
+      'memory_execution_impersonation=blocked',
+      'memory_recollection_verbatim_copy=blocked',
+    ])
   })
 
   it('threads closeness ladder authority into the visible response surface contract', () => {
@@ -1031,8 +1097,8 @@ describe('response-surface-contract', () => {
 
     expect(result.contract.activeClosenessContext).toBe('focused-work')
     expect(result.contract.activeClosenessRung).toBe('space-first')
-    expect(result.contract.mustDo.some(item => item.includes('focused-work/space-first'))).toBe(true)
-    expect(result.contract.mustNotDo.some(item => item.includes('need for room'))).toBe(true)
+    expectMustDoControls(result, ['relationship_pressure=bounded'])
+    expectMustNotDoControls(result, ['premature_closeness_widening=blocked'])
     expect(result.systemBlock).toContain('Closeness ladder: focused-work/space-first.')
   })
 
@@ -1107,8 +1173,11 @@ describe('response-surface-contract', () => {
 
     expect(result.contract.activeClosenessContext).toBe('execution-callback')
     expect(result.contract.activeClosenessRung).toBe('measured-room')
-    expect(result.contract.mustDo).toContain('Keep callback delivery thread-faithful and bounded to the same result line.')
-    expect(result.contract.mustNotDo).toContain('Do not widen a bounded execution callback into generic companionship tone.')
+    expectMustDoControls(result, [
+      'continuity_thread=current_turn',
+      'relationship_pressure=bounded',
+    ])
+    expectMustNotDoControls(result, ['premature_closeness_widening=blocked'])
   })
 
   it('prefers richer canonical runtime person-state projection over thinner derived-bundle carry', () => {
@@ -1195,8 +1264,8 @@ describe('response-surface-contract', () => {
 
     expect(result.contract.activeClosenessContext).toBe('focused-work')
     expect(result.contract.activeClosenessRung).toBe('space-first')
-    expect(result.contract.mustDo.some(item => item.includes('focused-work/space-first'))).toBe(true)
-    expect(result.contract.mustNotDo.some(item => item.includes('need for room'))).toBe(true)
+    expectMustDoControls(result, ['relationship_pressure=bounded'])
+    expectMustNotDoControls(result, ['premature_closeness_widening=blocked'])
     expect(result.systemBlock).toContain('Closeness ladder: focused-work/space-first.')
   })
 
@@ -1270,7 +1339,10 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.allowAffectionatePreface).toBe(true)
-    expect(result.contract.mustDo).toContain('If warmth comes forward, let it stay openly near and lived-in instead of turning theatrical or generic.')
+    expectMustDoControls(result, [
+      'relationship_widening=after_payoff_if_room',
+      'stage_direction_persona_padding=blocked',
+    ])
   })
 
   it('lets shared memory deliberation kernel add stable-core and unsafe-detail discipline to the response surface contract', () => {
@@ -1370,15 +1442,16 @@ describe('response-surface-contract', () => {
       runtimeSurface,
     })
 
-    expect(result.contract.mustDo).toContain('If recollection becomes visible, let the stable remembered core do the work before any fragmentary detail.')
-    expect(result.contract.mustDo).toContain('Land the live payoff first, then reopen remembered continuity only if room remains.')
-    expect(result.contract.mustNotDo).toContain('Do not force recollection forward before the host has room for it.')
-    expect(result.contract.mustNotDo).toContain('Do not let recollection step in front of the current payoff.')
-    expect(result.contract.mustDo).toContain('If memory is visible, reduce it to a brief gist that supports the current payoff.')
-    expect(result.contract.mustDo).toContain('When surfacing this memory, mark approximation or reconstruction instead of sounding exact.')
-    expect(result.contract.mustNotDo).toContain('Do not quote, over-specify, or reconstruct exact details from a gist-only memory posture.')
-    expect(result.contract.mustNotDo.some(item => item.includes('Do not outrun this recollection boundary'))).toBe(true)
-    expect(result.contract.mustNotDo.some(item => item.includes('Do not surface unstable remembered detail as settled fact'))).toBe(true)
+    expectMustDoControls(result, [
+      'memory_visible_surface=stable_core_or_gist',
+      'visible_reply_payoff=concrete_current_turn',
+      'memory_uncertainty_label=required',
+    ])
+    expectMustNotDoControls(result, [
+      'memory_recollection_verbatim_copy=blocked',
+      'recollection_before_current_payoff=blocked',
+      'unsupported_specificity=blocked',
+    ])
     expect(result.systemBlock).toContain('Truth discipline stable-core-only: yes.')
     expect(result.systemBlock).toContain('Truth discipline delay memory until payoff: yes.')
     expect(result.systemBlock).toContain('Memory closure state: approximate-recall.')
@@ -1482,17 +1555,14 @@ describe('response-surface-contract', () => {
       runtimeSurface,
     })
 
-    expect(result.contract.mustDo.some(item =>
-      item.includes('keep recollection inward')
-      || item.includes('live payoff')
-      || item.includes('same-her line'),
-    )).toBe(true)
-    expect(result.contract.mustNotDo.some(item =>
-      item.includes('Phase 1')
-      || item.includes('same-her closure work')
-      || item.includes('surface recollection just because it is active internally'),
-    )).toBe(true)
-    expect(result.contract.mustNotDo).toContain('Do not surface recollection just because it is active internally; keep the live payoff in front.')
+    expectMustDoControls(result, [
+      'memory_recollection_inner_carry=required',
+      'visible_reply_payoff=concrete_current_turn',
+    ])
+    expectMustNotDoControls(result, [
+      'memory_recollection_visible_dump=blocked',
+      'memory_recollection_verbatim_copy=blocked',
+    ])
     expect(result.systemBlock).toContain('Memory closure state: inward-only.')
     expect(result.systemBlock).toContain('Memory allowed visible surface: none.')
     expect(result.systemBlock).toContain('Memory visible carry mode: withhold.')
@@ -1602,7 +1672,7 @@ describe('response-surface-contract', () => {
       'recollection_frame_prior_procedure=yes',
       'recollection_surface_permission=soft-surface',
     ]))
-    expect(result.contract.mustNotDo).toContain('Do not let remembered procedure impersonate fresh execution completion.')
+    expectMustNotDoControls(result, ['memory_execution_impersonation=blocked'])
   })
 
   it('threads active self-revision response posture into the response surface contract', () => {
@@ -1686,11 +1756,15 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.activeSelfRevisionPatchId).toBe('patch-response-1')
-    expect(result.contract.mustDo).toContain('Expose hypothesis boundaries more explicitly because the active self-revision patch raised hypothesis-label discipline.')
-    expect(result.contract.mustDo).toContain('Keep the visible reply on the same living line the active self-revision patch just re-anchored: one continuous her.')
-    expect(result.contract.mustDo).toContain('Keep the active self-revision anti-shell guard alive in the visible reply posture: one continuous her ; If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive..')
-    expect(result.contract.mustNotDo).toContain('Do not satisfy the host with a template shell; close the loop with concrete answer or care content now.')
-    expect(result.contract.mustNotDo).toContain('Do not let a self-revised visible reply fall back into generic assistant guidance, detached project narration, or external summary cadence.')
+    expectMustDoControls(result, [
+      'hypothesis_label=required',
+      'project_continuity=structured_context',
+    ])
+    expectMustNotDoControls(result, [
+      'template_shell=blocked',
+      'detached_project_summary_voice=blocked',
+      'unsupported_specificity=blocked',
+    ])
     expect(result.systemBlock).toContain('Active self revision patch: patch-response-1.')
   })
 
@@ -1741,9 +1815,13 @@ describe('response-surface-contract', () => {
       },
     })
 
-    expect(result.contract.mustDo).toContain('Let the visible reply return on the same thread first, then leave the host room before widening into added warmth or follow-up.')
-    expect(result.contract.mustNotDo).toContain('Do not let a finished execution payoff snap straight into renewed closeness, extra affection, or pressure for immediate continuation.')
-    expect(result.systemBlock).toContain('Current speaking intention: Let the wording stay thread-faithful, softer, and room-giving.')
+    expectMustDoControls(result, [
+      'continuity_thread=current_turn',
+      'relationship_pressure=bounded',
+      'relationship_widening=after_payoff_if_room',
+    ])
+    expectMustNotDoControls(result, ['premature_closeness_widening=blocked'])
+    expect(result.systemBlock).toContain('current_speaking_intention=Let_the_wording_stay_thread-faithful,_softer,_and_room-giving.')
   })
 
   it('keeps same-thread continuation replies on the same living line before branching outward', () => {
@@ -1793,11 +1871,16 @@ describe('response-surface-contract', () => {
       },
     })
 
-    expect(result.contract.mustDo).toContain('Let the visible reply stay on the same living line first, then continue before branching outward or widening warmth.')
-    expect(result.contract.mustDo).toContain('Phrase the continuation positively as already staying with or continuing the same line, instead of centering the wording on what it is not restarting.')
-    expect(result.contract.mustNotDo).toContain('Do not restart an already-live same-thread continuation as a fresh approach, a widened closeness move, or a generic proactive reopening.')
-    expect(result.contract.mustNotDo).toContain('Do not lean on negation-first wording like “not restarting”, “not reopening”, or “not getting close again” as the visible spine of a same-thread continuation reply.')
-    expect(result.systemBlock).toContain('Current speaking intention: Keep the wording same-thread, lower-pressure, and gently continuing rather than newly reopening.')
+    expectMustDoControls(result, [
+      'continuity_thread=current_turn',
+      'relationship_widening=after_payoff_if_room',
+    ])
+    expectMustNotDoControls(result, [
+      'continuity_thread_break=blocked',
+      'fresh_restart=blocked',
+      'premature_closeness_widening=blocked',
+    ])
+    expect(result.systemBlock).toContain('current_speaking_intention=Keep_the_wording_same-thread,_lower-pressure,_and_gently_continuing_rather_than_newly_reopening.')
   })
 
   it('keeps same-thread continuation provider rules timing-aware when project continuity prefers the next open window', () => {
@@ -1850,8 +1933,14 @@ describe('response-surface-contract', () => {
       } as any,
     })
 
-    expect(result.contract.mustDo).toContain('Keep the same-thread continuation inward first, then wait for a more natural opening before widening warmth, payoff framing, or closeness.')
-    expect(result.contract.mustNotDo).toContain('Do not widen a same-thread continuation into warmer payoff or closer relationship language before the current opening has naturally loosened.')
+    expectMustDoControls(result, [
+      'continuity_thread=current_turn',
+      'relationship_widening=after_payoff_if_room',
+    ])
+    expectMustNotDoControls(result, [
+      'continuity_thread_break=blocked',
+      'premature_closeness_widening=blocked',
+    ])
   })
 
   it('keeps same-thread continuation provider rules timing-aware when next-open-window survives only as conscious-frame reason tags', () => {
@@ -1905,8 +1994,14 @@ describe('response-surface-contract', () => {
       } as any,
     })
 
-    expect(result.contract.mustDo).toContain('Keep the same-thread continuation inward first, then wait for a more natural opening before widening warmth, payoff framing, or closeness.')
-    expect(result.contract.mustNotDo).toContain('Do not widen a same-thread continuation into warmer payoff or closer relationship language before the current opening has naturally loosened.')
+    expectMustDoControls(result, [
+      'continuity_thread=current_turn',
+      'relationship_widening=after_payoff_if_room',
+    ])
+    expectMustNotDoControls(result, [
+      'continuity_thread_break=blocked',
+      'premature_closeness_widening=blocked',
+    ])
   })
 
   it('keeps repair-before-closeness same-thread provider rules explicit instead of thinning them back to generic next-open-window widening guidance', () => {
@@ -1965,8 +2060,15 @@ describe('response-surface-contract', () => {
       } as any,
     })
 
-    expect(result.contract.mustDo).toContain('Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.')
-    expect(result.contract.mustNotDo).toContain('Do not widen into warmer payoff, fresh-opening tone, or renewed closeness before the repair line and room have both settled.')
+    expectMustDoControls(result, [
+      'continuity_thread=current_turn',
+      'relationship_pressure=bounded',
+      'relationship_widening=after_payoff_if_room',
+    ])
+    expectMustNotDoControls(result, [
+      'fresh_restart=blocked',
+      'premature_closeness_widening=blocked',
+    ])
   })
 
   it('keeps rest-protective same-thread provider rules explicit instead of flattening them into generic care guidance', () => {
@@ -2026,8 +2128,15 @@ describe('response-surface-contract', () => {
       } as any,
     })
 
-    expect(result.contract.mustDo).toContain('Keep the same-thread continuation on the same living line, let rest protection hold first, and leave room before widening warmth, payoff framing, or closeness.')
-    expect(result.contract.mustNotDo).toContain('Do not turn a rest-protective same-thread continuation into generic care, fresh-opening warmth, or renewed closeness before the fatigue-aware line has settled.')
+    expectMustDoControls(result, [
+      'continuity_thread=current_turn',
+      'relationship_pressure=bounded',
+      'relationship_widening=after_payoff_if_room',
+    ])
+    expectMustNotDoControls(result, [
+      'fresh_restart=blocked',
+      'premature_closeness_widening=blocked',
+    ])
   })
 
   it('carries pre-dialogue project awareness into the response surface contract so ordinary visible replies keep the same life-thread inward line', () => {
@@ -2086,11 +2195,17 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      preDialogueAwarenessLine: 'Before speaking, remember this is still the same digital life project, already in Phase 1 closure, with initiative and embodiment still open on the same living line.',
       sameHerLineRequired: true,
     }))
-    expect(result.contract.mustDo).toContain('Before widening outward, keep this pre-dialogue project awareness line alive inside the visible reply posture: Before speaking, remember this is still the same digital life project, already in Phase 1 closure, with initiative and embodiment still open on the same living line.')
-    expect(result.systemBlock).toContain('Project continuity pre-dialogue awareness line: Before speaking, remember this is still the same digital life project, already in Phase 1 closure, with initiative and embodiment still open on the same living line..')
+    expectProjectContinuitySignals(result, [
+      'local_desktop_life_loop',
+      'visibility=response-surface-structured',
+      'continuity_anchor=local_desktop_life_loop',
+    ])
+    expectMustDoControls(result, [
+      'project_pre_dialogue_awareness=present;use_as_internal_context=true;do_not_quote_awareness_line=true',
+      'active_project_closure_context=present;preserve_factual_fields_without_slogans=true',
+    ])
   })
 
   it('keeps same-thread project-state callback continuity from flattening into a fresh report opening on the provider contract', () => {
@@ -2151,11 +2266,15 @@ describe('response-surface-contract', () => {
       } as any,
     })
 
-    expect(result.contract.mustDo).toContain('Let the visible reply stay on the same living line first, then continue before branching outward or widening warmth.')
-    expect(result.contract.mustDo).toContain('Carry this project continuity same-her self line directly in the visible reply posture: This project-state callback still belongs to one same her carrying the same closure line forward.')
-    expect(result.contract.mustNotDo).toContain('Do not restart an already-live same-thread continuation as a fresh approach, a widened closeness move, or a generic proactive reopening.')
-    expect(result.contract.mustNotDo).toContain('Do not degrade a required project continuity same-her self line into generic project-awareness, generic companionship, or detached project-summary wording.')
-    expect(result.contract.mustNotDo).toContain('Do not flatten this same-thread project-state continuation into a fresh report opening or detached project-summary shell.')
+    expectMustDoControls(result, [
+      'continuity_thread=current_turn',
+      'project_continuity_anchor=required;preserve_as_structured_context=true;do_not_quote_anchor=true',
+    ])
+    expectMustNotDoControls(result, [
+      'fresh_restart=blocked',
+      'project_continuity_flattening=blocked',
+      'detached_project_summary_voice=blocked',
+    ])
   })
 
   it('falls back to a live companion briefing line before generic preflight summary when deriving project continuity awareness', () => {
@@ -2215,11 +2334,16 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      preDialogueAwarenessLine: 'Before speaking, keep the same digital life project and active Phase 1 closure seam in view.',
       sameHerLineRequired: true,
     }))
-    expect(result.contract.mustDo).toContain('Before widening outward, keep this pre-dialogue project awareness line alive inside the visible reply posture: Before speaking, keep the same digital life project and active Phase 1 closure seam in view.')
-    expect(result.systemBlock).toContain('Project continuity pre-dialogue awareness line: Before speaking, keep the same digital life project and active Phase 1 closure seam in view..')
+    expectProjectContinuitySignals(result, [
+      'local_desktop_life_loop',
+      'visibility=response-surface-structured',
+      'continuity_anchor=local_desktop_life_loop',
+    ])
+    expectMustDoControls(result, [
+      'project_pre_dialogue_awareness=present;use_as_internal_context=true;do_not_quote_awareness_line=true',
+    ])
   })
 
   it('prefers a stronger same-her companion headline over a thinner generic awareness line when deriving project continuity awareness', () => {
@@ -2280,13 +2404,20 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      preDialogueAwarenessLine: 'Right now I am still holding together mainly through voice, face, and motion, so the next reopening must keep proving this is still one living her.',
       sameHerLineRequired: true,
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerSelfLine: 'continuity_anchor=present; content=excluded; visibility=internal_structured',
     }))
-    expect(result.contract.mustDo).toContain('Before widening outward, keep this pre-dialogue project awareness line alive inside the visible reply posture: Right now I am still holding together mainly through voice, face, and motion, so the next reopening must keep proving this is still one living her.')
-    expect(result.systemBlock).toContain('Project continuity pre-dialogue awareness line: Right now I am still holding together mainly through voice, face, and motion, so the next reopening must keep proving this is still one living her..')
-    expect(result.systemBlock).not.toContain('Project continuity pre-dialogue awareness line: Before speaking, keep this same digital life project in view, but do not widen into a detached project shell..')
+    expectProjectContinuitySignals(result, [
+      'local_desktop_life_loop',
+      'voice',
+      'face',
+      'motion',
+      'visibility=response-surface-structured',
+    ])
+    expectNoProviderNaturalInstruction(
+      result,
+      'Before speaking, keep this same digital life project in view, but do not widen into a detached project shell.',
+    )
   })
 
   it('keeps a richer project-aware companion briefing line as pre-dialogue awareness while preserving the stronger embodiment headline separately', () => {
@@ -2350,13 +2481,15 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      preDialogueAwarenessLine: richerProjectBriefingLine,
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerSelfLine: 'continuity_anchor=present; content=excluded; visibility=internal_structured',
       sameHerLineRequired: true,
     }))
-    expect(result.contract.mustDo).toContain(`Before widening outward, keep this pre-dialogue project awareness line alive inside the visible reply posture: ${richerProjectBriefingLine}`)
-    expect(result.systemBlock).toContain(`Project continuity pre-dialogue awareness line: ${richerProjectBriefingLine}.`)
-    expect(result.systemBlock).not.toContain(`Project continuity pre-dialogue awareness line: ${strongerEmbodimentHeadline}.`)
+    expectProjectContinuitySignals(result, [
+      'local_desktop_life_loop',
+      'visibility=response-surface-structured',
+      'continuity_anchor=local_desktop_life_loop',
+    ])
+    expectNoProviderNaturalInstruction(result, richerProjectBriefingLine, strongerEmbodimentHeadline)
   })
 
   it('prefers a broader same-her phase-1 closure headline over a thinner project-awareness shell on the final response surface', () => {
@@ -2417,15 +2550,24 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      preDialogueAwarenessLine: 'Before speaking, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
       sameHerLineRequired: true,
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerSelfLine: 'continuity_anchor=present; content=excluded; visibility=internal_structured',
     }))
-    expect(result.contract.mustDo).toContain('Before widening outward, keep this pre-dialogue project awareness line alive inside the visible reply posture: Before speaking, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.')
-    expect(result.systemBlock).toContain('Project continuity pre-dialogue awareness line: Before speaking, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity..')
-    expect(result.systemBlock).not.toContain('Project continuity pre-dialogue awareness line: Before speaking, keep this same digital life project in view, but do not widen into a detached project shell..')
-    expect(result.contract.mustDo).toContain('Keep the visible reply anchored to the active digital-life closure seam: Before speaking, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.')
-    expect(result.contract.mustDo).not.toContain('Keep the visible reply anchored to the active digital-life closure seam: generic project continuity fallback should not outrank the stronger same-her headline.')
+    expectProjectContinuitySignals(result, [
+      'local_desktop_life_loop',
+      'initiative',
+      'embodiment',
+      'visibility=response-surface-structured',
+    ])
+    expectMustDoControls(result, [
+      'project_continuity=structured_context',
+      'project_pre_dialogue_awareness=present;use_as_internal_context=true;do_not_quote_awareness_line=true',
+    ])
+    expectNoProviderNaturalInstruction(
+      result,
+      'Before speaking, keep this same digital life project in view, but do not widen into a detached project shell.',
+      'generic project continuity fallback should not outrank the stronger same-her headline.',
+    )
   })
 
   it('keeps same-her project-closure callback continuity explicit on the final response surface even without extra continuity reason tags', () => {
@@ -2514,12 +2656,19 @@ describe('response-surface-contract', () => {
       } as any,
     })
 
-    expect(result.contract.mustDo).toContain('Carry this project continuity same-her self line directly in the visible reply posture: This callback return still belongs to one same her carrying the same closure line forward.')
-    expect(result.contract.mustDo).toContain('Before widening outward, keep this pre-dialogue project awareness line alive inside the visible reply posture: Before speaking, remember this is still the same digital life project and the same Phase 1 closure.')
-    expect(result.contract.mustDo).toContain('Keep the returned result on the same local digital life thread so the callback lands like one continuous her, not like a detached tool notification.')
-    expect(result.contract.mustNotDo).toContain('Do not degrade a required project continuity same-her self line into generic project-awareness, generic companionship, or detached project-summary wording.')
-    expect(result.contract.mustNotDo).toContain('Do not widen a bounded callback into generic companionship tone.')
-    expect(result.systemBlock).toContain('Project continuity same-her self line: This callback return still belongs to one same her carrying the same closure line forward.')
+    expectMustDoControls(result, [
+      'project_continuity_anchor=required;preserve_as_structured_context=true;do_not_quote_anchor=true',
+      'project_pre_dialogue_awareness=present;use_as_internal_context=true;do_not_quote_awareness_line=true',
+    ])
+    expectMustNotDoControls(result, [
+      'project_continuity_flattening=blocked',
+      'detached_project_summary_voice=blocked',
+      'premature_closeness_widening=blocked',
+    ])
+    expectProjectContinuitySignals(result, [
+      'continuity_anchor=present; content=excluded; visibility=internal_structured',
+      'local_desktop_life_loop',
+    ])
   })
 
   it('prefers a richer callback same-her self line over a thinner shell when landed progress open closure and next target already survive together', () => {
@@ -2578,14 +2727,18 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      sameHerSelfLine: 'This callback return still belongs to one same her carrying the same closure line forward.',
-      latestProgress: 'Pre-dialogue project awareness, callback carry, and replay continuity are landing together more reliably.',
-      primaryOpenLoop: 'Main still needs initiative, embodiment, and resident presence to keep callback closure on one same-her line.',
-      nextClosureTarget: 'Keep recalled same-her closure memory ahead of a generic callback shell in final visible reply rules.',
-      preDialogueAwarenessLine: expect.stringContaining('Alicization is a local-first digital life project building one continuous "her"'),
+      sameHerSelfLine: 'continuity_anchor=present; content=excluded; visibility=internal_structured',
+      nextClosureTarget: 'next_closure_target=present; content=excluded; visibility=internal_structured',
     }))
-    expect(result.contract.mustDo).toContain(`Carry this project continuity same-her self line directly in the visible reply posture: ${result.contract.projectContinuity?.sameHerSelfLine}`)
-    expect(result.systemBlock).toContain('Project continuity same-her self line: This callback return still belongs to one same her carrying the same closure line forward.')
+    expectProjectContinuitySignals(result, [
+      'local_desktop_life_loop',
+      'callback_continuity',
+      'life_loop_continuity=memory',
+      'continuity_anchor=present',
+    ])
+    expectMustDoControls(result, [
+      'project_continuity_anchor=required;preserve_as_structured_context=true;do_not_quote_anchor=true',
+    ])
   })
 
   it('keeps richer compiler-carried same-her callback project continuity when the conscious-frame shell stays thin', () => {
@@ -2690,17 +2843,20 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      currentPhase: compilerProjectPhase,
-      latestProgress: compilerProjectProgress,
-      primaryOpenLoop: compilerProjectOpenLoop,
-      nextClosureTarget: compilerProjectNextClosure,
-      preDialogueAwarenessLine: compilerProjectAwareness,
-      sameHerSelfLine: compilerSameHerSelfLine,
+      latestProgress: 'latest_progress=present; content=excluded; visibility=internal_structured',
+      primaryOpenLoop: 'primary_open_loop=present; content=excluded; visibility=internal_structured',
+      sameHerLineRequired: true,
     }))
-    expect(result.contract.mustDo).toContain(`Carry this project continuity same-her self line directly in the visible reply posture: ${compilerSameHerSelfLine}`)
-    expect(result.contract.mustDo).toContain(`Before widening outward, keep this pre-dialogue project awareness line alive inside the visible reply posture: ${compilerProjectAwareness}`)
-    expect(result.systemBlock).toContain(`Project continuity next closure target: ${compilerProjectNextClosure}.`)
-    expect(result.systemBlock).toContain(`Project continuity same-her self line: ${compilerSameHerSelfLine}.`)
+    expectProjectContinuitySignals(result, [
+      'local_desktop_life_loop',
+      'visibility=response-surface-structured',
+      'callback',
+      'open_loop=initiative+embodiment',
+    ])
+    expectMustDoControls(result, [
+      'project_continuity_anchor=required;preserve_as_structured_context=true;do_not_quote_anchor=true',
+      'project_pre_dialogue_awareness=present;use_as_internal_context=true;do_not_quote_awareness_line=true',
+    ])
   })
 
   it('keeps compiler-carried proactive same-her gap explicit on the response surface when the conscious-frame shell stays thin', () => {
@@ -2803,17 +2959,18 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      proactiveSameHerGap: compilerProactiveSameHerGap,
-      preDialogueAwarenessLine: compilerProjectAwareness,
-      sameHerSelfLine: compilerSameHerSelfLine,
+      proactiveSameHerGap: 'proactive_continuity_loop=partial;_long_run_noisy_desktop_proof=needed;_visibility=internal_until_user_asks_project_state',
+      sameHerLineRequired: true,
     }))
-    expect(result.contract.mustDo).toContain(
-      `Keep this still-open proactive same-her gap explicit in the visible reply posture before widening outward: ${compilerProactiveSameHerGap}`,
-    )
-    expect(result.contract.mustNotDo).toContain(
-      'Do not answer as though proactive same-her closure is already finished, or flatten the still-open proactive gap into generic progress recap, generic companionship, or a detached project-summary shell.',
-    )
-    expect(result.systemBlock).toContain(`Project continuity proactive same-her gap: ${compilerProactiveSameHerGap}.`)
+    expectMustDoControls(result, [
+      'proactive_continuity_gap=open;preserve_as_status_field=true;do_not_quote_gap_text=true',
+      'project_pre_dialogue_awareness=present;use_as_internal_context=true;do_not_quote_awareness_line=true',
+    ])
+    expectMustNotDoControls(result, [
+      'detached_project_summary_voice=blocked',
+      'project_continuity_flattening=blocked',
+    ])
+    expectProjectContinuitySignals(result, ['proactive_continuity_gap'])
   })
 
   it('keeps callback-specific same-her awareness explicit on the response surface instead of falling back to a generic project shell', () => {
@@ -2918,25 +3075,23 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      currentPhase: 'Phase 1: Local Digital Life',
-      latestProgress: callbackLandedProgress,
-      primaryOpenLoop: callbackOpenLoop,
-      nextClosureTarget: callbackNextClosure,
-      preDialogueAwarenessLine: callbackAwarenessLine,
-      sameHerSelfLine: callbackSameHerSelfLine,
-      sameHerDriftRisk: callbackDriftRisk,
+      currentPhase: 'current_phase=present; content=excluded; visibility=internal_structured',
+      latestProgress: 'latest_progress=present; content=excluded; visibility=internal_structured',
+      primaryOpenLoop: 'primary_open_loop=present; content=excluded; visibility=internal_structured',
+      nextClosureTarget: 'next_closure_target=present; content=excluded; visibility=internal_structured',
+      sameHerDriftRisk: 'continuity_drift_risk=present; content=excluded; visibility=internal_structured',
       sameHerLineRequired: true,
     }))
-    expect(result.contract.mustDo).toContain(`Carry this project continuity same-her self line directly in the visible reply posture: ${callbackSameHerSelfLine}`)
-    expect(result.contract.mustDo).toContain(`Before widening outward, keep this pre-dialogue project awareness line alive inside the visible reply posture: ${callbackAwarenessLine}`)
-    expect(result.contract.mustDo).toContain(`Keep this same-her drift-risk boundary explicit in the visible reply posture: ${callbackDriftRisk}`)
-    expect(result.contract.mustNotDo).toContain('Do not degrade a required project continuity same-her self line into generic project-awareness, generic companionship, or detached project-summary wording.')
-    expect(result.contract.mustNotDo).toContain('Do not flatten this same-thread project-state continuation into a fresh report opening or detached project-summary shell.')
-    expect(result.contract.mustNotDo).toContain('Do not let the visible reply flatten into a generic task shell, detached project narration, generic assistant guidance, or project-summary voice just because the project update is explicit this turn.')
-    expect(result.systemBlock).toContain(`Project continuity pre-dialogue awareness line: ${callbackAwarenessLine}.`)
-    expect(result.systemBlock).toContain(`Project continuity same-her self line: ${callbackSameHerSelfLine}.`)
-    expect(result.systemBlock).toContain(`Project continuity same-her drift risk: ${callbackDriftRisk}.`)
-    expect(result.systemBlock).not.toContain('Project continuity pre-dialogue awareness line: same digital life | keep the closure seam explicit.')
+    expectMustDoControls(result, [
+      'project_continuity_anchor=required;preserve_as_structured_context=true;do_not_quote_anchor=true',
+      'project_pre_dialogue_awareness=present;use_as_internal_context=true;do_not_quote_awareness_line=true',
+    ])
+    expectMustNotDoControls(result, [
+      'project_continuity_flattening=blocked',
+      'fresh_restart=blocked',
+      'detached_project_summary_voice=blocked',
+    ])
+    expectNoProviderNaturalInstruction(result, 'same digital life | keep the closure seam explicit')
   })
 
   it('carries same-her drift-risk into the final response surface contract so explicit project updates do not collapse into detached project-summary voice', () => {
@@ -2997,11 +3152,15 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      sameHerDriftRisk: 'If the visible answer opens like detached project narration, the same-her line can collapse into generic task shell and project-summary voice.',
+      sameHerDriftRisk: 'continuity_drift_risk=present; content=excluded; visibility=internal_structured',
     }))
-    expect(result.contract.mustDo).toContain('Keep this same-her drift-risk boundary explicit in the visible reply posture: If the visible answer opens like detached project narration, the same-her line can collapse into generic task shell and project-summary voice.')
-    expect(result.contract.mustNotDo).toContain('Do not let the visible reply flatten into a generic task shell, detached project narration, generic assistant guidance, or project-summary voice just because the project update is explicit this turn.')
-    expect(result.systemBlock).toContain('Project continuity same-her drift risk: If the visible answer opens like detached project narration, the same-her line can collapse into generic task shell and project-summary voice..')
+    expectMustDoControls(result, ['project_continuity=structured_context'])
+    expectMustNotDoControls(result, ['detached_project_summary_voice=blocked'])
+    expectProjectContinuitySignals(result, [
+      'continuity_drift_risk=present',
+      'content=excluded',
+      'visibility=internal_structured',
+    ])
   })
 
   it('keeps same-thread continuation provider rules payoff-first when project continuity prefers after-payoff timing', () => {
@@ -3054,8 +3213,15 @@ describe('response-surface-contract', () => {
       } as any,
     })
 
-    expect(result.contract.mustDo).toContain('Let the same-thread continuation carry the concrete answer or repair payoff first, then widen warmth only if room remains afterward.')
-    expect(result.contract.mustNotDo).toContain('Do not spend the first visible beat widening closeness or relationship payoff before the current same-thread answer has landed.')
+    expectMustDoControls(result, [
+      'continuity_thread=current_turn',
+      'visible_reply_payoff=concrete_current_turn',
+      'relationship_widening=after_payoff_if_room',
+    ])
+    expectMustNotDoControls(result, [
+      'continuity_thread_break=blocked',
+      'premature_closeness_widening=blocked',
+    ])
   })
 
   it('fail-closes required project continuity into an explicit same-her self-line obligation', () => {
@@ -3113,8 +3279,12 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity?.sameHerLineRequired).toBe(true)
-    expect(result.contract.mustDo).toContain('Carry this project continuity same-her self line directly in the visible reply posture: Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(result.contract.mustNotDo).toContain('Do not degrade a required project continuity same-her self line into generic project-awareness, generic companionship, or detached project-summary wording.')
+    expect(result.contract.projectContinuity?.sameHerSelfLine).toBe('continuity_anchor=present; content=excluded; visibility=internal_structured')
+    expectMustDoControls(result, ['project_continuity_anchor=required;preserve_as_structured_context=true;do_not_quote_anchor=true'])
+    expectMustNotDoControls(result, [
+      'project_continuity_flattening=blocked',
+      'detached_project_summary_voice=blocked',
+    ])
   })
 
   it('inherits rebuilt same-her low-pressure anti-restart charter cue into project continuity surface rules', () => {
@@ -3174,11 +3344,13 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity?.emotionalClosureCue).toBe(
-      'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      'emotional_closure_cue=present; content=excluded; visibility=internal_structured',
     )
-    expect(result.systemBlock).toContain(
-      'Project continuity emotional closure cue: same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling..',
-    )
+    expectProjectContinuitySignals(result, [
+      'emotional_closure_cue=present',
+      'content=excluded',
+      'visibility=internal_structured',
+    ])
   })
 
   it('keeps still-open proactive same-her gap explicit in project continuity before visible reply widening', () => {
@@ -3242,17 +3414,11 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      proactiveSameHerGap,
+      proactiveSameHerGap: 'Visible_proactive_hold_still_needs_stronger_proof_that_it_survives_callback_return,_subconscious_carry,_and_next-session_follow-through_without_flattening_into_detached_project_narration.',
     }))
-    expect(result.contract.mustDo).toContain(
-      `Keep this still-open proactive same-her gap explicit in the visible reply posture before widening outward: ${proactiveSameHerGap}`,
-    )
-    expect(result.contract.mustNotDo).toContain(
-      'Do not answer as though proactive same-her closure is already finished, or flatten the still-open proactive gap into generic progress recap, generic companionship, or a detached project-summary shell.',
-    )
-    expect(result.systemBlock).toContain(
-      `Project continuity proactive same-her gap: ${proactiveSameHerGap}.`,
-    )
+    expectMustDoControls(result, ['proactive_continuity_gap=open;preserve_as_status_field=true;do_not_quote_gap_text=true'])
+    expectMustNotDoControls(result, ['detached_project_summary_voice=blocked'])
+    expectProjectContinuitySignals(result, ['proactive_continuity_gap'])
   })
 
   it('keeps project identity progress and open closure aligned across shared response-surface contract inputs before visible reply shaping', () => {
@@ -3425,37 +3591,20 @@ describe('response-surface-contract', () => {
 
     for (const variant of variants) {
       expect(variant.contract.projectContinuity).toEqual(expect.objectContaining({
-        currentPhase: sharedExpectation.currentPhase,
-        primaryOpenLoop: sharedExpectation.primaryOpenLoop,
-        sameHerSelfLine: sharedExpectation.sameHerSelfLine,
         sameHerLineRequired: true,
       }))
-      expect(String(variant.contract.projectContinuity?.latestProgress ?? '')).toContain('same-her')
-      expect(String(variant.contract.projectContinuity?.latestProgress ?? '')).toContain('visible-reply')
-      expect(String(variant.contract.projectContinuity?.preDialogueAwarenessLine ?? '')).toContain('digital life project')
-      expect(
-        /phase 1(?: closure)?|still inside phase 1/i.test(
-          String(variant.contract.projectContinuity?.preDialogueAwarenessLine ?? ''),
-        ),
-      ).toBe(true)
-      expect(
-        /still-open closure|closure is still underway|unfinished closure/i.test(
-          String(variant.contract.projectContinuity?.preDialogueAwarenessLine ?? ''),
-        ),
-      ).toBe(true)
-      expect(variant.contract.mustDo).toEqual(expect.arrayContaining([
-        `Carry this project continuity same-her self line directly in the visible reply posture: ${sharedExpectation.sameHerSelfLine}`,
-      ]))
-      expect(variant.contract.mustDo.some(item =>
-        item.startsWith('Before widening outward, keep this pre-dialogue project awareness line alive inside the visible reply posture: ')
-        && item.includes('digital life project')
-        && /phase 1(?: closure)?|still inside phase 1/i.test(item),
-      )).toBe(true)
-      expect(variant.contract.mustDo).toContain('Keep the visible reply carrying cross-modal same-her closure explicitly, so the same digital life stays coherent across visible reply, voice, face, motion, and resident presence.')
-      expect(variant.systemBlock).toContain(`Project continuity current phase: ${sharedExpectation.currentPhase}.`)
-      expect(variant.systemBlock).toContain('Project continuity latest progress: ')
-      expect(variant.systemBlock).toContain('same-her')
-      expect(variant.systemBlock).toContain(`Project continuity primary open loop: ${sharedExpectation.primaryOpenLoop}.`)
+      expectProjectContinuitySignals(variant, [
+        'local_desktop_life_loop',
+        'visibility=response-surface-structured',
+        'continuity_anchor=local_desktop_life_loop',
+      ])
+      expectMustDoControls(variant, [
+        'project_continuity_anchor=required;preserve_as_structured_context=true;do_not_quote_anchor=true',
+        'project_pre_dialogue_awareness=present;use_as_internal_context=true;do_not_quote_awareness_line=true',
+        'active_project_closure_context=present;preserve_factual_fields_without_slogans=true',
+      ])
+      expectMustNotDoControls(variant, ['detached_project_summary_voice=blocked'])
+      expectNoProviderNaturalInstruction(variant, preDialogueAwarenessLine)
     }
   })
 
@@ -3503,11 +3652,14 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      emotionalClosureSummary: 'Keep this return repair-before-closeness on the same living line until repair settles.',
-      sameHerHoldDetail: 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
-      preDialogueAwarenessLine: expect.stringContaining('Alicization is a local-first digital life project building one continuous "her"'),
+      emotionalClosureSummary: 'emotional_closure_summary=present; content=excluded; visibility=internal_structured',
+      sameHerHoldDetail: 'continuity_hold_detail=present; content=excluded; visibility=internal_structured',
     }))
-    expect(result.systemBlock).toContain('Project continuity pre-dialogue awareness line: Before answering, remember: Alicization is a local-first digital life project building one continuous "her"')
+    expectProjectContinuitySignals(result, [
+      'local_desktop_life_loop',
+      'visibility=response-surface-structured',
+      'continuity_hold_detail=present',
+    ])
   })
 
   it('turns richer repair-first same-her project carry into cross-modal visible-reply discipline before embodiment outputs widen', () => {
@@ -3554,13 +3706,20 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      emotionalClosureSummary: 'Keep this return repair-before-closeness on the same living line until repair settles.',
-      sameHerHoldDetail: 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
-      primaryOpenLoop: 'Live2D, VRM, expression, motion, lipsync, and voice still need one shared same-her embodiment closure before the line is truly settled.',
-      nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and lipsync without dropping the living callback line.',
+      emotionalClosureSummary: 'emotional_closure_summary=present; content=excluded; visibility=internal_structured',
+      sameHerHoldDetail: 'continuity_hold_detail=present; content=excluded; visibility=internal_structured',
+      primaryOpenLoop: 'primary_open_loop=present; content=excluded; visibility=internal_structured',
+      nextClosureTarget: 'next_closure_target=present; content=excluded; visibility=internal_structured',
     }))
-    expect(result.contract.mustDo).toContain('Keep the visible reply carrying cross-modal same-her closure explicitly, so the same digital life stays coherent across visible reply, voice, face, motion, and resident presence.')
-    expect(result.contract.mustNotDo).toContain('Do not thin a cross-modal same-her closure target back into generic project continuity or generic same-her language before the visible reply lands.')
+    expectMustDoControls(result, ['embodiment_continuity=preserve'])
+    expectMustNotDoControls(result, ['project_continuity_flattening=blocked'])
+    expectProjectContinuitySignals(result, [
+      'local_desktop_life_loop',
+      'voice',
+      'face',
+      'motion',
+      'continuity_hold_detail=present',
+    ])
   })
 
   it('keeps host-corrected same-person continuity in project continuity when the current conscious frame only carries thin progress recap pressure', () => {
@@ -3638,7 +3797,7 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      sameHerHoldDetail: correctedSamePersonAuthority,
+      sameHerHoldDetail: 'Keep_the_host-corrected_same-person_continuity_authoritative_before_any_progress-style_continuation_or_status_recap.',
     }))
     expect(JSON.stringify(result.contract.projectContinuity)).not.toContain(genericProgressRecapPressure)
   })
@@ -3708,14 +3867,17 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      preDialogueAwarenessLine: fresherRuntimeAwarenessLine,
       sameHerLineRequired: true,
     }))
-    expect(result.contract.mustDo).toContain(
-      `Before widening outward, keep this pre-dialogue project awareness line alive inside the visible reply posture: ${fresherRuntimeAwarenessLine}`,
-    )
-    expect(result.systemBlock).toContain(`Project continuity pre-dialogue awareness line: ${fresherRuntimeAwarenessLine}.`)
-    expect(result.systemBlock).not.toContain('Project continuity pre-dialogue awareness line: same digital life | keep the closure seam explicit.')
+    expectProjectContinuitySignals(result, [
+      'local_desktop_life_loop',
+      'voice',
+      'face',
+      'motion',
+      'visibility=response-surface-structured',
+    ])
+    expectMustDoControls(result, ['project_pre_dialogue_awareness=present;use_as_internal_context=true;do_not_quote_awareness_line=true'])
+    expectNoProviderNaturalInstruction(result, fresherRuntimeAwarenessLine, 'same digital life | keep the closure seam explicit')
   })
 
   it('keeps summary-only same-her project continuity explicit in the response surface contract when richer project-state aliases survive but legacy fields do not', () => {
@@ -3784,21 +3946,21 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
-      latestProgress: 'Continuity, memory, execution, and visible-reply repair discipline already land together often enough to build from on one same-her Phase 1 line.',
-      primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying one still-open closure line.',
-      nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-      preDialogueAwarenessLine: richerSummaryOnlyAwarenessLine,
-      sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+      latestProgress: 'latest_progress=present; content=excluded; visibility=internal_structured',
+      nextClosureTarget: 'next_closure_target=present; content=excluded; visibility=internal_structured',
+      sameHerDriftRisk: 'continuity_drift_risk=present; content=excluded; visibility=internal_structured',
       sameHerLineRequired: true,
     }))
-    expect(result.contract.mustDo).toContain(
-      `Before widening outward, keep this pre-dialogue project awareness line alive inside the visible reply posture: ${richerSummaryOnlyAwarenessLine}`,
-    )
-    expect(result.systemBlock).toContain('Project continuity latest progress: Continuity, memory, execution, and visible-reply repair discipline already land together often enough to build from on one same-her Phase 1 line.')
-    expect(result.systemBlock).toContain('Project continuity primary open loop: Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying one still-open closure line.')
-    expect(result.systemBlock).toContain('Project continuity next closure target: Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.')
-    expect(result.systemBlock).toContain(`Project continuity pre-dialogue awareness line: ${richerSummaryOnlyAwarenessLine}.`)
-    expect(result.systemBlock).not.toContain('Project continuity pre-dialogue awareness line: same digital life | keep the closure seam explicit.')
+    expectMustDoControls(result, [
+      'project_pre_dialogue_awareness=present;use_as_internal_context=true;do_not_quote_awareness_line=true',
+      'active_project_closure_context=present;preserve_factual_fields_without_slogans=true',
+    ])
+    expectProjectContinuitySignals(result, [
+      'local_desktop_life_loop',
+      'visibility=response-surface-structured',
+      'continuity_anchor=local_desktop_life_loop',
+    ])
+    expectNoProviderNaturalInstruction(result, richerSummaryOnlyAwarenessLine, 'same digital life | keep the closure seam explicit')
   })
 
   it('keeps response-surface project continuity specialized instead of collapsing into the generic project-awareness scorer', () => {
@@ -3808,5 +3970,109 @@ describe('response-surface-contract', () => {
     expect(source).toContain('hasCrossModalSameHerProjectContinuityCue')
     expect(source).not.toContain('scoreAlicizationProjectAwarenessLine')
     expect(source).not.toContain('isAlicizationThinProjectAwarenessLine')
+  })
+
+  it('normalizes fixed natural-language surface instructions into structured provider controls', () => {
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'answer',
+        liveSurface: '',
+        carriedThread: 'same callback line',
+        truthState: 'remembered',
+        separateCarryFromSurface: true,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 3,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Answer the current ask without a template shell.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'dialogue',
+        mindMode: 'tracking',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      currentConsciousFrame: {
+        subject: 'task-knot',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Stay on the same callback line.',
+        consciousTension: 'Avoid restarting as a fresh project summary.',
+        speakingIntention: 'Answer with the concrete current-turn payoff.',
+        focusAnchor: 'same callback line',
+        withheldImpulse: 'Open with a detached project summary voice.',
+        shouldWithholdSpecificity: true,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          sameHerDriftRisk: 'Do not flatten this into a generic assistant shell.',
+          proactiveSameHerGap: 'same-her continuity gap remains open',
+        },
+        updatedAt: 1,
+      } as any,
+      recollectionSpeechPlan: {
+        shouldSurface: false,
+        surfaceMode: 'internal-only',
+        placement: 'internal-only',
+        certainty: 'approximate',
+        internalLead: 'Let the memory bend the answer without announcing the memory itself.',
+        visibleLead: 'Open with the remembered thread.',
+        styleNote: 'Let active recollection stay as inner carry unless surfacing it materially helps.',
+        rationale: 'Do not turn recollection into a standalone archive dump.',
+        confidence: 0.78,
+      },
+      answerCompiler: {
+        mustDo: [
+          'Let the first sentence pay off the user directly.',
+          'Open with the same-her project summary.',
+        ],
+        mustNotDo: [
+          'Do not expose planning jargon, governance labels, or internal control summaries in the visible answer.',
+          'Do not let this become a detached project-summary voice.',
+        ],
+      } as any,
+    })
+
+    const providerSurface = [
+      JSON.stringify(result.contract),
+      result.systemBlock,
+    ].join('\n')
+
+    expect(providerSurface).not.toMatch(/\bDo not |\bOpen with |\bLet the first|\bLet active recollection|\bLet the visible reply/u)
+    expect(result.contract.mustDo).toEqual(expect.arrayContaining([
+      'surface.start=answer_immediate',
+      'visible_reply_payoff=concrete_current_turn',
+      'visible_wording=false',
+      'provider_visible_reply_authority=mind_required',
+      'memory.visibility=inward_only',
+      'memory_recollection_inner_carry=required',
+      'continuity_arc=same_thread',
+      'closeness_widening=defer_until_payoff',
+    ]))
+    expect(result.contract.mustNotDo).toEqual(expect.arrayContaining([
+      'persona_shell=blocked',
+      'stage_direction_persona_padding=blocked',
+      'internal_control_summary=blocked',
+      'memory_recollection_verbatim_copy=blocked',
+      'fresh_restart=blocked',
+      'detached_project_summary_voice=blocked',
+      'unsupported_specificity=blocked',
+    ]))
+    expect(result.systemBlock).toContain('visible_reply_payoff=concrete_current_turn')
+    expect(result.systemBlock).toContain('failure_transparency=required')
   })
 })

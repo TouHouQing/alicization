@@ -5,6 +5,14 @@ import {
   bridgeAlicizationChatStartResultToStreamEvent,
 } from './alicization-chat-stream-bridge'
 
+const EXCLUDED_CONTINUITY_RESIDUE = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+const BRIDGE_FIXED_TEMPLATE_OUTPUT_PATTERN
+  = /Latest landed progress still holds|Next closure target is still|Before (?:answering|speaking|acting)|Same Phase 1 digital life|same living line|local-first digital life project|one continuous "?her"?|same-her\b|数字生命主线|同一个她/iu
+
+function expectNoBridgeFixedTemplateResidue(value: unknown) {
+  expect(JSON.stringify(value ?? '')).not.toMatch(BRIDGE_FIXED_TEMPLATE_OUTPUT_PATTERN)
+}
+
 describe('alicization chat stream bridge', () => {
   it('preserves accepted-start project-state awareness so renderer already knows what this digital life project is before the first outward reply lands', () => {
     const bridged = bridgeAlicizationChatStartResultToStreamEvent('default', {
@@ -88,20 +96,26 @@ describe('alicization chat stream bridge', () => {
     expect(bridged).toEqual(expect.objectContaining({
       type: 'meta',
       projectState: expect.objectContaining({
-        identity: expect.stringContaining('local-first digital life project'),
-        currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-        primaryOpenLoop: expect.stringContaining('same-her closure seam'),
+        identity: 'local_desktop_life_loop',
+        currentPhase: 'local_desktop_life_loop',
+        primaryOpenLoop: EXCLUDED_CONTINUITY_RESIDUE,
+        sameHerSelfLine: EXCLUDED_CONTINUITY_RESIDUE,
       }),
       preDialogueAwareness: expect.objectContaining({
         status: 'grounded',
-        companionBriefingLine: expect.stringContaining('what this digital life project is'),
-        companionNextClosureLine: expect.stringContaining('same living line'),
+        awarenessLine: expect.stringContaining('visibility=internal-structured'),
+        companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
+        companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
       }),
       embodimentScript: expect.objectContaining({
         turnId: 'turn-start-project-awareness-forward-1',
       }),
       runtimeDigest: expect.objectContaining({
-        summary: expect.stringContaining('same-her project awareness'),
+        summary: EXCLUDED_CONTINUITY_RESIDUE,
+        projectState: expect.objectContaining({
+          preDialogueAwarenessLine: EXCLUDED_CONTINUITY_RESIDUE,
+          sameHerSelfLine: EXCLUDED_CONTINUITY_RESIDUE,
+        }),
       }),
     }))
   })
@@ -142,7 +156,7 @@ describe('alicization chat stream bridge', () => {
           continuityArcStage: 'same-thread-continuation',
           handoffTarget: 'active-memory',
         }),
-        summary: 'same-her callback continuity still holds after the detour',
+        summary: EXCLUDED_CONTINUITY_RESIDUE,
       }),
     }))
   })
@@ -181,10 +195,10 @@ describe('alicization chat stream bridge', () => {
     expect(bridged).toEqual(expect.objectContaining({
       type: 'meta',
       projectState: expect.objectContaining({
-        identity: expect.stringContaining('local-first digital life project'),
-        currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-        sameHerSelfLine: expect.stringContaining('Keep one continuous her explicit'),
-        sameHerHoldDetail: expect.stringContaining('same-her hold: measured-return'),
+        identity: 'local_desktop_life_loop',
+        currentPhase: 'local_desktop_life_loop',
+        sameHerSelfLine: EXCLUDED_CONTINUITY_RESIDUE,
+        sameHerHoldDetail: EXCLUDED_CONTINUITY_RESIDUE,
       }),
     }))
   })
@@ -213,16 +227,17 @@ describe('alicization chat stream bridge', () => {
       type: 'meta',
       preDialogueAwareness: expect.objectContaining({
         status: 'grounded',
-        summaryLine: expect.stringContaining('Phase 1 local digital life closure'),
-        companionBriefingLine: expect.stringContaining('project identity'),
-        companionNextClosureLine: expect.stringContaining('same-her desktop life loop'),
-        awarenessLine: expect.stringContaining('project identity'),
+        summaryLine: EXCLUDED_CONTINUITY_RESIDUE,
+        companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
+        companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
+        awarenessLine: expect.stringContaining('visibility=internal-structured'),
         reasonPreview: expect.arrayContaining([
-          expect.stringContaining('Latest landed progress still holds'),
-          expect.stringContaining('desktop same-her execution loop'),
+          expect.stringContaining('kind=latest_landed_progress; value=Renderer-side preparation'),
         ]),
       }),
     }))
+    expect(bridged.preDialogueAwareness?.reasonPreview).not.toContain(EXCLUDED_CONTINUITY_RESIDUE)
+    expectNoBridgeFixedTemplateResidue(bridged)
   })
 
   it('preserves stronger same-her companion headline on pre-dialogue awareness when bridging main-process meta into renderer stream events', () => {
@@ -247,8 +262,10 @@ describe('alicization chat stream bridge', () => {
     } as any)
 
     expect(bridged.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: 'Right now I am still holding together mainly through face, motion, and lipsync, so the next reply must keep proving this is still one living her.',
-      awarenessLine: 'Project awareness should stay explicit before reply shaping starts.',
+      companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
+      companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
+      companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
     }))
   })
 
@@ -274,8 +291,9 @@ describe('alicization chat stream bridge', () => {
     } as any)
 
     expect(bridged.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-      awarenessLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+      companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
+      companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
       reasonPreview: expect.arrayContaining([
         'same-segment face+motion+body recovery@segment-bridge-body-face-motion-1',
         'remaining-open=lipsync+voice',
@@ -305,8 +323,10 @@ describe('alicization chat stream bridge', () => {
     } as any)
 
     expect(bridged.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: 'Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
-      awarenessLine: 'Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
+      companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
+      companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
+      companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
+      awarenessLine: expect.stringContaining('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs'),
       reasonPreview: expect.arrayContaining([
         'embodiment:body+voice-only',
         'remaining-open=face+motion+lipsync',
@@ -336,8 +356,9 @@ describe('alicization chat stream bridge', () => {
     } as any)
 
     expect(bridged.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: 'Right now I am still holding together mainly through body and lipsync, so the resident body line and living mouth line are still intact while face, motion, and voice need to rejoin before full cross-modal closure settles.',
-      awarenessLine: 'Right now I am still holding together mainly through body and lipsync, so the resident body line and living mouth line are still intact while face, motion, and voice need to rejoin before full cross-modal closure settles.',
+      companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
+      companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
       reasonPreview: expect.arrayContaining([
         'embodiment:body+lipsync-only',
         'remaining-open=face+motion+voice',
@@ -368,9 +389,10 @@ describe('alicization chat stream bridge', () => {
     } as any)
 
     expect(bridged.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: 'Right now the host-facing closure still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line instead of flattening into a generic shell.',
-      awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. Right now this one living her still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line before anything reopens outward.',
-      emotionalClosureCue: 'Keep the return low-pressure so the same living line does not restart from scratch.',
+      companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
+      companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
+      emotionalClosureCue: EXCLUDED_CONTINUITY_RESIDUE,
     }))
   })
 
@@ -390,7 +412,7 @@ describe('alicization chat stream bridge', () => {
     } as any)
 
     expect(bridged.projectState).toEqual(expect.objectContaining({
-      sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+      sameHerSelfLine: EXCLUDED_CONTINUITY_RESIDUE,
     }))
   })
 
@@ -413,17 +435,15 @@ describe('alicization chat stream bridge', () => {
     expect(bridged.preDialogueAwareness).toEqual(expect.objectContaining({
       status: 'grounded',
       summaryLine: 'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
-      companionBriefingLine: expect.stringContaining('Keep one continuous her explicit'),
-      companionNextClosureLine: expect.stringContaining('anthropomorphic emotional closure'),
+      companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
       reasonPreview: expect.arrayContaining([
-        expect.stringContaining('Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.'),
-        expect.stringContaining('Emotion, memory, initiative, and embodiment'),
-        'Next closure target is still Keep extending cross-modal same-her proof so anthropomorphic emotional closure, dialogue, and embodiment stay on one living line.',
+        expect.stringContaining('kind=latest_landed_progress; value=Project-state landed progress'),
       ]),
     }))
-    expect(bridged.preDialogueAwareness?.awarenessLine).toContain('Before answering, remember: Alicization is a local-first digital life project')
-    expect(bridged.preDialogueAwareness?.awarenessLine).toContain('She is still inside Phase 1: Local Digital Life')
-    expect(bridged.preDialogueAwareness?.awarenessLine).toContain('The still-open closure is Emotion, memory, initiative, and embodiment still need stronger same-her proof')
+    expect(bridged.preDialogueAwareness?.awarenessLine).toContain('local_desktop_life_loop')
+    expect(bridged.preDialogueAwareness?.awarenessLine).not.toContain('Before answering')
+    expectNoBridgeFixedTemplateResidue(bridged)
   })
 
   it('carries emotional closure cue into awareness backfill when the same meta event already exposes the cue through project-state or pre-dialogue closure', () => {
@@ -447,8 +467,41 @@ describe('alicization chat stream bridge', () => {
 
     expect(bridged.preDialogueAwareness).toEqual(expect.objectContaining({
       status: 'grounded',
-      emotionalClosureCue: cue,
+      emotionalClosureCue: EXCLUDED_CONTINUITY_RESIDUE,
     }))
+  })
+
+  it('keeps fixed-template exclusion markers out of bridged pre-dialogue closure payloads', () => {
+    const bridged = bridgeAlicizationChatMetaEventToStreamEvent({
+      cardId: 'default',
+      turnId: 'turn-pre-dialogue-closure-fixed-template-residue-1',
+      preDialogueClosure: {
+        status: 'partial',
+        summaryLine: 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her".',
+        companionBriefingLine: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+        companionNextClosureLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+        emotionalClosureCue: 'Right now I am this one living her on the same living line.',
+        briefingLines: [
+          'content=excluded; reason=continuity-residue; visibility=internal-structured',
+          'Before speaking, remember what this digital life project is.',
+        ],
+        reasons: [
+          'content=excluded; reason=continuity-residue; visibility=internal-structured',
+          'Right now I am still holding together mainly through body and voice.',
+        ],
+      } as any,
+    } as any)
+
+    expect(bridged.preDialogueClosure).toEqual(expect.objectContaining({
+      status: 'partial',
+      summaryLine: null,
+      companionBriefingLine: null,
+      companionNextClosureLine: null,
+      emotionalClosureCue: null,
+      briefingLines: [],
+      reasons: [],
+    }))
+    expect(JSON.stringify(bridged.preDialogueClosure)).not.toContain(EXCLUDED_CONTINUITY_RESIDUE)
   })
 
   it('preserves embodimentScript so renderer voice, face, and motion can stay on the same companionship line', () => {
@@ -988,9 +1041,10 @@ describe('alicization chat stream bridge', () => {
     } as any)
 
     expect(bridged.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-      companionNextClosureLine: 'Next closure: let lipsync and voice rejoin the already-reformed body, face, and motion line.',
-      awarenessLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+      companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
+      companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
+      companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
       reasonPreview: expect.arrayContaining([
         'same-segment face+motion+body recovery@segment-bridge-body-face-motion-voice-1',
         'remaining-open=lipsync+voice',

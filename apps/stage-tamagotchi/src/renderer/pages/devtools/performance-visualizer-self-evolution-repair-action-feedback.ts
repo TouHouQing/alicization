@@ -163,7 +163,7 @@ export function buildSelfEvolutionRepairActionFeedback(input: {
     ...input.repairClosureAfter?.summaryLines ?? [],
   ].some(line =>
     line.includes('身体连续性：')
-    || line.includes('body-led same-her continuity')
+    || line.includes('body-led identity-continuity continuity')
     || line.includes('body-led partial recovery')
     || line.includes('authority-body:yes')
     || line.includes('身体线已经先把这段 living segment 托住'),
@@ -186,7 +186,7 @@ export function buildSelfEvolutionRepairActionFeedback(input: {
       line.includes('项目状态连续性治理已经被新的验证快照再次确认'),
     )
     const continuityGovernanceConfirmed = input.repairClosureAfter?.summaryLines.some(line =>
-      line.includes('same-her 连续性治理已经被新的验证快照再次确认'),
+      line.includes('identity-continuity 连续性治理已经被新的验证快照再次确认'),
     )
     const bodyLedContinuityConfirmed = bodyLedContinuityRelevant
       && (
@@ -221,7 +221,7 @@ export function buildSelfEvolutionRepairActionFeedback(input: {
           : projectStateContinuityConfirmed
             ? '项目状态连续性闭环已确认。'
             : continuityGovernanceConfirmed
-              ? 'same-her 连续性闭环已确认。'
+              ? 'identity-continuity 连续性闭环已确认。'
               : '修复闭环已关闭。',
       detailLine: bodyLedContinuityConfirmed
         ? rendererRejoinSurface
@@ -232,7 +232,7 @@ export function buildSelfEvolutionRepairActionFeedback(input: {
           : projectStateContinuityConfirmed
             ? '这次项目状态连续性治理已经再次得到验证。下一步请抓取新的基线快照，让后续连续性会话从这次确认后的项目身份、Phase 1 主线和未闭环任务承接重新开始。'
             : continuityGovernanceConfirmed
-              ? '这次连续性治理已经再次得到验证。下一步请抓取新的基线快照，让后续连续性会话从这次确认后的同一个她状态重新开始。'
+              ? '这次连续性治理已经再次得到验证。下一步请抓取新的基线快照，让后续连续性会话从这次确认后的身份连续性状态重新开始。'
               : `${repairOutcome?.detailLine ?? '这条反复漂移工作流的修复关闭条件已经全部满足。'}下一步请抓取新的基线快照。`,
     }
   }
@@ -265,7 +265,7 @@ export function buildSelfEvolutionRepairActionFeedback(input: {
         projectStateContinuity: projectStateContinuityRelevant,
       })}。`,
       detailLine: projectStateContinuityRelevant
-        ? '请求的修复动作已经完成，工作台已推进到下一项项目状态连续性检查目标，继续确认项目身份、Phase 1 主线与未闭环任务承接是否仍被同一个她稳定带着。'
+        ? '请求的修复动作已经完成，工作台已推进到下一项项目状态连续性检查目标，继续确认项目身份、Phase 1 主线与未闭环任务承接是否仍被身份连续性稳定带着。'
         : bodyLedContinuityRelevant
           ? rendererRejoinSurface
             ? `请求的修复动作已经完成，工作台已推进到下一项身体连续性检查目标，继续确认身体线是否仍托住同一段 living segment，再判断 ${rendererRejoinSurface} 显形权威是否已经补回同一条连续身体线。`

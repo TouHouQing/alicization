@@ -2,6 +2,8 @@ import type { AlicizationMemoryDomain } from '../../../../shared/eventa'
 import type { AlicizationLearningPolicyFeedback } from '../learning-state-machine'
 import type { AlicizationSelfRevisionEvent } from './self-revision-ledger'
 
+import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
+
 export type AlicizationSelfRevisionStatePatchLane
   = | 'memory-policy'
     | 'relationship-posture'
@@ -67,9 +69,7 @@ function clamp01(value: number) {
 }
 
 function sanitizeText(raw: unknown, maxChars = 220) {
-  if (typeof raw !== 'string')
-    return ''
-  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  return sanitizeAlicizationProviderFacingText(raw, maxChars)
 }
 
 function uniqueList(values: Array<string | null | undefined>, maxItems = 12) {
@@ -242,11 +242,11 @@ export function buildAlicizationSelfRevisionStatePatch(input: {
     blocked ? 'blocked-learning-keeps-surface-cautious' : null,
     completed ? 'completed-learning-can-influence-next-turn' : null,
     memoryPolicy.shouldQuarantineUnsupportedCarry ? 'quarantine-unsupported-carry' : null,
-    sameHerSelfLine ? 'same-her-self-line-active' : null,
-    continuityGuard ? 'same-her-anti-shell-guard-active' : null,
-    proactiveSameHerGap ? 'same-her-proactive-gap-active' : null,
-    emotionalClosureCue ? 'same-her-emotional-closure-carry-active' : null,
-    sameHerHoldDetail ? 'same-her-hold-detail-active' : null,
+    sameHerSelfLine ? 'continuity-self-line-active' : null,
+    continuityGuard ? 'continuity-anti-shell-guard-active' : null,
+    proactiveSameHerGap ? 'continuity-proactive-gap-active' : null,
+    emotionalClosureCue ? 'continuity-emotional-closure-carry-active' : null,
+    sameHerHoldDetail ? 'continuity-hold-detail-active' : null,
   ].flatMap(item => item?.split('|') ?? []), 16)
 
   return {

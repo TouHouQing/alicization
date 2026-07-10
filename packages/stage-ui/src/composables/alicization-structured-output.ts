@@ -5,6 +5,12 @@ import type {
 } from '../stores/alicization-bridge'
 
 import {
+  alicizationFixedTemplateReplacement,
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationStructuredInternalText,
+} from '@proj-alicization/stage-shared'
+
+import {
   normalizeAlicizationDigitalLifeEnvelope,
   normalizeAlicizationEmbodimentScript,
   normalizeAlicizationEmotion,
@@ -482,7 +488,24 @@ function getString(payload: Record<string, unknown> | null, keys: string[]) {
 function sanitizeProjectStateText(value: unknown, maxChars: number) {
   if (typeof value !== 'string')
     return ''
-  return value.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  return sanitizeAlicizationStructuredInternalText(value, maxChars, alicizationFixedTemplateReplacement)
+}
+
+function sanitizeVisibleProjectStateText(value: unknown, maxChars: number) {
+  const sanitized = sanitizeProjectStateText(value, maxChars)
+  return sanitized === alicizationFixedTemplateReplacement ? '' : sanitized
+}
+
+function looksStructuredProjectStateFragment(value: string) {
+  return /^[a-z][\w+-]*=/iu.test(value)
+    || /^[a-z][\w+-]*:[\w+:-]+$/iu.test(value)
+}
+
+function sanitizeStructuredProjectStateListText(value: unknown, maxChars: number) {
+  const sanitized = sanitizeVisibleProjectStateText(value, maxChars)
+  if (!sanitized)
+    return ''
+  return looksStructuredProjectStateFragment(sanitized) ? sanitized : ''
 }
 
 function parsePayloadProjectState(payload: Record<string, unknown> | null) {
@@ -493,8 +516,6 @@ function parsePayloadProjectState(payload: Record<string, unknown> | null) {
   const identity = sanitizeProjectStateText(candidate.identity, 180)
   const currentPhase = sanitizeProjectStateText(candidate.currentPhase, 180)
   const nextClosureTarget = sanitizeProjectStateText(candidate.nextClosureTarget, 320)
-  if (!identity || !currentPhase || !nextClosureTarget)
-    return undefined
 
   const latestLandedProgress
     = sanitizeProjectStateText(candidate.latestLandedProgress, 320)
@@ -513,6 +534,27 @@ function parsePayloadProjectState(payload: Record<string, unknown> | null) {
   const continuityCadenceCandidate = sanitizeProjectStateText(candidate.continuityCadence, 120)
   const continuityCueCandidate = sanitizeProjectStateText(candidate.continuityCue, 220)
   const continuitySummary = sanitizeProjectStateText(candidate.continuitySummary, 320) || null
+
+  if (
+    !identity
+    && !currentPhase
+    && !latestLandedProgress
+    && !primaryOpenLoop
+    && !nextClosureTarget
+    && !continuitySummary
+    && !sameHerSelfLineCandidate
+    && !sameHerHoldDetailCandidate
+    && !sameHerDriftRiskCandidate
+    && !emotionalClosureCueCandidate
+    && !proactiveSameHerGapCandidate
+    && !continuityRestraintCandidate
+    && !continuityArcStageCandidate
+    && !continuityPreferredTimingCandidate
+    && !continuityCadenceCandidate
+    && !continuityCueCandidate
+  ) {
+    return undefined
+  }
 
   return {
     identity,
@@ -582,21 +624,21 @@ function parsePayloadPreDialogueClosure(payload: Record<string, unknown> | null)
 
   return {
     status,
-    summaryLine: sanitizeProjectStateText(candidate.summaryLine, 320) || null,
-    companionHeadlineLine: sanitizeProjectStateText(candidate.companionHeadlineLine, 320) || null,
-    sameHerDriftRiskLine: sanitizeProjectStateText(candidate.sameHerDriftRiskLine, 320) || null,
-    companionshipReasonLine: sanitizeProjectStateText(candidate.companionshipReasonLine, 320) || null,
-    companionBriefingLine: sanitizeProjectStateText(candidate.companionBriefingLine, 320) || null,
-    companionNextClosureLine: sanitizeProjectStateText(candidate.companionNextClosureLine, 320) || null,
-    emotionalClosureCue: sanitizeProjectStateText(candidate.emotionalClosureCue, 320) || null,
+    summaryLine: sanitizeVisibleProjectStateText(candidate.summaryLine, 320) || null,
+    companionHeadlineLine: sanitizeVisibleProjectStateText(candidate.companionHeadlineLine, 320) || null,
+    sameHerDriftRiskLine: sanitizeVisibleProjectStateText(candidate.sameHerDriftRiskLine, 320) || null,
+    companionshipReasonLine: sanitizeVisibleProjectStateText(candidate.companionshipReasonLine, 320) || null,
+    companionBriefingLine: sanitizeVisibleProjectStateText(candidate.companionBriefingLine, 320) || null,
+    companionNextClosureLine: sanitizeVisibleProjectStateText(candidate.companionNextClosureLine, 320) || null,
+    emotionalClosureCue: sanitizeVisibleProjectStateText(candidate.emotionalClosureCue, 320) || null,
     briefingLines: Array.isArray(candidate.briefingLines)
       ? candidate.briefingLines
-          .map(line => sanitizeProjectStateText(line, 320))
+          .map(line => sanitizeStructuredProjectStateListText(line, 320))
           .filter(Boolean)
       : [],
     reasons: Array.isArray(candidate.reasons)
       ? candidate.reasons
-          .map(reason => sanitizeProjectStateText(reason, 320))
+          .map(reason => sanitizeStructuredProjectStateListText(reason, 320))
           .filter(Boolean)
       : [],
   }
@@ -646,15 +688,15 @@ export function normalizeStructuredPreDialogueAwarenessPayload(
   if (!status)
     return undefined
 
-  const summaryLine = sanitizeProjectStateText(preDialogueAwareness.summaryLine, 320) || null
-  const companionHeadlineLine = sanitizeProjectStateText(preDialogueAwareness.companionHeadlineLine, 320) || null
-  const companionBriefingLine = sanitizeProjectStateText(preDialogueAwareness.companionBriefingLine, 320) || null
-  const companionNextClosureLine = sanitizeProjectStateText(preDialogueAwareness.companionNextClosureLine, 320) || null
-  const awarenessLine = sanitizeProjectStateText(preDialogueAwareness.awarenessLine, 320) || null
-  const emotionalClosureCue = sanitizeProjectStateText(preDialogueAwareness.emotionalClosureCue, 320) || null
+  const summaryLine = sanitizeVisibleProjectStateText(preDialogueAwareness.summaryLine, 320) || null
+  const companionHeadlineLine = sanitizeVisibleProjectStateText(preDialogueAwareness.companionHeadlineLine, 320) || null
+  const companionBriefingLine = sanitizeVisibleProjectStateText(preDialogueAwareness.companionBriefingLine, 320) || null
+  const companionNextClosureLine = sanitizeVisibleProjectStateText(preDialogueAwareness.companionNextClosureLine, 320) || null
+  const awarenessLine = sanitizeVisibleProjectStateText(preDialogueAwareness.awarenessLine, 320) || null
+  const emotionalClosureCue = sanitizeVisibleProjectStateText(preDialogueAwareness.emotionalClosureCue, 320) || null
   const reasonPreview = Array.isArray(preDialogueAwareness.reasonPreview)
     ? preDialogueAwareness.reasonPreview
-        .map(reason => sanitizeProjectStateText(reason, 320))
+        .map(reason => sanitizeStructuredProjectStateListText(reason, 320))
         .filter(Boolean)
     : []
 
@@ -910,7 +952,7 @@ export type StructuredValidationIssueCode
   = | 'json-contract-missing'
     | 'emotion-not-whitelisted'
     | 'thought-missing-mind-spine'
-    | 'thought-same-her-first-focus-missing'
+    | 'thought-continuity-first-focus-missing'
     | 'reply-surface-roleplay-residue'
     | 'low-liveliness-high-arousal-emotion'
     | 'low-liveliness-high-arousal-reply'
@@ -934,6 +976,7 @@ export interface StructuredValidationContext {
   reminderScheduled?: boolean
   reminderMessage?: string
   sameHerFirst?: boolean
+  continuityFirst?: boolean
 }
 
 const structuredEmotionWhitelist = new Set([
@@ -991,12 +1034,29 @@ function thoughtConflictsWithGovernance(thought: string, governance: Alicization
 }
 
 export function sanitizeStructuredReplySurface(reply: string) {
-  return reply
+  const sanitized = reply
     .replace(stageDirectionPattern, ' ')
     .replace(decorativeRoleplayPattern, '')
     .replace(/\n{3,}/g, '\n\n')
     .replace(/[ \t]{2,}/g, ' ')
     .trim()
+  return containsAlicizationFixedTemplateResidue(sanitized) ? '' : sanitized
+}
+
+function normalizeVisibleReplySurface(rawReply: string) {
+  const trimmed = rawReply.trim()
+  const sanitized = sanitizeStructuredReplySurface(trimmed)
+  if (sanitized)
+    return sanitized
+  return trimmed && sanitized === trimmed ? trimmed : ''
+}
+
+function normalizeVisibleReplyCandidate(rawReply: unknown) {
+  return typeof rawReply === 'string' ? normalizeVisibleReplySurface(rawReply) : ''
+}
+
+function normalizeGovernedSurfaceReply(surface: { reply?: string } | null | undefined) {
+  return normalizeVisibleReplyCandidate(surface?.reply)
 }
 
 export function validateStructuredContract(
@@ -1020,15 +1080,15 @@ export function validateStructuredContract(
       message: 'Thought must carry obligation/truth/focus/move/tone markers before reply.',
     })
   }
-  else if (context?.sameHerFirst) {
+  else if (context?.continuityFirst) {
     const focus = readThoughtMarker(structured.thought, 'focus=')
     const move = readThoughtMarker(structured.thought, 'move=')
-    const sameHerFocusPresent = /same-her|project-state|open-loop|continuity|phase-1|digital-life/i.test(focus)
-    const sameHerMovePresent = /same-her|project-state|open-loop|continuity|carry|stabilize|phase-1|digital-life/i.test(move)
-    if (!sameHerFocusPresent || !sameHerMovePresent) {
+    const continuityFocusPresent = /project-state|open-loop|continuity|phase-1|digital-life/i.test(focus)
+    const continuityMovePresent = /project-state|open-loop|continuity|carry|stabilize|phase-1|digital-life/i.test(move)
+    if (!continuityFocusPresent || !continuityMovePresent) {
       issues.push({
-        code: 'thought-same-her-first-focus-missing',
-        message: 'Same-her-first turn must keep project-state/open-loop continuity visible in thought focus and move.',
+        code: 'thought-continuity-first-focus-missing',
+        message: 'Continuity-first turn must keep project-state/open-loop continuity visible in thought focus and move.',
       })
     }
   }
@@ -1134,16 +1194,16 @@ export function validateStructuredContract(
 function buildLocalRepairThought(
   personalityState?: StructuredValidationPersonalityState | null,
   preferGroundedEvidence?: boolean,
-  sameHerFirst?: boolean,
+  continuityFirst?: boolean,
 ) {
   const truth = preferGroundedEvidence ? 'grounded' : 'uncertain'
-  const focus = sameHerFirst
-    ? 'same-her-project-state-open-loop'
+  const focus = continuityFirst
+    ? 'continuity-project-state-open-loop'
     : preferGroundedEvidence
       ? 'current-screen-and-current-ask'
       : 'current-user-turn'
-  const move = sameHerFirst
-    ? 'stabilize-same-her-and-carry-project-state-forward'
+  const move = continuityFirst
+    ? 'stabilize-continuity-and-carry-project-state-forward'
     : preferGroundedEvidence
       ? 'lead-with-current-evidence'
       : 'stabilize-and-answer'
@@ -1187,7 +1247,7 @@ export function repairStructuredContractLocally(input: {
   const allowedCodes = new Set<StructuredValidationIssueCode>([
     'json-contract-missing',
     'thought-missing-mind-spine',
-    'thought-same-her-first-focus-missing',
+    'thought-continuity-first-focus-missing',
     'reply-surface-roleplay-residue',
   ])
   if (input.validationIssues.some(issue => !allowedCodes.has(issue.code)))
@@ -1200,7 +1260,9 @@ export function repairStructuredContractLocally(input: {
         translate: input.translate,
       })
     : null
-  const normalizedVisibleReply = sanitizeStructuredReplySurface(input.structured.reply.trim() || input.fallbackReply?.trim() || '')
+  const governedSurfaceReply = normalizeGovernedSurfaceReply(governedSurface)
+  const normalizedVisibleReply = normalizeVisibleReplyCandidate(input.structured.reply)
+    || normalizeVisibleReplyCandidate(input.fallbackReply)
   const strictSurface = shouldForceGovernedMindSurface(effectiveGovernance, input.userText)
   const leakedGovernedSurface = replyLeaksGovernedMindSurface(normalizedVisibleReply, effectiveGovernance, input.userText)
   const executionSurfaceViolation = replyViolatesExecutionFirstSurface({
@@ -1232,13 +1294,13 @@ export function repairStructuredContractLocally(input: {
       ? ''
       : strictSurface
         ? (
-            governedSurface?.reply
-            || input.fallbackReply?.trim()
+            governedSurfaceReply
+            || normalizeVisibleReplyCandidate(input.fallbackReply)
             || normalizedVisibleReply
           )
         : (
-            input.fallbackReply?.trim()
-            || governedSurface?.reply
+            normalizeVisibleReplyCandidate(input.fallbackReply)
+            || governedSurfaceReply
             || normalizedVisibleReply
           )
   if (!reply && !dispatchOnlyVisibleOverride)
@@ -1247,14 +1309,15 @@ export function repairStructuredContractLocally(input: {
   const emotion = normalizeAlicizationEmotion(governedSurface?.emotion ?? input.structured.emotion).emotion
   const needsThoughtRepair = input.validationIssues.some(issue =>
     issue.code === 'thought-missing-mind-spine'
-    || issue.code === 'thought-same-her-first-focus-missing',
+    || issue.code === 'thought-continuity-first-focus-missing',
   )
+  const continuityFirst = input.validationContext?.continuityFirst ?? input.validationContext?.sameHerFirst
   return {
     ...input.structured,
     thought: !needsThoughtRepair && input.structured.thought.trim()
       ? input.structured.thought.trim()
       : governedSurface?.thought
-        ?? buildLocalRepairThought(input.personalityState, input.preferGroundedEvidence, input.validationContext?.sameHerFirst),
+        ?? buildLocalRepairThought(input.personalityState, input.preferGroundedEvidence, continuityFirst),
     emotion,
     reply,
     performance: alignPerformanceEmotion(input.structured.performance, emotion),
@@ -1274,14 +1337,13 @@ export function enforceGovernedMindTurn(input: {
   userText?: string
   translate?: (path: string, params?: Record<string, unknown>) => string
 }): StructuredOutputResult & { contractFailed?: boolean } {
-  const baseReply = sanitizeStructuredReplySurface(
-    input.structured.reply.trim()
-    || input.fallbackReply?.trim()
-    || '',
+  const baseReply = normalizeVisibleReplySurface(
+    normalizeVisibleReplyCandidate(input.structured.reply)
+    || normalizeVisibleReplyCandidate(input.fallbackReply),
   )
   const normalizedStructured = {
     ...input.structured,
-    reply: baseReply || input.structured.reply.trim() || input.fallbackReply?.trim() || '',
+    reply: baseReply,
   }
 
   if (!input.governance)
@@ -1327,12 +1389,13 @@ export function enforceGovernedMindTurn(input: {
         translate: input.translate,
       })
     : null
+  const governedSurfaceReply = normalizeGovernedSurfaceReply(governedSurface)
   const thinGovernedShell = governedSurface
     ? replyLooksThinGovernedShell(
         normalizedStructured.reply,
-        governedSurface.reply,
+        governedSurfaceReply,
         effectiveGovernance,
-        governedSurface.thinShellCue,
+        normalizeVisibleReplyCandidate(governedSurface.thinShellCue),
       )
     : false
   const coherentSceneReply = replyLooksCoherentSceneAnswer({
@@ -1347,33 +1410,36 @@ export function enforceGovernedMindTurn(input: {
     thinShellCue: governedSurface?.thinShellCue,
   })
   const dispatchOnlyVisibleOverride = governedSurface?.visibleReplyMode === 'dispatch-only'
-  const lowPressureSameHerClosure
-    = input.validationContext?.sameHerFirst === true
+  const continuityFirst = input.validationContext?.continuityFirst ?? input.validationContext?.sameHerFirst
+  const lowPressureContinuityClosure
+    = continuityFirst === true
       && Boolean(input.structured.projectState)
-      && /low-pressure|leave more room|do not reopen from scratch|same living line is still settling/i.test(
+      && /low-pressure|leave more room|do not reopen from scratch|continuity route is still settling/i.test(
         input.structured.preDialogueClosure?.emotionalClosureCue ?? '',
       )
-  const sameHerFirstVisibleShell
-    = input.validationContext?.sameHerFirst === true
+  const continuityFirstVisibleShell
+    = continuityFirst === true
       && Boolean(input.structured.projectState)
       && /phase\s*1|local-first digital life|digital life project/i.test(normalizedStructured.reply)
-      && !/same-her|数字生命|闭环|收口|同一个|still open|open loop|continuity drift/i.test(normalizedStructured.reply)
-  const sameHerLowPressureVisiblePush
-    = lowPressureSameHerClosure
+      && !/continuity|闭环|收口|still open|open loop|continuity drift/i.test(normalizedStructured.reply)
+  const continuityLowPressureVisiblePush
+    = lowPressureContinuityClosure
       && /先回答一下|直接回答|继续往前推进|继续推进|往前推进|还没闭环完成/.test(normalizedStructured.reply)
-      && !/数字生命|慢慢收口|轻一点|同一个|还没闭环的.*主线/.test(normalizedStructured.reply)
+      && !/慢慢收口|轻一点|continuity|还没闭环/.test(normalizedStructured.reply)
 
   const shouldOverrideVisibleReply = shouldForceSurface
     ? executionSurfaceViolation
     || leakedGovernedSurface
-    || sameHerFirstVisibleShell
-    || sameHerLowPressureVisiblePush
+    || continuityFirstVisibleShell
+    || continuityLowPressureVisiblePush
+    || (!normalizedStructured.reply && Boolean(governedSurfaceReply))
     || (thinGovernedShell && !preserveDialogueFirstVisibleReply)
     || (!coherentSceneReply && !organicDirectReply)
     : executionSurfaceViolation
       || leakedGovernedSurface
-      || sameHerFirstVisibleShell
-      || sameHerLowPressureVisiblePush
+      || continuityFirstVisibleShell
+      || continuityLowPressureVisiblePush
+      || (!normalizedStructured.reply && Boolean(governedSurfaceReply))
       || (thinGovernedShell && !preserveDialogueFirstVisibleReply)
 
   if (shouldOverrideVisibleReply) {
@@ -1381,17 +1447,24 @@ export function enforceGovernedMindTurn(input: {
       ? ''
       : shouldForceSurface
         ? (
-            governedSurface?.reply
+            governedSurfaceReply
             || normalizedStructured.reply
-            || input.fallbackReply?.trim()
+            || normalizeVisibleReplyCandidate(input.fallbackReply)
             || ''
           )
-        : (
-            input.fallbackReply?.trim()
-            || governedSurface?.reply
-            || normalizedStructured.reply
-            || ''
-          )
+        : leakedGovernedSurface || executionSurfaceViolation
+          ? (
+              normalizeVisibleReplyCandidate(input.fallbackReply)
+              || governedSurfaceReply
+              || normalizedStructured.reply
+              || ''
+            )
+          : (
+              normalizeVisibleReplyCandidate(input.fallbackReply)
+              || normalizedStructured.reply
+              || governedSurfaceReply
+              || ''
+            )
     const emotion = normalizeAlicizationEmotion(governedSurface?.emotion ?? governedEmotion).emotion
     return {
       ...normalizedStructured,
@@ -1457,7 +1530,7 @@ export function enforceGovernedMindTurn(input: {
     personalityState: input.personalityState,
     preferGroundedEvidence: input.preferGroundedEvidence,
     validationContext: input.validationContext,
-    fallbackReply: normalizedStructured.reply || input.fallbackReply,
+    fallbackReply: normalizedStructured.reply || normalizeVisibleReplyCandidate(input.fallbackReply),
     governance: effectiveGovernance,
     userText: input.userText,
     translate: input.translate,
@@ -1473,14 +1546,14 @@ export function enforceGovernedMindTurn(input: {
   const reply = deferVisibleRepair
     ? (
         normalizedStructured.reply
-        || input.fallbackReply?.trim()
-        || governedSurface?.reply
+        || normalizeVisibleReplyCandidate(input.fallbackReply)
+        || governedSurfaceReply
         || ''
       )
     : (
-        governedSurface?.reply
+        governedSurfaceReply
         || normalizedStructured.reply
-        || input.fallbackReply?.trim()
+        || normalizeVisibleReplyCandidate(input.fallbackReply)
         || ''
       )
 
@@ -1488,7 +1561,7 @@ export function enforceGovernedMindTurn(input: {
     ...normalizedStructured,
     thought: governedSurface?.thought
       ?? governedThought
-      ?? buildLocalRepairThought(input.personalityState, input.preferGroundedEvidence, input.validationContext?.sameHerFirst),
+      ?? buildLocalRepairThought(input.personalityState, input.preferGroundedEvidence, continuityFirst),
     emotion,
     reply,
     performance: alignPerformanceEmotion(normalizedStructured.performance, emotion),
@@ -1512,7 +1585,7 @@ export function normalizeStructuredOutput(input: StructuredOutputInput): Structu
   const rawReply = getString(payload, ['reply'])
     || input.reply.trim()
     || input.fullText.trim()
-  const reply = sanitizeStructuredReplySurface(rawReply) || rawReply.trim()
+  const reply = normalizeVisibleReplySurface(rawReply)
   const inferredEmotion = inferEmotionFromReply({
     reply,
     previousEmotion: input.previousEmotion,

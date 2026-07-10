@@ -120,7 +120,7 @@ export function projectWorkingMemoryLongTermCandidate(input: {
         targetScope: 'relationship',
         summary,
         lesson: normalizeWorkingMemoryText(
-          'Alicization should preserve this relationship boundary as an inward constraint and answer transparently when the related situation appears again.',
+          'lesson_code=relationship_boundary_transparency; source=working_memory_owner; visible_wording=false; failure_transparency=true',
           260,
         ),
         status: 'pending',
@@ -148,7 +148,7 @@ export function projectWorkingMemoryLongTermCandidate(input: {
     return emptyProjectionBundle()
 
   const lesson = normalizeWorkingMemoryText(
-    'When the user rejects fixed-template behavior, Alicization should answer from her own continuous digital-life personality and surface real errors plainly.',
+    'lesson_code=fixed_template_rejection; source=working_memory_owner; reply_authority=provider_mind_or_failure_surface; visible_wording=false; failure_transparency=true',
     260,
   )
 

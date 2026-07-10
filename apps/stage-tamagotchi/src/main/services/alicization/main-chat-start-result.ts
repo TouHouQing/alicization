@@ -7,6 +7,8 @@ import type {
   AlicizationPreparedMainChatPrelude,
 } from './main-chat-session-runtime'
 
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
+
 import {
   deriveAlicizationDigitalLifeSpineFromSurface,
   projectAlicizationDigitalLifeSpineDigest,
@@ -107,7 +109,10 @@ function resolveMainChatStartDigitalLifeSpineDigest(input: {
 function normalizeMainChatStartProjectText(raw: unknown, maxChars = 1600) {
   if (typeof raw !== 'string')
     return ''
-  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  if (!normalized || containsAlicizationFixedTemplateResidue(normalized))
+    return ''
+  return normalized
 }
 
 function scoreMainChatStartProjectDetail(value: unknown, kind: 'awareness' | 'same-her', maxChars = 1600) {
@@ -120,28 +125,28 @@ function scoreMainChatStartProjectDetail(value: unknown, kind: 'awareness' | 'sa
   if (kind === 'same-her') {
     if (lower.includes('continuity hold:') || lower.includes('generic project continuity hold'))
       score += 1200
-    if (lower.includes('same living line') || lower.includes('one continuous "her"') || lower.includes('one continuous her'))
+    if (lower.includes('continuity_anchor=') || lower.includes('continuity_owner='))
       score += 700
     if (lower.includes('do not reopen from scratch') || lower.includes('without reopening from scratch') || lower.includes('should not start from scratch'))
       score += 650
-    if (lower.includes('same-thread-continuation') || lower.includes('same thread') || lower.includes('same-her') || lower.includes('same her'))
+    if (lower.includes('same-thread-continuation') || lower.includes('same thread'))
       score += 500
     if (lower.includes('measured-return') || lower.includes('repair-before-closeness') || lower.includes('rest-protective') || lower.includes('lower-pressure'))
       score += 300
-    if (lower.includes('phase 1') || lower.includes('local-first digital life'))
+    if (lower.includes('local_desktop_life_loop'))
       score += 160
     return score
   }
 
   if (lower.startsWith('before answering') || lower.startsWith('before speaking'))
+    score -= 500
+  if (lower.includes('identity=') && lower.includes('phase='))
     score += 500
-  if (lower.includes('local-first digital life'))
-    score += 420
-  if (lower.includes('phase 1'))
-    score += 260
-  if (lower.includes('same living line') || lower.includes('same-her') || lower.includes('same her'))
+  if (lower.includes('landed=') || lower.includes('open=') || lower.includes('next='))
     score += 280
-  if (lower.includes('still-open') || lower.includes('same-her closure') || lower.includes('memory, initiative, and embodiment'))
+  if (lower.includes('local_desktop_life_loop'))
+    score += 420
+  if (lower.includes('still-open') || lower.includes('memory, initiative, and embodiment'))
     score += 180
   if (lower.includes('do not reopen from scratch') || lower.includes('should not start from scratch'))
     score += 220

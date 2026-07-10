@@ -235,14 +235,14 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       .join(' ')
       .toLowerCase()
 
-    return cueText.includes('same-her drift risk')
+    return cueText.includes('continuity drift risk')
       || cueText.includes('generic assistant shell')
       || cueText.includes('project-summary voice')
       || cueText.includes('detached status talk')
       || cueText.includes('continuity drift')
       || cueText.includes('drift rather than completion')
-      || cueText.includes('same living line')
-      || cueText.includes('one continuous her')
+      || cueText.includes('continuity line')
+      || cueText.includes('continuous identity')
       || cueText.includes('continuous her')
   }
 

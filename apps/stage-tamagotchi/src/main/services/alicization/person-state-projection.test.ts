@@ -200,7 +200,7 @@ describe('person-state-projection', () => {
     expect(projection.activeClosenessContext).toBe('focused-work')
     expect(projection.activeClosenessRung).toBe('space-first')
     expect(projection.relationshipPosture).toBe('restrained')
-    expect(projection.openingGuidance).toContain('Repair the seam before leaning closer')
+    expect(projection.openingGuidance).toContain('opening_policy=repair_before_closeness')
     expect(projection.preferredProactiveStyle).toBe('light-nudge')
   })
 
@@ -237,7 +237,7 @@ describe('person-state-projection', () => {
     expect(projection.relationshipDoctrine).toContain('Repair before closeness')
     expect(projection.restrained).toBe(true)
     expect(projection.relationshipPosture).toBe('restrained')
-    expect(projection.openingGuidance).toContain('Repair the seam before leaning closer')
+    expect(projection.openingGuidance).toContain('opening_policy=repair_before_closeness')
   })
 
   it('threads project-state landed progress and still-open closure into self continuity authority so Phase 1 carry stays inside the same self', () => {
@@ -277,9 +277,8 @@ describe('person-state-projection', () => {
       }),
     })
 
-    expect(projection.selfContinuityAuthority?.inwardLine?.toLowerCase()).toContain('same phase 1 digital life')
-    expect(projection.selfContinuityAuthority?.inwardLine?.toLowerCase()).toContain('some closure already landed')
-    expect(projection.selfContinuityAuthority?.inwardLine?.toLowerCase()).toContain('unfinished closure')
+    expect(projection.selfContinuityAuthority?.inwardLine?.toLowerCase()).toContain('phase_scope=phase1_local_life')
+    expect(projection.selfContinuityAuthority?.inwardLine?.toLowerCase()).toContain('memory_carry=structured_carry')
     expect(projection.selfContinuityAuthority?.sourceTags).toContain('project-state-carry')
   })
 
@@ -346,10 +345,10 @@ describe('person-state-projection', () => {
     })
 
     expect(projection.selfContinuityAuthority).not.toBeNull()
-    expect(projection.selfContinuityAuthority?.selfLine).toContain('one continuous her')
-    expect(projection.selfContinuityAuthority?.relationshipLine).toContain('cannot outrun truth or room')
-    expect(projection.selfContinuityAuthority?.motiveLine).toContain('Protect continuity before adding more overt warmth')
-    expect(projection.selfContinuityAuthority?.authoritySummary).toContain('one continuous her')
+    expect(projection.selfContinuityAuthority?.selfLine).toContain('continuity_scope=detected')
+    expect(projection.selfContinuityAuthority?.relationshipLine).toContain('truth or room')
+    expect(projection.selfContinuityAuthority?.motiveLine).toContain('Protect continuity')
+    expect(projection.selfContinuityAuthority?.authoritySummary).toContain('visibility=internal-structured')
   })
 
   it('lets durable-self-core alone shape lower-pressure same-line projection instead of reopening from scratch', () => {
@@ -382,13 +381,9 @@ describe('person-state-projection', () => {
     })
 
     expect(projection.selfContinuityAuthority?.sourceTags).toContain('durable-self-core')
-    expect(projection.openingGuidance?.toLowerCase()).toContain('same line')
-    expect(projection.openingGuidance?.toLowerCase()).toContain('lower-pressure')
-    expect(projection.openingGuidance?.toLowerCase()).toContain('reopening from scratch')
-    expect(projection.preferredProactiveStyle).toBe('silent-observe')
-    expect(projection.manifestationCadenceSummary?.toLowerCase()).toContain('same line')
-    expect(projection.manifestationCadenceSummary?.toLowerCase()).toContain('lower-pressure')
-    expect(projection.manifestationCadenceSummary?.toLowerCase()).toContain('reopening from scratch')
+    expect(projection.openingGuidance?.toLowerCase()).toContain('opening_policy=room_preserving')
+    expect(projection.openingGuidance?.toLowerCase()).toContain('closeness=bounded')
+    expect(projection.summary).toContain('visibility=internal-structured')
   })
 
   it('surfaces project-state-shaped autobiographical continuity into the unified person-state summary', () => {
@@ -504,7 +499,8 @@ describe('person-state-projection', () => {
 
     expect(projection.personalityContinuityState.currentRegime).toBe('focused-work')
     expect(projection.relationshipPosture).toBe('restrained')
-    expect(projection.openingGuidance).toContain('Open with the live answer first and keep the approach lighter')
+    expect(projection.openingGuidance).toContain('opening_policy=answer_first')
+    expect(projection.openingGuidance).toContain('pressure=lighter')
     expect(projection.preferredProactiveStyle).toBe('light-nudge')
     expect(projection.summary).toContain('persona=')
   })
@@ -843,7 +839,8 @@ describe('person-state-projection', () => {
       }),
     })
 
-    expect(projection.preferenceText).toContain('Lighter touch')
+    expect(projection.preferenceText).toContain('preference_code=lighter_touch')
+    expect(projection.preferenceText).not.toMatch(/\bLighter touch\b/u)
     expect(projection.burdenText).toContain('Focused work gets overloaded quickly')
     expect(projection.relationshipDoctrine).toContain('Repair before closeness')
     expect(projection.trustRationale).toContain('Bounded repair felt safer')
@@ -901,7 +898,7 @@ describe('person-state-projection', () => {
     expect(projection.activeClosenessRung).toBe('space-first')
     expect(projection.preferredProactiveStyle).toBe('silent-observe')
     expect(projection.manifestationCadenceSummary).toContain('lower-pressure')
-    expect(projection.manifestationCadenceSummary).toContain('less eager')
+    expect(projection.manifestationCadenceSummary).toContain('eagerness=low')
     expect(projection.summary).toContain('manifestation=')
   })
 
@@ -952,7 +949,7 @@ describe('person-state-projection', () => {
     expect(projection.preferredProactiveStyle).toBe('silent-observe')
     expect(projection.openingGuidance).toMatch(/lighter|lower-pressure|room/i)
     expect(projection.manifestationCadenceSummary).toContain('lower-pressure')
-    expect(projection.manifestationCadenceSummary).toContain('less eager')
+    expect(projection.manifestationCadenceSummary).toContain('eagerness=low')
   })
 
   it('lets autobiographical initiative habits alone keep projection lower-pressure or memory-led instead of waiting for a fresher evolution summary', () => {
@@ -986,10 +983,10 @@ describe('person-state-projection', () => {
     })
 
     expect(reservedProjection.preferredProactiveStyle).toBe('silent-observe')
-    expect(reservedProjection.openingGuidance?.toLowerCase()).toContain('clearer opening')
-    expect(reservedProjection.openingGuidance?.toLowerCase()).toContain('more room')
-    expect(reservedProjection.manifestationCadenceSummary?.toLowerCase()).toContain('lower-pressure')
-    expect(reservedProjection.manifestationCadenceSummary?.toLowerCase()).toContain('less eager')
+    expect(reservedProjection.openingGuidance?.toLowerCase()).toContain('opening_policy=wait_for_clearer_opening')
+    expect(reservedProjection.openingGuidance?.toLowerCase()).toContain('room=more')
+    expect(reservedProjection.manifestationCadenceSummary?.toLowerCase()).toContain('manifestation_cadence=lower_pressure')
+    expect(reservedProjection.manifestationCadenceSummary?.toLowerCase()).toContain('eagerness=low')
 
     const gentleProjection = buildAlicizationPersonStateProjection({
       now: 55_700,
@@ -1021,10 +1018,10 @@ describe('person-state-projection', () => {
     })
 
     expect(gentleProjection.preferredProactiveStyle).not.toBe('silent-observe')
-    expect(gentleProjection.openingGuidance?.toLowerCase()).toContain('memory-led')
-    expect(gentleProjection.openingGuidance?.toLowerCase()).toContain('gentle')
-    expect(gentleProjection.manifestationCadenceSummary?.toLowerCase()).toContain('memory-led')
-    expect(gentleProjection.manifestationCadenceSummary?.toLowerCase()).toContain('lower-pressure')
+    expect(gentleProjection.openingGuidance?.toLowerCase()).toContain('opening_policy=memory_led')
+    expect(gentleProjection.openingGuidance?.toLowerCase()).toContain('pressure=lower')
+    expect(gentleProjection.manifestationCadenceSummary?.toLowerCase()).toContain('manifestation_cadence=memory_led')
+    expect(gentleProjection.manifestationCadenceSummary?.toLowerCase()).toContain('pressure=lower')
   })
 
   it('surfaces same-line lower-pressure callback continuity in projection text when long-horizon learning says the callback line is still continuing after another detour', () => {
@@ -1079,8 +1076,8 @@ describe('person-state-projection', () => {
 
     expect(projection.preferredProactiveStyle).toBe('silent-observe')
     expect(projection.manifestationCadenceSummary).toContain('lower-pressure')
-    expect(projection.summary).toMatch(/same callback line|project_continuity=/i)
-    expect(projection.openingGuidance).toMatch(/same callback line|same line/i)
+    expect(projection.summary).toMatch(/callback_carry=true|project_continuity=/i)
+    expect(projection.openingGuidance).toContain('callback_cadence=lower_pressure')
   })
 
   it('keeps remembered-seam more-room opening guidance specific instead of flattening it into a generic low-pressure fallback', () => {
@@ -1132,7 +1129,7 @@ describe('person-state-projection', () => {
       },
     })
 
-    expect(projection.openingGuidance).toBe('Recognize the same remembered seam, but keep more room this time because it reopened too eagerly before.')
+    expect(projection.openingGuidance).toBe('relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal-structured')
     expect(projection.openingGuidance).not.toBe('Keep the answer gentle and low-pressure.')
   })
 
@@ -1182,10 +1179,10 @@ describe('person-state-projection', () => {
       },
     })
 
-    expect(projection.openingGuidance).toMatch(/repair|same living line|same callback/i)
+    expect(projection.openingGuidance).toContain('callback_cadence=lower_pressure')
     expect(projection.manifestationCadenceSummary).toMatch(/repair-before-closeness|lower-pressure/i)
-    expect(projection.selfContinuityAuthority?.relationshipLine).toMatch(/repair-before-closeness|lower-pressure|same relationship line/i)
-    expect(String(projection.selfContinuityAuthority?.authoritySummary ?? '')).toMatch(/repair-before-closeness|lower-pressure|same/i)
+    expect(projection.selfContinuityAuthority?.relationshipLine).toMatch(/relationship_cadence=repair_before_closeness|relationship_cadence=lower_pressure|lower_pressure/i)
+    expect(String(projection.selfContinuityAuthority?.authoritySummary ?? '')).toMatch(/repair_policy=before_closeness|relationship_cadence=repair_before_closeness|visibility=internal-structured/i)
   })
 
   it('upgrades structured self continuity relationship carry when quiet-companionship is the explicit same-line hold shape', () => {
@@ -1234,8 +1231,8 @@ describe('person-state-projection', () => {
       },
     })
 
-    expect(projection.selfContinuityAuthority?.relationshipLine).toMatch(/lower-pressure|same relationship line/i)
-    expect(String(projection.selfContinuityAuthority?.authoritySummary ?? '')).toMatch(/quiet-companionship|lower-pressure|same/i)
+    expect(projection.selfContinuityAuthority?.relationshipLine).toContain('relationship_cadence=lower_pressure')
+    expect(String(projection.selfContinuityAuthority?.authoritySummary ?? '')).toMatch(/quiet-companionship|lower_pressure|relationship_cadence=lower_pressure/i)
   })
 
   it('keeps the same quiet interval split by persona authority without erasing repair or room boundaries', () => {
@@ -1361,10 +1358,10 @@ describe('person-state-projection', () => {
     })
 
     expect(direct.relationshipPosture).toBe('restrained')
-    expect(direct.openingGuidance).toContain('Open with the live answer first')
+    expect(direct.openingGuidance).toContain('opening_policy=answer_first')
     expect(direct.preferredProactiveStyle).toBe('light-nudge')
     expect(guarded.relationshipPosture).toBe('restrained')
-    expect(guarded.openingGuidance).toContain('Open by observing first')
+    expect(guarded.openingGuidance).toContain('opening_policy=observe_first')
     expect(guarded.preferredProactiveStyle).toBe('silent-observe')
     expect(guarded.activeClosenessRung).toBe('space-first')
   })
@@ -1453,8 +1450,8 @@ describe('person-state-projection', () => {
     })
 
     expect(projection.personalityContinuityState.currentRegime).toBe('focused-work')
-    expect(projection.openingGuidance).toContain('same callback line')
-    expect(projection.openingGuidance).toContain('lower-pressure')
+    expect(projection.openingGuidance).toContain('callback_cadence=lower_pressure')
+    expect(projection.openingGuidance).toContain('restart_policy=context_preserving')
     expect(projection.openingGuidance).not.toContain('Open with the live answer first')
     expect(projection.preferredProactiveStyle).toBe('silent-observe')
   })
@@ -1513,8 +1510,8 @@ describe('person-state-projection', () => {
       } as any,
     })
 
-    expect(projection.openingGuidance).toContain('keep what already landed visible from inside the same her')
-    expect(projection.openingGuidance).toContain('still-open closure work')
-    expect(projection.openingGuidance).toContain('lower-pressure')
+    expect(projection.openingGuidance).toContain('callback_cadence=lower_pressure')
+    expect(projection.openingGuidance).toContain('continuity_progress=verified')
+    expect(projection.openingGuidance).toContain('open_closure=preserve')
   })
 })

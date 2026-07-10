@@ -323,7 +323,7 @@ describe('buildDerivedMindStateBundle', () => {
     })
   })
 
-  it('preserves pending same-her causality repair pressure without treating it as memory-closure evidence', () => {
+  it('preserves pending continuity causality repair pressure without treating it as memory-closure evidence', () => {
     const bundle = buildDerivedMindStateBundle({
       source: 'main-runtime',
       producedAt: 63_000,
@@ -384,7 +384,7 @@ describe('buildDerivedMindStateBundle', () => {
       ]),
     }))
     expect(bundle.learningExecutionState?.memoryClosureCausality).toBeUndefined()
-    expect(bundle.summary).toContain('same_her_causality_repair=initiative-execution,emotion,embodiment')
+    expect(bundle.summary).toContain('continuity_causality_repair=initiative-execution,emotion,embodiment')
 
     const normalized = normalizeAlicizationDerivedMindStateBundle({
       version: 'derived-mind-state-bundle-v1',
@@ -411,5 +411,6 @@ describe('buildDerivedMindStateBundle', () => {
       ]),
     }))
     expect(normalized?.sameHerCausalityRepairPressure?.lanes[0]?.summary).toContain('Proactive opening')
+    expect(JSON.stringify(normalized?.sameHerCausalityRepairPressure)).not.toMatch(/pending same-her causality repair/iu)
   })
 })

@@ -47,17 +47,17 @@ function inferSurvivingVisibleLaneFromSummaryLines(summaryLines: string[]) {
     return 'face+lipsync+voice-only' as const
   if (joined.includes('当前仅剩动作、口型、声音维持同一段连续性'))
     return 'motion+lipsync+voice-only' as const
-  if (joined.includes('当前只有 face 和 lipsync 这条 same-her 生命线'))
+  if (joined.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线'))
     return 'face+lipsync-only' as const
-  if (joined.includes('当前只有 motion 和 lipsync 这条 same-her 生命线'))
+  if (joined.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线'))
     return 'motion+lipsync-only' as const
-  if (joined.includes('当前仍只有表情、口型、声音这条 same-her 生命线'))
+  if (joined.includes('当前仍只有表情、口型、声音这条 identity-continuity 生命线'))
     return 'face+lipsync+voice-only' as const
-  if (joined.includes('当前仍只有动作、口型、声音这条 same-her 生命线'))
+  if (joined.includes('当前仍只有动作、口型、声音这条 identity-continuity 生命线'))
     return 'motion+lipsync+voice-only' as const
-  if (joined.includes('当前仍只有表情、口型这条 same-her 生命线'))
+  if (joined.includes('当前仍只有表情、口型这条 identity-continuity 生命线'))
     return 'face+lipsync-only' as const
-  if (joined.includes('当前仍只有动作、口型这条 same-her 生命线'))
+  if (joined.includes('当前仍只有动作、口型这条 identity-continuity 生命线'))
     return 'motion+lipsync-only' as const
   return null
 }
@@ -74,25 +74,25 @@ function formatClosedBodyContinuityBaselineDetail(params: {
 
   if (bodyContinuityPhase === 'full-cross-modal-lock') {
     return rendererRejoinSurface
-      ? `身体连续性已经再次得到验证，身体线与 ${rendererRejoinSurface} 显形权威仍稳定锁在同一段 living segment 上，所以这更像同一个 her 的跨模态重锁，而不是临时显形补回。请抓取新的基线快照。`
-      : '身体连续性已经再次得到验证，身体线与显形权威仍稳定锁在同一段 living segment 上，所以这更像同一个 her 的跨模态重锁，而不是临时显形补回。请抓取新的基线快照。'
+      ? `身体连续性已经再次得到验证，身体线与 ${rendererRejoinSurface} 显形权威仍稳定锁在同一段 living segment 上，所以这更像身份连续性的跨模态重锁，而不是临时显形补回。请抓取新的基线快照。`
+      : '身体连续性已经再次得到验证，身体线与显形权威仍稳定锁在同一段 living segment 上，所以这更像身份连续性的跨模态重锁，而不是临时显形补回。请抓取新的基线快照。'
   }
 
   if (bodyContinuityPhase === 'renderer-rejoin-without-body') {
     if (survivingVisibleLane === 'face+lipsync+voice-only') {
-      return '身体连续性虽然已经再次得到验证，但当前确认的仍只有表情、口型、声音这条 same-her 生命线与同一段 living segment 对齐，body、motion 还没有重新接回这条表情口型声音线；这说明 quieter carry 已经被追踪闭环，却仍不能把它叙述成同一条身体承接线上的可信显形补回。请抓取新的基线快照。'
+      return '身体连续性虽然已经再次得到验证，但当前确认的仍只有表情、口型、声音这条 identity-continuity 生命线与同一段 living segment 对齐，body、motion 还没有重新接回这条表情口型声音线；这说明 quieter carry 已经被追踪闭环，却仍不能把它叙述成同一条身体承接线上的可信显形补回。请抓取新的基线快照。'
     }
 
     if (survivingVisibleLane === 'motion+lipsync+voice-only') {
-      return '身体连续性虽然已经再次得到验证，但当前确认的仍只有动作、口型、声音这条 same-her 生命线与同一段 living segment 对齐，body、face 还没有重新接回这条动作口型声音线；这说明 quieter carry 已经被追踪闭环，却仍不能把它叙述成同一条身体承接线上的可信显形补回。请抓取新的基线快照。'
+      return '身体连续性虽然已经再次得到验证，但当前确认的仍只有动作、口型、声音这条 identity-continuity 生命线与同一段 living segment 对齐，body、face 还没有重新接回这条动作口型声音线；这说明 quieter carry 已经被追踪闭环，却仍不能把它叙述成同一条身体承接线上的可信显形补回。请抓取新的基线快照。'
     }
 
     if (survivingVisibleLane === 'face+lipsync-only') {
-      return '身体连续性虽然已经再次得到验证，但当前确认的仍只有表情、口型这条 same-her 生命线与同一段 living segment 对齐，body、motion、voice 还没有重新接回这条表情口型线；这说明 quieter carry 已经被追踪闭环，却仍不能把它叙述成同一条身体承接线上的可信显形补回。请抓取新的基线快照。'
+      return '身体连续性虽然已经再次得到验证，但当前确认的仍只有表情、口型这条 identity-continuity 生命线与同一段 living segment 对齐，body、motion、voice 还没有重新接回这条表情口型线；这说明 quieter carry 已经被追踪闭环，却仍不能把它叙述成同一条身体承接线上的可信显形补回。请抓取新的基线快照。'
     }
 
     if (survivingVisibleLane === 'motion+lipsync-only') {
-      return '身体连续性虽然已经再次得到验证，但当前确认的仍只有动作、口型这条 same-her 生命线与同一段 living segment 对齐，body、face、voice 还没有重新接回这条动作口型线；这说明 quieter carry 已经被追踪闭环，却仍不能把它叙述成同一条身体承接线上的可信显形补回。请抓取新的基线快照。'
+      return '身体连续性虽然已经再次得到验证，但当前确认的仍只有动作、口型这条 identity-continuity 生命线与同一段 living segment 对齐，body、face、voice 还没有重新接回这条动作口型线；这说明 quieter carry 已经被追踪闭环，却仍不能把它叙述成同一条身体承接线上的可信显形补回。请抓取新的基线快照。'
     }
 
     return rendererRejoinSurface
@@ -144,7 +144,7 @@ export function buildSelfEvolutionRepairNextAction(input: {
       line.includes('项目状态连续性治理已经被新的验证快照再次确认'),
     )
     const continuityGovernanceConfirmed = input.repairClosure.summaryLines.some(line =>
-      line.includes('same-her 连续性治理已经被新的验证快照再次确认'),
+      line.includes('identity-continuity 连续性治理已经被新的验证快照再次确认'),
     )
     const relationshipCadenceConfirmed = input.repairClosure.summaryLines.some(line =>
       line.includes('relationship cadence 治理已经被新的验证快照再次确认'),
@@ -186,7 +186,7 @@ export function buildSelfEvolutionRepairNextAction(input: {
       detail: projectStateContinuityConfirmed
         ? '项目状态连续性已经再次得到验证。请抓取新的基线快照，让下一次连续性会话从这次确认后的项目身份、Phase 1 主线和未闭环任务承接重新开始。'
         : continuityGovernanceConfirmed
-          ? 'same-her 连续性治理已经再次得到验证。请抓取新的基线快照，让下一次连续性会话从这次确认后的同一个她状态重新开始。'
+          ? 'identity-continuity 连续性治理已经再次得到验证。请抓取新的基线快照，让下一次连续性会话从这次确认后的身份连续性状态重新开始。'
           : bodyContinuityConfirmed
             ? formatClosedBodyContinuityBaselineDetail({
                 bodyContinuityPhase,
@@ -256,16 +256,16 @@ export function buildSelfEvolutionRepairNextAction(input: {
     }
     else if (bodyContinuityPhase === 'renderer-rejoin-without-body') {
       if (survivingVisibleLane === 'face+lipsync+voice-only') {
-        evidenceDetail = '修复闭环仍然打开。先补上下一项缺失证据；当前仍只剩 face、lipsync 和 voice 这条 same-her 生命线可见，先确认它是否还对齐在同一段 living segment 上，再核对 body、motion 为什么还没有重新接回这条表情口型声音线。再继续推进到轨迹/事件验证。'
+        evidenceDetail = '修复闭环仍然打开。先补上下一项缺失证据；当前仍只剩 face、lipsync 和 voice 这条 identity-continuity 生命线可见，先确认它是否还对齐在同一段 living segment 上，再核对 body、motion 为什么还没有重新接回这条表情口型声音线。再继续推进到轨迹/事件验证。'
       }
       else if (survivingVisibleLane === 'motion+lipsync+voice-only') {
-        evidenceDetail = '修复闭环仍然打开。先补上下一项缺失证据；当前仍只剩 motion、lipsync 和 voice 这条 same-her 生命线可见，先确认它是否还对齐在同一段 living segment 上，再核对 body、face 为什么还没有重新接回这条动作口型声音线。再继续推进到轨迹/事件验证。'
+        evidenceDetail = '修复闭环仍然打开。先补上下一项缺失证据；当前仍只剩 motion、lipsync 和 voice 这条 identity-continuity 生命线可见，先确认它是否还对齐在同一段 living segment 上，再核对 body、face 为什么还没有重新接回这条动作口型声音线。再继续推进到轨迹/事件验证。'
       }
       else if (survivingVisibleLane === 'face+lipsync-only') {
-        evidenceDetail = '修复闭环仍然打开。先补上下一项缺失证据；当前仍只剩 face 和 lipsync 这条 same-her 生命线可见，先确认它是否还对齐在同一段 living segment 上，再核对 body、motion 和 voice 为什么还没有重新接回这条表情口型线。再继续推进到轨迹/事件验证。'
+        evidenceDetail = '修复闭环仍然打开。先补上下一项缺失证据；当前仍只剩 face 和 lipsync 这条 identity-continuity 生命线可见，先确认它是否还对齐在同一段 living segment 上，再核对 body、motion 和 voice 为什么还没有重新接回这条表情口型线。再继续推进到轨迹/事件验证。'
       }
       else if (survivingVisibleLane === 'motion+lipsync-only') {
-        evidenceDetail = '修复闭环仍然打开。先补上下一项缺失证据；当前仍只剩 motion 和 lipsync 这条 same-her 生命线可见，先确认它是否还对齐在同一段 living segment 上，再核对 body、face 和 voice 为什么还没有重新接回这条动作口型线。再继续推进到轨迹/事件验证。'
+        evidenceDetail = '修复闭环仍然打开。先补上下一项缺失证据；当前仍只剩 motion 和 lipsync 这条 identity-continuity 生命线可见，先确认它是否还对齐在同一段 living segment 上，再核对 body、face 和 voice 为什么还没有重新接回这条动作口型线。再继续推进到轨迹/事件验证。'
       }
       else {
         evidenceDetail = rendererRejoinSurface
@@ -348,16 +348,16 @@ export function buildSelfEvolutionRepairNextAction(input: {
     }
     else if (bodyContinuityPhase === 'renderer-rejoin-without-body' && target === 'selected-trace-event') {
       if (survivingVisibleLane === 'face+lipsync+voice-only') {
-        traceDetail = '修复闭环仍然打开。先补上下一段缺失轨迹，并优先确认这次 selected trace event 是否仍只落在 face、lipsync 和 voice 这条 same-her 生命线上，避免把 body、motion 还没接回的 quieter carry 误判成修复完成。再继续推进到验证快照。'
+        traceDetail = '修复闭环仍然打开。先补上下一段缺失轨迹，并优先确认这次 selected trace event 是否仍只落在 face、lipsync 和 voice 这条 identity-continuity 生命线上，避免把 body、motion 还没接回的 quieter carry 误判成修复完成。再继续推进到验证快照。'
       }
       else if (survivingVisibleLane === 'motion+lipsync+voice-only') {
-        traceDetail = '修复闭环仍然打开。先补上下一段缺失轨迹，并优先确认这次 selected trace event 是否仍只落在 motion、lipsync 和 voice 这条 same-her 生命线上，避免把 body、face 还没接回的 quieter carry 误判成修复完成。再继续推进到验证快照。'
+        traceDetail = '修复闭环仍然打开。先补上下一段缺失轨迹，并优先确认这次 selected trace event 是否仍只落在 motion、lipsync 和 voice 这条 identity-continuity 生命线上，避免把 body、face 还没接回的 quieter carry 误判成修复完成。再继续推进到验证快照。'
       }
       else if (survivingVisibleLane === 'face+lipsync-only') {
-        traceDetail = '修复闭环仍然打开。先补上下一段缺失轨迹，并优先确认这次 selected trace event 是否仍只落在 face 和 lipsync 这条 same-her 生命线上，避免把 body、motion 和 voice 还没接回的 quieter carry 误判成修复完成。再继续推进到验证快照。'
+        traceDetail = '修复闭环仍然打开。先补上下一段缺失轨迹，并优先确认这次 selected trace event 是否仍只落在 face 和 lipsync 这条 identity-continuity 生命线上，避免把 body、motion 和 voice 还没接回的 quieter carry 误判成修复完成。再继续推进到验证快照。'
       }
       else if (survivingVisibleLane === 'motion+lipsync-only') {
-        traceDetail = '修复闭环仍然打开。先补上下一段缺失轨迹，并优先确认这次 selected trace event 是否仍只落在 motion 和 lipsync 这条 same-her 生命线上，避免把 body、face 和 voice 还没接回的 quieter carry 误判成修复完成。再继续推进到验证快照。'
+        traceDetail = '修复闭环仍然打开。先补上下一段缺失轨迹，并优先确认这次 selected trace event 是否仍只落在 motion 和 lipsync 这条 identity-continuity 生命线上，避免把 body、face 和 voice 还没接回的 quieter carry 误判成修复完成。再继续推进到验证快照。'
       }
       else {
         traceDetail = rendererRejoinSurface
@@ -366,7 +366,7 @@ export function buildSelfEvolutionRepairNextAction(input: {
       }
     }
     else if (preferredEventKind === 'takeover-audit') {
-      traceDetail = '修复闭环仍然打开。先补上下一段缺失轨迹，并优先落到接管审计，确认项目身份、当前 Phase 与未闭环任务仍被同一个她连续承接，再继续推进到验证快照。'
+      traceDetail = '修复闭环仍然打开。先补上下一段缺失轨迹，并优先落到接管审计，确认项目身份、当前 Phase 与未闭环任务仍被身份连续性连续承接，再继续推进到验证快照。'
     }
 
     return {

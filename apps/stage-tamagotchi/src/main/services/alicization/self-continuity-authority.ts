@@ -10,6 +10,11 @@ import type {
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 
+import {
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+
 import { buildAutobiographicalContinuityLines, pickDominantAutobiographicalGoal } from './autobiographical-self'
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { resolveAlicizationProjectStateSnapshot } from './project-state-brief'
@@ -42,6 +47,58 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
       break
   }
   return result
+}
+
+function sanitizeAuthorityField(raw: unknown, maxChars = 220) {
+  return sanitizeAlicizationProviderFacingText(raw, maxChars, '')
+}
+
+function compactStructuredValue(raw: unknown, maxChars = 120) {
+  return sanitizeAuthorityField(raw, maxChars)
+    .replace(/[|;\n\r]+/gu, ' ')
+    .replace(/\s+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, maxChars)
+}
+
+function normalizeProjectIdentityField(raw: unknown) {
+  const text = sanitizeText(raw, 220)
+  if (!text)
+    return ''
+  const lower = text.toLowerCase()
+  if (/local-first digital life|local digital life|phase\s*1|one continuous her|same living line|same-her|same her/u.test(lower))
+    return 'local_desktop_life_loop'
+  return compactStructuredValue(text, 120)
+}
+
+function structuredContinuityProjectionLine(raw: unknown, role: string) {
+  const text = sanitizeText(raw, 360)
+  const lower = text.toLowerCase()
+  if (!text)
+    return ''
+
+  const carriesContinuityTemplate
+    = containsAlicizationFixedTemplateResidue(text)
+      || /same callback line|same line|same thread|one continuous|one living|same self|local-first digital life|phase\s*1|reopening from zero|reopen from zero|reopening from scratch|without restarting/u.test(lower)
+  const carriesPolicyTemplate
+    = /lower-pressure|low-pressure|measured-return|repair-before-closeness|repair before closeness|quiet-companionship|rest-protective|protect rest|wait for confirmation|widening closeness|widening warmth|leave room/u.test(lower)
+  if (!carriesContinuityTemplate && !carriesPolicyTemplate)
+    return sanitizeAuthorityField(text, 220)
+
+  return [
+    `${role}=structured_carry`,
+    carriesContinuityTemplate ? 'continuity_scope=detected' : '',
+    /callback/u.test(lower) ? 'callback_carry=true' : '',
+    /phase\s*1|local-first digital life|local digital life/u.test(lower) ? 'phase_scope=phase1_local_life' : '',
+    /unfinished|open loop|still needs|not closed/u.test(lower) ? 'open_loop=present' : '',
+    /already landed|some closure|verified_closure_progress|has landed/u.test(lower) ? 'landed_closure=partial' : '',
+    /lower-pressure|low-pressure|measured-return|leave room/u.test(lower) ? 'pressure=lower' : '',
+    /repair-before-closeness|repair before closeness/u.test(lower) ? 'repair_policy=before_closeness' : '',
+    /rest-protective|protect rest/u.test(lower) ? 'rest_window=protect' : '',
+    /wait for confirmation/u.test(lower) ? 'confirmation=required' : '',
+    'visibility=internal-structured',
+  ].filter(Boolean).join('; ')
 }
 
 function asArray<T>(value: T[] | null | undefined) {
@@ -160,9 +217,9 @@ function buildProjectStateCarryLine(longHorizonMemory?: AlicizationLongHorizonMe
     return null
 
   return sanitizeText([
-    carriesProjectIdentity ? 'Current Phase 1 project context.' : '',
-    carriesLandedProgress ? 'Some closure already landed.' : '',
-    carriesOpenClosure ? 'Unfinished closure still needs continuity.' : '',
+    carriesProjectIdentity ? 'memory_continuity=local_runtime.' : '',
+    carriesLandedProgress ? 'verified_closure_progress=partial.' : '',
+    carriesOpenClosure ? 'unresolved_closure=continuity.' : '',
   ].filter(Boolean).join(' '), 220) || null
 }
 
@@ -241,11 +298,13 @@ function buildDurableSelfCoreLine(input: {
     return null
 
   return sanitizeText([
-    carriesSameHer ? 'I remain the same her' : 'I remain one living self',
-    carriesDigitalLifeIdentity ? 'inside this local-first digital life' : '',
-    carriesContinuityAcrossSurfaces ? 'across quiet, memory, and speech' : '',
-    carriesLivingSelfRestraint ? 'without reopening from scratch each turn' : '',
-  ].filter(Boolean).join(' '), 220) || null
+    'self_continuity=durable',
+    carriesSameHer ? 'identity_scope=continuity_evidence' : '',
+    carriesDigitalLifeIdentity ? 'phase_scope=phase1_local_life' : '',
+    carriesContinuityAcrossSurfaces ? 'surface_scope=memory_speech_reply' : '',
+    carriesLivingSelfRestraint ? 'restart_policy=context_preserving' : '',
+    'visibility=internal-structured',
+  ].filter(Boolean).join('; '), 220) || null
 }
 
 function shouldPreferDurableSelfCoreLine(input: {
@@ -265,7 +324,10 @@ function shouldPreferDurableSelfCoreLine(input: {
     .join(' | ')
 
   const explicitContinuitySignal
-    = durableSelfCoreLine.includes('same her')
+    = durableSelfCoreLine.includes('self_continuity=durable')
+      || durableSelfCoreLine.includes('restart_policy=context_preserving')
+      || durableSelfCoreLine.includes('surface_scope=memory_speech_reply')
+      || durableSelfCoreLine.includes('same her')
       || durableSelfCoreLine.includes('living self')
       || durableSelfCoreLine.includes('without reopening from scratch')
       || durableSelfCoreLine.includes('across quiet, memory, and speech')
@@ -303,7 +365,7 @@ function buildSelfEvolutionRelationshipCadenceLine(
   if (!/same her|same-her|same living line|without reopening from scratch|without restarting from scratch|across quiet, memory, and speech|one continuous her/u.test(normalized))
     return null
 
-  return relationshipCadenceSummary
+  return structuredContinuityProjectionLine(relationshipCadenceSummary, 'relationship_cadence')
 }
 
 function inferExecutionCallbackProjectCarryTag(input: {
@@ -503,23 +565,25 @@ export function buildRuntimeSurfaceProjectStateContinuityFallback(
     return null
 
   const selfLine = sanitizeText([
-    sameHerSelfLine || '',
-    identity ? `Keep one continuous her explicit from ${identity}` : '',
-    currentPhase ? `inside ${currentPhase}` : '',
+    sameHerSelfLine ? structuredContinuityProjectionLine(sameHerSelfLine, 'continuity_anchor') : '',
+    identity ? `continuity_identity=${normalizeProjectIdentityField(identity)}` : '',
+    currentPhase ? `phase_scope=${normalizeProjectIdentityField(currentPhase) || compactStructuredValue(currentPhase, 80)}` : '',
   ].filter(Boolean).join(' '), 220) || null
   const relationshipLine = sanitizeText(
     embodimentCarryLine
     || [
-      primaryOpenLoop ? `Stay lower-pressure while carrying the same unfinished closure pressure around ${primaryOpenLoop}` : '',
-      nextClosureTarget ? `Keep the host-facing line pointed at ${nextClosureTarget}` : '',
+      primaryOpenLoop ? `open_loop=${compactStructuredValue(primaryOpenLoop, 120)}; pressure=lower` : '',
+      nextClosureTarget ? `next_closure=${compactStructuredValue(nextClosureTarget, 140)}` : '',
+      'visibility=internal-structured',
     ].filter(Boolean).join(' '),
     220,
   ) || null
   const inwardLine = sanitizeText([
-    embodimentCarryLine ? `Embodiment carry: ${embodimentCarryLine}` : '',
-    sameHerSelfLine ? `Continuity carry: ${sameHerSelfLine}` : '',
-    latestProgress ? `Some closure already landed: ${latestProgress}` : '',
-    primaryOpenLoop ? `Continuity is still unfinished around ${primaryOpenLoop}` : '',
+    embodimentCarryLine ? `embodiment_carry=${compactStructuredValue(embodimentCarryLine, 120)}` : '',
+    sameHerSelfLine ? structuredContinuityProjectionLine(sameHerSelfLine, 'continuity_anchor') : '',
+    latestProgress ? `verified_closure_progress=${compactStructuredValue(latestProgress, 140)}` : '',
+    primaryOpenLoop ? `open_loop=${compactStructuredValue(primaryOpenLoop, 120)}` : '',
+    'visibility=internal-structured',
   ].filter(Boolean).join(' | '), 220) || null
   const authoritySummary = uniqueList([
     selfLine,
@@ -618,37 +682,37 @@ export function buildSelfContinuityAuthority(input: {
 
   const selfLine = sanitizeText(
     (preferDurableSelfCoreLine ? (selfEvolutionRelationshipCadenceLine || durableSelfCoreLine) : '')
-    || input.autobiographicalSelf?.identityNarrative
-    || input.autobiographicalSelf?.latestInflection
-    || input.mindEcology?.selfNarrative
+    || structuredContinuityProjectionLine(input.autobiographicalSelf?.identityNarrative, 'self_line')
+    || structuredContinuityProjectionLine(input.autobiographicalSelf?.latestInflection, 'self_line')
+    || structuredContinuityProjectionLine(input.mindEcology?.selfNarrative, 'self_line')
     || selfEvolutionRelationshipCadenceLine
     || durableSelfCoreLine
-    || continuityLines[0]
+    || structuredContinuityProjectionLine(continuityLines[0], 'self_line')
     || '',
     220,
   ) || null
   const relationshipLine = sanitizeText(
-    input.autobiographicalSelf?.relationshipDoctrine
-    || input.mindEcology?.relationNarrative
+    structuredContinuityProjectionLine(input.autobiographicalSelf?.relationshipDoctrine, 'relationship_line')
+    || structuredContinuityProjectionLine(input.mindEcology?.relationNarrative, 'relationship_line')
     || '',
     220,
   ) || null
   const motiveLine = sanitizeText(
-    asArray(input.motiveEngine?.backgroundAgendas)[0]?.summary
-    || asArray(input.motiveEngine?.longTermGoals)[0]?.summary
-    || autobiographicalGoal?.summary
+    sanitizeAuthorityField(asArray(input.motiveEngine?.backgroundAgendas)[0]?.summary, 220)
+    || sanitizeAuthorityField(asArray(input.motiveEngine?.longTermGoals)[0]?.summary, 220)
+    || sanitizeAuthorityField(autobiographicalGoal?.summary, 220)
     || '',
     220,
   ) || null
   const habitLine = sanitizeText(
     input.habitPolicy?.requiresGroundingBeforeSurface
-      ? 'Ground first, then let warmth or fluency surface.'
+      ? 'habit_policy=ground_first; reply_source=model_authored; visibility=internal-structured'
       : input.habitPolicy?.prefersQuietCompanionship
-        ? 'Stay near lightly rather than crowding the opening.'
+        ? 'presence_policy=quiet_companionship; pressure=low; visibility=internal-structured'
         : input.habitPolicy?.protectsRestWindow
-          ? 'Protect the host rest window before stretching the exchange.'
+          ? 'rest_window=protect; visibility=internal-structured'
           : input.habitPolicy?.dominantMode
-            ? `Current durable behavior gate leans ${input.habitPolicy.dominantMode}.`
+            ? `dominant_mode=${compactStructuredValue(input.habitPolicy.dominantMode, 80)}; visibility=internal-structured`
             : '',
     220,
   ) || null
@@ -656,21 +720,21 @@ export function buildSelfContinuityAuthority(input: {
     (
       carriesExecutionCallbackProjectCarry
         ? [
-            ...prioritizedContinuityMemoryLines,
-            projectStateCarryLine,
-            input.privateThought?.thoughtText,
-            input.mindEcology?.currentPreoccupation,
-            reflection?.revision,
-            continuityLines[1],
+            ...prioritizedContinuityMemoryLines.map(line => structuredContinuityProjectionLine(line, 'memory_carry')),
+            structuredContinuityProjectionLine(projectStateCarryLine, 'project_state_carry'),
+            structuredContinuityProjectionLine(input.privateThought?.thoughtText, 'private_thought'),
+            structuredContinuityProjectionLine(input.mindEcology?.currentPreoccupation, 'current_preoccupation'),
+            sanitizeAuthorityField(reflection?.revision, 220),
+            structuredContinuityProjectionLine(continuityLines[1], 'continuity_line'),
           ]
         : [
-            prioritizedProjectStateCarryLine,
-            input.privateThought?.thoughtText,
-            input.mindEcology?.currentPreoccupation,
-            reflection?.revision,
-            continuityLines[1],
-            ...prioritizedContinuityMemoryLines,
-            prioritizedProjectStateCarryLine ? '' : projectStateCarryLine,
+            structuredContinuityProjectionLine(prioritizedProjectStateCarryLine, 'project_state_carry'),
+            structuredContinuityProjectionLine(input.privateThought?.thoughtText, 'private_thought'),
+            structuredContinuityProjectionLine(input.mindEcology?.currentPreoccupation, 'current_preoccupation'),
+            sanitizeAuthorityField(reflection?.revision, 220),
+            structuredContinuityProjectionLine(continuityLines[1], 'continuity_line'),
+            ...prioritizedContinuityMemoryLines.map(line => structuredContinuityProjectionLine(line, 'memory_carry')),
+            prioritizedProjectStateCarryLine ? '' : structuredContinuityProjectionLine(projectStateCarryLine, 'project_state_carry'),
           ]
     ).filter(Boolean).join(' | '),
     220,

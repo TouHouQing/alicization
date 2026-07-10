@@ -44,7 +44,7 @@ export function recommendSelfEvolutionTraceEventId(
       ?? null
   }
 
-  if (triageCard.detail.startsWith('continuity governance ') || triageCard.detail === 'same-her continuity governance') {
+  if (triageCard.detail.startsWith('continuity governance ') || triageCard.detail === 'identity-continuity continuity governance') {
     return traceEvents.find(event => event.kind === 'takeover-audit')?.id
       ?? traceEvents.find(event => event.kind === 'governance-normalized')?.id
       ?? null

@@ -72,7 +72,7 @@ export function buildAlicizationEmbodimentSelfRevisionStatePatch(input: {
     )),
   )
   const summary = sanitizeText(
-    `${ledger.continuityPhase} embodiment continuity with ${carryingLanes.join('+') || 'no'} carrying same-her and ${droppedLanes.join('+') || 'no'} dropped.`,
+    `${ledger.continuityPhase} embodiment continuity with ${carryingLanes.join('+') || 'no'} carrying continuity and ${droppedLanes.join('+') || 'no'} dropped.`,
     320,
   )
 

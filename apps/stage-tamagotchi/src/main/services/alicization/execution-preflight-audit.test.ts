@@ -157,7 +157,8 @@ describe('execution-preflight-audit', () => {
 
       expect(resolveAlicizationExecutionPreflightMode(entry.relativePath)).toBe('capability-project-briefing-surface')
       expect(source).toContain('[ALICIZATION_PROJECT_BRIEFING]')
-      expect(source).toContain('Before answering execution capability or routing questions, keep this project-state briefing explicit.')
+      expect(source).toContain('briefing_scope=execution_capability | visibility=internal-structured | facts_follow=true')
+      expect(source).not.toContain('Before answering execution capability or routing questions')
       expect(source).toContain('Execution guidance must stay inside the same digital life project')
     }
   })

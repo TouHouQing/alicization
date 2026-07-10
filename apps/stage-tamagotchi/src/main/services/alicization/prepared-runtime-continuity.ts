@@ -3,6 +3,11 @@ import type { AlicizationPersonStateProjection } from './person-state-projection
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
 import {
+  containsAlicizationFixedTemplateResidue,
+  formatAlicizationProjectStateAwarenessFields,
+} from '@proj-alicization/stage-shared'
+
+import {
   mergePreferredSelfContinuityAuthority,
   resolvePreferredPersonStateProjection,
   resolvePreferredSelfContinuityAuthority,
@@ -41,18 +46,15 @@ function buildPreparedRuntimeRicherClosureAwarenessSummary(input: {
   const primaryOpenLoop = sanitizePreparedRuntimeText(input.primaryOpenLoop, 160)
   const nextClosureTarget = sanitizePreparedRuntimeText(input.nextClosureTarget, 160)
 
-  return [
-    identity ? `Before answering, remember: ${identity}` : '',
-    currentPhase ? `She is still inside ${currentPhase}` : '',
-    sameHerSelfLine || '',
-    latestLandedProgress
-      ? `What has already landed is ${latestLandedProgress.charAt(0).toLowerCase()}${latestLandedProgress.slice(1)}`
-      : '',
-    primaryOpenLoop ? `The still-open closure is ${primaryOpenLoop}` : '',
-    nextClosureTarget ? `This reply should keep moving toward ${nextClosureTarget}` : '',
-  ]
-    .filter(Boolean)
-    .join('. ')
+  return formatAlicizationProjectStateAwarenessFields({
+    identity,
+    currentPhase,
+    sameHerSelfLine,
+    latestLandedProgress,
+    primaryOpenLoop,
+    nextClosureTarget,
+    maxChars: 160,
+  })
     .replace(/\s+/g, ' ')
     .trim() || null
 }
@@ -271,7 +273,19 @@ function looksLikeEmbodimentClosureHeadline(raw: unknown) {
   if (!text)
     return false
 
-  return /face and motion|face, motion|lipsync|voice|body line|living her|living audio thread|audible-body|audible body|cross-modal closure/u.test(text)
+  return /continuity=embodiment|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|face and motion|face, motion|lipsync|voice|body line|living her|living audio thread|audible-body|audible body|cross-modal closure/u.test(text)
+}
+
+function looksLikeStructuredEmbodimentContinuityFact(raw: unknown) {
+  if (typeof raw !== 'string')
+    return false
+
+  const text = raw.trim().toLowerCase()
+  if (!text || containsAlicizationFixedTemplateResidue(text))
+    return false
+
+  return /continuity=embodiment/u.test(text)
+    && /pending[-_]rejoin|signature=|face|motion|lipsync|voice|body/u.test(text)
 }
 
 function looksLikeCompactSameHerInwardLowPressureAwareness(raw: unknown) {
@@ -518,13 +532,13 @@ export function deriveRuntimeProjectionRelationshipCarry(projection: {
   if (explicitLine)
     return explicitLine
   if (/repair-before-closeness|repair before closeness|repair-first/u.test(combinedLower))
-    return 'Stay repair-before-closeness and keep the same return lower-pressure until the room settles.'
+    return 'relationship_carry=repair_before_closeness; pressure=lower; wait=room_settles'
   if (/same living line|quiet-companionship/u.test(combinedLower))
-    return 'Stay lower-pressure and keep the same living line without widening closeness too early.'
+    return 'relationship_carry=low_pressure; continuity=quiet_companionship; closeness=widen_later'
   if (/held-autonomy|follow-through|held back|same thread|same line|leave room|lower-pressure|measured-return/u.test(combinedLower))
-    return 'Keep the callback on the same line and leave room before leaning closer again.'
+    return 'relationship_carry=callback_current_thread; pressure=lower; closeness=widen_later'
   if (/lower-pressure|leave room|measured-return|nearby-soft|quiet-companionship/u.test(combinedLower))
-    return 'Stay lower-pressure and keep the current thread from widening closeness too early.'
+    return 'relationship_carry=current_thread; pressure=lower; closeness=widen_later'
   return null
 }
 
@@ -947,9 +961,13 @@ export function resolvePreparedRuntimeProjectPreDialogueAwarenessSummary(
   if (
     explicitRuntimeProjectAwareness
     && !looksLikeThinProjectAwarenessShell(explicitRuntimeProjectAwareness)
-    && !looksLikeEmbodimentClosureHeadline(explicitRuntimeProjectAwareness)
     && (
-      looksLikeFullProjectPhaseClosureReanchor(explicitRuntimeProjectAwarenessLine)
+      !looksLikeEmbodimentClosureHeadline(explicitRuntimeProjectAwareness)
+      || looksLikeStructuredEmbodimentContinuityFact(explicitRuntimeProjectAwareness)
+    )
+    && (
+      looksLikeStructuredEmbodimentContinuityFact(explicitRuntimeProjectAwareness)
+      || looksLikeFullProjectPhaseClosureReanchor(explicitRuntimeProjectAwarenessLine)
       || looksLikeFullProjectPhaseClosureReanchor(explicitRuntimeProjectAwarenessSummary)
     )
   ) {
@@ -959,7 +977,10 @@ export function resolvePreparedRuntimeProjectPreDialogueAwarenessSummary(
   if (
     rawRuntimePreDialogueAwarenessLine
     && !looksLikeThinProjectAwarenessShell(rawRuntimePreDialogueAwarenessLine)
-    && !looksLikeEmbodimentClosureHeadline(rawRuntimePreDialogueAwarenessLine)
+    && (
+      !looksLikeEmbodimentClosureHeadline(rawRuntimePreDialogueAwarenessLine)
+      || looksLikeStructuredEmbodimentContinuityFact(rawRuntimePreDialogueAwarenessLine)
+    )
   ) {
     return rawRuntimePreDialogueAwarenessLine
   }
@@ -967,6 +988,17 @@ export function resolvePreparedRuntimeProjectPreDialogueAwarenessSummary(
   if (shouldPreferRuntimeCompanionHeadline) {
     if (looksLikeCompactSameHerInwardLowPressureAwareness(resolvedPreparedRuntimeProjectAwareness))
       return resolvedPreparedRuntimeProjectAwareness
+    if (containsAlicizationFixedTemplateResidue(runtimeCompanionHeadlineLine)) {
+      return buildPreparedRuntimeRicherClosureAwarenessSummary({
+        identity: projectStateSnapshot.identity,
+        currentPhase: projectStateSnapshot.currentPhase,
+        sameHerSelfLine: projectStateSnapshot.sameHerSelfLine,
+        latestLandedProgress: projectStateSnapshot.latestLandedProgress,
+        primaryOpenLoop: projectStateSnapshot.primaryOpenLoop,
+        nextClosureTarget: projectStateSnapshot.nextClosureTarget,
+      })
+      ?? (sanitizePreparedRuntimeText(projectStateSnapshot.preDialogueAwarenessSummary, 320) || null)
+    }
     return runtimeCompanionHeadlineLine
   }
 

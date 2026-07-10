@@ -3,6 +3,20 @@ import type {
   AlicizationRuntimeProjectStateDigest,
 } from './alicization-transport-contracts'
 
+import { sanitizeAlicizationStructuredInternalText } from './alicization-fixed-template-sanitizer'
+
+const measuredReturnInwardCarryReason
+  = 'continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower; visibility=internal'
+
+const repairBeforeClosenessReason
+  = 'continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred; visibility=internal'
+
+const rememberedBoundaryPreserveReason
+  = 'relationship_cadence=remembered_boundary; room=preserve_before_widening; visibility=internal'
+
+const rememberedBoundaryMoreRoomReason
+  = 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal'
+
 function normalizeSummaryString(raw: unknown) {
   if (typeof raw !== 'string')
     return null
@@ -22,6 +36,14 @@ function normalizeCompanionshipReasonText(value: string | null | undefined) {
     .trim()
 }
 
+function finalizeCompanionshipReason(value: string | null | undefined) {
+  const normalized = normalizeCompanionshipReasonText(value)
+  if (!normalized)
+    return null
+
+  return sanitizeAlicizationStructuredInternalText(normalized, 360, '')
+}
+
 function readProjectStateDigest(digest: AlicizationDigitalLifeSpineDigest | null | undefined) {
   const projectState = digest?.runtime?.projectState
   if (!projectState || typeof projectState !== 'object')
@@ -34,6 +56,23 @@ function readEmbodimentReasonTags(
   reasonTags: string[] | null | undefined,
 ) {
   return Array.isArray(reasonTags) ? reasonTags : []
+}
+
+function hasStructuredContinuityCarryEvidence(value: string | null | undefined) {
+  const normalized = normalizeCompanionshipReasonText(value)?.toLowerCase() ?? ''
+  if (!normalized)
+    return false
+
+  return /(?:^|[\s|;])(?:continuity_hold|continuity_anchor|project_state_continuity|life_loop_continuity|memory_dialogue_embodiment_closure|cross_modal_continuity_proof|callback_continuity|relationship_cadence|closure_gap|open_loop|owner|evidence|trace|source)=/u.test(normalized)
+    || /(?:^|[\s|;])local_desktop_life_loop(?:[\s|;]|$)/u.test(normalized)
+}
+
+function hasInwardRestraintEvidence(value: string | null | undefined) {
+  const normalized = normalizeCompanionshipReasonText(value)?.toLowerCase() ?? ''
+  if (!normalized)
+    return false
+
+  return /(?:^|[\s|;])(?:direction=inward|widening=deferred|pressure=lower|room=more|reopen_from_scratch=false|timing=next_open_window|continuity_hold=(?:measured_return|repair_before_closeness|rest_protective|quiet_companionship|inward)|relationship_cadence=remembered_boundary)/u.test(normalized)
 }
 
 function detectSameHerInwardCarryFromProjectState(input: {
@@ -50,13 +89,7 @@ function detectSameHerInwardCarryFromProjectState(input: {
   if (!merged)
     return false
 
-  return (
-    (merged.includes('same phase 1 digital life') && merged.includes('same living line'))
-    || (merged.includes('continuous her') && (merged.includes('same living line') || merged.includes('unfinished closure')))
-    || (merged.includes('one continuous her') && merged.includes('same living line'))
-    || ((merged.includes('same-her') || merged.includes('same her')) && merged.includes('same living line'))
-    || (merged.includes('without reopening from scratch') && merged.includes('same living line'))
-  )
+  return hasStructuredContinuityCarryEvidence(merged) && hasInwardRestraintEvidence(merged)
 }
 
 function detectSameHerInwardCarryFromLongHorizonSignals(input: {
@@ -75,22 +108,7 @@ function detectSameHerInwardCarryFromLongHorizonSignals(input: {
   if (!merged)
     return false
 
-  const carriesSameHerLine
-    = merged.includes('same living line')
-      || merged.includes('same-her')
-      || merged.includes('same her')
-      || merged.includes('continuous her')
-      || merged.includes('same living her')
-      || merged.includes('one continuous her')
-  const carriesInwardRestraint
-    = merged.includes('lower-pressure')
-      || merged.includes('leave room')
-      || merged.includes('without reopening from scratch')
-      || merged.includes('do not reopen from scratch')
-      || merged.includes('quiet')
-      || merged.includes('measured-return')
-
-  return carriesSameHerLine && carriesInwardRestraint
+  return hasStructuredContinuityCarryEvidence(merged) && hasInwardRestraintEvidence(merged)
 }
 
 function detectRememberedSeamReinterpretation(input: {
@@ -199,14 +217,14 @@ function extractConcreteLifeLoopGapReason(input: {
     || merged.includes('narration')
 
   if (hasSameHerLine && hasProjectShellRisk) {
-    return `Keep ${gapLabels} closure grounded before this turn flattens into project-shell narration`
+    return `closure_gap=${gapLabels}; project_shell_risk=true; widening=deferred; visibility=internal`
   }
 
   if (hasSameHerLine) {
-    return `Keep ${gapLabels} closure grounded before the turn widens outward`
+    return `closure_gap=${gapLabels}; continuity_identity=true; widening=deferred; visibility=internal`
   }
 
-  return `Keep ${gapLabels} closing together before the turn widens outward`
+  return `closure_gap=${gapLabels}; widening=deferred; visibility=internal`
 }
 
 export function detectRememberedSeamCompanionshipReopen(input: {
@@ -385,7 +403,7 @@ export function resolveAlicizationCompanionshipReasonSummary(input: {
 
   if (residentMode === 'repair-before-closeness') {
     if (runtimeProjectStateSameHerHoldDetail) {
-      return runtimeProjectStateSameHerHoldDetail
+      return finalizeCompanionshipReason(runtimeProjectStateSameHerHoldDetail)
     }
 
     const concreteLifeLoopGapReason = extractConcreteLifeLoopGapReason({
@@ -395,23 +413,25 @@ export function resolveAlicizationCompanionshipReasonSummary(input: {
       latestInflection,
     })
     if (concreteLifeLoopGapReason) {
-      return concreteLifeLoopGapReason
+      return finalizeCompanionshipReason(concreteLifeLoopGapReason)
     }
 
     if (memoryDeliberationRepairCadence) {
-      return 'Memory deliberation still says let repair settle first before closeness widens again'
+      return finalizeCompanionshipReason('memory_deliberation=repair_before_closeness; repair=settle_first; widening=deferred; visibility=internal')
     }
 
     if (sameHerInwardCarry) {
-      return 'Keep the callback tied to the current thread, let repair settle first, and leave room before widening closeness again'
+      return finalizeCompanionshipReason(repairBeforeClosenessReason)
     }
 
-    return relationshipDoctrine
+    return finalizeCompanionshipReason(
+      relationshipDoctrine
       ?? runtimeProjectStateEmotionalClosureCue
       ?? openingGuidance
       ?? latestInflection
       ?? manifestationCadenceSummary
-      ?? 'repair should settle before closeness widens'
+      ?? 'continuity_hold=repair_before_closeness; repair=settle_first; widening=deferred; visibility=internal',
+    )
   }
 
   if (residentMode === 'measured-return') {
@@ -421,11 +441,11 @@ export function resolveAlicizationCompanionshipReasonSummary(input: {
       && rememberedSeamReinterpretation
       && looksLikeGenericSameHerHoldDetail(runtimeProjectStateSameHerHoldDetail)
     ) {
-      return 'Recognize the same remembered seam, but keep more room this time because the line reopened too eagerly before'
+      return finalizeCompanionshipReason(rememberedBoundaryMoreRoomReason)
     }
 
     if (runtimeProjectStateSameHerHoldDetail) {
-      return runtimeProjectStateSameHerHoldDetail
+      return finalizeCompanionshipReason(runtimeProjectStateSameHerHoldDetail)
     }
 
     const concreteLifeLoopGapReason = extractConcreteLifeLoopGapReason({
@@ -435,11 +455,11 @@ export function resolveAlicizationCompanionshipReasonSummary(input: {
       latestInflection,
     })
     if (concreteLifeLoopGapReason) {
-      return concreteLifeLoopGapReason
+      return finalizeCompanionshipReason(concreteLifeLoopGapReason)
     }
 
     if (memoryDeliberationMeasuredCadence) {
-      return 'Memory deliberation still says keep the current thread lower-pressure before widening outward again'
+      return finalizeCompanionshipReason('memory_deliberation=measured_return; pressure=lower; widening=deferred; visibility=internal')
     }
 
     const thinAffectiveResidueRoomMakingLine = extractThinAffectiveResidueRoomMakingLine({
@@ -447,34 +467,38 @@ export function resolveAlicizationCompanionshipReasonSummary(input: {
       openingGuidance,
     })
     if (thinAffectiveResidueRoomMakingLine) {
-      return thinAffectiveResidueRoomMakingLine
+      return finalizeCompanionshipReason(thinAffectiveResidueRoomMakingLine)
     }
 
     if (rememberedSeamReopen) {
       if (rememberedSeamReinterpretation) {
-        return 'Recognize the same remembered seam, but keep more room this time because the line reopened too eagerly before'
+        return finalizeCompanionshipReason(rememberedBoundaryMoreRoomReason)
       }
 
-      return 'Recognize the same remembered seam before reopening, and leave room before closeness widens'
+      return finalizeCompanionshipReason(rememberedBoundaryPreserveReason)
     }
 
     if (sameHerInwardCarry) {
-      return 'Keep the current thread inward for now, and leave room before widening outward again'
+      return finalizeCompanionshipReason(measuredReturnInwardCarryReason)
     }
 
-    return manifestationCadenceSummary
+    return finalizeCompanionshipReason(
+      manifestationCadenceSummary
       ?? openingGuidance
       ?? latestInflection
       ?? relationshipDoctrine
-      ?? 'return stays slower so closeness can keep room'
+      ?? 'continuity_hold=measured_return; pressure=lower; room=preserve; visibility=internal',
+    )
   }
 
   if (residentMode === 'quiet-companionship' && runtimeProjectStateSameHerHoldDetail) {
-    return runtimeProjectStateSameHerHoldDetail
+    return finalizeCompanionshipReason(runtimeProjectStateSameHerHoldDetail)
   }
 
-  return manifestationCadenceSummary
+  return finalizeCompanionshipReason(
+    manifestationCadenceSummary
     ?? openingGuidance
     ?? latestInflection
-    ?? relationshipDoctrine
+    ?? relationshipDoctrine,
+  )
 }

@@ -6,6 +6,12 @@ import type { AlicizationDialogueSessionMirror } from './dialogue-session-manage
 import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
 
 import {
+
+  alicizationFixedTemplateReplacement,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+
+import {
   deriveCompactProjectStateNextFocusSummary,
   deriveCompactProjectStateOpenFocusSummary,
 } from './project-state-focus'
@@ -32,26 +38,33 @@ export function mergeUniqueRules(values: Array<string | null | undefined>, maxIt
 export function sanitizeGuidanceText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
-  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  const sanitized = sanitizeAlicizationProviderFacingText(normalized, maxChars)
+  return sanitized === alicizationFixedTemplateReplacement ? '' : sanitized
+}
+
+function sanitizeProjectStateSeedField(raw: unknown, maxChars = 220) {
+  if (typeof raw !== 'string')
+    return ''
+  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars).trim()
+  if (!normalized)
+    return ''
+  if (
+    /\bSame Phase 1 digital life\b/iu.test(normalized)
+    || /^Before (?:answering|speaking|acting),\s*(?:remember|keep|stay on)\b/iu.test(normalized)
+    || /\bWhat has already landed is\b/iu.test(normalized)
+    || /\bThe still-open closure is\b/iu.test(normalized)
+    || /\bThis reply should keep moving toward\b/iu.test(normalized)
+    || /^same digital life\s*\|\s*keep(?: the)?(?: desktop)? closure(?: seam| line)? explicit\b/iu.test(normalized)
+  ) {
+    return ''
+  }
+  return normalized
 }
 
 export function mergeGuidanceLine(values: Array<string | null | undefined>, maxChars = 320) {
   const merged = mergeUniqueRules(values, values.length)
   return sanitizeGuidanceText(merged.join(' '), maxChars) || null
-}
-
-function resolvePreferredProjectPreflightCue(input: {
-  sameHerSelfLine?: string | null
-  preDialogueAwarenessLine?: string | null
-  preflightSummary?: string | null
-}) {
-  return sanitizeGuidanceText(
-    input.sameHerSelfLine
-    || input.preDialogueAwarenessLine
-    || input.preflightSummary
-    || '',
-    220,
-  )
 }
 
 function resolvePreferredProjectOpenFocusSummary(input: {
@@ -221,15 +234,15 @@ export function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessio
           : '',
         220,
       )
-      const projectStatePreflightSummary = sanitizeGuidanceText(
+      const projectStatePreflightSummary = sanitizeProjectStateSeedField(
         typeof metadata.projectStatePreflightSummary === 'string' ? metadata.projectStatePreflightSummary : '',
         220,
       )
-      const projectPhase = sanitizeGuidanceText(
+      const projectPhase = sanitizeProjectStateSeedField(
         typeof metadata.projectPhase === 'string' ? metadata.projectPhase : '',
         140,
       )
-      const projectPrimaryOpenLoop = sanitizeGuidanceText(
+      const projectPrimaryOpenLoop = sanitizeProjectStateSeedField(
         typeof metadata.projectPrimaryOpenLoop === 'string'
           ? metadata.projectPrimaryOpenLoop
           : typeof metadata.projectMemoryClosureSummary === 'string'
@@ -237,7 +250,7 @@ export function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessio
             : '',
         220,
       )
-      const projectLatestLandedProgress = sanitizeGuidanceText(
+      const projectLatestLandedProgress = sanitizeProjectStateSeedField(
         typeof metadata.projectLatestLandedProgress === 'string'
           ? metadata.projectLatestLandedProgress
           : typeof metadata.projectLatestProgress === 'string'
@@ -245,7 +258,7 @@ export function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessio
             : '',
         220,
       )
-      const projectNextClosureTarget = sanitizeGuidanceText(
+      const projectNextClosureTarget = sanitizeProjectStateSeedField(
         typeof metadata.projectNextClosureTarget === 'string' ? metadata.projectNextClosureTarget : '',
         220,
       )
@@ -354,10 +367,6 @@ export function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessio
       typeof metadata.projectStateSameHerSelfLine === 'string' ? metadata.projectStateSameHerSelfLine : '',
       220,
     )
-    const projectStateSameHerDriftRisk = sanitizeGuidanceText(
-      typeof metadata.projectStateSameHerDriftRisk === 'string' ? metadata.projectStateSameHerDriftRisk : '',
-      220,
-    )
     const projectLatestLandedProgress = sanitizeGuidanceText(
       typeof metadata.projectLatestLandedProgress === 'string'
         ? metadata.projectLatestLandedProgress
@@ -400,7 +409,7 @@ export function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessio
       projectStateEmotionalClosureCue,
       projectStatePreflightSummary,
     })
-    const crossModalSameHerGoal = [
+    const crossModalContinuityGoal = [
       projectNextClosureTarget,
       projectStateEmotionalClosureCue,
       projectStatePreDialogueAwarenessLine,
@@ -408,12 +417,7 @@ export function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessio
     ].find(candidate => /cross-modal|same-her proof|same living her|same digital life/u.test(candidate)
       && /visible reply|voice|facial state|face|motion|lipsync|resident presence|embodiment|closure/u.test(candidate))
     ?? ''
-    const preferredHeldAutonomyGoal = crossModalSameHerGoal || executionIntentSummary
-    const projectPreflightCue = resolvePreferredProjectPreflightCue({
-      sameHerSelfLine: projectStateSameHerSelfLine,
-      preDialogueAwarenessLine: projectStatePreDialogueAwarenessLine,
-      preflightSummary: projectStatePreflightSummary,
-    })
+    const preferredHeldAutonomyGoal = crossModalContinuityGoal || executionIntentSummary
 
     return [
       'continuity_held_autonomy:',
@@ -425,15 +429,14 @@ export function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessio
       deferReason ? `defer=${deferReason}` : '',
       whyNow ? `why_now=${whyNow}` : '',
       relationshipLine ? `line=${relationshipLine}` : '',
-      projectStatePreDialogueAwarenessLine ? `project_pre_dialogue=${projectStatePreDialogueAwarenessLine}` : '',
-      projectPreflightCue ? `project_preflight=${projectPreflightCue}` : '',
-      projectLatestLandedProgress ? `landed=${projectLatestLandedProgress}` : '',
-      projectPrimaryOpenLoop ? `unresolved=${projectPrimaryOpenLoop}` : '',
-      projectStateSameHerSelfLine ? `same_her=${projectStateSameHerSelfLine}` : '',
-      projectStateSameHerDriftRisk ? `drift_risk=${projectStateSameHerDriftRisk}` : '',
-      projectStateOpenFocusSummary ? `open_focus=${projectStateOpenFocusSummary}` : '',
-      projectStateNextFocusSummary ? `next_focus=${projectStateNextFocusSummary}` : '',
-      projectStateEmotionalClosureCue ? `project_emotional_closure=${projectStateEmotionalClosureCue}` : '',
+      'short_term_owner=WorkingMemory',
+      'long_term_recall_owner=LongTermMemoryRecall',
+      'template_awareness=withheld_from_held_autonomy_seed',
+      projectLatestLandedProgress ? `runtime_landed=${projectLatestLandedProgress}` : '',
+      projectPrimaryOpenLoop ? `runtime_unresolved=${projectPrimaryOpenLoop}` : '',
+      projectStateOpenFocusSummary ? `continuity_open_focus=${projectStateOpenFocusSummary}` : '',
+      projectStateNextFocusSummary ? `continuity_next_focus=${projectStateNextFocusSummary}` : '',
+      projectStateEmotionalClosureCue ? `emotional_continuity=${projectStateEmotionalClosureCue}` : '',
     ].filter(Boolean).join(' ')
   })
 
@@ -490,15 +493,15 @@ export function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessio
         : '',
       220,
     )
-    const projectStatePreflightSummary = sanitizeGuidanceText(
+    const projectStatePreflightSummary = sanitizeProjectStateSeedField(
       typeof metadata.projectStatePreflightSummary === 'string' ? metadata.projectStatePreflightSummary : '',
       220,
     )
-    const projectPhase = sanitizeGuidanceText(
+    const projectPhase = sanitizeProjectStateSeedField(
       typeof metadata.projectPhase === 'string' ? metadata.projectPhase : '',
       140,
     )
-    const projectPrimaryOpenLoop = sanitizeGuidanceText(
+    const projectPrimaryOpenLoop = sanitizeProjectStateSeedField(
       typeof metadata.projectPrimaryOpenLoop === 'string'
         ? metadata.projectPrimaryOpenLoop
         : typeof metadata.projectMemoryClosureSummary === 'string'
@@ -506,7 +509,7 @@ export function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessio
           : '',
       220,
     )
-    const projectLatestLandedProgress = sanitizeGuidanceText(
+    const projectLatestLandedProgress = sanitizeProjectStateSeedField(
       typeof metadata.projectLatestLandedProgress === 'string'
         ? metadata.projectLatestLandedProgress
         : typeof metadata.projectLatestProgress === 'string'
@@ -514,7 +517,7 @@ export function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessio
           : '',
       220,
     )
-    const projectNextClosureTarget = sanitizeGuidanceText(
+    const projectNextClosureTarget = sanitizeProjectStateSeedField(
       typeof metadata.projectNextClosureTarget === 'string' ? metadata.projectNextClosureTarget : '',
       220,
     )
@@ -541,35 +544,24 @@ export function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessio
       projectPhase,
       projectStatePreflightSummary,
     })
-    const projectStateSameHerSelfLine = sanitizeGuidanceText(
-      typeof metadata.projectStateSameHerSelfLine === 'string' ? metadata.projectStateSameHerSelfLine : '',
-      220,
-    )
-    const projectStateSameHerDriftRisk = sanitizeGuidanceText(
-      typeof metadata.projectStateSameHerDriftRisk === 'string' ? metadata.projectStateSameHerDriftRisk : '',
-      220,
-    )
-    const projectPreflightCue = resolvePreferredProjectPreflightCue({
-      sameHerSelfLine: projectStateSameHerSelfLine,
-      preDialogueAwarenessLine: projectStatePreDialogueAwarenessLine,
-      preflightSummary: projectStatePreflightSummary,
-    })
-
     return [
-      'continuity_project_state:',
+      'continuity_runtime_memory:',
       `label=${sanitizeGuidanceText(signal.label, 120)}`,
-      `summary=${sanitizeGuidanceText(signal.summary ?? '', 180)}`,
-      projectStatePreDialogueAwarenessLine ? `project_pre_dialogue=${projectStatePreDialogueAwarenessLine}` : '',
-      projectPreflightCue ? `project_preflight=${projectPreflightCue}` : '',
+      `summary=${sanitizeProjectStateSeedField(signal.summary ?? '', 220)}`,
+      'short_term_owner=WorkingMemory',
+      'long_term_recall_owner=LongTermMemoryRecall',
+      'template_awareness=withheld_from_runtime_memory_seed',
+      projectPhase ? `runtime_phase=${projectPhase}` : '',
       projectPhase ? `phase=${projectPhase}` : '',
+      projectLatestLandedProgress ? `runtime_landed=${projectLatestLandedProgress}` : '',
       projectLatestLandedProgress ? `landed=${projectLatestLandedProgress}` : '',
-      projectPrimaryOpenLoop ? `unresolved=${projectPrimaryOpenLoop}` : '',
-      projectStateOpenFocusSummary ? `open_focus=${projectStateOpenFocusSummary}` : '',
-      projectStateNextFocusSummary ? `next_focus=${projectStateNextFocusSummary}` : '',
+      projectPrimaryOpenLoop ? `runtime_unresolved=${projectPrimaryOpenLoop}` : '',
+      projectPrimaryOpenLoop ? `open=${projectPrimaryOpenLoop}` : '',
+      projectStateOpenFocusSummary ? `continuity_open_focus=${projectStateOpenFocusSummary}` : '',
+      projectStateNextFocusSummary ? `continuity_next_focus=${projectStateNextFocusSummary}` : '',
+      projectNextClosureTarget ? `continuity_next=${projectNextClosureTarget}` : '',
       projectNextClosureTarget ? `next=${projectNextClosureTarget}` : '',
-      projectStateSameHerSelfLine ? `same_her=${projectStateSameHerSelfLine}` : '',
-      projectStateSameHerDriftRisk ? `drift_risk=${projectStateSameHerDriftRisk}` : '',
-      projectStateEmotionalClosureCue ? `emotion=${projectStateEmotionalClosureCue}` : '',
+      projectStateEmotionalClosureCue ? `emotional_continuity=${projectStateEmotionalClosureCue}` : '',
     ].filter(Boolean).join(' ')
   })
 

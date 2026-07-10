@@ -663,10 +663,10 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         searchConversations: true,
         searchProceduralExperience: true,
         queryHints: recallTexts,
-        rationale: `${buildExecutionResultFeedbackReconsolidationRationale(input.feedback)} ${memoryClosureExecution?.carry ? `Memory OS says the execution callback must be carried into the next same-person reply: ${memoryClosureExecution.carry}.` : ''} ${safetyGateSummary ? 'Treat this blocked dispatch as safety gate restraint, not a generic failed result.' : ''} ${resumeConfirmationSummary ? 'Treat this host-confirmed resume before redispatch as a confirmation boundary, not as ordinary autonomous continuation.' : ''} Keep the still-open Phase 1 closure pressure and callback same-her line explicit while remembering how execution returns should land.`,
+        rationale: `${buildExecutionResultFeedbackReconsolidationRationale(input.feedback)} ${memoryClosureExecution?.carry ? `Memory OS says the execution callback must be carried into the next reply as callback continuity evidence: ${memoryClosureExecution.carry}.` : ''} ${safetyGateSummary ? 'Treat this blocked dispatch as safety gate restraint, not a generic failed result.' : ''} ${resumeConfirmationSummary ? 'Treat this host-confirmed resume before redispatch as a confirmation boundary, not as ordinary autonomous continuation.' : ''} Keep callback return facts, safety boundaries, and unresolved follow-up explicit while remembering how execution returns should land.`,
         confidence: 0.8,
         recollectionAgenda: {
-          whyRecallNow: `The host just reacted to an execution callback return for ${options.sanitizeText(input.goal, 'this execution line').slice(0, 120)}, so Alicization should remember how the current Phase 1 context ought to come back after acting.`,
+          whyRecallNow: `The host just reacted to an execution callback return for ${options.sanitizeText(input.goal, 'this execution line').slice(0, 120)}, so Alicization should remember how the current execution context ought to come back after acting.`,
           goalSimilarity: 0.84,
           relationshipNeed: 0.74,
           affectivePull: 0.42,

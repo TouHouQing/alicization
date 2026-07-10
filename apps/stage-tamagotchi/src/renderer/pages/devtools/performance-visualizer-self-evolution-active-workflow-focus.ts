@@ -26,12 +26,12 @@ function resolveBodyContinuityPhase(
   summaryLine: string,
 ) {
   if (
-    bodyContinuityHint?.includes('当前只有 face 和 lipsync 这条 same-her 生命线')
-    || bodyContinuityHint?.includes('当前只有 motion 和 lipsync 这条 same-her 生命线')
+    bodyContinuityHint?.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
+    || bodyContinuityHint?.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
     || bodyContinuityHint?.includes('当前仅剩表情、口型、声音维持同一段连续性')
     || bodyContinuityHint?.includes('当前仅剩动作、口型、声音维持同一段连续性')
-    || summaryLine.includes('当前只有 face 和 lipsync 这条 same-her 生命线')
-    || summaryLine.includes('当前只有 motion 和 lipsync 这条 same-her 生命线')
+    || summaryLine.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
+    || summaryLine.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
     || summaryLine.includes('当前仅剩表情、口型、声音维持同一段连续性')
     || summaryLine.includes('当前仅剩动作、口型、声音维持同一段连续性')
   ) {
@@ -113,17 +113,17 @@ export function buildSelfEvolutionActiveWorkflowFocus(input: {
       ? 'face+lipsync+voice-only'
       : bodyContinuityHint?.includes('当前仅剩动作、口型、声音维持同一段连续性')
         ? 'motion+lipsync+voice-only'
-        : bodyContinuityHint?.includes('当前只有 face 和 lipsync 这条 same-her 生命线')
+        : bodyContinuityHint?.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
           ? 'face+lipsync-only'
-          : bodyContinuityHint?.includes('当前只有 motion 和 lipsync 这条 same-her 生命线')
+          : bodyContinuityHint?.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
             ? 'motion+lipsync-only'
             : guidance.summaryLine.includes('当前仅剩表情、口型、声音维持同一段连续性')
               ? 'face+lipsync+voice-only'
               : guidance.summaryLine.includes('当前仅剩动作、口型、声音维持同一段连续性')
                 ? 'motion+lipsync+voice-only'
-                : guidance.summaryLine.includes('当前只有 face 和 lipsync 这条 same-her 生命线')
+                : guidance.summaryLine.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
                   ? 'face+lipsync-only'
-                  : guidance.summaryLine.includes('当前只有 motion 和 lipsync 这条 same-her 生命线')
+                  : guidance.summaryLine.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
                     ? 'motion+lipsync-only'
                     : null
   )

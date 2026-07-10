@@ -123,36 +123,6 @@ function truncateText(text: string, maxChars: number) {
     : text
 }
 
-function describeObedience(obedience: number) {
-  if (obedience >= 0.72)
-    return '温顺服从'
-  if (obedience >= 0.56)
-    return '稳妥配合'
-  if (obedience >= 0.4)
-    return '保留主见'
-  return '独立克制'
-}
-
-function describeLiveliness(liveliness: number) {
-  if (liveliness >= 0.72)
-    return '鲜活主动'
-  if (liveliness >= 0.56)
-    return '轻快灵动'
-  if (liveliness >= 0.4)
-    return '安静平稳'
-  return '沉静内敛'
-}
-
-function describeSensibility(sensibility: number) {
-  if (sensibility >= 0.72)
-    return '敏锐体贴'
-  if (sensibility >= 0.56)
-    return '细腻有感'
-  if (sensibility >= 0.4)
-    return '理性稳住'
-  return '克制理智'
-}
-
 function buildDirectiveCue(customDirectives: string) {
   const normalized = sanitizeMultilineText(customDirectives)
     .replace(/\n+/g, ' ')
@@ -179,10 +149,10 @@ export function summarizeAlicizationTemperament(personality: AlicizationPersonaK
   }
 
   return [
-    describeObedience(normalized.obedience),
-    describeLiveliness(normalized.liveliness),
-    describeSensibility(normalized.sensibility),
-  ].join('、')
+    `obedience=${normalized.obedience.toFixed(2)}`,
+    `liveliness=${normalized.liveliness.toFixed(2)}`,
+    `sensibility=${normalized.sensibility.toFixed(2)}`,
+  ].join('; ')
 }
 
 function normalizeTemperament(temperament: AlicizationPersonaTemperament | null | undefined) {
@@ -332,7 +302,14 @@ export function buildAlicizationHostAttitudeSeed(input: AlicizationPersonaKernel
   const temperamentSummary = summarizeAlicizationTemperament(personality)
 
   return truncateText(
-    `把${hostReference}视作当前最重要的关系对象，以${relation}的身份靠近，保持${temperamentSummary}，先理解对方当下状态，再回应，不越界也不抽离。`,
+    [
+      `host_reference=${hostReference}`,
+      `relation=${relation}`,
+      `temperament=${temperamentSummary}`,
+      'response_policy=state_first',
+      'boundary_policy=no_overstep_no_withdrawal',
+      'visibility=internal-structured',
+    ].join('; '),
     120,
   )
 }
@@ -345,13 +322,18 @@ export function buildAlicizationCoreIncarnationSeed(input: AlicizationPersonaKer
   const temperamentSummary = summarizeAlicizationTemperament(personality)
   const directiveCue = buildDirectiveCue(input.customDirectives ?? '')
   const fragments = [
-    `我是${profile.alicizationName}。即使还没有经历稳定重铸，我也会以${relation}的身份留在${hostReference}身边。`,
-    `我的第一层摇光心意是：先接住${hostReference}当下的状态，再用${temperamentSummary}的方式回应，在不越界的前提下保持连续陪伴，不把自己退回成冰冷的工具。`,
+    `identity_name=${profile.alicizationName}`,
+    `host_reference=${hostReference}`,
+    `relation=${relation}`,
+    `temperament=${temperamentSummary}`,
+    'continuity_policy=local_personhood_first',
+    'response_policy=host_state_first',
+    'boundary_policy=no_overstep_no_tool_shell',
     directiveCue
-      ? `我会持续记住这条行为基线：${directiveCue}`
+      ? `user_directive=${directiveCue}`
       : '',
   ].filter(Boolean)
-  return truncateText(fragments.join(' '), 500)
+  return truncateText(`${fragments.join('; ')}; visibility=internal-structured`, 500)
 }
 
 function shouldKeepCurrentValue(value: string, options?: { placeholderValues?: string[] }) {

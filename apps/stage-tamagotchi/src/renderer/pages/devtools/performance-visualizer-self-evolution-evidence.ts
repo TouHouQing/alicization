@@ -302,24 +302,24 @@ function summarizeRuntimeContinuityAuthorityLaneTruth(input: SelfEvolutionEviden
       reason.includes('身体独撑态')
       || reason.includes('独自托住同一段 living segment')
       || reason.includes('only lane carrying this same living segment')
-      || reason.includes('one continuous her being held inward'),
+      || reason.includes('identity continuity being held inward'),
     )
   const hasCrossModalLockContinuity = bodyContinuityPhase === 'full-cross-modal-lock'
     || reasons.some(reason =>
       reason.includes('跨模态重锁态')
       || reason.includes('locked back onto the same living segment together')
-      || reason.includes('same-her embodiment line instead of a temporary visual alignment'),
+      || reason.includes('identity-continuity embodiment line instead of a temporary visual alignment'),
     )
   const hasRendererRejoinWithoutBodyContinuity = bodyContinuityPhase === 'renderer-rejoin-without-body'
     || reasons.some(reason =>
       reason.includes('显形回接失身态')
       || (reason.includes('显形权威已经回接') && reason.includes('身体线没有继续托住同一段 living segment'))
-      || reason.includes('same-her drift risk rather than a completed embodiment repair'),
+      || reason.includes('identity-continuity drift risk rather than a completed embodiment repair'),
     )
 
   const hasBodyLedContinuity = bodyContinuityPhase === 'body-carried-to-renderer-rejoin'
     || reasons.some(reason =>
-      reason.includes('body-led same-her continuity')
+      reason.includes('body-led identity-continuity continuity')
       || reason.includes('body-led partial recovery')
       || reason.includes('身体线先托住')
       || reason.includes('body still carries the living segment')
@@ -355,19 +355,19 @@ function summarizeRuntimeContinuityAuthorityLaneTruth(input: SelfEvolutionEviden
   }
 
   if (!hasVoiceDrift && matchedSignals.includes('lane=face+lipsync-only')) {
-    return '当前只有 face 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线'
+    return '当前只有 face 和 lipsync 这条 identity-continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线'
   }
 
   if (!hasVoiceDrift && matchedSignals.includes('lane=motion+lipsync-only')) {
-    return '当前只有 motion 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线'
+    return '当前只有 motion 和 lipsync 这条 identity-continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线'
   }
 
   if (!hasVoiceDrift && matchedSignals.includes('lane=face+lipsync+voice-only')) {
-    return '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线'
+    return '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线'
   }
 
   if (!hasVoiceDrift && matchedSignals.includes('lane=motion+lipsync+voice-only')) {
-    return '当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线'
+    return '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线'
   }
 
   if (!hasVoiceDrift
@@ -504,7 +504,7 @@ export function buildSelfEvolutionEvidencePanels(input: SelfEvolutionEvidencePan
       ...(relationshipCadenceCallbackLineActive
         ? []
         : relationshipCadenceInternalizationActive
-          ? ['Measured return is no longer only a temporary callback hold; it is being internalized as durable relationship rhythm for the same her.']
+          ? ['Measured return is no longer only a temporary callback hold; it is being internalized as durable relationship rhythm for the current continuity route.']
           : []),
     ]
     panels.push({

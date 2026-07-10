@@ -4,8 +4,10 @@ import type { SpeechIntentStartPayload, SpeechIntentTokenPayload } from './bus'
 
 import { createPushStream } from '@proj-alicization/pipelines-audio'
 import {
+  containsAlicizationFixedTemplateResidue,
   normalizeAlicizationRuntimeDigest,
   resolveAlicizationProjectPreDialogueAwarenessLine,
+  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 import { Mutex } from 'es-toolkit'
 import { nanoid } from 'nanoid'
@@ -27,10 +29,35 @@ function createId(prefix: string) {
 }
 
 function normalizeSpeechMetadataText(raw: unknown, maxLength: number) {
-  if (typeof raw !== 'string')
-    return null
-  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxLength)
+  const normalized = sanitizeAlicizationProviderFacingText(raw, maxLength, '')
   return normalized || null
+}
+
+function sanitizeSpeechMetadataValue<T>(value: T): T {
+  if (typeof value === 'string') {
+    return (
+      containsAlicizationFixedTemplateResidue(value)
+        ? null
+        : value
+    ) as T
+  }
+  if (Array.isArray(value))
+    return value.map(item => sanitizeSpeechMetadataValue(item)) as T
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .map(([key, item]) => [key, sanitizeSpeechMetadataValue(item)]),
+    ) as T
+  }
+  return value
+}
+
+function sanitizeSpeechTokenValue(value: unknown) {
+  if (typeof value !== 'string')
+    return undefined
+
+  const normalized = sanitizeAlicizationProviderFacingText(value, 1200, '')
+  return normalized || undefined
 }
 
 function isThinSamePhaseCarryLine(line: string | null) {
@@ -51,7 +78,11 @@ function isSameHerInwardLowPressureHeadline(line: string | null) {
   if (!normalized)
     return false
 
-  return normalized.includes('holding together mainly through')
+  return (
+    normalized.includes('continuity=embodiment')
+    && normalized.includes('low-pressure-inward-carry')
+  ) || (
+    normalized.includes('holding together mainly through')
     && normalized.includes('low-pressure')
     && (
       normalized.includes('same line inward')
@@ -59,11 +90,12 @@ function isSameHerInwardLowPressureHeadline(line: string | null) {
       || normalized.includes('same-her-inward-carry')
       || normalized.includes('quiet-companionship')
     )
+  )
 }
 
-function buildCompactSameHerInwardLowPressureAwarenessLine(companionBriefingLine: string) {
+function buildCompactSameHerInwardLowPressureAwarenessLine() {
   return normalizeSpeechMetadataText(
-    `${companionBriefingLine} Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.`,
+    `continuity_context=embodiment; source=companion_briefing; status=pending-rejoin; pending_rejoin=lipsync+voice; evidence=low-pressure-inward-carry`,
     320,
   )
 }
@@ -74,13 +106,13 @@ function isAnthropomorphicHostFacingSameHerHeadline(line: string | null) {
     return false
 
   return normalized.includes('anthropomorphic emotional closure')
-    && normalized.includes('same-her inward-carry observability')
+    && (normalized.includes('same-her inward-carry observability') || normalized.includes('continuity inward-carry observability'))
     && normalized.includes('measured-return')
 }
 
-function buildCompactAnthropomorphicHostFacingAwarenessLine(companionBriefingLine: string) {
+function buildCompactAnthropomorphicHostFacingAwarenessLine() {
   return normalizeSpeechMetadataText(
-    `${companionBriefingLine} Right now this one living her still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line before anything reopens outward.`,
+    `continuity_context=embodiment; source=companion_briefing; affective_closure=anthropomorphic-emotional-closure; observability=inward-carry; timing=measured-return`,
     320,
   )
 }
@@ -89,7 +121,7 @@ function normalizeIntentMetadata(raw: IntentOptions['metadata']) {
   if (!raw || typeof raw !== 'object')
     return null
 
-  const metadata = { ...raw }
+  const metadata = sanitizeSpeechMetadataValue({ ...raw })
   const projectState = 'projectState' in metadata
     && metadata.projectState
     && typeof metadata.projectState === 'object'
@@ -158,17 +190,17 @@ function normalizeIntentMetadata(raw: IntentOptions['metadata']) {
       && companionBriefingLine
       && isThinSamePhaseCarryLine(companionBriefingLine)
       && isSameHerInwardLowPressureHeadline(companionHeadlineLine)
-      ? buildCompactSameHerInwardLowPressureAwarenessLine(companionBriefingLine)
+      ? buildCompactSameHerInwardLowPressureAwarenessLine()
       : null
   const mergedAnthropomorphicHostFacingAwarenessLine
     = awarenessOnlyRepeatsHeadline
       && companionBriefingLine
       && isThinSamePhaseCarryLine(companionBriefingLine)
       && isAnthropomorphicHostFacingSameHerHeadline(companionHeadlineLine)
-      ? buildCompactAnthropomorphicHostFacingAwarenessLine(companionBriefingLine)
+      ? buildCompactAnthropomorphicHostFacingAwarenessLine()
       : null
   const awarenessLine = awarenessOnlyRepeatsHeadline && companionBriefingLine
-    ? (mergedAnthropomorphicHostFacingAwarenessLine ?? mergedInwardLowPressureAwarenessLine ?? companionBriefingLine)
+    ? (mergedAnthropomorphicHostFacingAwarenessLine ?? mergedInwardLowPressureAwarenessLine)
     : resolveAlicizationProjectPreDialogueAwarenessLine({
         runtimeProjectState: {
           preDialogueAwarenessLine: preferredAwarenessSeed,
@@ -202,6 +234,31 @@ function normalizeIntentMetadata(raw: IntentOptions['metadata']) {
 type HostSpeechPipeline = Pick<ReturnType<typeof createSpeechPipeline<unknown>>, 'openIntent'> & {
   cancelOwner?: (ownerId: string, reason?: string) => void
   stopAll?: (reason: string) => void
+}
+
+function wrapHostIntentHandle(intent: IntentHandle): IntentHandle {
+  return {
+    ...intent,
+    writeLiteral(value: string) {
+      const sanitized = sanitizeSpeechTokenValue(value)
+      if (sanitized)
+        intent.writeLiteral(sanitized)
+    },
+    writeSpecial(value: string) {
+      const sanitized = sanitizeSpeechTokenValue(value)
+      if (sanitized)
+        intent.writeSpecial(sanitized)
+    },
+    writeFlush() {
+      intent.writeFlush()
+    },
+    end() {
+      intent.end()
+    },
+    cancel(reason?: string) {
+      intent.cancel(reason)
+    },
+  }
 }
 
 export interface SpeechPipelineRuntime {
@@ -255,14 +312,14 @@ export function createSpeechPipelineRuntime(): SpeechPipelineRuntime {
       if (remoteIntentMap.has(payload.intentId))
         return
 
-      const intent = hostPipeline.openIntent({
+      const intent = wrapHostIntentHandle(hostPipeline.openIntent({
         intentId: payload.intentId,
         streamId: payload.streamId,
         ownerId: payload.ownerId,
         priority: payload.priority,
         behavior: payload.behavior,
         metadata: normalizeIntentMetadata(payload.metadata ?? null),
-      })
+      }))
 
       remoteIntentMap.set(payload.intentId, intent)
     })
@@ -274,19 +331,19 @@ export function createSpeechPipelineRuntime(): SpeechPipelineRuntime {
       if (!intent) {
         if (!hostPipeline)
           return
-        const fallback = hostPipeline.openIntent({
+        const fallback = wrapHostIntentHandle(hostPipeline.openIntent({
           intentId: payload.intentId,
           streamId: payload.streamId,
           ownerId: payload.ownerId,
           priority: payload.priority,
           behavior: payload.behavior,
           metadata: normalizeIntentMetadata(payload.metadata ?? null),
-        })
+        }))
         remoteIntentMap.set(payload.intentId, fallback)
-        writer(fallback, payload.value)
+        writer(fallback, sanitizeSpeechTokenValue(payload.value))
         return
       }
-      writer(intent, payload.value)
+      writer(intent, sanitizeSpeechTokenValue(payload.value))
     }
 
     bindBusListener(speechIntentLiteralEvent, (evt) => {
@@ -523,13 +580,13 @@ export function createSpeechPipelineRuntime(): SpeechPipelineRuntime {
   function openIntent(options?: IntentOptions) {
     if (hostPipeline) {
       if (!options)
-        return hostPipeline.openIntent(options)
+        return wrapHostIntentHandle(hostPipeline.openIntent(options))
 
       const metadata = normalizeIntentMetadata(options.metadata)
-      return hostPipeline.openIntent({
+      return wrapHostIntentHandle(hostPipeline.openIntent({
         ...options,
         ...(metadata != null ? { metadata } : {}),
-      })
+      }))
     }
 
     return createRemoteIntent(options)

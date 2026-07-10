@@ -7,6 +7,12 @@ import type {
 import type { WorkingMemoryLongTermQueueItem } from './working-memory-long-term-queue'
 
 import {
+  alicizationFixedTemplateReplacement,
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+
+import {
   normalizeWorkingMemoryText,
   uniqueWorkingMemoryTexts,
 } from './working-memory'
@@ -45,11 +51,28 @@ function numberOrZero(raw: unknown) {
 }
 
 function compact(raw: unknown, maxChars = 220) {
-  return normalizeWorkingMemoryText(raw, maxChars)
+  const normalized = normalizeWorkingMemoryText(raw, maxChars)
+  if (!normalized)
+    return ''
+  if (
+    containsAlicizationFixedTemplateResidue(normalized)
+    && /(?:不要|别|不想要|禁止|移除|清除|别再|不要再)[^。.!?]*(?:固定模板|固定回复|模板化|same-her|one continuous her|Before (?:answering|speaking|acting)|Right now I am|local-first digital life project|同一个她|同一个\s*her|数字生命主线)/iu.test(normalized)
+  ) {
+    return 'correction=fixed_template_rejection; visible_wording=false'
+  }
+  return sanitizeAlicizationProviderFacingText(
+    normalized,
+    maxChars,
+    alicizationFixedTemplateReplacement,
+  )
 }
 
 function uniqueLines(values: string[], maxItems = 10) {
-  return uniqueWorkingMemoryTexts(values, maxItems, 260)
+  return uniqueWorkingMemoryTexts(
+    values.map(value => compact(value, 260)),
+    maxItems,
+    260,
+  )
 }
 
 function buildOwnerObligations(snapshot: WorkingMemorySnapshot) {
@@ -101,11 +124,11 @@ export function buildWorkingMemoryOwnerContext(snapshot: WorkingMemorySnapshot):
       taskStatus: snapshot.activeTask?.status ?? null,
     },
     obligations: buildOwnerObligations(snapshot),
-    queryHints: uniqueWorkingMemoryTexts(snapshot.memoryQueryHints, 8, 120),
+    queryHints: uniqueLines(snapshot.memoryQueryHints, 8),
     audit: {
       failureTurnIds: uniqueWorkingMemoryTexts(snapshot.audit.failureTurnIds, 20, 120),
       excludedLongTermCandidateTurnIds: uniqueWorkingMemoryTexts(snapshot.audit.excludedLongTermCandidateTurnIds, 20, 120),
-      notes: uniqueWorkingMemoryTexts(snapshot.audit.notes, 8, 220),
+      notes: uniqueLines(snapshot.audit.notes, 8),
     },
     longTermQueue: buildWorkingMemoryLongTermCandidateQueue(snapshot),
   }
@@ -144,23 +167,21 @@ function obligationPayload(line: string, prefix: RegExp) {
 }
 
 export function buildWorkingMemoryOwnerReplyGovernance(context: WorkingMemoryOwnerContext) {
-  const mustDo = uniqueWorkingMemoryTexts([
-    ...context.obligations.map((line) => {
-      if (line.startsWith('respect_correction('))
-        return `Respect WorkingMemory correction: ${obligationPayload(line, /^respect_correction\([^)]*\):/u)}`
-      if (line.startsWith('answer_unresolved_question:'))
-        return `Answer WorkingMemory unresolved question before widening: ${obligationPayload(line, /^answer_unresolved_question:/u)}`
-      if (line.startsWith('honor_commitment:'))
-        return `Honor WorkingMemory commitment: ${obligationPayload(line, /^honor_commitment:/u)}`
-      if (line.startsWith('carry_task('))
-        return `Carry WorkingMemory active task: ${obligationPayload(line, /^carry_task\(([^)]*)\):/u).replace(/^/u, `${line.match(/^carry_task\(([^)]*)\):/u)?.[1] ?? 'active'}:`)}`
-      if (line.startsWith('hold_thread:'))
-        return `Stay on WorkingMemory thread: ${obligationPayload(line, /^hold_thread:/u)}`
-      if (line.startsWith('carry_execution:'))
-        return `Carry WorkingMemory execution state plainly: ${obligationPayload(line, /^carry_execution:/u)}`
-      return ''
-    }),
-  ], 12, 320)
+  const mustDo = uniqueWorkingMemoryTexts(context.obligations.map((line) => {
+    if (line.startsWith('respect_correction('))
+      return `Respect WorkingMemory correction: ${obligationPayload(line, /^respect_correction\([^)]*\):/u)}`
+    if (line.startsWith('answer_unresolved_question:'))
+      return `Answer WorkingMemory unresolved question before widening: ${obligationPayload(line, /^answer_unresolved_question:/u)}`
+    if (line.startsWith('honor_commitment:'))
+      return `Honor WorkingMemory commitment: ${obligationPayload(line, /^honor_commitment:/u)}`
+    if (line.startsWith('carry_task('))
+      return `Carry WorkingMemory active task: ${obligationPayload(line, /^carry_task\(([^)]*)\):/u).replace(/^/u, `${line.match(/^carry_task\(([^)]*)\):/u)?.[1] ?? 'active'}:`)}`
+    if (line.startsWith('hold_thread:'))
+      return `Stay on WorkingMemory thread: ${obligationPayload(line, /^hold_thread:/u)}`
+    if (line.startsWith('carry_execution:'))
+      return `Carry WorkingMemory execution state plainly: ${obligationPayload(line, /^carry_execution:/u)}`
+    return ''
+  }), 12, 320)
 
   const mustNotDo = uniqueWorkingMemoryTexts([
     'Do not replace WorkingMemory owner state with generic project-status narration or fixed fallback wording.',

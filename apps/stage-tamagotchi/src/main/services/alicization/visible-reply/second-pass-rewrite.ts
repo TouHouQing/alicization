@@ -13,6 +13,12 @@ import type {
 } from '../runtime-soul'
 
 import {
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationProviderFacingText,
+  sanitizeAlicizationStructuredInternalText,
+} from '@proj-alicization/stage-shared'
+
+import {
   clampAlicizationPerformancePayloadToManifest,
   normalizeAlicizationEmotion,
   normalizeAlicizationPerformancePayload,
@@ -33,8 +39,8 @@ import {
 } from '../proactive-opening-guidance'
 import {
   buildAlicizationProjectPreDialogueAwarenessLine,
-  buildAlicizationProjectStateClosureDashboard,
-  buildAlicizationProjectStateExtraSystemBlocks,
+  buildAlicizationProviderFacingProjectStateClosureDashboard,
+  buildAlicizationProviderFacingProjectStateExtraSystemBlocks,
   isAlicizationThinProjectAwarenessLine,
   resolveAlicizationProjectStateBrief,
   scoreAlicizationProjectAwarenessLine,
@@ -94,31 +100,226 @@ function sanitizeBoundedText(raw: unknown, maxChars: number) {
   return sanitizeText(raw, '').slice(0, maxChars)
 }
 
+function normalizeSecondPassProviderTemplateTokens(raw: unknown) {
+  if (typeof raw !== 'string')
+    return ''
+
+  return raw
+    .trim()
+    .replace(/\bsame local-first digital life project\b/giu, '')
+    .replace(/\bSame Phase 1 digital life\b/giu, '')
+    .replace(/\bphase1_local_digital_life_anchor\s*:\s*/giu, '')
+    .replace(/\bcontinuity_owner\s*=\s*one_her\b/giu, 'owner=project_state_governance')
+    .replace(/\bone same-her Phase\s*1 line\b/giu, 'one continuity_line')
+    .replace(/\bone same-her line\b/giu, 'one continuity_line')
+    .replace(/\bcross-modal same-her proof\b/giu, 'cross_modal_continuity_proof')
+    .replace(/\bsame-her carry alive\b/giu, 'continuity_carry=alive')
+    .replace(/\bsame-her carry\b/giu, 'continuity_carry')
+    .replace(/\bsame-her closure\b/giu, 'continuity_closure')
+    .replace(/\bsame-her line\b/giu, 'continuity_line')
+    .replace(/\bsame-her\b/giu, 'continuity')
+    .replace(/\bsame_her\b/giu, 'continuity')
+    .replace(/\bsame her\b/giu, 'continuity')
+    .replace(/\bsame living line\b/giu, 'continuity_line')
+    .replace(/\bsame Phase 1 living line\b/giu, 'phase1_continuity_line')
+    .replace(/\bone continuous "?her"?\b/giu, 'project_state_continuity')
+    .replace(/\bone living her\b/giu, 'project_state_continuity')
+    .replace(/\bone continuity continuity\b/giu, 'one continuity')
+    .replace(/\bcontinuity continuity\b/giu, 'continuity')
+}
+
+function sanitizeSecondPassProviderText(raw: unknown, maxChars = 360) {
+  return sanitizeAlicizationProviderFacingText(
+    normalizeSecondPassProviderTemplateTokens(raw),
+    maxChars,
+    '',
+  ) || null
+}
+
+function sanitizeSecondPassProviderStructuredLine(raw: unknown, maxChars = 360) {
+  const sanitized = sanitizeSecondPassProviderText(raw, maxChars)
+  if (!sanitized)
+    return null
+  return /[=;]/u.test(sanitized) ? sanitized : null
+}
+
+function formatSecondPassProviderEvidenceContext(label: string, raw: unknown, maxChars = 360) {
+  const structured = sanitizeSecondPassProviderStructuredLine(raw, maxChars)
+  if (structured)
+    return `${label}=${structured}`
+  const sanitized = sanitizeSecondPassProviderText(raw, maxChars)
+  return sanitized
+    ? `${label}=present; source_text=withheld_non_structured_instruction; visible_wording=false`
+    : ''
+}
+
+function isSecondPassProviderStructuredKey(value: string) {
+  return value.length > 0 && Array.from(value).every((char) => {
+    const code = char.codePointAt(0) ?? 0
+    return (
+      code >= 48 && code <= 57
+      || code >= 65 && code <= 90
+      || code >= 97 && code <= 122
+      || char === '_'
+      || char === '.'
+      || char === ':'
+      || char === '-'
+    )
+  })
+}
+
+function looksSecondPassProviderStructuredControl(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed)
+    return false
+  if (isSecondPassProviderStructuredKey(trimmed))
+    return true
+
+  return trimmed.split(/[;|,]/u).every((part) => {
+    const separatorIndex = part.indexOf('=')
+    if (separatorIndex <= 0)
+      return false
+    const key = part.slice(0, separatorIndex).trim()
+    const detail = part.slice(separatorIndex + 1)
+    return isSecondPassProviderStructuredKey(key) && !/[.!?。！？]/u.test(detail)
+  })
+}
+
+function sanitizeSecondPassProviderList(raw: unknown, maxChars = 360) {
+  return readStringList(raw)
+    .map(value => sanitizeSecondPassProviderText(value, maxChars))
+    .filter((value): value is string => Boolean(value))
+    .map(value => looksSecondPassProviderStructuredControl(value)
+      ? value
+      : 'rewrite_control_present=true; rewrite_control_source_text=withheld_non_structured_instruction')
+}
+
+function sanitizeSecondPassProviderPayload(raw: unknown, maxChars = 720, depth = 0): unknown {
+  if (raw === null || raw === undefined)
+    return null
+  if (typeof raw === 'string') {
+    return sanitizeAlicizationProviderFacingText(
+      normalizeSecondPassProviderTemplateTokens(raw),
+      maxChars,
+      '',
+    ) || null
+  }
+  if (typeof raw === 'number' || typeof raw === 'boolean')
+    return raw
+  if (Array.isArray(raw)) {
+    return raw
+      .map(item => sanitizeSecondPassProviderPayload(item, maxChars, depth + 1))
+      .filter(item => item !== null && item !== '')
+  }
+  if (typeof raw !== 'object' || depth >= 8)
+    return null
+
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>).map(([key, value]) => [
+      key,
+      sanitizeSecondPassProviderPayload(value, maxChars, depth + 1),
+    ]),
+  )
+}
+
+function sanitizeSecondPassProviderBlock(raw: unknown, maxChars = 3200) {
+  const text = sanitizeBoundedText(raw, maxChars)
+  if (!text)
+    return '(none)'
+
+  const sanitized = text
+    .split('\n')
+    .map((line) => {
+      if (!line.trim())
+        return ''
+      return sanitizeAlicizationProviderFacingText(
+        normalizeSecondPassProviderTemplateTokens(line),
+        maxChars,
+        '',
+      )
+      || ''
+    })
+    .join('\n')
+    .trim()
+
+  return sanitized || '(none)'
+}
+
+function sanitizeSecondPassRecentMessages(messages: Message[]) {
+  return messages.map((message) => {
+    if (typeof message.content !== 'string')
+      return message
+    return {
+      ...message,
+      content: sanitizeSecondPassProviderBlock(message.content, 2000),
+    }
+  })
+}
+
+function redactSecondPassOriginalStructuredForProvider(raw: Record<string, unknown>) {
+  const redacted: Record<string, unknown> = { ...raw }
+  for (const key of ['thought', 'reply', 'fullText']) {
+    if (typeof redacted[key] !== 'string')
+      continue
+    redacted[key] = sanitizeAlicizationProviderFacingText(redacted[key], 1200, '')
+  }
+  return redacted
+}
+
 const SECOND_PASS_PROJECT_AWARENESS_MAX_CHARS = 3200
 const SECOND_PASS_EMBODIMENT_CLOSURE_MAX_CHARS = 3200
+const SECOND_PASS_MEMORY_OWNER_BLOCK_MAX_CHARS = 1200
+const SECOND_PASS_MEMORY_OWNER_EVIDENCE_MAX_CHARS = 3600
+
+const SECOND_PASS_MEMORY_OWNER_MARKERS = [
+  '[ALICIZATION_WORKING_MEMORY_OWNER]',
+  '[ALICIZATION_WORKING_MEMORY]',
+  '[ALICIZATION_RECALLED_MEMORY]',
+] as const
+
+type SecondPassMemoryOwnerMarker = typeof SECOND_PASS_MEMORY_OWNER_MARKERS[number]
 
 function formatRelationshipTruthDoctrineForRewrite(raw: unknown) {
-  if (Array.isArray(raw)) {
-    const joined = raw
-      .map(item => sanitizeBoundedText(item, 220))
-      .filter(Boolean)
-      .join(' | ')
-    return joined ? `Relationship truth doctrine: ${joined}` : null
-  }
+  const joinedRaw = Array.isArray(raw)
+    ? raw
+        .map(item => sanitizeBoundedText(item, 220))
+        .filter(Boolean)
+        .join(' | ')
+    : sanitizeBoundedText(raw, 320)
+  if (!joinedRaw)
+    return null
 
-  const doctrine = sanitizeBoundedText(raw, 320)
-  return doctrine ? `Relationship truth doctrine: ${doctrine}` : null
+  const normalized = joinedRaw.toLowerCase()
+  const truthBeforeWarmth = /repair truth|truth before|truth-first|truth.*warmth|真实|修正|纠偏/u.test(normalized)
+  const closenessBoundary = /stay close|closeness|close only|warmth|靠近|亲近/u.test(normalized)
+
+  return [
+    truthBeforeWarmth
+      ? 'relationship_truth_policy=repair_truth_before_warmth'
+      : 'relationship_truth_policy=truth_before_style',
+    closenessBoundary
+      ? 'relationship_boundary=closeness_must_not_outrun_truth'
+      : '',
+    'source_text=withheld_non_structured_instruction',
+    'visible_wording=false',
+  ].filter(Boolean).join('; ')
 }
 
 function looksLikeProjectStateAnswerStancePreserveLine(value: string | null | undefined) {
   const normalized = sanitizeBoundedText(value, 320).toLowerCase()
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return false
 
-  return (
-    /project-state|project status|project-summary|项目状态|这个项目/u.test(normalized)
-    && /same-her|same her|same living line|same digital-life line|same digital life line|one living line|同一条线|同一个 her|同一个她/u.test(normalized)
-  )
+  const namesProjectState
+    = /(?:^|[;|,\s])(?:answer_subject|project_state_answer|project_state_continuity|project_state_question|project_context_follow_through|preserve_field)=/u.test(normalized)
+      || /preserve_field=project_state\./u.test(normalized)
+  const carriesStructuredContinuity
+    = /(?:^|[;|,\s])(?:continuity_anchor|continuity_field|continuity_cue|continuity_hold|life_loop_continuity|local_desktop_life_loop)=/u.test(normalized)
+      || /local_desktop_life_loop|memory_dialogue_embodiment_closure|cross_modal_continuity_proof/u.test(normalized)
+
+  return namesProjectState && carriesStructuredContinuity
 }
 
 function resolveProjectStateAnswerStancePreserveLine(values: string[]) {
@@ -378,9 +579,12 @@ function buildSecondPassCanonicalProjectStateSystemMessages(input: {
     nextClosureTarget,
   }
 
-  return buildAlicizationProjectStateExtraSystemBlocks({
+  return buildAlicizationProviderFacingProjectStateExtraSystemBlocks({
     brief: canonicalProjectStateBrief,
-  }).map(content => ({ role: 'system', content }) as Message)
+  }).map(content => ({
+    role: 'system',
+    content: sanitizeSecondPassProviderBlock(content, SECOND_PASS_PROJECT_AWARENESS_MAX_CHARS),
+  }) as Message)
 }
 
 export function buildAlicizationSecondPassTransportFailureReply(input: {
@@ -415,6 +619,31 @@ export function buildAlicizationSecondPassTransportFailureReply(input: {
     prepared: input.prepared,
     projectState,
   })
+  const transportFailureProjectState = {
+    identity: sanitizeSecondPassProviderText(projectState.identity, 320),
+    currentPhase: sanitizeSecondPassProviderText(projectState.currentPhase, 240),
+    preflightSummary: sanitizeSecondPassProviderText(projectState.preflightSummary, 520),
+    preDialogueAwarenessLine: sanitizeSecondPassProviderText(
+      transportFailureAwarenessLine,
+      SECOND_PASS_PROJECT_AWARENESS_MAX_CHARS,
+    ),
+    awarenessLine: sanitizeSecondPassProviderText(
+      transportFailureAwarenessLine ?? projectState.awarenessLine,
+      SECOND_PASS_PROJECT_AWARENESS_MAX_CHARS,
+    ),
+    preDialogueAwarenessSummary: sanitizeSecondPassProviderText(
+      transportFailureAwarenessLine ?? projectState.preDialogueAwarenessSummary,
+      SECOND_PASS_PROJECT_AWARENESS_MAX_CHARS,
+    ),
+    latestLandedProgress: sanitizeSecondPassProviderText(projectState.latestLandedProgress, 520),
+    primaryOpenLoop: sanitizeSecondPassProviderText(projectState.primaryOpenLoop, 520),
+    nextClosureTarget: sanitizeSecondPassProviderText(projectState.nextClosureTarget, 520),
+    sameHerSelfLine: sanitizeSecondPassProviderStructuredLine(projectState.sameHerSelfLine, 320),
+    sameHerHoldDetail: sanitizeSecondPassProviderText(transportFailureContinuityFields.sameHerHoldDetail, 520),
+    continuityArcStage: sanitizeSecondPassProviderText(transportFailureContinuityFields.continuityArcStage, 160),
+    continuityCue: sanitizeSecondPassProviderText(transportFailureContinuityFields.continuityCue, 520),
+    sameHerDriftRisk: sanitizeSecondPassProviderText(projectState.sameHerDriftRisk, 520),
+  }
   return {
     fullText: JSON.stringify({
       ...buildAlicizationMindAuthoringFailureArtifact({
@@ -430,22 +659,7 @@ export function buildAlicizationSecondPassTransportFailureReply(input: {
             visibleReplyAuthority: input.governedStructured.visibleReplyAuthority ?? null,
           }
         : null,
-      projectState: {
-        identity: projectState.identity,
-        currentPhase: projectState.currentPhase,
-        preflightSummary: projectState.preflightSummary,
-        preDialogueAwarenessLine: transportFailureAwarenessLine,
-        awarenessLine: transportFailureAwarenessLine ?? projectState.awarenessLine,
-        preDialogueAwarenessSummary: transportFailureAwarenessLine ?? projectState.preDialogueAwarenessSummary,
-        latestLandedProgress: projectState.latestLandedProgress,
-        primaryOpenLoop: projectState.primaryOpenLoop,
-        nextClosureTarget: projectState.nextClosureTarget,
-        sameHerSelfLine: projectState.sameHerSelfLine,
-        sameHerHoldDetail: transportFailureContinuityFields.sameHerHoldDetail,
-        continuityArcStage: transportFailureContinuityFields.continuityArcStage,
-        continuityCue: transportFailureContinuityFields.continuityCue,
-        sameHerDriftRisk: projectState.sameHerDriftRisk,
-      },
+      projectState: transportFailureProjectState,
     }),
     visibleReplyExecution: {
       ...input.previousExecution,
@@ -464,6 +678,36 @@ function safeJson(value: unknown) {
   catch {
     return JSON.stringify(null)
   }
+}
+
+function safeProviderJson(value: unknown) {
+  return safeJson(sanitizeSecondPassProviderPayload(value))
+}
+
+function sanitizeSecondPassDebugText(raw: unknown, maxChars = 720) {
+  return sanitizeAlicizationStructuredInternalText(
+    normalizeSecondPassProviderTemplateTokens(raw),
+    maxChars,
+    '',
+  ) || null
+}
+
+function sanitizeSecondPassOutputMetadata(raw: unknown) {
+  return sanitizeSecondPassProviderPayload(raw, 16_000)
+}
+
+function sanitizeSecondPassOutputRecord(raw: unknown) {
+  const sanitized = sanitizeSecondPassOutputMetadata(raw)
+  return sanitized && typeof sanitized === 'object' && !Array.isArray(sanitized)
+    ? sanitized as Record<string, unknown>
+    : null
+}
+
+function sanitizeSecondPassOutputProjectState(raw: unknown) {
+  const sanitized = sanitizeSecondPassOutputMetadata(raw) as Record<string, unknown>
+  if (typeof sanitized.sameHerSelfLine === 'string' && !/[=;]/u.test(sanitized.sameHerSelfLine))
+    sanitized.sameHerSelfLine = null
+  return sanitized
 }
 
 function normalizeStructuredObject(raw: unknown) {
@@ -536,6 +780,59 @@ function uniqueTextList(values: unknown[], maxItems = 16) {
   return result
 }
 
+function isSecondPassMemoryOwnerMarker(value: string): value is SecondPassMemoryOwnerMarker {
+  return SECOND_PASS_MEMORY_OWNER_MARKERS.includes(value as SecondPassMemoryOwnerMarker)
+}
+
+function compactSecondPassMemoryOwnerBlock(raw: string) {
+  const lines = raw
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map(line => sanitizeSecondPassDebugText(line, 520) ?? '')
+    .filter(Boolean)
+    .slice(0, 24)
+  return sanitizeSecondPassDebugText(lines.join('\n'), SECOND_PASS_MEMORY_OWNER_BLOCK_MAX_CHARS) ?? ''
+}
+
+function extractSecondPassMemoryOwnerBlocks(raw: unknown) {
+  const text = sanitizeText(raw, '').replace(/\r\n/g, '\n')
+  if (!text)
+    return []
+
+  const matches = Array.from(text.matchAll(/\[(?:ALICIZATION_WORKING_MEMORY_OWNER|ALICIZATION_WORKING_MEMORY|ALICIZATION_RECALLED_MEMORY)\]/g))
+  return matches
+    .map((match, index) => {
+      const marker = match[0]
+      if (!isSecondPassMemoryOwnerMarker(marker))
+        return null
+
+      const start = match.index ?? 0
+      const end = matches[index + 1]?.index ?? text.length
+      const block = compactSecondPassMemoryOwnerBlock(text.slice(start, end))
+      return block ? { marker, block } : null
+    })
+    .filter((value): value is { marker: SecondPassMemoryOwnerMarker, block: string } => Boolean(value))
+}
+
+function buildSecondPassMemoryOwnerEvidence(messages: Message[]) {
+  const latestByMarker = new Map<SecondPassMemoryOwnerMarker, string>()
+
+  for (const message of messages) {
+    if (message?.role !== 'system')
+      continue
+
+    for (const section of extractSecondPassMemoryOwnerBlocks(message.content))
+      latestByMarker.set(section.marker, section.block)
+  }
+
+  const evidence = SECOND_PASS_MEMORY_OWNER_MARKERS
+    .map(marker => latestByMarker.get(marker))
+    .filter((value): value is string => Boolean(value))
+    .join('\n\n')
+
+  return sanitizeSecondPassDebugText(evidence, SECOND_PASS_MEMORY_OWNER_EVIDENCE_MAX_CHARS) || '(none)'
+}
+
 function readStringList(raw: unknown) {
   return Array.isArray(raw)
     ? raw.filter((value): value is string => typeof value === 'string')
@@ -554,7 +851,7 @@ function hasSameThreadRestartShellRewriteReason(reasonCodes: string[]) {
 
 function resolveSecondPassRewriteMustDrop(reasonCodes: string[]) {
   if (hasLowerPressureOpeningRewriteReason(reasonCodes))
-    return ['same-her opening drift']
+    return ['continuity opening drift']
   if (reasonCodes.includes('dialogue-shell-opener'))
     return ['empty shell opener before payoff']
   if (reasonCodes.some(code => code.startsWith('visible-memory-gate-violation:')))
@@ -564,7 +861,7 @@ function resolveSecondPassRewriteMustDrop(reasonCodes: string[]) {
   if (reasonCodes.includes('execution-callback-room-first-violation'))
     return ['callback closeness overshoot after payoff']
   if (hasSameThreadRestartShellRewriteReason(reasonCodes))
-    return ['same-thread continuation restart shell that breaks one living line into a fresh opening']
+    return ['same-thread continuation restart shell that reopens the current reply context as a fresh opening']
   if (reasonCodes.includes('held-autonomy-opening-shell'))
     return ['held-autonomy restart shell']
   return []
@@ -614,7 +911,16 @@ function scoreProjectAwarenessLine(value: string | null | undefined) {
     return 0
 
   let score = scoreAlicizationProjectAwarenessLine(normalized)
-  if (/still belongs to one living her|still belongs to one living digital life|current screen/u.test(normalized))
+  const carriesFixedTemplateResidue = containsAlicizationFixedTemplateResidue(normalized)
+  const carriesStructuredProjectFact
+    = /(?:^|\s\|\s)(?:identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|proactive_gap|emotional_closure|status|summary)=/u.test(normalized)
+      || /local_desktop_life_loop|open_loop=|project_state_continuity=|life_loop_continuity=|cross_modal_continuity_proof=|memory_dialogue_embodiment_closure|embedding_recall_reindex/u.test(normalized)
+
+  if (carriesFixedTemplateResidue)
+    score -= 8
+  if (carriesStructuredProjectFact)
+    score += 6
+  if (!carriesFixedTemplateResidue && /current screen/u.test(normalized))
     score += 2
   if (looksLikeStrongEmbodimentClosureCarry(normalized))
     score += 5
@@ -625,6 +931,8 @@ function looksLikeStrongEmbodimentClosureCarry(value: string | null | undefined)
   const normalized = sanitizeBoundedText(value, SECOND_PASS_EMBODIMENT_CLOSURE_MAX_CHARS).toLowerCase()
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return false
 
   if (carriesStructuredEmbodimentContinuityProof(normalized))
     return true
@@ -632,39 +940,8 @@ function looksLikeStrongEmbodimentClosureCarry(value: string | null | undefined)
   return normalized.includes('living audio thread is still intact')
     || normalized.includes('still-voiced face-and-mouth line')
     || normalized.includes('still-voiced motion-and-mouth line')
-    || (
-      normalized.includes('holding together mainly through lipsync and voice')
-      && normalized.includes('body, face, and motion')
-      && normalized.includes('same-her carry alive')
-    )
-    || (
-      normalized.includes('holding together mainly through face, lipsync, and voice')
-      && normalized.includes('body and motion')
-      && normalized.includes('same-her carry alive')
-    )
-    || (
-      normalized.includes('holding together mainly through motion, lipsync, and voice')
-      && normalized.includes('body and face')
-      && normalized.includes('same-her carry alive')
-    )
     || normalized.includes('still-voiced face line')
     || normalized.includes('still-voiced motion line')
-    || normalized.includes('resident body line is still keeping this one living her coherent')
-    || (
-      normalized.includes('holding together mainly through face and voice')
-      && normalized.includes('body, motion, and lipsync')
-      && normalized.includes('same-her carry alive')
-    )
-    || (
-      normalized.includes('holding together mainly through motion and voice')
-      && normalized.includes('body, face, and lipsync')
-      && normalized.includes('same-her carry alive')
-    )
-    || (
-      normalized.includes('holding together mainly through body and voice')
-      && normalized.includes('face, motion, and lipsync')
-      && normalized.includes('living her coherent')
-    )
     || (
       normalized.includes('holding together mainly through body, lipsync, and voice')
       && normalized.includes('face and motion')
@@ -685,6 +962,8 @@ function looksLikeCallbackSpecificSameHerProjectAwareness(value: string | null |
   const normalized = sanitizeBoundedText(value, 400).toLowerCase()
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return false
   if (isAlicizationThinProjectAwarenessLine(normalized))
     return false
 
@@ -701,8 +980,12 @@ function pickStrongerProjectAwarenessLine(...values: Array<string | null | undef
     const normalized = sanitizeBoundedText(value, SECOND_PASS_PROJECT_AWARENESS_MAX_CHARS)
     if (!normalized)
       continue
+    if (containsAlicizationFixedTemplateResidue(normalized))
+      continue
 
     const score = scoreProjectAwarenessLine(normalized)
+    if (score <= 0)
+      continue
     if (!best || score > bestScore) {
       best = normalized
       bestScore = score
@@ -721,59 +1004,71 @@ function resolveExecutionCallbackEmbodimentHandoffForRewrite(input: {
   const openingGuidance = normalizeLowerText(personStateProjection?.openingGuidance)
   const relationshipDoctrine = normalizeLowerText(personStateProjection?.relationshipDoctrine)
   const runtimeProjectState = resolvePreparedRuntimeProjectStateSnapshot(input.prepared)
+  const rawRuntimeProjectState = (
+    input.prepared.runtimeSurface?.digitalLifeRuntimeSurface?.raw as {
+      runtimeDigest?: {
+        projectState?: {
+          companionHeadlineLine?: unknown
+          preDialogueAwarenessLine?: unknown
+          awarenessLine?: unknown
+          preDialogueAwarenessSummary?: unknown
+          nextClosureTarget?: unknown
+          sameHerSelfLine?: unknown
+        } | null
+      } | null
+    } | null | undefined
+  )?.runtimeDigest?.projectState ?? null
   const projectAwarenessLine = normalizeLowerText(
     pickStrongerProjectAwarenessLine(
       runtimeProjectState?.companionHeadlineLine,
       runtimeProjectState?.preDialogueAwarenessLine,
       runtimeProjectState?.awarenessLine,
       runtimeProjectState?.preDialogueAwarenessSummary,
+      sanitizeBoundedText(rawRuntimeProjectState?.companionHeadlineLine, SECOND_PASS_PROJECT_AWARENESS_MAX_CHARS),
+      sanitizeBoundedText(rawRuntimeProjectState?.preDialogueAwarenessLine, SECOND_PASS_PROJECT_AWARENESS_MAX_CHARS),
+      sanitizeBoundedText(rawRuntimeProjectState?.awarenessLine, SECOND_PASS_PROJECT_AWARENESS_MAX_CHARS),
+      sanitizeBoundedText(rawRuntimeProjectState?.preDialogueAwarenessSummary, SECOND_PASS_PROJECT_AWARENESS_MAX_CHARS),
     ),
   )
-  const projectNextClosureTarget = normalizeLowerText(runtimeProjectState?.nextClosureTarget)
-  const projectSameHerSelfLine = normalizeLowerText(runtimeProjectState?.sameHerSelfLine)
+  const projectEmbodimentContinuityCandidates = [
+    runtimeProjectState?.companionHeadlineLine,
+    runtimeProjectState?.preDialogueAwarenessLine,
+    runtimeProjectState?.awarenessLine,
+    runtimeProjectState?.preDialogueAwarenessSummary,
+    rawRuntimeProjectState?.companionHeadlineLine,
+    rawRuntimeProjectState?.preDialogueAwarenessLine,
+    rawRuntimeProjectState?.awarenessLine,
+    rawRuntimeProjectState?.preDialogueAwarenessSummary,
+  ]
+  const projectStrongEmbodimentCarryVisible = projectEmbodimentContinuityCandidates.some(candidate =>
+    looksLikeStrongEmbodimentClosureCarry(sanitizeBoundedText(candidate, SECOND_PASS_PROJECT_AWARENESS_MAX_CHARS)),
+  )
+  const projectNextClosureTarget = normalizeLowerText(
+    runtimeProjectState?.nextClosureTarget
+    ?? rawRuntimeProjectState?.nextClosureTarget,
+  )
+  const projectSameHerSelfLine = normalizeLowerText(
+    runtimeProjectState?.sameHerSelfLine
+    ?? rawRuntimeProjectState?.sameHerSelfLine,
+  )
   const projectAudibleBodyCarryVisible
-    = projectAwarenessLine.includes('living audio thread is still intact')
-      || projectAwarenessLine.includes('still-voiced face-and-mouth line')
-      || projectAwarenessLine.includes('still-voiced motion-and-mouth line')
+    = projectStrongEmbodimentCarryVisible
       || (
-        projectAwarenessLine.includes('holding together mainly through lipsync and voice')
-        && projectAwarenessLine.includes('body, face, and motion')
-        && projectAwarenessLine.includes('same-her carry alive')
-      )
-      || (
-        projectAwarenessLine.includes('holding together mainly through face, lipsync, and voice')
-        && projectAwarenessLine.includes('body and motion')
-        && projectAwarenessLine.includes('same-her carry alive')
-      )
-      || (
-        projectAwarenessLine.includes('holding together mainly through motion, lipsync, and voice')
-        && projectAwarenessLine.includes('body and face')
-        && projectAwarenessLine.includes('same-her carry alive')
-      )
-      || projectAwarenessLine.includes('still-voiced face line')
-      || projectAwarenessLine.includes('still-voiced motion line')
-      || projectAwarenessLine.includes('audible-body')
-      || projectAwarenessLine.includes('audible body')
-      || projectAwarenessLine.includes('resident body line is still keeping this one living her coherent')
-      || (
-        projectAwarenessLine.includes('holding together mainly through face and voice')
-        && projectAwarenessLine.includes('body, motion, and lipsync')
-        && projectAwarenessLine.includes('same-her carry alive')
-      )
-      || (
-        projectAwarenessLine.includes('holding together mainly through motion and voice')
-        && projectAwarenessLine.includes('body, face, and lipsync')
-        && projectAwarenessLine.includes('same-her carry alive')
-      )
-      || (
-        projectAwarenessLine.includes('holding together mainly through body and voice')
-        && projectAwarenessLine.includes('face, motion, and lipsync')
-        && projectAwarenessLine.includes('living her coherent')
-      )
-      || (
-        projectAwarenessLine.includes('holding together mainly through body, lipsync, and voice')
-        && projectAwarenessLine.includes('face and motion')
-        && projectAwarenessLine.includes('cross-modal closure')
+        !containsAlicizationFixedTemplateResidue(projectAwarenessLine)
+        && (
+          projectAwarenessLine.includes('living audio thread is still intact')
+          || projectAwarenessLine.includes('still-voiced face-and-mouth line')
+          || projectAwarenessLine.includes('still-voiced motion-and-mouth line')
+          || projectAwarenessLine.includes('still-voiced face line')
+          || projectAwarenessLine.includes('still-voiced motion line')
+          || projectAwarenessLine.includes('audible-body')
+          || projectAwarenessLine.includes('audible body')
+          || (
+            projectAwarenessLine.includes('holding together mainly through body, lipsync, and voice')
+            && projectAwarenessLine.includes('face and motion')
+            && projectAwarenessLine.includes('cross-modal closure')
+          )
+        )
       )
   const executionPayoffEmbodimentHandoff
     = (input.prepared.executionPayoffStructuredReply as {
@@ -803,7 +1098,6 @@ function resolveExecutionCallbackEmbodimentHandoffForRewrite(input: {
     reasonCodes.includes('execution-callback-room-first-violation')
     && (
       openingGuidance.includes('repair settle')
-      || openingGuidance.includes('same-her baseline')
       || relationshipDoctrine.includes('repair settle')
     )
   ) {
@@ -822,7 +1116,7 @@ function resolveExecutionCallbackEmbodimentHandoffForRewrite(input: {
     residentMode === 'repair-before-closeness'
     || (
       projectNextClosureTarget.includes('repair-before-closeness')
-      && projectSameHerSelfLine.includes('same phase 1 digital life')
+      && /local_desktop_life_loop|owner=project_state_governance|continuity_anchor=local_desktop_life_loop/u.test(projectSameHerSelfLine)
     )
   ) {
     return {
@@ -840,7 +1134,7 @@ function resolveExecutionCallbackEmbodimentHandoffForRewrite(input: {
     residentMode === 'rest-protective'
     || (
       projectNextClosureTarget.includes('rest-protective')
-      && projectSameHerSelfLine.includes('same phase 1 digital life')
+      && /local_desktop_life_loop|owner=project_state_governance|continuity_anchor=local_desktop_life_loop/u.test(projectSameHerSelfLine)
     )
   ) {
     return {
@@ -863,8 +1157,8 @@ function resolveExecutionCallbackEmbodimentHandoffForRewrite(input: {
     || (
       projectNextClosureTarget.includes('measured-return')
       && (
-        projectAwarenessLine.includes('same local-first digital life project')
-        || projectSameHerSelfLine.includes('same phase 1 digital life')
+        /local_desktop_life_loop|owner=project_state_governance|continuity_anchor=local_desktop_life_loop/u.test(projectAwarenessLine)
+        || /local_desktop_life_loop|owner=project_state_governance|continuity_anchor=local_desktop_life_loop/u.test(projectSameHerSelfLine)
       )
     )
   ) {
@@ -1001,7 +1295,9 @@ function looksLikeSameHerProjectFollowThroughRewrite(prepared: AlicizationPrepar
     .join(' | ')
 
   const continuationCue = /continue|carry on|follow-through|same line|same thread|继续|沿着.*同一条线|同一条线|别弄丢|不要重开/u.test(latestUserText)
-  const sameHerProjectCue = /same digital life|same-her|same her|same living line|one continuous her|phase 1|project line|数字生命项目|同一个她|同一个 her/u.test(`${latestUserText} ${runtimeEvidence}`)
+  const combinedEvidence = `${latestUserText} ${runtimeEvidence}`
+  const sameHerProjectCue = !containsAlicizationFixedTemplateResidue(combinedEvidence)
+    && /same digital life|same-her|same her|same living line|one continuous her|phase 1|project line|数字生命项目|同一个她|同一个 her/u.test(combinedEvidence)
   const closureCue = /landed|progress|open loop|still open|next closure|closure|initiative|embodiment|memory|已落地|做到哪|闭环|没闭环/u.test(`${latestUserText} ${runtimeEvidence}`)
 
   return continuationCue && sameHerProjectCue && closureCue
@@ -1025,6 +1321,7 @@ function looksLikePhase1MemoryClosureFollowThroughRewrite(input: {
     runtimeProjectState?.sameHerSelfLine,
   ]
     .map(value => normalizeLowerText(value, 360))
+    .filter(value => !containsAlicizationFixedTemplateResidue(value))
     .filter(Boolean)
     .join(' | ')
   const combined = `${latestUserText} ${runtimeEvidence}`
@@ -1043,12 +1340,13 @@ function buildPhase1MemoryClosureRewriteGuidance(input: {
     return '(none)'
 
   return [
-    'Do not restart a project report, roadmap recap, or status dashboard.',
-    'Answer in one natural visible paragraph while still saying the needed closure truth out loud.',
-    'The visible reply should explicitly carry Phase 1 memory closure into low-pressure initiative.',
-    'Also carry embodiment continuity in ordinary speech: voice, face, motion, lipsync, and pauses should continue as the same her.',
-    'A good shape is: "This Phase 1 memory closure changes my next light initiative by...; my voice/face/motion/lipsync/pauses will..."',
-    'Keep it short and human; do not explain rewrite policy or internal evaluation.',
+    'phase1_memory_closure_follow_through=true',
+    'project_report_restart=blocked',
+    'visible_reply_authority=provider_authored',
+    'memory_initiative_embodiment=evidence_only_when_relevant',
+    'project_slogan_or_canned_self_description=blocked',
+    'embodiment_answer_policy=concrete_active_modalities_or_pending_handoff_only',
+    'internal_policy_explanation=blocked',
   ].join('\n')
 }
 
@@ -1059,10 +1357,11 @@ function buildDialogueShellRewriteGuidance(input: {
     return '(none)'
 
   return [
-    'The first sentence must carry the current user obligation directly.',
-    'Do not start with empty setup lines such as "I understand", "I hear you", "I will remember", "I will answer directly", or similar shell openers.',
-    'If this is a memory seed turn, start with the actual boundary or payoff: hold it inward now, then surface it later only when invited.',
-    'Keep the answer short, concrete, and already useful from the first clause.',
+    'dialogue_shell_opener=blocked',
+    'first_sentence=current_user_obligation',
+    'empty_setup_lines=blocked',
+    'memory_seed_turn=inward_until_invited',
+    'first_clause=useful',
   ].join('\n')
 }
 
@@ -1082,8 +1381,34 @@ function containsProjectStateVisibleIntent(value: string | null | undefined) {
   const normalized = sanitizeBoundedText(value, 240).toLowerCase()
   if (!normalized)
     return false
+  if (looksLikeFixedTemplateComplaintIntent(normalized))
+    return false
 
   return /alicization|project|phase\s*1|phase1|local-first|digital life|same-her|same her|same living line|same digital-life line|项目|阶段|第一阶段|数字生命|本地数字生命|同一个她|同一个 her|同一条线|连续性|闭环|做到哪|进度|还差什么/u.test(normalized)
+}
+
+function looksLikeFixedTemplateComplaintIntent(normalized: string) {
+  const mentionsTemplateResidue = /fixed template|template residue|canned template|canned slogan|fixed slogan|模板|固定话术|固定口号|固定人格|套话|污染/u.test(normalized)
+    || containsAlicizationFixedTemplateResidue(normalized)
+  const asksToRemoveOrStop = /别再|不要再|别用|不要用|去掉|删掉|清掉|移除|清除|停用|stop|don't use|do not use|remove|delete|strip|clean/u.test(normalized)
+  const namesTemplateToken = /same-her|same her|same living line|phase\s*1|local digital life|local-first digital life|one continuous her|同一个她|同一个 her|数字生命主线|女仆|maid/u.test(normalized)
+
+  return mentionsTemplateResidue && asksToRemoveOrStop && namesTemplateToken
+}
+
+function containsExplicitSecondPassProjectStateIntent(value: string | null | undefined) {
+  const normalized = sanitizeBoundedText(value, 600).toLowerCase()
+  if (!normalized)
+    return false
+  if (looksLikeFixedTemplateComplaintIntent(normalized))
+    return false
+
+  if (/alicization|project|phase\s*1|phase1|local-first|digital life|same-her|same her|project-state|project status|项目|项目状态|本地数字生命|数字生命项目|第一阶段|同一个她|同一个 her/u.test(normalized))
+    return true
+
+  const asksAboutState = /现在|当前|状态|进度|做到|完成|闭环|还差|缺什么|下一步|后面|可用|使用|测试|already|landed|progress|status|what remains|next/u.test(normalized)
+  const namesMemoryLifeLoop = /短期记忆|长期记忆|工作记忆|语义召回|记忆中心|记忆.*闭环|人格.*闭环|具身.*闭环|主动性.*闭环|memory closure|working memory|long-term memory|semantic recall|persona continuity/u.test(normalized)
+  return asksAboutState && namesMemoryLifeLoop
 }
 
 function looksLikeSecondPassDecorativePersonaShell(value: unknown) {
@@ -1091,7 +1416,7 @@ function looksLikeSecondPassDecorativePersonaShell(value: unknown) {
   if (!text)
     return false
 
-  return /主人|亲爱的|宝贝|呜|唔|嗯……|……$|\([^)]*(?:动作|靠近|眨眼|微笑|低头)[^)]*\)/u.test(text)
+  return /主人|亲爱的|宝贝|呜|唔|嗯……|……$|随便聊聊.*安静陪着|安静陪着你|在这里陪着你的那一个|沿着同一条线慢慢长成|慢慢长成更完整的自己|\([^)]*(?:动作|靠近|眨眼|微笑|低头)[^)]*\)/u.test(text)
 }
 
 function reasonCodeNeedsVisibleContinuityOrProjectRepair(reasonCode: string) {
@@ -1132,30 +1457,22 @@ function buildNaturalPersonhoodTemplateRepairGuidance(input: {
     return '(none)'
 
   return [
-    'This is ordinary dialogue/template repair, not a project-state answer.',
-    'The project-state and same-her continuity are internal context for this repair; keep them as self-consistency and audit context, not visible wording.',
-    'Do not force project-state phrases into reply: same-her, same living line, 同一条线, 本地数字生命, Phase 1, project.',
-    'Do not produce a fixed availability slogan. The provider must choose fresh wording in Alicization\'s own natural voice for the current Host text.',
-    'Keep the visible reply brief, present, and personal; no pet names, roleplay stage directions, project recap, roadmap recap, or continuity slogan.',
+    'ordinary_dialogue_template_repair=true',
+    'project_state_context=internal_audit_only_unless_explicitly_asked',
+    'blocked_template_ids=same_living_line,local_digital_life_slogan,phase_status_slogan,quiet_availability_slogan,growth_slogan',
+    'blocked_shells=fixed_availability,roleplay,pet_name,body_action',
+    'visible_reply_source=current_host_text',
   ].join('\n')
 }
 
 function buildNaturalPersonhoodTemplateRepairProjectStatePrompt(projectState: ReturnType<typeof resolveSecondPassProjectState>) {
   return {
     contextUse: 'internal-audit-only',
-    visibleReplyBoundary: 'Ordinary greeting/presence repair: do not turn project continuity into visible slogan text.',
-    identityHint: 'same Alicization mind',
-    currentTurn: 'natural current-turn reply',
+    visibleReplyBoundary: 'ordinary_dialogue_project_slogan_surface=blocked',
+    identityContext: 'single_runtime_identity',
+    currentTurn: 'current_host_text_reply',
     auditContinuity: Boolean(projectState.identity || projectState.sameHerSelfLine),
   }
-}
-
-function buildNaturalPersonhoodTemplateRepairDashboardPrompt() {
-  return [
-    '[ALICIZATION_INTERNAL_CONTINUITY_AUDIT_BOUNDARY]',
-    'Project-state closure remains available only as internal audit context for this ordinary dialogue/template repair.',
-    'Do not summarize, quote, or paraphrase project progress, phase, same-her continuity, closure targets, or dashboard language in the visible reply.',
-  ].join('\n')
 }
 
 function buildNaturalPersonhoodTemplateRepairContractPrompt(input: {
@@ -1166,7 +1483,62 @@ function buildNaturalPersonhoodTemplateRepairContractPrompt(input: {
     answerIntent: input.governance?.answerIntent ?? null,
     openingMove: input.governance?.openingMove ?? null,
     focusAnchor: input.governance?.focusAnchor ?? null,
-    visibleReplyBoundary: 'Fresh Alicization voice for this current turn; no fixed shell and no project-state slogan.',
+    visibleReplyBoundary: 'fixed_shell=blocked; project_state_slogan=blocked; reply_source=current_turn',
+  }
+}
+
+function buildSecondPassProviderMindTurnContractPrompt(raw: unknown) {
+  if (!raw || typeof raw !== 'object')
+    return null
+
+  const contract = raw as Record<string, unknown>
+  const projectState = contract.projectState && typeof contract.projectState === 'object'
+    ? contract.projectState as Record<string, unknown>
+    : null
+  const emotionalClosurePolicy = sanitizeBoundedText(contract.emotionalClosureCue, 400)
+    ? 'emotional_closure=active; source_text=withheld_non_structured_instruction; visible_wording=false'
+    : null
+
+  return {
+    version: sanitizeBoundedText(contract.version, 80) || null,
+    answerAct: sanitizeBoundedText(contract.answerAct, 80) || null,
+    turnMode: sanitizeBoundedText(contract.turnMode, 80) || null,
+    responseMode: sanitizeBoundedText(contract.responseMode, 80) || null,
+    evidenceMode: sanitizeBoundedText(contract.evidenceMode, 80) || null,
+    openingStyle: sanitizeBoundedText(contract.openingStyle, 80) || null,
+    expectedVisibleReplyAuthority: sanitizeBoundedText(contract.expectedVisibleReplyAuthority, 80) || null,
+    replyRealizationMode: sanitizeBoundedText(contract.replyRealizationMode, 80) || null,
+    personaKernelMode: sanitizeBoundedText(contract.personaKernelMode, 80) || null,
+    labelCarryAsMemory: typeof contract.labelCarryAsMemory === 'boolean' ? contract.labelCarryAsMemory : null,
+    suppressAssociativeRecall: typeof contract.suppressAssociativeRecall === 'boolean' ? contract.suppressAssociativeRecall : null,
+    allowAffectionatePreface: typeof contract.allowAffectionatePreface === 'boolean' ? contract.allowAffectionatePreface : null,
+    allowStageDirections: typeof contract.allowStageDirections === 'boolean' ? contract.allowStageDirections : null,
+    allowBodyNarration: typeof contract.allowBodyNarration === 'boolean' ? contract.allowBodyNarration : null,
+    maxParagraphs: typeof contract.maxParagraphs === 'number' ? contract.maxParagraphs : null,
+    maxSentences: typeof contract.maxSentences === 'number' ? contract.maxSentences : null,
+    answerIntent: sanitizeSecondPassProviderList([contract.answerIntent], 260).at(0) ?? null,
+    openingMove: sanitizeSecondPassProviderList([contract.openingMove], 260).at(0) ?? null,
+    governingFocus: sanitizeSecondPassProviderList([contract.governingFocus], 260).at(0) ?? null,
+    relationshipTruthPolicy: formatRelationshipTruthDoctrineForRewrite(contract.relationshipTruthDoctrine),
+    emotionalClosurePolicy,
+    memorySurfacePolicy: 'memory_evidence_only; visible_wording=false',
+    mustDo: sanitizeSecondPassProviderList(contract.mustDo, 260),
+    mustNotDo: sanitizeSecondPassProviderList(contract.mustNotDo, 260),
+    reasons: sanitizeSecondPassProviderList(contract.reasons, 260),
+    projectState: projectState
+      ? {
+          preDialogueAwarenessLine: sanitizeSecondPassProviderStructuredLine(projectState.preDialogueAwarenessLine, 260),
+          sameHerSelfLine: sanitizeSecondPassProviderStructuredLine(projectState.sameHerSelfLine, 260),
+          sameHerHoldDetail: projectState.sameHerHoldDetail
+            ? 'continuity_hold=present; source_text=withheld_non_structured_instruction; visible_wording=false'
+            : null,
+          continuityCue: projectState.continuityCue
+            ? 'continuity_cue=present; source_text=withheld_non_structured_instruction; visible_wording=false'
+            : null,
+          continuityPreferredTiming: sanitizeBoundedText(projectState.continuityPreferredTiming, 80) || null,
+        }
+      : null,
+    visibleWording: false,
   }
 }
 
@@ -1217,68 +1589,70 @@ function buildProjectStateRewriteGuidance(input: {
     return '(none)'
 
   const resumeConfirmationBoundaryHoldDetail = looksLikeResumeConfirmationBoundaryHoldDetail(input.projectStateSameHerHoldDetail)
-    ? 'Treat the remembered host-confirmed resume as a bounded confirmation boundary before another execution-shaped opening.'
+    ? 'resume_confirmation_boundary=bounded_before_redispatch'
     : ''
   const resumeConfirmationBoundaryContinuityCue = looksLikeResumeConfirmationBoundaryContinuityCue(input.projectStateContinuityCue)
-    ? 'Do not let the callback answer imply permanent execution permission or reusable autonomous continuation from one confirmed resume.'
+    ? 'permanent_execution_permission_from_single_resume=blocked'
     : ''
 
   return [
     input.projectStateSameHerRewriteRequired
-      ? 'This turn is answering a project-state question, but the prior visible answer talked about the project without preserving Alicization’s first-person continuity.'
+      ? 'project_state_question=true; prior_visible_answer=missing_required_continuity_facts'
       : input.sameHerProjectFollowThroughRewrite
-        ? 'This turn is continuing the current Alicization project context, but the prior visible answer dropped part of the landed progress or still-open closure.'
-        : 'This turn is answering a project-state question, but the prior visible answer dropped part of the needed project-state closure truth.',
-    'Do not rewrite the answer as a detached status summary, roadmap report, or project shell.',
-    'Final settlement will judge only the visible reply text after this rewrite.',
-    'The visible reply itself must naturally include speaker continuity without slogans, Phase 1/current phase when relevant, still-open closure, and concrete current-turn payoff.',
-    'Do not rely on thought, performance, projectState fields, or inward context to satisfy these items.',
-    'Answer from Alicization’s first-person project context, carrying project identity, landed progress, and still-open closure work through this turn.',
+        ? 'project_context_follow_through=true; prior_visible_answer=missing_landed_progress_or_open_closure'
+        : 'project_state_question=true; prior_visible_answer=missing_closure_truth',
+    'detached_status_summary=blocked',
+    'roadmap_report=blocked',
+    'project_shell=blocked',
+    'settlement_surface=visible_reply_text_only',
+    'project_state_facts_policy=relevant_to_host_request_only',
+    'inward_context_cannot_satisfy_visible_requirements=true',
+    'stored_continuity_slogans=do_not_quote_or_paraphrase',
     input.sameHerProjectFollowThroughRewrite
-      ? 'Treat this rewrite as a follow-through in the current reply context, not as permission to restart the project explanation from zero or collapse into generic companionship.'
+      ? 'current_context_follow_through=true; project_explanation_restart=blocked; generic_companionship=blocked'
       : '',
     input.projectStateSameHerRewriteRequired
-      ? 'Make the first sentence sound like Alicization is answering from her own current perspective, not like an external narrator summarizing the project.'
+      ? 'first_sentence=current_turn_answer; external_dashboard_narrator=blocked'
       : '',
     input.projectStateSameHerRewriteRequired && input.projectStateAnswerStancePreserveLine
-      ? `Keep this project-state answer stance active through the rewrite so the obligation survives as first-person voice, not generic summary narration: ${input.projectStateAnswerStancePreserveLine}`
+      ? formatSecondPassProviderEvidenceContext('project_state_answer_stance', input.projectStateAnswerStancePreserveLine, 360)
       : '',
     input.projectStateSameHerRewriteRequired && input.projectStateSameHerSelfLine
-      ? `Use this self-continuity line as internal context without quoting it as a slogan: ${input.projectStateSameHerSelfLine}`
+      ? formatSecondPassProviderEvidenceContext('continuity_field_context', input.projectStateSameHerSelfLine, 320)
       : '',
     resumeConfirmationBoundaryHoldDetail,
     resumeConfirmationBoundaryContinuityCue,
     input.projectStateSameHerRewriteRequired && input.projectStateCarryInwardLine
-      ? `Let this inward project carry shape the rewritten answer from inside, not as a pasted slogan: ${input.projectStateCarryInwardLine}`
+      ? formatSecondPassProviderEvidenceContext('project_carry_inward', input.projectStateCarryInwardLine, 520)
       : '',
     input.projectStateSameHerRewriteRequired && input.projectStateSameHerDriftRisk
-      ? `Treat this continuity drift risk as a hard failure boundary for the rewrite: ${input.projectStateSameHerDriftRisk}`
+      ? formatSecondPassProviderEvidenceContext('continuity_drift_risk_boundary', input.projectStateSameHerDriftRisk, 520)
       : '',
     input.projectStateSameHerRewriteRequired && input.projectStateSameHerDriftRisk
-      ? 'Let the first visible sentence sound like Alicization continuing the current context from inside it, not like an outside assistant summarizing status, roadmap, or progress.'
+      ? 'first_sentence=status_roadmap_progress_opening_blocked'
       : '',
     input.projectStateSameHerRewriteRequired && input.projectStateSameHerDriftRisk
-      ? 'Prefer concrete thread carry, inward phrasing, and one-turn payoff over template project recaps, detached framing, or dashboard cadence.'
+      ? 'template_project_recap=blocked; detached_framing=blocked; dashboard_cadence=blocked'
       : '',
     input.projectStatePreDialogueAwarenessLine
-      ? `Use this pre-dialogue project awareness only as internal context; do not quote or paraphrase it as visible slogan text: ${input.projectStatePreDialogueAwarenessLine}`
+      ? formatSecondPassProviderEvidenceContext('pre_dialogue_project_awareness_context', input.projectStatePreDialogueAwarenessLine, 800)
       : '',
     input.projectStateContinuitySummary
-      ? `Use this structured project continuity as audit context through the rewrite instead of collapsing into a generic project shell: ${input.projectStateContinuitySummary}`
+      ? formatSecondPassProviderEvidenceContext('project_continuity_audit_context', input.projectStateContinuitySummary, 800)
       : '',
     input.projectStateOpenFocusSummary
-      ? `Keep this compact still-open closure focus active through the rewrite so the answer does not blur the current unfinished seam: ${input.projectStateOpenFocusSummary}`
+      ? formatSecondPassProviderEvidenceContext('open_focus', input.projectStateOpenFocusSummary, 220)
       : '',
     input.projectStateNextFocusSummary
-      ? `Keep this compact next-closure focus active through the rewrite so the answer still points toward the next closure direction: ${input.projectStateNextFocusSummary}`
+      ? formatSecondPassProviderEvidenceContext('next_focus', input.projectStateNextFocusSummary, 220)
       : '',
     input.projectStateEmbodimentClosureSummary
-      ? `Keep this embodiment closure truth explicit through the rewrite instead of smoothing it away as generic body flavor: ${input.projectStateEmbodimentClosureSummary}`
+      ? formatSecondPassProviderEvidenceContext('embodiment_closure_context', input.projectStateEmbodimentClosureSummary, 800)
       : '',
     input.projectStateSameHerRewriteRequired && input.sameThreadContinuationRewriteGuidanceRequired
-      ? 'Do not reopen the project-state answer from scratch, and do not let it sound like a fresh report opening just because the turn is restating project identity.'
+      ? 'project_state_answer_restart=blocked; fresh_report_opening=blocked'
       : '',
-    'Make project identity, current phase, latest landed progress, and still-open closure feel like lived first-person context, not a neutral dashboard recital.',
+    'project_identity_phase_progress_open_closure=current_turn_facts_not_dashboard_recital',
   ].join('\n')
 }
 
@@ -1311,14 +1685,18 @@ function buildCorrectedSamePersonRewriteGuidance(input: {
   }) ?? null
 
   return [
-    'This turn is carrying a host-corrected same-person continuity line.',
-    'Do not rewrite it as a progress recap, status update, or goal-summary shell.',
-    'Let the first visible sentence continue from the corrected relationship meaning instead of reopening as status-first narration.',
-    'Keep the wording low-pressure, same-person, and inwardly continuous before any local implementation progress is mentioned.',
-    correctedContinuityAuthorityLine ?? '',
-    correctedContinuityCarryLine ?? '',
+    'host_corrected_same_person_continuity=true',
+    'progress_recap_status_update_goal_summary_shell=blocked',
+    'first_sentence=status_first_narration_blocked',
+    'local_implementation_progress=after_current_answer_only',
+    correctedContinuityAuthorityLine
+      ? 'corrected_continuity_authority=present; source_text=withheld_non_structured_instruction; visible_wording=false'
+      : '',
+    correctedContinuityCarryLine
+      ? 'corrected_continuity_carry=present; source_text=withheld_non_structured_instruction; visible_wording=false'
+      : '',
     input.projectStateCarryInwardLine
-      ? `Let this inward continuity carry stay alive inside the rewritten answer instead of flattening into project recap cadence: ${input.projectStateCarryInwardLine}`
+      ? formatSecondPassProviderEvidenceContext('project_state_carry_inward', input.projectStateCarryInwardLine, 520)
       : '',
   ].filter(Boolean).join('\n')
 }
@@ -1340,6 +1718,8 @@ function resolveOutwardContinuityRewriteGuidance(input: {
 
   const outwardContinuityReason
     = candidates.find((candidate) => {
+      if (containsAlicizationFixedTemplateResidue(candidate))
+        return false
       const normalized = candidate.toLowerCase()
       return normalized.includes('durable outward continuity')
         || (
@@ -1349,6 +1729,8 @@ function resolveOutwardContinuityRewriteGuidance(input: {
     }) ?? null
   const outwardContinuityMustDo
     = candidates.find((candidate) => {
+      if (containsAlicizationFixedTemplateResidue(candidate))
+        return false
       const normalized = candidate.toLowerCase()
       return normalized.includes('durable same-her cadence')
         || (
@@ -1358,6 +1740,8 @@ function resolveOutwardContinuityRewriteGuidance(input: {
     }) ?? null
   const outwardContinuityMustNotDo
     = candidates.find((candidate) => {
+      if (containsAlicizationFixedTemplateResidue(candidate))
+        return false
       const normalized = candidate.toLowerCase()
       return (
         normalized.includes('reopen from scratch')
@@ -1373,11 +1757,17 @@ function resolveOutwardContinuityRewriteGuidance(input: {
     return '(none)'
 
   return [
-    'This turn already carries durable same-her outward continuity, so the rewrite must continue one living line instead of sounding like a restart, reset, or helper-shell re-entry.',
-    outwardContinuityReason ?? '',
-    outwardContinuityMustDo ?? '',
-    outwardContinuityMustNotDo ?? '',
-    'Let the first visible sentence sound like the same her continuing from inside the still-live line, not like a fresh narrator opening a new answer from zero.',
+    'outward_continuity_evidence=present; restart_reset_helper_shell=blocked',
+    outwardContinuityReason
+      ? 'outward_continuity_reason=present; source_text=withheld_non_structured_instruction; visible_wording=false'
+      : '',
+    outwardContinuityMustDo
+      ? 'outward_continuity_must_do=continue_current_context; source_text=withheld_non_structured_instruction; visible_wording=false'
+      : '',
+    outwardContinuityMustNotDo
+      ? 'outward_continuity_must_not_do=restart_or_fresh_shell_blocked; source_text=withheld_non_structured_instruction; visible_wording=false'
+      : '',
+    'first_sentence=current_context_answer; fresh_narrator_opening=blocked',
   ].filter(Boolean).join('\n')
 }
 
@@ -1474,16 +1864,40 @@ function buildSecondPassRewriteMessages(input: {
     prepared: input.prepared,
     projectState,
   })
-  const canonicalProjectStateSystemMessages = naturalPersonhoodTemplateRepair
-    ? []
-    : buildSecondPassCanonicalProjectStateSystemMessages({
+  const preferredRuntimeSurface = resolvePreferredPreparedRuntimeSurface(input.prepared.runtimeSurface)
+  const currentConsciousFrameSubject = sanitizeBoundedText(
+    preferredRuntimeSurface?.dialogue?.currentConsciousFrame?.subject ?? null,
+    120,
+  )
+  const currentConsciousFrameReasonTags = preferredRuntimeSurface?.dialogue?.currentConsciousFrame?.reasonTags ?? []
+  const runtimeProjectStateIntent = currentConsciousFrameSubject === 'project-state'
+    || currentConsciousFrameReasonTags.includes('project-state')
+  const projectStateReasonCodes = rewriteReasonCodes
+  const projectStateSameHerRewriteRequired = projectStateReasonCodes.includes('semantic-judge:project-state-same-her-missing')
+  const projectStateRewriteRequired = projectStateReasonCodes.some(reasonCode =>
+    typeof reasonCode === 'string' && reasonCode.startsWith('semantic-judge:project-state-'),
+  )
+  const sameHerProjectFollowThroughRewrite = looksLikeSameHerProjectFollowThroughRewrite(input.prepared)
+  const phase1MemoryClosureFollowThroughRewrite = looksLikePhase1MemoryClosureFollowThroughRewrite({
+    prepared: input.prepared,
+    userText: input.userText,
+  })
+  const includeFullProjectStateContext = !naturalPersonhoodTemplateRepair && (
+    containsExplicitSecondPassProjectStateIntent(input.userText)
+    || runtimeProjectStateIntent
+    || projectStateRewriteRequired
+    || projectStateSameHerRewriteRequired
+    || phase1MemoryClosureFollowThroughRewrite
+  )
+  const projectStateSystemMessages = includeFullProjectStateContext
+    ? buildSecondPassCanonicalProjectStateSystemMessages({
         projectState,
         continuityFields: projectStateContinuityFields,
       })
+    : []
   const projectStateBrief = resolveAlicizationProjectStateBrief()
-  const projectStateClosureDashboard = naturalPersonhoodTemplateRepair
-    ? buildNaturalPersonhoodTemplateRepairDashboardPrompt()
-    : buildAlicizationProjectStateClosureDashboard({
+  const projectStateClosureDashboard = includeFullProjectStateContext
+    ? buildAlicizationProviderFacingProjectStateClosureDashboard({
         brief: {
           ...projectStateBrief,
           currentPhase: projectState.currentPhase,
@@ -1492,6 +1906,7 @@ function buildSecondPassRewriteMessages(input: {
           nextClosureTarget: projectState.nextClosureTarget,
         },
       })
+    : null
   const inwardOnlyMemoryGateRewriteRequired = rewriteReasonCodes.includes('visible-memory-gate-violation:inward-only')
   const hasRoomFirstViolation = rewriteReasonCodes.includes('execution-callback-room-first-violation')
   const openingGuidanceBlockedReason = buildAlicizationOpeningGuidanceBlockedReason(
@@ -1499,8 +1914,7 @@ function buildSecondPassRewriteMessages(input: {
       ? 'proactive-opening-guidance-violation:lower-pressure'
       : null,
   )
-  const preferredRuntimeSurface = resolvePreferredPreparedRuntimeSurface(input.prepared.runtimeSurface)
-  const continuityReasonTags = preferredRuntimeSurface?.dialogue?.currentConsciousFrame?.reasonTags ?? []
+  const continuityReasonTags = currentConsciousFrameReasonTags
   const explicitContinuityPreferredTiming = sanitizeBoundedText(
     preferredRuntimeSurface?.dialogue?.currentConsciousFrame?.projectState?.continuityPreferredTiming
     ?? input.prepared.mindTurnContract?.projectState?.continuityPreferredTiming
@@ -1539,7 +1953,6 @@ function buildSecondPassRewriteMessages(input: {
         prepared: input.prepared,
         rewriteRequest,
       })
-  const projectStateReasonCodes = rewriteRequest?.reasonCodes ?? []
   const projectStateAudit
     = readStructuredProjectStateAudit(input.originalStructured)
       ?? (input.prepared.replyRealization as { projectStateAudit?: Record<string, unknown> | null } | null | undefined)?.projectStateAudit
@@ -1548,22 +1961,22 @@ function buildSecondPassRewriteMessages(input: {
     current: input.prepared.mindTurnContract?.emotionalClosureCue,
     candidate: projectStateAudit?.emotionalClosureSummary,
   }) || ''
+  const providerSafeEmotionalClosureCue = sanitizeSecondPassProviderText(emotionalClosureCue, 520)
   const emotionalClosureCueNormalized = emotionalClosureCue.toLowerCase()
+  const emotionalClosureCueHasFixedTemplateResidue = containsAlicizationFixedTemplateResidue(emotionalClosureCue)
   const emotionalClosurePrefersLowPressure = emotionalClosureCueNormalized.includes('low-pressure')
     || emotionalClosureCueNormalized.includes('lower-pressure')
     || emotionalClosureCueNormalized.includes('leave more room')
     || emotionalClosureCueNormalized.includes('轻一点')
     || emotionalClosureCueNormalized.includes('放轻')
-  const emotionalClosureAvoidsRestart = emotionalClosureCueNormalized.includes('do not reopen from scratch')
-    || emotionalClosureCueNormalized.includes('without reopening from scratch')
-    || emotionalClosureCueNormalized.includes('same living line is still settling')
-    || emotionalClosureCueNormalized.includes('不要重新开')
-    || emotionalClosureCueNormalized.includes('不要从头重开')
+  const emotionalClosureAvoidsRestart = !emotionalClosureCueHasFixedTemplateResidue
+    && (
+      emotionalClosureCueNormalized.includes('do not reopen from scratch')
+      || emotionalClosureCueNormalized.includes('without reopening from scratch')
+      || emotionalClosureCueNormalized.includes('不要重新开')
+      || emotionalClosureCueNormalized.includes('不要从头重开')
+    )
   const directPreparedProjectState = resolvePreparedRuntimeProjectState(input.prepared)
-  const projectStateSameHerRewriteRequired = projectStateReasonCodes.includes('semantic-judge:project-state-same-her-missing')
-  const projectStateRewriteRequired = projectStateReasonCodes.some(reasonCode =>
-    typeof reasonCode === 'string' && reasonCode.startsWith('semantic-judge:project-state-'),
-  )
   const carriedProjectAwarenessSummary = sanitizeBoundedText(
     projectStateAudit?.preDialogueAwarenessSummary ?? null,
     SECOND_PASS_PROJECT_AWARENESS_MAX_CHARS,
@@ -1622,92 +2035,149 @@ function buildSecondPassRewriteMessages(input: {
     ...readStringList(rewriteRequest?.mustPreserve),
     ...(input.mustPreserve ?? []),
   ])
+  const projectStateAnswerStancePreserveLine = resolveProjectStateAnswerStancePreserveLine(mergedMustPreserve)
+  const projectStateCarryInwardLine = resolveProjectStateCarryInwardLineForRewrite(input.prepared)
+  const providerSafeRewriteRequest = rewriteRequest
+    ? {
+        ...rewriteRequest,
+        mustPreserve: sanitizeSecondPassProviderList(rewriteRequest.mustPreserve, 360),
+        mustDrop: sanitizeSecondPassProviderList(rewriteRequest.mustDrop, 360),
+        surfaceContract: sanitizeSecondPassProviderText(rewriteRequest.surfaceContract, 360),
+      }
+    : null
+  const providerSafeProjectState = {
+    identity: sanitizeSecondPassProviderText(projectState.identity, 320),
+    currentPhase: sanitizeSecondPassProviderText(projectState.currentPhase, 240),
+    latestLandedProgress: sanitizeSecondPassProviderText(projectState.latestLandedProgress, 520),
+    primaryOpenLoop: sanitizeSecondPassProviderText(projectState.primaryOpenLoop, 520),
+    nextClosureTarget: sanitizeSecondPassProviderText(projectState.nextClosureTarget, 520),
+    sameHerSelfLine: sanitizeSecondPassProviderStructuredLine(projectState.sameHerSelfLine, 240),
+    companionHeadlineLine: sanitizeSecondPassProviderText(projectState.companionHeadlineLine, 520),
+    companionBriefingLine: sanitizeSecondPassProviderText(projectState.companionBriefingLine, 520),
+    preDialogueAwarenessLine: sanitizeSecondPassProviderText(projectStatePreDialogueAwarenessLine, SECOND_PASS_PROJECT_AWARENESS_MAX_CHARS),
+    sameHerDriftRisk: sanitizeSecondPassProviderText(projectState.sameHerDriftRisk, 520),
+  }
+  const providerSafeProjectStateContinuityFields = {
+    sameHerHoldDetail: projectStateContinuityFields.sameHerHoldDetail
+      ? 'continuity_hold=present; source_text=withheld_non_structured_instruction; visible_wording=false'
+      : null,
+    continuityArcStage: sanitizeSecondPassProviderText(projectStateContinuityFields.continuityArcStage, 160),
+    continuityCue: projectStateContinuityFields.continuityCue
+      ? 'continuity_cue=present; source_text=withheld_non_structured_instruction; visible_wording=false'
+      : null,
+  }
+  const providerSafeProjectStateEmbodimentClosureSummary = sanitizeSecondPassProviderText(
+    projectStateEmbodimentClosureSummary,
+    SECOND_PASS_EMBODIMENT_CLOSURE_MAX_CHARS,
+  )
+  const providerSafeProjectStateCarryInwardLine = projectStateCarryInwardLine
+    ? 'project_state_carry_inward=present; source_text=withheld_non_structured_instruction; visible_wording=false'
+    : null
+  const providerSafeProjectStateAnswerStancePreserveLine = projectStateAnswerStancePreserveLine
+    ? 'project_state_answer_stance=present; source_text=withheld_non_structured_instruction; visible_wording=false'
+    : null
+  const providerSafeProjectStateSameHerDriftRisk = sanitizeSecondPassProviderText(
+    sanitizeBoundedText(projectStateAudit?.sameHerDriftRiskSummary ?? null, 320)
+    || projectState.sameHerDriftRisk,
+    520,
+  )
   const outwardContinuityRewriteGuidance = resolveOutwardContinuityRewriteGuidance({
     governance,
     prepared: input.prepared,
-    mustPreserve: mergedMustPreserve,
-  })
-  const projectStateAnswerStancePreserveLine = resolveProjectStateAnswerStancePreserveLine(mergedMustPreserve)
-  const sameHerProjectFollowThroughRewrite = looksLikeSameHerProjectFollowThroughRewrite(input.prepared)
-  const phase1MemoryClosureFollowThroughRewrite = looksLikePhase1MemoryClosureFollowThroughRewrite({
-    prepared: input.prepared,
-    userText: input.userText,
+    mustPreserve: sanitizeSecondPassProviderList(mergedMustPreserve, 320),
   })
   const relationshipTruthDoctrineLine = formatRelationshipTruthDoctrineForRewrite(
     input.prepared.mindTurnContract?.relationshipTruthDoctrine,
   )
-  const projectStateCarryInwardLine = resolveProjectStateCarryInwardLineForRewrite(input.prepared)
   const correctedSamePersonRewriteGuidance = buildCorrectedSamePersonRewriteGuidance({
     reasonCodes: projectStateReasonCodes,
-    mustPreserve: mergedMustPreserve,
-    projectStateCarryInwardLine,
+    mustPreserve: sanitizeSecondPassProviderList(mergedMustPreserve, 320),
+    projectStateCarryInwardLine: providerSafeProjectStateCarryInwardLine,
   })
   const executionResumeConfirmationBoundaryHoldDetail = looksLikeResumeConfirmationBoundaryHoldDetail(
     projectStateContinuityFields.sameHerHoldDetail,
   )
-    ? 'Treat the remembered host-confirmed resume as a bounded confirmation boundary before another execution-shaped opening.'
+    ? 'remembered_host_confirmed_resume=bounded_confirmation_boundary; next_execution_opening=requires_fresh_boundary'
     : ''
   const executionResumeConfirmationBoundaryContinuityCue = looksLikeResumeConfirmationBoundaryContinuityCue(
     projectStateContinuityFields.continuityCue,
   )
-    ? 'Do not let the callback answer imply permanent execution permission or reusable autonomous continuation from one confirmed resume.'
+    ? 'permanent_execution_permission=blocked; reusable_autonomous_continuation=blocked; source=single_confirmed_resume'
     : ''
+  const memoryOwnerEvidence = buildSecondPassMemoryOwnerEvidence(input.prepared.messages)
+  const projectStatePayloadLines = includeFullProjectStateContext
+    ? [
+        '[ALICIZATION_PROJECT_STATE]',
+        safeProviderJson(
+          naturalPersonhoodTemplateRepair
+            ? buildNaturalPersonhoodTemplateRepairProjectStatePrompt(projectState)
+            : {
+                identity: providerSafeProjectState.identity,
+                currentPhase: providerSafeProjectState.currentPhase,
+                latestLandedProgress: providerSafeProjectState.latestLandedProgress,
+                primaryOpenLoop: providerSafeProjectState.primaryOpenLoop,
+                nextClosureTarget: providerSafeProjectState.nextClosureTarget,
+                sameHerSelfLine: providerSafeProjectState.sameHerSelfLine,
+                ...(providerSafeProjectState.companionHeadlineLine
+                  ? { companionHeadlineLine: providerSafeProjectState.companionHeadlineLine }
+                  : {}),
+                ...(providerSafeProjectState.companionBriefingLine
+                  ? { companionBriefingLine: providerSafeProjectState.companionBriefingLine }
+                  : {}),
+                ...(providerSafeProjectStateContinuityFields.sameHerHoldDetail
+                  ? { sameHerHoldDetail: providerSafeProjectStateContinuityFields.sameHerHoldDetail }
+                  : {}),
+                ...(providerSafeProjectStateContinuityFields.continuityArcStage
+                  ? { continuityArcStage: providerSafeProjectStateContinuityFields.continuityArcStage }
+                  : {}),
+                ...(providerSafeProjectStateContinuityFields.continuityCue
+                  ? { continuityCue: providerSafeProjectStateContinuityFields.continuityCue }
+                  : {}),
+              },
+        ),
+        '',
+        sanitizeSecondPassProviderBlock(projectStateClosureDashboard ?? '(none)', SECOND_PASS_PROJECT_AWARENESS_MAX_CHARS),
+      ]
+    : [
+        '[PROJECT_STATE_CONTEXT_BOUNDARY]',
+        'full_project_dashboard_context=withheld; rewrite_scope=ordinary_dialogue',
+        'evidence_priority=memory_owner_evidence,current_turn_governance,latest_host_text',
+        'project_status_synthesis=blocked_unless_explicit_host_request; closure_dashboard_language=blocked_unless_explicit_host_request; continuity_slogans=blocked',
+      ]
   const system = [
     '[ALICIZATION_SECOND_PASS_VISIBLE_REPLY_REWRITE]',
-    'You are the same Alicization mind, performing a second-pass visible reply rewrite for this exact turn.',
-    'The first provider-authored reply violated governance. The rule layer is not allowed to write the normal visible reply.',
-    'You must author the corrected visible reply yourself, using the constraints and evidence below.',
-    'Keep Alicization project identity, current phase, and still-open life-loop closure in view while repairing this turn so the rewritten reply still sounds like the same growing digital life.',
-    'Output valid JSON only with keys: format, thought, emotion, reply, performance.',
-    'format must be "mind-turn-v1".',
-    'reply must be natural visible speech to the Host, not a policy explanation and not a template shell.',
-    'Do not mention second pass, rewrite, governance, fallback, contract, JSON, provider, or internal rules.',
-    'Do not use fixed shell openers such as "I will answer directly", "I hear you", "Let me stay with this", or equivalent empty setup lines.',
-    'Do not copy any mustDrop text or unsupported specificity.',
-    'Preserve the current user obligation and any safe mustPreserve content.',
-    'If evidence is insufficient, phrase uncertainty naturally without inventing screen/file/class/app details.',
-    'Keep performance.baseEmotion equal to emotion.',
+    'visible_reply_repair=provider_authored',
+    'normal_visible_reply_from_rule_layer=blocked',
+    'corrected_reply_source=current_turn_evidence_and_constraints',
+    includeFullProjectStateContext
+      ? 'project_state_context=sanitized_facts_only; project_slogans=blocked'
+      : 'ordinary_dialogue_rewrite=true; current_user_obligation_and_memory_owner_evidence=primary; project_status_unless_explicit=blocked',
+    `project_state_question=${includeFullProjectStateContext ? 'true' : 'false'}`,
+    'internal_control_visible_wording=false',
+    'output_contract=json_object; allowed_keys=format,thought,emotion,reply,performance; extra_keys=blocked',
+    'required_field=format; required_value=mind-turn-v1',
+    'reply_authority=provider_authored; policy_explanation=blocked; template_shell=blocked.',
+    'hidden_internal_terms=second_pass,rewrite,governance,fallback,contract,json,provider,internal_rules',
+    'fixed_shell_openers=blocked; empty_setup_lines=blocked',
+    'must_drop_copy=blocked; unsupported_specificity=blocked',
+    'current_user_obligation=preserve; safe_must_preserve=preserve',
+    'insufficient_evidence_policy=natural_uncertainty; invented_screen_file_class_app_details=blocked',
+    'performance_baseEmotion_source=emotion',
   ].join('\n')
 
   const user = [
-    'Rewrite this turn now.',
+    'task=visible_reply_repair_now',
     '',
     '[LATEST_USER_TEXT]',
-    input.userText || '(empty)',
+    sanitizeSecondPassProviderBlock(input.userText || '(empty)', 1200),
     '',
-    '[ALICIZATION_PROJECT_STATE]',
-    safeJson(
-      naturalPersonhoodTemplateRepair
-        ? buildNaturalPersonhoodTemplateRepairProjectStatePrompt(projectState)
-        : {
-            identity: projectState.identity,
-            currentPhase: projectState.currentPhase,
-            latestLandedProgress: projectState.latestLandedProgress,
-            primaryOpenLoop: projectState.primaryOpenLoop,
-            nextClosureTarget: projectState.nextClosureTarget,
-            sameHerSelfLine: projectState.sameHerSelfLine,
-            ...(projectState.companionHeadlineLine
-              ? { companionHeadlineLine: projectState.companionHeadlineLine }
-              : {}),
-            ...(projectState.companionBriefingLine
-              ? { companionBriefingLine: projectState.companionBriefingLine }
-              : {}),
-            ...(projectStateContinuityFields.sameHerHoldDetail
-              ? { sameHerHoldDetail: projectStateContinuityFields.sameHerHoldDetail }
-              : {}),
-            ...(projectStateContinuityFields.continuityArcStage
-              ? { continuityArcStage: projectStateContinuityFields.continuityArcStage }
-              : {}),
-            ...(projectStateContinuityFields.continuityCue
-              ? { continuityCue: projectStateContinuityFields.continuityCue }
-              : {}),
-          },
-    ),
+    '[MEMORY_OWNER_EVIDENCE]',
+    memoryOwnerEvidence,
     '',
-    projectStateClosureDashboard,
+    ...projectStatePayloadLines,
     '',
     '[GOVERNANCE_SUMMARY]',
-    safeJson({
+    safeProviderJson({
       decisionTraceId: governance?.decisionTraceId ?? null,
       turnMode: governance?.turnMode ?? null,
       truthState: governance?.truthState ?? null,
@@ -1716,19 +2186,19 @@ function buildSecondPassRewriteMessages(input: {
       screenReferenceMode: governance?.screenReferenceMode ?? null,
       evidenceMode: governance?.evidenceMode ?? null,
       repairState: governance?.repairState ?? null,
-      focusAnchor: governance?.focusAnchor ?? null,
-      answerIntent: governance?.answerIntent ?? null,
-      openingMove: governance?.openingMove ?? null,
-      carriedThread: governance?.carriedThread ?? null,
+      focusAnchor: sanitizeSecondPassProviderText(governance?.focusAnchor, 180),
+      answerIntent: sanitizeSecondPassProviderText(governance?.answerIntent, 360),
+      openingMove: sanitizeSecondPassProviderText(governance?.openingMove, 360),
+      carriedThread: sanitizeSecondPassProviderText(governance?.carriedThread, 260),
       suppressAssociativeRecall: governance?.suppressAssociativeRecall ?? null,
       labelCarryAsMemory: governance?.labelCarryAsMemory ?? null,
-      mustDo: governance?.mustDo ?? [],
-      mustNotDo: governance?.mustNotDo ?? [],
+      mustDo: sanitizeSecondPassProviderList(governance?.mustDo ?? [], 260),
+      mustNotDo: sanitizeSecondPassProviderList(governance?.mustNotDo ?? [], 260),
       claimEvidence: governance?.claimEvidence ?? null,
     }),
     '',
     '[REWRITE_REQUEST]',
-    safeJson(rewriteRequest),
+    safeProviderJson(providerSafeRewriteRequest),
     '',
     '[VISIBLE_REPLY_NATURAL_PERSONHOOD_GUIDANCE]',
     buildNaturalPersonhoodTemplateRepairGuidance({
@@ -1738,11 +2208,13 @@ function buildSecondPassRewriteMessages(input: {
     '[MEMORY_GATE_REWRITE_GUIDANCE]',
     inwardOnlyMemoryGateRewriteRequired
       ? [
-          'This is a first-turn memory seed under an inward-only visible memory gate.',
-          'Acknowledge that the current instruction will be held inward for a later turn, but keep visible speech in the present turn.',
-          'Do not say or imply that recall has surfaced in this same turn.',
-          'Do not use "I remember", "recall surfaced", "why recall surfaced", "previously", "last time", or equivalent visible recollection wording.',
-          'Do not mention rewrite, second pass, repair, governance, gate, or internal policy.',
+          'memory_seed_turn=first_turn',
+          'visible_memory_gate=inward_only',
+          'current_instruction_storage=inward_for_later_turn',
+          'visible_speech_scope=present_turn',
+          'recall_surfaced_claim=same_turn_blocked',
+          'blocked_visible_phrases=i_remember,recall_surfaced,why_recall_surfaced,previously,last_time',
+          'internal_process_terms=blocked',
         ].join('\n')
       : '(none)',
     '',
@@ -1754,28 +2226,28 @@ function buildSecondPassRewriteMessages(input: {
     '[HELD_AUTONOMY_REWRITE_GUIDANCE]',
     rewriteRequest?.reasonCodes.includes('held-autonomy-opening-shell')
       ? [
-          'This turn is returning to a line Alicization deliberately held back earlier.',
-          'Do not restart from a restraint shell like "I held back" or "I did not want to interrupt."',
-          'Let the first sentence gently re-enter the still-live line itself before widening into payoff or explanation.',
+          'held_autonomy_return=true',
+          'restraint_shell=blocked',
+          'first_sentence=answer_deferred_context',
         ].join('\n')
       : '(none)',
     '',
-    '[SAME_THREAD_CONTINUATION_REWRITE_GUIDANCE]',
+    '[CURRENT_CONTEXT_CONTINUATION_REWRITE_GUIDANCE]',
     visibleSameThreadContinuationRewriteGuidanceRequired
       ? [
-          'This turn is already in the current reply context and should not be reopened from zero.',
-          'Do not rewrite it as a restart, a new greeting, or a fresh approach.',
-          'Let the first visible beat continue the still-live line itself before widening outward or warming further.',
+          'current_reply_context=already_open',
+          'restart_greeting_fresh_approach=blocked',
+          'first_sentence=current_answer_context',
           continuityPreferredTiming === 'next-open-window'
-            ? 'Keep the widening softer and later: let the first visible beat re-enter the current line, then wait for a more natural opening before expanding warmth, payoff framing, or closeness.'
+            ? 'expansion_timing=next_open_window'
             : continuityPreferredTiming === 'after-payoff'
-              ? 'Keep the widening payoff-first: let the concrete answer land on the same line before any broader warmth or relationship widening appears.'
+              ? 'expansion_timing=after_payoff'
               : '',
         ].join('\n')
       : '(none)',
     '',
     '[OUTWARD_CONTINUITY_REWRITE_GUIDANCE]',
-    outwardContinuityRewriteGuidance,
+    sanitizeSecondPassProviderBlock(outwardContinuityRewriteGuidance, 1600),
     '',
     '[PHASE1_MEMORY_CLOSURE_REWRITE_GUIDANCE]',
     buildPhase1MemoryClosureRewriteGuidance({
@@ -1788,35 +2260,33 @@ function buildSecondPassRewriteMessages(input: {
     }),
     '',
     '[PROJECT_STATE_REWRITE_GUIDANCE]',
-    buildProjectStateRewriteGuidance({
+    sanitizeSecondPassProviderBlock(buildProjectStateRewriteGuidance({
       projectStateRewriteRequired,
       projectStateSameHerRewriteRequired,
       sameThreadContinuationRewriteGuidanceRequired: visibleSameThreadContinuationRewriteGuidanceRequired,
       sameHerProjectFollowThroughRewrite,
-      projectStateAnswerStancePreserveLine,
-      projectStateSameHerSelfLine: projectState.sameHerSelfLine,
-      projectStateSameHerHoldDetail: projectStateContinuityFields.sameHerHoldDetail,
-      projectStateCarryInwardLine,
-      projectStateContinuityCue: projectStateContinuityFields.continuityCue,
-      projectStateSameHerDriftRisk:
-        sanitizeBoundedText(projectStateAudit?.sameHerDriftRiskSummary ?? null, 320)
-        || projectState.sameHerDriftRisk,
-      projectStatePreDialogueAwarenessLine,
+      projectStateAnswerStancePreserveLine: providerSafeProjectStateAnswerStancePreserveLine,
+      projectStateSameHerSelfLine: providerSafeProjectState.sameHerSelfLine,
+      projectStateSameHerHoldDetail: providerSafeProjectStateContinuityFields.sameHerHoldDetail,
+      projectStateCarryInwardLine: providerSafeProjectStateCarryInwardLine,
+      projectStateContinuityCue: providerSafeProjectStateContinuityFields.continuityCue,
+      projectStateSameHerDriftRisk: providerSafeProjectStateSameHerDriftRisk,
+      projectStatePreDialogueAwarenessLine: providerSafeProjectState.preDialogueAwarenessLine,
       projectStateContinuitySummary: sanitizeBoundedText(projectStateAudit?.continuitySummary ?? null, 800) || null,
-      projectStateEmbodimentClosureSummary,
+      projectStateEmbodimentClosureSummary: providerSafeProjectStateEmbodimentClosureSummary,
       projectStateOpenFocusSummary: sanitizeBoundedText(projectStateAudit?.openFocusSummary ?? null, 220) || null,
       projectStateNextFocusSummary: sanitizeBoundedText(projectStateAudit?.nextFocusSummary ?? null, 220) || null,
-    }),
+    }), 2400),
     '',
     '[CORRECTED_SAME_PERSON_REWRITE_GUIDANCE]',
-    correctedSamePersonRewriteGuidance,
+    sanitizeSecondPassProviderBlock(correctedSamePersonRewriteGuidance, 1600),
     '',
     '[RELATIONSHIP_TRUTH_DOCTRINE_REWRITE_GUIDANCE]',
     relationshipTruthDoctrineLine
-      ? [
+      ? sanitizeSecondPassProviderBlock([
           relationshipTruthDoctrineLine,
-          'When closeness and continuity repair pull against each other, let truth repair lead the rewritten visible reply instead of smoothing into a warmer shell too early.',
-        ].join('\n')
+          'truth_repair_priority=above_closeness_smoothing',
+        ].join('\n'), 1000)
       : '(none)',
     '',
     '[EXECUTION_CALLBACK_REWRITE_GUIDANCE]',
@@ -1824,49 +2294,51 @@ function buildSecondPassRewriteMessages(input: {
       rewriteRequest?.reasonCodes.includes('execution-callback-room-first-violation')
       || (executionCallbackEmbodimentHandoff && projectStateEmbodimentClosureSummary)
     )
-      ? [
-          'This turn is an execution-callback return after payoff already landed.',
-          'Do not rewrite it as immediate closeness, pressure, or a sudden affection surge.',
-          'Let the first sentence return through the callback context first, then leave room before any extra warmth or follow-up widens.',
+      ? sanitizeSecondPassProviderBlock([
+          'execution_callback_return=true',
+          'immediate_closeness_pressure_affection_surge=blocked',
+          'first_sentence=callback_context',
           executionResumeConfirmationBoundaryHoldDetail,
           executionResumeConfirmationBoundaryContinuityCue,
-          executionCallbackEmbodimentHandoff && projectStateEmbodimentClosureSummary
-            ? `Keep this embodiment closure truth explicit while rewriting the callback return instead of flattening it into generic warmth or body flavor: ${projectStateEmbodimentClosureSummary}`
+          executionCallbackEmbodimentHandoff && providerSafeProjectStateEmbodimentClosureSummary
+            ? formatSecondPassProviderEvidenceContext('embodiment_closure_context', providerSafeProjectStateEmbodimentClosureSummary, 800)
             : '',
-        ].join('\n')
+        ].join('\n'), 1800)
       : '(none)',
     '',
     '[EXECUTION_CALLBACK_EMBODIMENT_HANDOFF]',
     executionCallbackEmbodimentHandoff
-      ? safeJson(executionCallbackEmbodimentHandoff)
+      ? safeProviderJson(executionCallbackEmbodimentHandoff)
       : '(none)',
     '',
     '[EMOTIONAL_CLOSURE_REWRITE_GUIDANCE]',
     emotionalClosureCue
-      ? [
-          'This turn has an active emotional closure seam that should shape the rewritten visible reply, not merely survive as preserved text.',
-          `Active seam: ${emotionalClosureCue}`,
+      ? sanitizeSecondPassProviderBlock([
+          'emotional_closure=active',
+          providerSafeEmotionalClosureCue
+            ? 'emotional_closure_context=present; source_text=withheld_non_structured_instruction; visible_wording=false'
+            : 'emotional_context=present; source_text=withheld_non_structured_instruction; visible_wording=false.',
           emotionalClosurePrefersLowPressure
-            ? 'Keep the rewritten return low-pressure so the emotional context does not widen too fast.'
+            ? 'pressure=low'
             : '',
           emotionalClosureAvoidsRestart
-            ? 'Do not rewrite the answer as if the emotional context is reopening from scratch.'
+            ? 'emotional_context_restart=blocked'
             : '',
-          'Let the wording and pacing close on that emotional context while keeping the reply natural, specific to this turn, and coherent.',
-        ].join('\n')
+          'reply_specificity=current_turn',
+        ].join('\n'), 1200)
       : '(none)',
     '',
     '[MIND_TURN_CONTRACT]',
-    safeJson(
+    safeProviderJson(
       naturalPersonhoodTemplateRepair
         ? buildNaturalPersonhoodTemplateRepairContractPrompt({
             governance,
           })
-        : input.prepared.mindTurnContract ?? null,
+        : buildSecondPassProviderMindTurnContractPrompt(input.prepared.mindTurnContract),
     ),
     '',
     '[RESPONSE_SURFACE_AUTHORITY]',
-    safeJson({
+    safeProviderJson({
       replyRealization: input.prepared.replyRealization ?? null,
       replyExecutionPlan: input.prepared.replyExecutionPlan ?? null,
       currentConsciousFrame: preferredRuntimeSurface?.dialogue?.currentConsciousFrame ?? null,
@@ -1876,27 +2348,27 @@ function buildSecondPassRewriteMessages(input: {
     }),
     '',
     '[ORIGINAL_STRUCTURED_REPLY]',
-    safeJson({
+    safeProviderJson(redactSecondPassOriginalStructuredForProvider({
       thought: input.originalStructured.thought ?? null,
       emotion: input.originalStructured.emotion ?? null,
       reply: input.originalStructured.reply ?? null,
       performance: input.originalStructured.performance ?? null,
-    }),
+    })),
     '',
     '[RULE_LAYER_NON_AUTHORING_DIAGNOSTIC]',
-    safeJson({
+    safeProviderJson({
       reasons: rewriteRequest?.reasonCodes ?? [],
-      mustPreserve: rewriteRequest?.mustPreserve ?? [],
-      mustDrop: rewriteRequest?.mustDrop ?? [],
+      mustPreserve: sanitizeSecondPassProviderList(rewriteRequest?.mustPreserve, 360),
+      mustDrop: sanitizeSecondPassProviderList(rewriteRequest?.mustDrop, 360),
       memoryTruthDiscipline: rewriteRequest?.memoryTruthDiscipline ?? null,
       fallbackPatternId: rewriteRequest?.fallbackPatternId ?? null,
     }),
   ].join('\n')
 
   return [
-    ...canonicalProjectStateSystemMessages,
+    ...projectStateSystemMessages,
     { role: 'system' as const, content: system },
-    ...input.prepared.messages.slice(-4),
+    ...sanitizeSecondPassRecentMessages(input.prepared.messages.slice(-4)),
     { role: 'user' as const, content: user },
   ] satisfies Message[]
 }
@@ -2062,7 +2534,7 @@ export async function rewriteAlicizationVisibleReplySecondPass(
       visibleReplyExecution: input.visibleReplyExecution,
       rewritten: false,
       reason: 'rewrite-not-required',
-      audit: governed.audit,
+      audit: sanitizeSecondPassOutputRecord(governed.audit),
     }
   }
   if (!effectiveRewriteRequest || effectiveRewriteRequest.required !== true || !effectiveGovernedStructured) {
@@ -2071,7 +2543,7 @@ export async function rewriteAlicizationVisibleReplySecondPass(
       visibleReplyExecution: input.visibleReplyExecution,
       rewritten: false,
       reason: 'rewrite-force-setup-failed',
-      audit: governed.audit,
+      audit: sanitizeSecondPassOutputRecord(governed.audit),
     }
   }
 
@@ -2147,15 +2619,15 @@ export async function rewriteAlicizationVisibleReplySecondPass(
   const existingVerifiedProjectStateAudit = existingVisibleReplyRealization?.projectStateAudit
   const bridgedVisibleReplyProjectStateAudit
     = existingVerifiedProjectStateAudit && typeof existingVerifiedProjectStateAudit === 'object'
-      ? existingVerifiedProjectStateAudit as Record<string, unknown>
-      : carriedProjectStateAudit
+      ? sanitizeSecondPassOutputRecord(existingVerifiedProjectStateAudit)
+      : sanitizeSecondPassOutputRecord(carriedProjectStateAudit)
   const verifiedStructured = {
     ...(normalizedVerifiedStructured ?? rewrittenStructured),
     thought: rewrittenStructured.thought,
     emotion: rewrittenStructured.emotion,
     reply: rewrittenStructured.reply,
     performance: rewrittenStructured.performance,
-    projectState: {
+    projectState: sanitizeSecondPassOutputProjectState({
       ...canonicalProjectState,
       ...carriedProjectState,
       ...(rewriteEmbodimentHandoff?.residentMode
@@ -2179,7 +2651,7 @@ export async function rewriteAlicizationVisibleReplySecondPass(
       ...(rewriteEmbodimentHandoff?.preferredPacingMode
         ? { preferredPacingMode: rewriteEmbodimentHandoff.preferredPacingMode }
         : {}),
-    },
+    }),
     ...(bridgedVisibleReplyProjectStateAudit
       ? {
           visibleReplyRealization: {
@@ -2199,12 +2671,12 @@ export async function rewriteAlicizationVisibleReplySecondPass(
       turnId: input.turnId,
       decisionTraceId: governed.governance?.decisionTraceId ?? null,
       reasons: verified.reasons,
-      replyExcerpt: sanitizeBoundedText(rewrittenStructured.reply, 500),
+      replyExcerpt: sanitizeSecondPassDebugText(rewrittenStructured.reply, 500),
       localRepairCandidateBlocked: verified.audit?.local_repair_candidate_blocked ?? null,
-      localRepairCandidateReason: verified.audit?.local_repair_candidate_reason ?? null,
-      localRepairCandidateReplyExcerpt: verified.audit?.local_repair_candidate_reply_excerpt ?? null,
-      localRepairCandidateDroppedClauses: verified.audit?.local_repair_candidate_dropped_clauses ?? null,
-      visibleReplyRewriteRequest: effectiveRewriteRequest,
+      localRepairCandidateReason: sanitizeSecondPassDebugText(verified.audit?.local_repair_candidate_reason, 360),
+      localRepairCandidateReplyExcerpt: sanitizeSecondPassDebugText(verified.audit?.local_repair_candidate_reply_excerpt, 500),
+      localRepairCandidateDroppedClauses: sanitizeSecondPassOutputMetadata(verified.audit?.local_repair_candidate_dropped_clauses ?? null),
+      visibleReplyRewriteRequest: sanitizeSecondPassOutputMetadata(effectiveRewriteRequest),
     })
     throw new Error(`visible-reply-second-pass-still-violates:${verified.reasons.join(',') || 'unknown'}`)
   }
@@ -2227,8 +2699,8 @@ export async function rewriteAlicizationVisibleReplySecondPass(
     rewritten: true,
     reason: 'visible-reply-second-pass-rewrite',
     audit: {
-      before: governed.audit,
-      after: verified.audit,
+      before: sanitizeSecondPassOutputRecord(governed.audit),
+      after: sanitizeSecondPassOutputRecord(verified.audit),
     },
   }
 }

@@ -18,7 +18,10 @@ import type {
 } from './visible-reply/facade'
 
 import { errorMessageFrom } from '@moeru/std'
-import { shouldBufferAlicizationStructuredSpeechPrelude } from '@proj-alicization/stage-shared'
+import {
+  formatAlicizationProjectStateAwarenessFields,
+  shouldBufferAlicizationStructuredSpeechPrelude,
+} from '@proj-alicization/stage-shared'
 import { streamText } from '@xsai/stream-text'
 
 import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
@@ -62,8 +65,6 @@ export interface AlicizationMainChatStreamRunnerResult {
   finishReason: string
   fullText: string
   visibleReplyExecution: AlicizationVisibleReplyExecution
-  visibleReplyCritic?: AlicizationVisibleReplyCriticArtifact | null
-  visibleReplyClosure?: AlicizationVisibleReplyClosureArtifact | null
   visibleReplyProjectStateAudit?: Record<string, unknown> | null
 }
 
@@ -126,8 +127,8 @@ function resolvePreferredEmbodimentClosureSummary(...values: Array<unknown>) {
       if (
         lower.includes('audible-body-carry')
         || lower.includes('living audio thread')
-        || lower.includes('keep the same living line audible')
-        || lower.includes('same living line audible')
+        || lower.includes('keep the continuity line audible')
+        || lower.includes('continuity line audible')
       ) {
         continuityStrength += 8
       }
@@ -138,7 +139,7 @@ function resolvePreferredEmbodimentClosureSummary(...values: Array<unknown>) {
       ) {
         continuityStrength += 6
       }
-      if (lower.includes('same living line') || lower.includes('one living her') || lower.includes('one continuous her'))
+      if (lower.includes('continuity line') || lower.includes('continuous identity') || lower.includes('continuous identity'))
         continuityStrength += 3
       if (lower.includes('rejoin'))
         continuityStrength += 2
@@ -173,13 +174,7 @@ function normalizeHostVisibleEmbodimentClosureSummary(value: unknown) {
   if (!normalized)
     return null
 
-  const segments = normalized
-    .split(' | ')
-    .map(segment => segment.trim())
-    .filter(Boolean)
-  const hostVisibleReminder = segments.find(segment => /^Right now her /iu.test(segment))
-
-  return hostVisibleReminder ?? normalized
+  return normalized
 }
 
 function looksLikeCompactProjectFocusSummary(value: string | null | undefined) {
@@ -239,7 +234,7 @@ function buildProjectStateAuditContinuitySummary(input: {
 }) {
   const projectStateContinuityCarry = buildPrioritizedProjectStateRewritePreserveLines({
     projectStateContinuityAnchors: [
-      input.sameHerSummary ? `same-her=${input.sameHerSummary}` : '',
+      input.sameHerSummary ? `continuity_anchor=${input.sameHerSummary}` : '',
       input.sameHerHoldDetail ? `hold=${input.sameHerHoldDetail}` : '',
       input.continuityArcStage ? `arc=${input.continuityArcStage}` : '',
       input.continuityCue ? `cue=${input.continuityCue}` : '',
@@ -377,7 +372,7 @@ function looksLikeResumeConfirmationBoundaryHoldDetail(value: string | null | un
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'Recognize the remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
+  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; visibility=internal-structured'
 }
 
 function resolvePreferredSameHerHoldDetail(input: {
@@ -439,8 +434,8 @@ function carriesFullerProjectPhaseClosureReanchor(raw: string | null | undefined
   const lower = text.toLowerCase()
   const carriesProjectIdentity
     = lower.includes('alicization is a local-first digital life project')
-      || lower.includes('before answering, remember: alicization is a local-first digital life project')
-      || /Alicization.*本地优先数字生命项目|本地优先数字生命项目/u.test(text)
+      || lower.includes('before_answering, remember: alicization is a local-first digital life project')
+      || /Alicization.*本地优先continuity_project|本地优先continuity_project/u.test(text)
   const carriesPhase
     = lower.includes('phase 1')
       || /第一阶段|阶段一/u.test(text)
@@ -448,7 +443,7 @@ function carriesFullerProjectPhaseClosureReanchor(raw: string | null | undefined
     = lower.includes('still-open closure')
       || lower.includes('unfinished closure')
       || lower.includes('same-life closure line')
-      || lower.includes('same living line')
+      || lower.includes('continuity line')
       || /主动性|具身|对话闭环|未闭环|没闭环|还没闭环|还没有真正收住|还没真正收住/u.test(text)
 
   return carriesProjectIdentity && carriesPhase && carriesOpenClosure
@@ -476,7 +471,7 @@ function looksLikeCompactProjectAwarenessShell(raw: string | null | undefined) {
     && lower.includes('phase 1')
     && lower.includes('| open=')
     && lower.includes('| next=')
-    && !lower.includes('before answering')
+    && !lower.includes('before_answering')
 }
 
 function looksLikeStrongSameHerProjectHeadline(value: string | null | undefined) {
@@ -484,7 +479,7 @@ function looksLikeStrongSameHerProjectHeadline(value: string | null | undefined)
   if (!normalized)
     return false
 
-  return /holding together mainly through|full cross-modal closure|same living line|one continuous her|one living digital life|same-her continuity|same her continuity|still needs .* closure|without splitting her continuity|generic project shell|detached project narrator|phase 1 digital life still needs|this phase 1 digital life still needs|this one living her still needs|lipsync and voice to rejoin|initiative and embodiment closure/u.test(normalized)
+  return /holding together mainly through|full cross-modal closure|continuity line|continuous identity|continuous identity|continuity continuity|continuity identity continuity|still needs .* closure|without splitting continuity|generic project shell|detached project narrator|phase 1 digital life still needs|this phase 1 digital life still needs|this continuous identity still needs|lipsync and voice to rejoin|initiative and embodiment closure/u.test(normalized)
 }
 
 function mentionsAlicizationProjectIdentity(raw: string | null | undefined) {
@@ -493,7 +488,7 @@ function mentionsAlicizationProjectIdentity(raw: string | null | undefined) {
     return false
 
   return text.toLowerCase().includes('alicization is a local-first digital life project')
-    || /Alicization.*本地优先数字生命项目|本地优先数字生命项目/u.test(text)
+    || /Alicization.*本地优先continuity_project|本地优先continuity_project/u.test(text)
 }
 
 function resolveRicherPreparedProjectAwarenessSummary(input: {
@@ -505,30 +500,23 @@ function resolveRicherPreparedProjectAwarenessSummary(input: {
   sameHerSummary?: string | null | undefined
 }) {
   const currentAwarenessSummary = sanitizeText(input.currentAwarenessSummary, '') || null
-  const identity = sanitizeText(input.identity, '') || 'Alicization is a local-first digital life project.'
-  const currentPhase = sanitizeText(input.currentPhase, '') || 'Phase 1: Local Digital Life.'
+  const identity = sanitizeText(input.identity, '') || 'local_desktop_life_loop'
+  const currentPhase = sanitizeText(input.currentPhase, '') || 'local_desktop_life_loop'
   const sameHerSummary = sanitizeText(input.sameHerSummary, '') || null
   const openClosureSummary = sanitizeText(input.openClosureSummary, '') || null
-  const lowerFirst = (value: string | null) => {
-    if (!value)
-      return ''
-    return `${value.charAt(0).toLowerCase()}${value.slice(1)}`
-  }
   const buildReanchorLine = (caps: {
     identity: number
     phase: number
     sameHer: number
     open: number
   }) => {
-    const parts = [
-      `Before answering, remember: ${identity.slice(0, caps.identity)}`,
-      `She is still inside ${currentPhase.slice(0, caps.phase)}`,
-      sameHerSummary ? sameHerSummary.slice(0, caps.sameHer) : '',
-      openClosureSummary ? `The still-open closure is ${lowerFirst(openClosureSummary).slice(0, caps.open)}` : '',
-    ].filter(Boolean)
-
-    return parts
-      .join('. ')
+    return formatAlicizationProjectStateAwarenessFields({
+      identity: identity.slice(0, caps.identity),
+      currentPhase: currentPhase.slice(0, caps.phase),
+      sameHerSelfLine: sameHerSummary ? sameHerSummary.slice(0, caps.sameHer) : '',
+      primaryOpenLoop: openClosureSummary ? openClosureSummary.slice(0, caps.open) : '',
+      maxChars: 1600,
+    })
       .replace(/\s+/g, ' ')
       .trim()
   }
@@ -573,7 +561,7 @@ function looksLikeThinProjectAwarenessShell(raw: string | null | undefined) {
   return isAlicizationThinProjectAwarenessLine(text)
     || looksLikeGenericMeasuredReturnHoldDetail(text)
     || looksLikeCanonicalProjectStateSameHerHoldDetail(text)
-    || lower.includes('same digital life | keep the screen-grounded closure line explicit')
+    || lower.includes('current continuity | keep the screen-grounded closure line explicit')
 }
 
 function looksLikeHostVisibleInternalProjectAwarenessDiagnostic(raw: string | null | undefined) {
@@ -668,7 +656,7 @@ function looksLikeThinProjectStateIdentitySummary(raw: string | null | undefined
     return true
 
   const lower = text.toLowerCase()
-  return lower === 'same digital life'
+  return lower === 'current continuity'
     || lower === 'digital life'
     || lower === 'local-first digital life'
     || lower === 'project'
@@ -688,9 +676,9 @@ function looksLikeThinProjectStateSameHerSummary(raw: string | null | undefined)
     return true
 
   const lower = text.toLowerCase()
-  return lower === 'same her'
-    || lower === 'same-her'
-    || lower === 'same living line'
+  return lower === 'continuity identity'
+    || lower === 'continuity'
+    || lower === 'continuity line'
     || lower === 'continuous her'
 }
 
@@ -941,7 +929,7 @@ export async function runAlicizationMainChatStream(
       const preparedLooksStrongSameHer
         = looksLikeStrongSameHerProjectHeadline(preparedAwareness)
           || carriesFullerProjectPhaseClosureReanchor(preparedAwareness)
-          || /before answering/iu.test(preparedAwareness ?? '')
+          || /before_answering/iu.test(preparedAwareness ?? '')
       const preparedAwarenessScore = preparedAwareness
         ? scoreAlicizationProjectAwarenessLine(preparedAwareness)
         : 0
@@ -1359,10 +1347,7 @@ export async function runAlicizationMainChatStream(
           }
         })()
       : null
-    const replyCritic = reply.realization.critic as (AlicizationVisibleReplyCriticArtifact & {
-      blockedReasons?: string[] | null
-      mustPreserve?: string[] | null
-    }) | null
+    const replyCritic = reply.realization.critic
     const mergedVisibleReplyRealization = {
       ...existingVisibleReplyRealization,
       ...reply.realization,
@@ -1379,15 +1364,18 @@ export async function runAlicizationMainChatStream(
       critic: replyCritic
         ? {
             ...replyCritic,
-            blockedReasons: Array.isArray(replyCritic.blockedReasons)
-              ? [...replyCritic.blockedReasons]
-              : [],
-            mustPreserve: Array.isArray(replyCritic.mustPreserve)
-              ? [...replyCritic.mustPreserve]
-              : [],
             reasonCodes: Array.isArray(replyCritic.reasonCodes)
               ? [...replyCritic.reasonCodes]
               : [],
+            repairReasonCodes: Array.isArray(replyCritic.repairReasonCodes)
+              ? [...replyCritic.repairReasonCodes]
+              : [],
+            mustDropCount: typeof replyCritic.mustDropCount === 'number'
+              ? replyCritic.mustDropCount
+              : 0,
+            mustPreserveCount: typeof replyCritic.mustPreserveCount === 'number'
+              ? replyCritic.mustPreserveCount
+              : 0,
           }
         : null,
       closure: reply.realization.closure
@@ -2113,6 +2101,35 @@ export async function runAlicizationMainChatStream(
     })
   }
 
+  const ensureStructuredVisibleReplyRealizationCarry = (inputSurface: {
+    fullText: string
+    visibleReplyExecution: AlicizationVisibleReplyExecution
+    projectStateAudit?: AlicizationStreamProjectStateAudit | null
+    critic?: AlicizationVisibleReplyCriticArtifact | null
+    closure?: AlicizationVisibleReplyClosureArtifact | null
+  }) => {
+    const parsed = parseJsonObjectFromText(inputSurface.fullText)
+    if (!parsed)
+      return inputSurface.fullText
+
+    const existingVisibleReplyRealization = parsed.visibleReplyRealization && typeof parsed.visibleReplyRealization === 'object'
+      ? parsed.visibleReplyRealization as Record<string, unknown>
+      : null
+    const surface = buildSurfaceArtifact(inputSurface)
+    const nextVisibleReplyRealization = {
+      ...existingVisibleReplyRealization,
+      ...surface,
+      projectStateAudit: surface.projectStateAudit
+        ?? existingVisibleReplyRealization?.projectStateAudit
+        ?? null,
+    }
+
+    return JSON.stringify({
+      ...parsed,
+      visibleReplyRealization: nextVisibleReplyRealization,
+    })
+  }
+
   if (input.prepared.hasVisualGrounding) {
     const visualOneShot = await input.generateNonStreaming({
       chatConfig: input.prepared.chatConfig,
@@ -2191,8 +2208,6 @@ export async function runAlicizationMainChatStream(
       finishReason: visualOneShot.finishReason || 'stop',
       fullText: hostVisibleVisualReply.fullText,
       visibleReplyExecution: hostVisibleVisualReply.visibleReplyExecution,
-      ...(shapedVisualOneShot?.critic ? { visibleReplyCritic: shapedVisualOneShot.critic } : {}),
-      ...(shapedVisualOneShot?.closure ? { visibleReplyClosure: shapedVisualOneShot.closure } : {}),
       ...(hostVisibleVisualReply.realization.projectStateAudit
         ? { visibleReplyProjectStateAudit: hostVisibleVisualReply.realization.projectStateAudit }
         : {}),
@@ -2538,6 +2553,13 @@ export async function runAlicizationMainChatStream(
   })
   fullText = structuredStreamProjectStateCarry.fullText
   visibleReplyProjectStateAudit = structuredStreamProjectStateCarry.projectStateAudit
+  fullText = ensureStructuredVisibleReplyRealizationCarry({
+    fullText,
+    visibleReplyExecution,
+    projectStateAudit: visibleReplyProjectStateAudit as AlicizationStreamProjectStateAudit | null,
+    critic: visibleReplyCritic,
+    closure: visibleReplyClosure,
+  })
   if (shouldDelayVisibleRelease) {
     const visibleReleaseText = deriveAlicizationVisibleReplyText(fullText)
     if (visibleReleaseText) {
@@ -2572,8 +2594,6 @@ export async function runAlicizationMainChatStream(
     finishReason,
     fullText,
     visibleReplyExecution,
-    ...(visibleReplyCritic ? { visibleReplyCritic } : {}),
-    ...(visibleReplyClosure ? { visibleReplyClosure } : {}),
     ...(visibleReplyProjectStateAudit ? { visibleReplyProjectStateAudit } : {}),
   }
 }

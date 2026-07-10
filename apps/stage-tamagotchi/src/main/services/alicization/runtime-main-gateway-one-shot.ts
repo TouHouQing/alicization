@@ -18,7 +18,12 @@ import type {
 import type { deriveSensoryCaptureSnapshotFromAccessRuntimeSnapshot } from './sensory-capture'
 
 import { errorMessageFrom } from '@moeru/std'
-import { buildAlicizationScreenSurfaceCue, isWeakAlicizationScreenSurfaceCue } from '@proj-alicization/stage-shared'
+import {
+  alicizationFixedTemplateReplacement,
+  buildAlicizationScreenSurfaceCue,
+  isWeakAlicizationScreenSurfaceCue,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
 import { generateText } from '@xsai/generate-text'
 
 import { getActiveAttentionAnchor } from './attention-anchor'
@@ -37,9 +42,9 @@ import {
   buildAlicizationProjectPreDialogueAwareness,
   buildAlicizationProjectPreDialogueAwarenessLine,
   buildAlicizationProjectPreDialogueClosure,
-  buildAlicizationProjectStateClosureDashboard,
-  buildAlicizationProjectStateExtraSystemBlocks,
-  buildAlicizationProjectStateSystemBlock,
+  buildAlicizationProviderFacingProjectStateClosureDashboard,
+  buildAlicizationProviderFacingProjectStateExtraSystemBlocks,
+  buildAlicizationProviderFacingProjectStateSystemBlock,
   looksLikeThinProjectClosureShell,
   resolveAlicizationProjectPreDialogueAwarenessLine,
   resolveAlicizationProjectStateBrief,
@@ -97,6 +102,60 @@ interface OneShotPromptCompactionResult {
   afterChars: number
   maxChars: number
   compactedMessageCount: number
+}
+
+function sanitizeOneShotMemoryProviderText(raw: unknown, maxChars = 360) {
+  return sanitizeAlicizationProviderFacingText(raw, maxChars)
+}
+
+function sanitizeOneShotMemoryProviderList(values: readonly unknown[], maxChars = 160) {
+  return values
+    .map(value => sanitizeOneShotMemoryProviderText(value, maxChars))
+    .filter(Boolean)
+}
+
+export function buildSelfEvolutionSystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
+  const selfEvolution = surface?.memory?.selfEvolution ?? null
+  if (!selfEvolution)
+    return ''
+
+  const activeLearningFocuses = sanitizeOneShotMemoryProviderList(selfEvolution.activeLearningFocuses, 160)
+  return [
+    '[ALICIZATION_SELF_EVOLUTION]',
+    selfEvolution.summary ? `summary=${sanitizeOneShotMemoryProviderText(selfEvolution.summary)}` : '',
+    selfEvolution.dominantTrajectory ? `dominant_trajectory=${sanitizeOneShotMemoryProviderText(selfEvolution.dominantTrajectory)}` : '',
+    selfEvolution.relationshipDoctrine ? `relationship_doctrine=${sanitizeOneShotMemoryProviderText(selfEvolution.relationshipDoctrine)}` : '',
+    selfEvolution.latestInflection ? `latest_inflection=${sanitizeOneShotMemoryProviderText(selfEvolution.latestInflection)}` : '',
+    selfEvolution.burdenLine ? `burden_line=${sanitizeOneShotMemoryProviderText(selfEvolution.burdenLine)}` : '',
+    selfEvolution.trustMeaning ? `trust_meaning=${sanitizeOneShotMemoryProviderText(selfEvolution.trustMeaning)}` : '',
+    `evolution_momentum=${selfEvolution.evolutionMomentum.toFixed(2)}`,
+    `learning_readiness=${selfEvolution.learningReadiness.toFixed(2)}`,
+    `contradiction_pressure=${selfEvolution.contradictionPressure.toFixed(2)}`,
+    `revision_pressure=${selfEvolution.revisionPressure.toFixed(2)}`,
+    `autobiographical_stability=${selfEvolution.autobiographicalStability.toFixed(2)}`,
+    `next_learning_action=${selfEvolution.nextLearningAction}`,
+    selfEvolution.nextLearningReason ? `next_learning_reason=${sanitizeOneShotMemoryProviderText(selfEvolution.nextLearningReason)}` : '',
+    activeLearningFocuses.length > 0
+      ? `active_learning_focuses=${activeLearningFocuses.join(' | ')}`
+      : '',
+    'Let this shape inner trajectory and update pressure, not fixed visible wording.',
+  ].filter(Boolean).join('\n')
+}
+
+export function buildDerivedMindStateBundleSystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
+  const bundle = surface?.memory?.derivedMindStateBundle ?? null
+  if (!bundle)
+    return ''
+  return [
+    '[ALICIZATION_DERIVED_MIND_STATE_BUNDLE]',
+    `source=${sanitizeOneShotMemoryProviderText(bundle.source, 120)}`,
+    `produced_at=${sanitizeOneShotMemoryProviderText(bundle.producedAt, 120)}`,
+    bundle.summary ? `summary=${sanitizeOneShotMemoryProviderText(bundle.summary)}` : '',
+    bundle.dialogueRhythm?.activeClosenessContext ? `rhythm_context=${sanitizeOneShotMemoryProviderText(bundle.dialogueRhythm.activeClosenessContext, 160)}` : '',
+    bundle.dialogueRhythm?.activeClosenessRung ? `rhythm_rung=${sanitizeOneShotMemoryProviderText(bundle.dialogueRhythm.activeClosenessRung, 80)}` : '',
+    bundle.dialogueRhythm?.relationshipDoctrine ? `rhythm_doctrine=${sanitizeOneShotMemoryProviderText(bundle.dialogueRhythm.relationshipDoctrine)}` : '',
+    'Treat this bundle as the single high-level derived mind state for this turn. Do not invent a second competing interpretation.',
+  ].filter(Boolean).join('\n')
 }
 
 interface CreateAlicizationMainGatewayOneShotRuntimeOptions {
@@ -853,6 +912,23 @@ export function resolveAlicizationOneShotProjectStateFallback(runtimeSurface?: A
 }
 
 export function createAlicizationMainGatewayOneShotRuntime(options: CreateAlicizationMainGatewayOneShotRuntimeOptions) {
+  function sanitizeOneShotProjectBriefText(raw: unknown, maxChars = 320) {
+    return sanitizeAlicizationProviderFacingText(raw, maxChars) || 'none'
+  }
+
+  function sanitizeOneShotProviderSystemBlock(raw: unknown) {
+    const text = sanitizeMultilineText(raw)
+    if (!text)
+      return ''
+    return text
+      .split('\n')
+      .map((line) => {
+        const sanitized = sanitizeAlicizationProviderFacingText(line, 2000)
+        return sanitized || line
+      })
+      .join('\n')
+  }
+
   function resolveOneShotProjectStateFallback(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
     return resolveAlicizationOneShotProjectStateFallback(runtimeSurface)
   }
@@ -873,15 +949,15 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
 
     return [
       '[ALICIZATION_SCREEN_SEMANTIC_SELF_BRIEF]',
-      `project_identity=${projectState.identity ?? 'none'}`,
-      `current_phase=${projectState.currentPhase ?? 'none'}`,
-      `pre_dialogue_awareness=${projectState.preDialogueAwarenessLine ?? projectState.preflightSummary ?? 'none'}`,
-      `same_her_line=${projectState.sameHerSelfLine ?? 'none'}`,
-      `same_her_hold=${projectState.sameHerHoldDetail ?? 'none'}`,
-      `latest_landed_progress=${projectState.latestLandedProgress ?? 'none'}`,
-      `primary_open_loop=${projectState.primaryOpenLoop ?? 'none'}`,
-      `next_closure_target=${projectState.nextClosureTarget ?? 'none'}`,
-      'Screen semantic interpretation must stay inside the same digital life project line, the same Phase 1 proving ground, the same already-landed continuity progress, and the same still-open closure work.',
+      `project_identity=${sanitizeOneShotProjectBriefText(projectState.identity)}`,
+      `current_phase=${sanitizeOneShotProjectBriefText(projectState.currentPhase)}`,
+      `pre_dialogue_awareness=${sanitizeOneShotProjectBriefText(projectState.preDialogueAwarenessLine ?? projectState.preflightSummary)}`,
+      `continuity_anchor=${sanitizeOneShotProjectBriefText(projectState.sameHerSelfLine)}`,
+      `continuity_hold=${sanitizeOneShotProjectBriefText(projectState.sameHerHoldDetail)}`,
+      `latest_landed_progress=${sanitizeOneShotProjectBriefText(projectState.latestLandedProgress)}`,
+      `primary_open_loop=${sanitizeOneShotProjectBriefText(projectState.primaryOpenLoop)}`,
+      `next_closure_target=${sanitizeOneShotProjectBriefText(projectState.nextClosureTarget)}`,
+      'screen_semantic_scope=desktop_semantics | memory_continuity=local_runtime | visibility=internal-structured',
       'Do not let screen semantic interpretation collapse into a generic desktop classifier, a detached productivity captioner, or an assistant utility shell.',
     ].join('\n')
   }
@@ -891,15 +967,15 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
 
     return [
       '[ALICIZATION_SCENE_APPRAISAL_SELF_BRIEF]',
-      `project_identity=${projectState.identity ?? 'none'}`,
-      `current_phase=${projectState.currentPhase ?? 'none'}`,
-      `pre_dialogue_awareness=${projectState.preDialogueAwarenessLine ?? projectState.preflightSummary ?? 'none'}`,
-      `same_her_line=${projectState.sameHerSelfLine ?? 'none'}`,
-      `same_her_hold=${projectState.sameHerHoldDetail ?? 'none'}`,
-      `latest_landed_progress=${projectState.latestLandedProgress ?? 'none'}`,
-      `primary_open_loop=${projectState.primaryOpenLoop ?? 'none'}`,
-      `next_closure_target=${projectState.nextClosureTarget ?? 'none'}`,
-      'Scene appraisal must stay inside the same digital life project line, the same Phase 1 proving ground, the same already-landed continuity progress, and the same still-open closure work.',
+      `project_identity=${sanitizeOneShotProjectBriefText(projectState.identity)}`,
+      `current_phase=${sanitizeOneShotProjectBriefText(projectState.currentPhase)}`,
+      `pre_dialogue_awareness=${sanitizeOneShotProjectBriefText(projectState.preDialogueAwarenessLine ?? projectState.preflightSummary)}`,
+      `continuity_anchor=${sanitizeOneShotProjectBriefText(projectState.sameHerSelfLine)}`,
+      `continuity_hold=${sanitizeOneShotProjectBriefText(projectState.sameHerHoldDetail)}`,
+      `latest_landed_progress=${sanitizeOneShotProjectBriefText(projectState.latestLandedProgress)}`,
+      `primary_open_loop=${sanitizeOneShotProjectBriefText(projectState.primaryOpenLoop)}`,
+      `next_closure_target=${sanitizeOneShotProjectBriefText(projectState.nextClosureTarget)}`,
+      'scene_appraisal_scope=desktop_scene_appraisal | memory_continuity=local_runtime | visibility=internal-structured',
       'Do not let scene appraisal collapse into generic productivity guessing, detached environment scoring, or assistant utility heuristics.',
     ].join('\n')
   }
@@ -908,14 +984,19 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     const { projectState } = resolveOneShotProjectStateFallback(runtimeSurface)
     return [
       '[ALICIZATION_PROJECT_STATE_ANSWER_CONTRACT]',
-      `identity=${projectState.identity ?? 'none'}`,
-      `current_phase=${projectState.currentPhase ?? 'none'}`,
-      `landed=${projectState.latestLandedProgress ?? 'none'}`,
-      `open=${projectState.primaryOpenLoop ?? 'none'}`,
-      `next=${projectState.nextClosureTarget ?? 'none'}`,
-      `same_her=${projectState.sameHerSelfLine ?? 'none'}`,
-      ...alicizationProjectStateAnswerMustDo,
-      ...alicizationProjectStateAnswerContractLines.filter(line => !alicizationProjectStateAnswerMustDo.includes(line as typeof alicizationProjectStateAnswerMustDo[number])),
+      `identity=${sanitizeOneShotProjectBriefText(projectState.identity)}`,
+      `current_phase=${sanitizeOneShotProjectBriefText(projectState.currentPhase)}`,
+      `landed=${sanitizeOneShotProjectBriefText(projectState.latestLandedProgress)}`,
+      `open=${sanitizeOneShotProjectBriefText(projectState.primaryOpenLoop)}`,
+      `next=${sanitizeOneShotProjectBriefText(projectState.nextClosureTarget)}`,
+      `continuity_anchor=${sanitizeOneShotProjectBriefText(projectState.sameHerSelfLine)}`,
+      ...alicizationProjectStateAnswerMustDo
+        .map(line => sanitizeOneShotProjectBriefText(line, 260))
+        .filter(line => line !== alicizationFixedTemplateReplacement),
+      ...alicizationProjectStateAnswerContractLines
+        .filter(line => !alicizationProjectStateAnswerMustDo.includes(line as typeof alicizationProjectStateAnswerMustDo[number]))
+        .map(line => sanitizeOneShotProjectBriefText(line, 260))
+        .filter(line => line !== alicizationFixedTemplateReplacement),
     ].join('\n')
   }
 
@@ -943,16 +1024,20 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       primaryOpenLoop: sanitizeText(projectState.primaryOpenLoop ?? '', '') || null,
       nextClosureTarget: sanitizeText(projectState.nextClosureTarget, '') || projectState.nextClosureTarget || '',
     })
-    const sameHerAnchorReason = sanitizeText(projectState.sameHerSelfLine ?? '', '')
-      ? `Same-her self anchor: ${sanitizeText(projectState.sameHerSelfLine ?? '', '')}`
+    const continuityAnchorReason = sanitizeText(projectState.sameHerSelfLine ?? '', '')
+      ? `continuity_anchor: ${sanitizeText(projectState.sameHerSelfLine ?? '', '')}`
       : null
-    const sameHerDriftRiskReason = sanitizeText(projectState.sameHerDriftRisk ?? '', '')
-      ? `Do not let this opening drift into ${sanitizeText(projectState.sameHerDriftRisk ?? '', '')}`
+    const continuityDriftRiskReason = sanitizeText(projectState.sameHerDriftRisk ?? '', '')
+      ? `continuity_drift_risk: ${sanitizeText(projectState.sameHerDriftRisk ?? '', '')}`
       : null
+    const normalizeReasonPreview = (reason: string) => reason
+      .replace(/^Same-her self anchor:\s*/u, 'continuity_anchor: ')
+      .replace(/^Proactive same-her gap:\s*/u, 'continuity_gap: ')
+      .replace(/^Do not let this opening drift into\s*/u, 'continuity_drift_risk: ')
     const reasonPreview = [
-      sameHerAnchorReason,
-      ...(Array.isArray(awareness.reasonPreview) ? awareness.reasonPreview : []),
-      sameHerDriftRiskReason,
+      continuityAnchorReason,
+      ...(Array.isArray(awareness.reasonPreview) ? awareness.reasonPreview.map(normalizeReasonPreview) : []),
+      continuityDriftRiskReason,
     ].filter((reason, index, reasons): reason is string => Boolean(reason) && reasons.indexOf(reason) === index)
 
     return {
@@ -1016,48 +1101,6 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       'Treat higher contradiction pressure as a cue to keep remembered detail compressed, approximate, or latent.',
       'Treat stronger validated procedure count as a cue that remembered procedure carry is safer than brittle remembered wording.',
     ].join('\n')
-  }
-
-  function buildSelfEvolutionSystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
-    const selfEvolution = surface?.memory?.selfEvolution ?? null
-    if (!selfEvolution)
-      return ''
-    return [
-      '[ALICIZATION_SELF_EVOLUTION]',
-      selfEvolution.summary ? `summary=${selfEvolution.summary}` : '',
-      selfEvolution.dominantTrajectory ? `dominant_trajectory=${selfEvolution.dominantTrajectory}` : '',
-      selfEvolution.relationshipDoctrine ? `relationship_doctrine=${selfEvolution.relationshipDoctrine}` : '',
-      selfEvolution.latestInflection ? `latest_inflection=${selfEvolution.latestInflection}` : '',
-      selfEvolution.burdenLine ? `burden_line=${selfEvolution.burdenLine}` : '',
-      selfEvolution.trustMeaning ? `trust_meaning=${selfEvolution.trustMeaning}` : '',
-      `evolution_momentum=${selfEvolution.evolutionMomentum.toFixed(2)}`,
-      `learning_readiness=${selfEvolution.learningReadiness.toFixed(2)}`,
-      `contradiction_pressure=${selfEvolution.contradictionPressure.toFixed(2)}`,
-      `revision_pressure=${selfEvolution.revisionPressure.toFixed(2)}`,
-      `autobiographical_stability=${selfEvolution.autobiographicalStability.toFixed(2)}`,
-      `next_learning_action=${selfEvolution.nextLearningAction}`,
-      selfEvolution.nextLearningReason ? `next_learning_reason=${selfEvolution.nextLearningReason}` : '',
-      selfEvolution.activeLearningFocuses.length > 0
-        ? `active_learning_focuses=${selfEvolution.activeLearningFocuses.join(' | ')}`
-        : '',
-      'Let this shape inner trajectory and update pressure, not fixed visible wording.',
-    ].filter(Boolean).join('\n')
-  }
-
-  function buildDerivedMindStateBundleSystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
-    const bundle = surface?.memory?.derivedMindStateBundle ?? null
-    if (!bundle)
-      return ''
-    return [
-      '[ALICIZATION_DERIVED_MIND_STATE_BUNDLE]',
-      `source=${bundle.source}`,
-      `produced_at=${bundle.producedAt}`,
-      bundle.summary ? `summary=${bundle.summary}` : '',
-      bundle.dialogueRhythm?.activeClosenessContext ? `rhythm_context=${bundle.dialogueRhythm.activeClosenessContext}` : '',
-      bundle.dialogueRhythm?.activeClosenessRung ? `rhythm_rung=${bundle.dialogueRhythm.activeClosenessRung}` : '',
-      bundle.dialogueRhythm?.relationshipDoctrine ? `rhythm_doctrine=${bundle.dialogueRhythm.relationshipDoctrine}` : '',
-      'Treat this bundle as the single high-level derived mind state for this turn. Do not invent a second competing interpretation.',
-    ].filter(Boolean).join('\n')
   }
 
   function buildScreenSemanticUserContent(input: {
@@ -1323,8 +1366,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       : null
     const oneShotDigitalLifeSignal = oneShotDigitalLifeSpine?.continuitySignal ?? null
     const oneShotDigitalLifeArchitecture = oneShotDigitalLifeSpine?.architecture ?? null
-    const projectStateSystemBlock = buildAlicizationProjectStateSystemBlock()
-    const projectStateClosureDashboard = buildAlicizationProjectStateClosureDashboard({
+    const projectStateSystemBlock = buildAlicizationProviderFacingProjectStateSystemBlock()
+    const projectStateClosureDashboard = buildAlicizationProviderFacingProjectStateClosureDashboard({
       architecture: oneShotDigitalLifeArchitecture,
     })
     const sessionContinuitySignals = [
@@ -1420,7 +1463,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
           runtimeSurface: sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null,
         }),
         ...(generateOptions.extraSystemBlocks ?? []),
-      ].map(block => sanitizeMultilineText(block)).filter(Boolean).map(content => ({ role: 'system', content }) as Message)),
+      ].map(block => sanitizeOneShotProviderSystemBlock(block)).filter(Boolean).map(content => ({ role: 'system', content }) as Message)),
       { role: 'system', content: generateOptions.system } as Message,
     ]
     const rawGenerationMessages = [
@@ -1624,7 +1667,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       },
       injectCustomDirectives: false,
       injectPerformanceManifest: false,
-      extraSystemBlocks: buildAlicizationProjectStateExtraSystemBlocks(),
+      extraSystemBlocks: buildAlicizationProviderFacingProjectStateExtraSystemBlocks(),
     })
     if (!raw) {
       return {

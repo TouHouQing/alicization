@@ -1,23 +1,22 @@
-import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-
-import { afterEach } from 'vitest'
-import { describe, expect, it } from 'vitest'
-
 import type {
   AlicizationMemoryEmbeddingReindexResult,
   AlicizationPersonaCandidateWorkbenchItem,
 } from '../../../shared/eventa'
+
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import { afterEach, describe, expect, it } from 'vitest'
+
 import {
   electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction,
   electronAlicizationMemoryWorkbenchListPersonaCandidates,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
 } from '../../../shared/eventa'
-
+import { setupAlicizationDb } from './db'
 import { createEmptyWorkingMemorySnapshot } from './life-core/working-memory'
 import { buildMemoryWorkbenchSnapshot, projectWorkingMemoryForWorkbench } from './memory-workbench'
-import { setupAlicizationDb } from './db'
 
 const sandboxDirs: string[] = []
 
@@ -60,6 +59,33 @@ describe('memory workbench projection', () => {
       userCorrections: ['不要固定模板回复'],
     })
     expect(JSON.stringify(projected)).not.toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
+  })
+
+  it('sanitizes fixed-template residue from visible WorkingMemory long-term queue items', () => {
+    const snapshot = createEmptyWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-template-queue',
+      now: 120,
+    })
+    snapshot.longTermCandidates.push({
+      kind: 'relationship',
+      summary: 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her".',
+      reason: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+      sourceTurnIds: ['turn-template-queue'],
+      salience: 0.7,
+      sensitivity: 'personal',
+      confidence: 0.8,
+      allowTraining: false,
+    })
+
+    const projected = projectWorkingMemoryForWorkbench(snapshot)
+    const serialized = JSON.stringify(projected.longTermQueue)
+
+    expect(projected.longTermQueue[0]?.summary)
+      .toBe('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(projected.longTermQueue[0]?.reason)
+      .toBe('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(serialized).not.toMatch(/Before (?:answering|speaking)|local-first digital life project|Same Phase 1 digital life|one continuous "?her"?|same living line/iu)
   })
 
   it('builds a partial snapshot when long-term or review modules report errors', async () => {

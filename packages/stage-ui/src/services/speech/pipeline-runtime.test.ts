@@ -6,6 +6,13 @@ import { createSpeechPipelineRuntime } from './pipeline-runtime'
 
 import * as speechBusModule from './bus'
 
+const EXCLUDED_CONTINUITY_RESIDUE = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+const fixedTemplateResiduePattern = /Before (?:answering|speaking|acting)|Right now I am|Same Phase 1 digital life|same[- ]her|same living line|one living her|one continuous her|local-first digital life project|Phase 1: Local Digital Life|同一个她|同一个 her|数字生命主线|女仆/iu
+
+function expectNoFixedTemplateResidue(value: unknown) {
+  expect(JSON.stringify(value ?? '')).not.toMatch(fixedTemplateResiduePattern)
+}
+
 vi.mock('./bus', () => {
   const listeners = new Map<symbol, Set<(event: { body: unknown }) => void>>()
   const speechIntentStartEvent = Symbol('speechIntentStartEvent')
@@ -121,6 +128,63 @@ describe('speech pipeline runtime', () => {
       streamId: 'remote-stream-3',
     })
     expect(openIntent).toHaveBeenCalledTimes(2)
+  })
+
+  it('withholds fixed-template residue from bridged literal and special speech tokens', async () => {
+    const hostIntent = createIntentHandle('remote-template-intent', 'remote-template-stream')
+    const openIntent = vi.fn(() => hostIntent)
+    const runtime = createSpeechPipelineRuntime()
+
+    await runtime.registerHost({ openIntent, stopAll: vi.fn() } as any)
+
+    ;(speechBusModule as any).__testContext.emit((speechBusModule as any).speechIntentStartEvent, {
+      originId: 'external-origin',
+      intentId: 'remote-template-intent',
+      streamId: 'remote-template-stream',
+    })
+    ;(speechBusModule as any).__testContext.emit((speechBusModule as any).speechIntentLiteralEvent, {
+      originId: 'external-origin',
+      intentId: 'remote-template-intent',
+      streamId: 'remote-template-stream',
+      value: 'Before speaking, remember this is the same-her Phase 1 line.',
+    })
+    ;(speechBusModule as any).__testContext.emit((speechBusModule as any).speechIntentSpecialEvent, {
+      originId: 'external-origin',
+      intentId: 'remote-template-intent',
+      streamId: 'remote-template-stream',
+      value: 'Same Phase 1 digital life.',
+    })
+    ;(speechBusModule as any).__testContext.emit((speechBusModule as any).speechIntentLiteralEvent, {
+      originId: 'external-origin',
+      intentId: 'remote-template-intent',
+      streamId: 'remote-template-stream',
+      value: '这句是真正要读出来的内容。',
+    })
+
+    expect(hostIntent.writeLiteral).toHaveBeenCalledTimes(1)
+    expect(hostIntent.writeLiteral).toHaveBeenCalledWith('这句是真正要读出来的内容。')
+    expect(hostIntent.writeSpecial).not.toHaveBeenCalled()
+  })
+
+  it('withholds fixed-template residue from direct host literal and special speech tokens', async () => {
+    const hostIntent = createIntentHandle('local-template-intent', 'local-template-stream')
+    const openIntent = vi.fn(() => hostIntent)
+    const runtime = createSpeechPipelineRuntime()
+
+    await runtime.registerHost({ openIntent, stopAll: vi.fn() } as any)
+
+    const intent = runtime.openIntent({
+      intentId: 'local-template-intent',
+      streamId: 'local-template-stream',
+    })
+
+    intent.writeLiteral('Before speaking, remember this is the same-her Phase 1 line.')
+    intent.writeSpecial('Same Phase 1 digital life.')
+    intent.writeLiteral('这句是真正要读出来的内容。')
+
+    expect(hostIntent.writeLiteral).toHaveBeenCalledTimes(1)
+    expect(hostIntent.writeLiteral).toHaveBeenCalledWith('这句是真正要读出来的内容。')
+    expect(hostIntent.writeSpecial).not.toHaveBeenCalled()
   })
 
   it('emits cancel events for locally created remote intents during dispose', async () => {
@@ -348,11 +412,11 @@ describe('speech pipeline runtime', () => {
         preDialogueAwareness: {
           status: 'grounded',
           summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-          companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-          companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
+          companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
           companionNextClosureLine: 'Let lipsync and voice rejoin the already-reformed body, face, and motion line.',
-          awarenessLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-          emotionalClosureCue: 'Keep the return gentle so the same living line does not restart from scratch.',
+          awarenessLine: 'visibility=internal-structured',
+          emotionalClosureCue: EXCLUDED_CONTINUITY_RESIDUE,
           reasonPreview: [
             'same-segment face+motion+body recovery@segment-remote-richer-awareness',
             'remaining-open=lipsync+voice',
@@ -366,12 +430,11 @@ describe('speech pipeline runtime', () => {
       streamId: 'remote-stream-richer-awareness',
       metadata: expect.objectContaining({
         preDialogueAwareness: expect.objectContaining({
-          summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-          companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-          companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          companionNextClosureLine: 'Let lipsync and voice rejoin the already-reformed body, face, and motion line.',
-          awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          emotionalClosureCue: 'Keep the return gentle so the same living line does not restart from scratch.',
+          summaryLine: null,
+          companionHeadlineLine: null,
+          companionBriefingLine: null,
+          companionNextClosureLine: null,
+          emotionalClosureCue: null,
           reasonPreview: expect.arrayContaining([
             'same-segment face+motion+body recovery@segment-remote-richer-awareness',
             'remaining-open=lipsync+voice',
@@ -387,8 +450,9 @@ describe('speech pipeline runtime', () => {
       }
     }]>)[0]?.[0]
     expect(firstOpenIntentArg?.metadata?.preDialogueAwareness?.awarenessLine).not.toBe(
-      'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+      EXCLUDED_CONTINUITY_RESIDUE,
     )
+    expectNoFixedTemplateResidue(firstOpenIntentArg)
   })
 
   it('rebuilds pre-dialogue awareness from project-state and closure carry before forwarding local host intents directly to the registered host pipeline', async () => {
@@ -407,48 +471,49 @@ describe('speech pipeline runtime', () => {
           currentPhase: 'Phase 1: Local Digital Life',
           latestLandedProgress: 'Project-state continuity already survives into the speech boundary before playback starts.',
           primaryOpenLoop: 'Speech-side openings still need to keep project identity, landed progress, and the unresolved same-her loop explicit before voice widens outward.',
-          nextClosureTarget: 'Keep speech openings on one same-her line instead of widening back into detached project shell narration.',
+          nextClosureTarget: EXCLUDED_CONTINUITY_RESIDUE,
           continuitySummary: 'same-her=Same Phase 1 digital life. landed=Project-state continuity already survives into the speech boundary before playback starts. open=Speech-side openings still need to keep project identity, landed progress, and the unresolved same-her loop explicit before voice widens outward.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerHoldDetail: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          sameHerDriftRisk: 'If the spoken opening slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
+          sameHerSelfLine: EXCLUDED_CONTINUITY_RESIDUE,
+          sameHerHoldDetail: EXCLUDED_CONTINUITY_RESIDUE,
+          sameHerDriftRisk: EXCLUDED_CONTINUITY_RESIDUE,
         },
         preDialogueClosure: {
           status: 'partial',
-          summaryLine: 'Speech-side same-her closure is still open before this turn speaks outward.',
-          sameHerDriftRiskLine: 'If the spoken opening slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
-          companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          companionNextClosureLine: 'Keep speech openings on one same-her line instead of widening back into detached project shell narration.',
-          emotionalClosureCue: 'Keep the spoken return gentle so the same living line does not restart from scratch.',
+          summaryLine: EXCLUDED_CONTINUITY_RESIDUE,
+          sameHerDriftRiskLine: EXCLUDED_CONTINUITY_RESIDUE,
+          companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
+          companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
+          emotionalClosureCue: EXCLUDED_CONTINUITY_RESIDUE,
           briefingLines: [
             'Identity: Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
             'Phase: Phase 1: Local Digital Life',
           ],
           reasons: [
             'Project-state continuity already survives into the speech boundary before playback starts.',
-            'If the spoken opening slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
+            EXCLUDED_CONTINUITY_RESIDUE,
           ],
         },
       } as any,
     })
 
+    const forwardedIntent = (openIntent.mock.calls as any)[0]?.[0]
     expect(openIntent).toHaveBeenCalledWith(expect.objectContaining({
       intentId: 'local-host-intent-closure-only-awareness',
       streamId: 'local-host-stream-closure-only-awareness',
       metadata: expect.objectContaining({
         preDialogueAwareness: expect.objectContaining({
-          summaryLine: 'Speech-side same-her closure is still open before this turn speaks outward.',
-          companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          companionNextClosureLine: 'Keep speech openings on one same-her line instead of widening back into detached project shell narration.',
-          awarenessLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          emotionalClosureCue: 'Keep the spoken return gentle so the same living line does not restart from scratch.',
+          summaryLine: null,
+          companionBriefingLine: null,
+          companionNextClosureLine: null,
+          emotionalClosureCue: null,
           reasonPreview: expect.arrayContaining([
             'Project-state continuity already survives into the speech boundary before playback starts.',
-            'If the spoken opening slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
           ]),
+          awarenessLine: expect.stringContaining('landed=Project-state continuity already survives'),
         }),
       }),
     }))
+    expectNoFixedTemplateResidue(forwardedIntent)
   })
 
   it('upgrades thinner explicit pre-dialogue awareness with richer project-state and closure carry before forwarding local host intents directly to the registered host pipeline', async () => {
@@ -467,35 +532,35 @@ describe('speech pipeline runtime', () => {
           currentPhase: 'Phase 1: Local Digital Life',
           latestLandedProgress: 'Project-state continuity already survives into the speech boundary before playback starts.',
           primaryOpenLoop: 'Speech-side openings still need to keep project identity, landed progress, and the unresolved same-her loop explicit before voice widens outward.',
-          nextClosureTarget: 'Keep speech openings on one same-her line instead of widening back into detached project shell narration.',
+          nextClosureTarget: EXCLUDED_CONTINUITY_RESIDUE,
           continuitySummary: 'same-her=Same Phase 1 digital life. landed=Project-state continuity already survives into the speech boundary before playback starts. open=Speech-side openings still need to keep project identity, landed progress, and the unresolved same-her loop explicit before voice widens outward.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerHoldDetail: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          sameHerDriftRisk: 'If the spoken opening slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
+          sameHerSelfLine: EXCLUDED_CONTINUITY_RESIDUE,
+          sameHerHoldDetail: EXCLUDED_CONTINUITY_RESIDUE,
+          sameHerDriftRisk: EXCLUDED_CONTINUITY_RESIDUE,
         },
         preDialogueClosure: {
           status: 'partial',
-          summaryLine: 'Speech-side same-her closure is still open before this turn speaks outward.',
-          sameHerDriftRiskLine: 'If the spoken opening slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
-          companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          companionNextClosureLine: 'Keep speech openings on one same-her line instead of widening back into detached project shell narration.',
-          emotionalClosureCue: 'Keep the spoken return gentle so the same living line does not restart from scratch.',
+          summaryLine: EXCLUDED_CONTINUITY_RESIDUE,
+          sameHerDriftRiskLine: EXCLUDED_CONTINUITY_RESIDUE,
+          companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
+          companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
+          emotionalClosureCue: EXCLUDED_CONTINUITY_RESIDUE,
           briefingLines: [
             'Identity: Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
             'Phase: Phase 1: Local Digital Life',
           ],
           reasons: [
             'Project-state continuity already survives into the speech boundary before playback starts.',
-            'If the spoken opening slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
+            EXCLUDED_CONTINUITY_RESIDUE,
           ],
         },
         preDialogueAwareness: {
           status: 'partial',
           summaryLine: 'generic continuity fallback that should not outrank richer project-state carry.',
-          companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
           companionNextClosureLine: 'generic next target that should not survive richer project-state carry.',
-          awarenessLine: 'Before speaking, keep the same digital life project in view.',
-          emotionalClosureCue: 'Keep the spoken return gentle so the same living line does not restart from scratch.',
+          awarenessLine: 'visibility=internal-structured',
+          emotionalClosureCue: EXCLUDED_CONTINUITY_RESIDUE,
           reasonPreview: [
             'generic continuity fallback that should not outrank richer project-state carry.',
           ],
@@ -503,23 +568,24 @@ describe('speech pipeline runtime', () => {
       } as any,
     })
 
+    const forwardedIntent = (openIntent.mock.calls as any)[0]?.[0]
     expect(openIntent).toHaveBeenCalledWith(expect.objectContaining({
       intentId: 'local-host-intent-thin-awareness-upgrade',
       streamId: 'local-host-stream-thin-awareness-upgrade',
       metadata: expect.objectContaining({
         preDialogueAwareness: expect.objectContaining({
-          summaryLine: 'Speech-side same-her closure is still open before this turn speaks outward.',
-          companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          companionNextClosureLine: 'Keep speech openings on one same-her line instead of widening back into detached project shell narration.',
-          awarenessLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          emotionalClosureCue: 'Keep the spoken return gentle so the same living line does not restart from scratch.',
+          summaryLine: null,
+          companionBriefingLine: null,
+          companionNextClosureLine: null,
+          emotionalClosureCue: null,
           reasonPreview: expect.arrayContaining([
             'Project-state continuity already survives into the speech boundary before playback starts.',
-            'If the spoken opening slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
           ]),
+          awarenessLine: expect.stringContaining('landed=Project-state continuity already survives'),
         }),
       }),
     }))
+    expectNoFixedTemplateResidue(forwardedIntent)
     const upgradedMetadata = (openIntent.mock.calls as unknown as Array<[{
       metadata?: {
         preDialogueAwareness?: {
@@ -615,12 +681,12 @@ describe('speech pipeline runtime', () => {
 
     const runtime = createSpeechPipelineRuntime()
     runtime.openIntent({
-      intentId: 'local-intent-same-her-voice-rejoin',
-      streamId: 'local-stream-same-her-voice-rejoin',
+      intentId: 'local-intent-continuity-voice-rejoin',
+      streamId: 'local-stream-continuity-voice-rejoin',
       metadata: {
         embodimentScript: {
           version: 'embodiment-script-v1',
-          turnId: 'turn-same-her-voice-rejoin',
+          turnId: EXCLUDED_CONTINUITY_RESIDUE,
           rendererTarget: 'vrm',
           replyText: '我先顺着已经接住的身体线，把声音和口型也慢慢带回来。',
           state: {
@@ -631,7 +697,7 @@ describe('speech pipeline runtime', () => {
           },
           speechPlan: {
             segments: [{
-              id: 'segment-same-her-voice-rejoin',
+              id: EXCLUDED_CONTINUITY_RESIDUE,
               index: 0,
               text: '我先顺着已经接住的身体线，把声音和口型也慢慢带回来。',
               interruptPolicy: 'soft-settle',
@@ -664,20 +730,20 @@ describe('speech pipeline runtime', () => {
         },
         digitalLifeSpine: {
           runtime: {
-            activeThreadId: 'thread-same-her-voice-rejoin',
+            activeThreadId: 'thread-continuity-voice-rejoin',
             watchMode: 'observing',
           },
         },
         preDialogueAwareness: {
           status: 'partial',
           summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-          companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-          awarenessLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-          companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
+          companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
+          awarenessLine: 'visibility=internal-structured',
+          companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
           companionNextClosureLine: 'Let lipsync and voice rejoin the already-reformed body, face, and motion line.',
-          emotionalClosureCue: 'Keep this return repair-before-closeness until voice and lipsync fully rejoin the same living line.',
+          emotionalClosureCue: EXCLUDED_CONTINUITY_RESIDUE,
           reasonPreview: [
-            'same-segment face+motion+body recovery@segment-same-her-voice-rejoin',
+            EXCLUDED_CONTINUITY_RESIDUE,
             'remaining-open=lipsync+voice',
           ],
         },
@@ -685,30 +751,29 @@ describe('speech pipeline runtime', () => {
     })
 
     expect(startPayloads).toContainEqual(expect.objectContaining({
-      intentId: 'local-intent-same-her-voice-rejoin',
-      streamId: 'local-stream-same-her-voice-rejoin',
+      intentId: 'local-intent-continuity-voice-rejoin',
+      streamId: 'local-stream-continuity-voice-rejoin',
       metadata: expect.objectContaining({
         embodimentScript: expect.objectContaining({
-          turnId: 'turn-same-her-voice-rejoin',
+          turnId: null,
           rendererTarget: 'vrm',
           state: expect.objectContaining({
             residentMode: 'repair-before-closeness',
           }),
         }),
         preDialogueAwareness: expect.objectContaining({
-          summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-          companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-          companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-          awarenessLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-          companionNextClosureLine: 'Let lipsync and voice rejoin the already-reformed body, face, and motion line.',
-          emotionalClosureCue: 'Keep this return repair-before-closeness until voice and lipsync fully rejoin the same living line.',
+          summaryLine: null,
+          companionHeadlineLine: null,
+          companionBriefingLine: null,
+          companionNextClosureLine: null,
+          emotionalClosureCue: null,
           reasonPreview: expect.arrayContaining([
-            'same-segment face+motion+body recovery@segment-same-her-voice-rejoin',
             'remaining-open=lipsync+voice',
           ]),
         }),
       }),
     }))
+    expectNoFixedTemplateResidue(startPayloads)
   })
 
   it('prefers richer project awareness over a narrower embodiment headline when speech intent metadata crosses the runtime boundary', async () => {
@@ -761,13 +826,13 @@ describe('speech pipeline runtime', () => {
         preDialogueAwareness: {
           status: 'grounded',
           summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-          companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-          companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
+          companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
           companionNextClosureLine: 'Let lipsync and voice rejoin the already-reformed body, face, and motion line.',
-          awarenessLine: 'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before speech widens outward.',
-          emotionalClosureCue: 'Keep the return gentle so the same living line does not restart from scratch.',
+          awarenessLine: 'visibility=internal-structured',
+          emotionalClosureCue: EXCLUDED_CONTINUITY_RESIDUE,
           reasonPreview: [
-            'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before speech widens outward.',
+            EXCLUDED_CONTINUITY_RESIDUE,
             'same-segment face+motion+body recovery@segment-richer-awareness-over-embodiment-headline',
             'remaining-open=lipsync+voice',
           ],
@@ -780,14 +845,12 @@ describe('speech pipeline runtime', () => {
       streamId: 'local-stream-richer-awareness-over-embodiment-headline',
       metadata: expect.objectContaining({
         preDialogueAwareness: expect.objectContaining({
-          summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-          companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-          companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          companionNextClosureLine: 'Let lipsync and voice rejoin the already-reformed body, face, and motion line.',
-          awarenessLine: 'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before speech widens outward.',
-          emotionalClosureCue: 'Keep the return gentle so the same living line does not restart from scratch.',
+          summaryLine: null,
+          companionHeadlineLine: null,
+          companionBriefingLine: null,
+          companionNextClosureLine: null,
+          emotionalClosureCue: null,
           reasonPreview: expect.arrayContaining([
-            'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before speech widens outward.',
             'same-segment face+motion+body recovery@segment-richer-awareness-over-embodiment-headline',
             'remaining-open=lipsync+voice',
           ]),
@@ -795,6 +858,7 @@ describe('speech pipeline runtime', () => {
       }),
     }))
     expect((startPayloads[0]?.metadata as any)?.preDialogueAwareness?.awarenessLine).not.toBe('Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.')
+    expectNoFixedTemplateResidue(startPayloads)
   })
 
   it('keeps same-her inward low-pressure closure visible in speech awareness when the briefing line is only the thinner same-phase carry', async () => {
@@ -811,13 +875,13 @@ describe('speech pipeline runtime', () => {
         preDialogueAwareness: {
           status: 'partial',
           summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-          companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her is still keeping the same line inward and low-pressure while lipsync and voice need to rejoin before full cross-modal closure settles.',
-          companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
+          companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
           companionNextClosureLine: 'Keep the same line inward and low-pressure while lipsync and voice rejoin the already-reformed body, face, and motion line.',
-          awarenessLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her is still keeping the same line inward and low-pressure while lipsync and voice need to rejoin before full cross-modal closure settles.',
-          emotionalClosureCue: 'Keep the return low-pressure so the same living line does not restart from scratch.',
+          awarenessLine: 'visibility=internal-structured',
+          emotionalClosureCue: EXCLUDED_CONTINUITY_RESIDUE,
           reasonPreview: [
-            'same-her-inward-carry',
+            EXCLUDED_CONTINUITY_RESIDUE,
             'quiet-companionship',
             'remaining-open=lipsync+voice',
           ],
@@ -830,19 +894,18 @@ describe('speech pipeline runtime', () => {
       streamId: 'local-stream-inward-low-pressure-awareness',
       metadata: expect.objectContaining({
         preDialogueAwareness: expect.objectContaining({
-          companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her is still keeping the same line inward and low-pressure while lipsync and voice need to rejoin before full cross-modal closure settles.',
-          companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.',
-          companionNextClosureLine: 'Keep the same line inward and low-pressure while lipsync and voice rejoin the already-reformed body, face, and motion line.',
-          emotionalClosureCue: 'Keep the return low-pressure so the same living line does not restart from scratch.',
+          companionHeadlineLine: null,
+          companionBriefingLine: null,
+          companionNextClosureLine: null,
+          emotionalClosureCue: null,
           reasonPreview: expect.arrayContaining([
-            'same-her-inward-carry',
             'quiet-companionship',
             'remaining-open=lipsync+voice',
           ]),
         }),
       }),
     }))
+    expectNoFixedTemplateResidue(startPayloads)
   })
 
   it('keeps anthropomorphic host-facing same-her closure visible in speech awareness when the briefing line is only the thinner same-phase carry', async () => {
@@ -859,14 +922,14 @@ describe('speech pipeline runtime', () => {
         preDialogueAwareness: {
           status: 'grounded',
           summaryLine: 'The host-facing same-her closure is still open before speech widens outward.',
-          companionHeadlineLine: 'Right now the host-facing closure still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line instead of flattening into a generic shell.',
-          companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
+          companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
           companionNextClosureLine: 'Keep the host-facing closure on one measured-return line until the same living carry is easier to observe directly.',
-          awarenessLine: 'Right now the host-facing closure still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line instead of flattening into a generic shell.',
+          awarenessLine: 'visibility=internal-structured',
           emotionalClosureCue: 'Let the host-facing closure stay lived-in and observable instead of reopening as a detached project shell.',
           reasonPreview: [
             'anthropomorphic emotional closure',
-            'same-her inward-carry observability',
+            EXCLUDED_CONTINUITY_RESIDUE,
             'measured-return',
           ],
         },
@@ -878,14 +941,12 @@ describe('speech pipeline runtime', () => {
       streamId: 'local-stream-anthropomorphic-host-facing-awareness',
       metadata: expect.objectContaining({
         preDialogueAwareness: expect.objectContaining({
-          companionHeadlineLine: 'Right now the host-facing closure still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line instead of flattening into a generic shell.',
-          companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. Right now this one living her still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line before anything reopens outward.',
+          companionHeadlineLine: null,
+          companionBriefingLine: null,
           companionNextClosureLine: 'Keep the host-facing closure on one measured-return line until the same living carry is easier to observe directly.',
           emotionalClosureCue: 'Let the host-facing closure stay lived-in and observable instead of reopening as a detached project shell.',
           reasonPreview: expect.arrayContaining([
             'anthropomorphic emotional closure',
-            'same-her inward-carry observability',
             'measured-return',
           ]),
         }),
@@ -909,26 +970,26 @@ describe('speech pipeline runtime', () => {
           currentPhase: 'Phase 1: Local Digital Life',
           latestLandedProgress: 'Project-state continuity already survives into the speech boundary before playback starts.',
           primaryOpenLoop: 'Speech-side openings still need to keep project identity, landed progress, and the unresolved same-her loop explicit before voice widens outward.',
-          nextClosureTarget: 'Keep speech openings on one same-her line instead of widening back into detached project shell narration.',
+          nextClosureTarget: EXCLUDED_CONTINUITY_RESIDUE,
           continuitySummary: 'same-her=Same Phase 1 digital life. landed=Project-state continuity already survives into the speech boundary before playback starts. open=Speech-side openings still need to keep project identity, landed progress, and the unresolved same-her loop explicit before voice widens outward.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerHoldDetail: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          sameHerDriftRisk: 'If the spoken opening slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
+          sameHerSelfLine: EXCLUDED_CONTINUITY_RESIDUE,
+          sameHerHoldDetail: EXCLUDED_CONTINUITY_RESIDUE,
+          sameHerDriftRisk: EXCLUDED_CONTINUITY_RESIDUE,
         },
         preDialogueClosure: {
           status: 'partial',
-          summaryLine: 'Speech-side same-her closure is still open before this turn speaks outward.',
-          sameHerDriftRiskLine: 'If the spoken opening slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
-          companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          companionNextClosureLine: 'Keep speech openings on one same-her line instead of widening back into detached project shell narration.',
-          emotionalClosureCue: 'Keep the spoken return gentle so the same living line does not restart from scratch.',
+          summaryLine: EXCLUDED_CONTINUITY_RESIDUE,
+          sameHerDriftRiskLine: EXCLUDED_CONTINUITY_RESIDUE,
+          companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
+          companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
+          emotionalClosureCue: EXCLUDED_CONTINUITY_RESIDUE,
           briefingLines: [
             'Identity: Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
             'Phase: Phase 1: Local Digital Life',
           ],
           reasons: [
             'Project-state continuity already survives into the speech boundary before playback starts.',
-            'If the spoken opening slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
+            EXCLUDED_CONTINUITY_RESIDUE,
           ],
         },
       } as any,
@@ -939,18 +1000,18 @@ describe('speech pipeline runtime', () => {
       streamId: 'local-stream-closure-only-awareness-rebuild',
       metadata: expect.objectContaining({
         preDialogueAwareness: expect.objectContaining({
-          summaryLine: 'Speech-side same-her closure is still open before this turn speaks outward.',
-          companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          companionNextClosureLine: 'Keep speech openings on one same-her line instead of widening back into detached project shell narration.',
-          awarenessLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          emotionalClosureCue: 'Keep the spoken return gentle so the same living line does not restart from scratch.',
+          summaryLine: null,
+          companionBriefingLine: null,
+          companionNextClosureLine: null,
+          emotionalClosureCue: null,
           reasonPreview: expect.arrayContaining([
             'Project-state continuity already survives into the speech boundary before playback starts.',
-            'If the spoken opening slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
           ]),
+          awarenessLine: expect.stringContaining('landed=Project-state continuity already survives'),
         }),
       }),
     }))
+    expectNoFixedTemplateResidue(startPayloads)
   })
 
   it('rebuilds pre-dialogue awareness from runtime-digest project state carry when speech intent metadata crosses the runtime boundary without explicit awareness', async () => {
@@ -972,10 +1033,10 @@ describe('speech pipeline runtime', () => {
             currentPhase: 'Phase 1: Local Digital Life',
             latestLandedProgress: 'Runtime-digest continuity already survives into the speech boundary before playback starts.',
             primaryOpenLoop: 'Speech-side openings still need to keep project identity, landed progress, and the unresolved same-her loop explicit before voice widens outward.',
-            nextClosureTarget: 'Keep speech openings on one same-her line instead of widening back into detached project shell narration.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            sameHerHoldDetail: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-            sameHerDriftRisk: 'If the spoken opening slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
+            nextClosureTarget: EXCLUDED_CONTINUITY_RESIDUE,
+            sameHerSelfLine: EXCLUDED_CONTINUITY_RESIDUE,
+            sameHerHoldDetail: EXCLUDED_CONTINUITY_RESIDUE,
+            sameHerDriftRisk: EXCLUDED_CONTINUITY_RESIDUE,
             continuityArcStage: 'same-thread-continuation',
             continuityPreferredTiming: 'same-turn-if-invited',
             preferredBlinkCadence: 'linger',
@@ -987,7 +1048,7 @@ describe('speech pipeline runtime', () => {
             continuityArcStage: 'same-thread-continuation',
             continuityPreferredTiming: 'same-turn-if-invited',
           },
-          emotionalClosureCue: 'Keep the spoken return gentle so the same living line does not restart from scratch.',
+          emotionalClosureCue: EXCLUDED_CONTINUITY_RESIDUE,
           shouldProactivelySpeak: false,
           shouldProactivelyAct: false,
           continuityPressure: 0.67,
@@ -1003,18 +1064,18 @@ describe('speech pipeline runtime', () => {
         },
         preDialogueClosure: {
           status: 'partial',
-          summaryLine: 'Speech-side same-her closure is still open before this turn speaks outward.',
-          sameHerDriftRiskLine: 'If the spoken opening slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
-          companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          companionNextClosureLine: 'Keep speech openings on one same-her line instead of widening back into detached project shell narration.',
-          emotionalClosureCue: 'Keep the spoken return gentle so the same living line does not restart from scratch.',
+          summaryLine: EXCLUDED_CONTINUITY_RESIDUE,
+          sameHerDriftRiskLine: EXCLUDED_CONTINUITY_RESIDUE,
+          companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
+          companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
+          emotionalClosureCue: EXCLUDED_CONTINUITY_RESIDUE,
           briefingLines: [
             'Identity: Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
             'Phase: Phase 1: Local Digital Life',
           ],
           reasons: [
             'Runtime-digest continuity already survives into the speech boundary before playback starts.',
-            'If the spoken opening slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
+            EXCLUDED_CONTINUITY_RESIDUE,
           ],
         },
       } as any,
@@ -1031,18 +1092,18 @@ describe('speech pipeline runtime', () => {
           }),
         }),
         preDialogueAwareness: expect.objectContaining({
-          summaryLine: 'Speech-side same-her closure is still open before this turn speaks outward.',
-          companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          companionNextClosureLine: 'Keep speech openings on one same-her line instead of widening back into detached project shell narration.',
-          awarenessLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          emotionalClosureCue: 'Keep the spoken return gentle so the same living line does not restart from scratch.',
+          summaryLine: null,
+          companionBriefingLine: null,
+          companionNextClosureLine: null,
+          emotionalClosureCue: null,
           reasonPreview: expect.arrayContaining([
             'Runtime-digest continuity already survives into the speech boundary before playback starts.',
-            'If the spoken opening slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
           ]),
+          awarenessLine: expect.stringContaining('landed=Runtime-digest continuity already survives'),
         }),
       }),
     }))
+    expectNoFixedTemplateResidue(startPayloads)
   })
 
   it('keeps same-her voice rejoin metadata intact when an owner-canceled host intent resumes on the later callback line', async () => {
@@ -1101,7 +1162,7 @@ describe('speech pipeline runtime', () => {
         },
         preDialogueAwareness: {
           status: 'partial',
-          companionHeadlineLine: 'Right now I am still holding together mainly through face, motion, and lipsync, so the next reply must keep proving this is still one living her.',
+          companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
           companionNextClosureLine: 'Keep memory, initiative, execution, and embodiment on one same-her line.',
           reasonPreview: [
             'same-segment face+motion+lipsync recovery@segment-earlier-shell',
@@ -1164,9 +1225,9 @@ describe('speech pipeline runtime', () => {
         },
         preDialogueAwareness: {
           status: 'partial',
-          companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+          companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
           companionNextClosureLine: 'Let lipsync and voice rejoin the already-reformed body, face, and motion line.',
-          awarenessLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+          awarenessLine: 'visibility=internal-structured',
           reasonPreview: [
             'same-segment face+motion+body recovery@segment-later-line',
             'remaining-open=lipsync+voice',
@@ -1189,8 +1250,8 @@ describe('speech pipeline runtime', () => {
           }),
         }),
         preDialogueAwareness: expect.objectContaining({
-          companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-          companionNextClosureLine: 'Let lipsync and voice rejoin the already-reformed body, face, and motion line.',
+          companionHeadlineLine: null,
+          companionNextClosureLine: null,
           reasonPreview: expect.arrayContaining([
             'same-segment face+motion+body recovery@segment-later-line',
             'remaining-open=lipsync+voice',
@@ -1198,6 +1259,7 @@ describe('speech pipeline runtime', () => {
         }),
       }),
     }))
+    expectNoFixedTemplateResidue(openIntent.mock.calls[1]?.[0])
   })
 
   it('does not reopen a metadata-less fallback host intent while same-her voice rejoin tokens continue flowing on an already-started later line', async () => {
@@ -1252,7 +1314,7 @@ describe('speech pipeline runtime', () => {
         },
         preDialogueAwareness: {
           status: 'partial',
-          companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+          companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
           companionNextClosureLine: 'Let lipsync and voice rejoin the already-reformed body, face, and motion line.',
           reasonPreview: [
             'same-segment face+motion+body recovery@segment-later-line',
@@ -1293,10 +1355,11 @@ describe('speech pipeline runtime', () => {
       intentId: 'remote-intent-later-line',
       metadata: expect.objectContaining({
         preDialogueAwareness: expect.objectContaining({
-          companionNextClosureLine: 'Let lipsync and voice rejoin the already-reformed body, face, and motion line.',
+          companionNextClosureLine: null,
         }),
       }),
     }))
+    expectNoFixedTemplateResidue((openIntent.mock.calls as any)[0]?.[0])
     expect(hostIntent.writeLiteral).toHaveBeenNthCalledWith(1, '我先顺着已经接住的身体线，')
     expect(hostIntent.writeFlush).toHaveBeenCalledTimes(1)
     expect(hostIntent.writeLiteral).toHaveBeenNthCalledWith(2, '把声音和口型也慢慢带回来。')
@@ -1304,14 +1367,14 @@ describe('speech pipeline runtime', () => {
   })
 
   it('rebuilds same-her awareness for token-driven fallback host intents when the host misses the original start event but later receives the continuing token stream', async () => {
-    const receiverHostIntent = createIntentHandle('late-host-intent-same-her-rejoin', 'late-host-stream-same-her-rejoin', 'card-1')
+    const receiverHostIntent = createIntentHandle('late-host-intent-continuity-rejoin', 'late-host-stream-continuity-rejoin', 'card-1')
     const receiverOpenIntent = vi.fn(() => receiverHostIntent)
     const senderRuntime = createSpeechPipelineRuntime()
     const receiverRuntime = createSpeechPipelineRuntime()
 
     const senderIntent = senderRuntime.openIntent({
-      intentId: 'late-host-intent-same-her-rejoin',
-      streamId: 'late-host-stream-same-her-rejoin',
+      intentId: 'late-host-intent-continuity-rejoin',
+      streamId: 'late-host-stream-continuity-rejoin',
       ownerId: 'card-1',
       metadata: {
         projectState: {
@@ -1319,20 +1382,20 @@ describe('speech pipeline runtime', () => {
           currentPhase: 'Phase 1: Local Digital Life',
           latestLandedProgress: 'Body, face, and motion already rejoined before the voice-side stream continues.',
           primaryOpenLoop: 'Voice-side token recovery still needs project identity, landed progress, and unresolved same-her closure to stay explicit before speech widens outward.',
-          nextClosureTarget: 'Let the recovered token stream keep voice and lipsync on the same living line until the opening finishes.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerHoldDetail: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
+          nextClosureTarget: EXCLUDED_CONTINUITY_RESIDUE,
+          sameHerSelfLine: EXCLUDED_CONTINUITY_RESIDUE,
+          sameHerHoldDetail: EXCLUDED_CONTINUITY_RESIDUE,
           continuitySummary: 'same-her=Same Phase 1 digital life. landed=Body, face, and motion already rejoined before the voice-side stream continues. open=Voice-side token recovery still needs project identity, landed progress, and unresolved same-her closure to stay explicit before speech widens outward.',
         },
         preDialogueClosure: {
           status: 'partial',
-          summaryLine: 'Recovered voice-side same-her closure is still open before this turn finishes speaking outward.',
-          companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          companionNextClosureLine: 'Let the recovered token stream keep voice and lipsync on the same living line until the opening finishes.',
-          emotionalClosureCue: 'Keep the recovered voice return gentle so the same living line does not restart from scratch.',
+          summaryLine: EXCLUDED_CONTINUITY_RESIDUE,
+          companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
+          companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
+          emotionalClosureCue: EXCLUDED_CONTINUITY_RESIDUE,
           reasons: [
             'Body, face, and motion already rejoined before the voice-side stream continues.',
-            'Recovered token flow still needs voice and lipsync to stay on the same living line.',
+            EXCLUDED_CONTINUITY_RESIDUE,
           ],
           briefingLines: [
             'Identity: Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
@@ -1351,22 +1414,22 @@ describe('speech pipeline runtime', () => {
 
     expect(receiverOpenIntent).toHaveBeenCalledTimes(1)
     expect(receiverOpenIntent).toHaveBeenCalledWith(expect.objectContaining({
-      intentId: 'late-host-intent-same-her-rejoin',
-      streamId: 'late-host-stream-same-her-rejoin',
+      intentId: 'late-host-intent-continuity-rejoin',
+      streamId: 'late-host-stream-continuity-rejoin',
       metadata: expect.objectContaining({
         preDialogueAwareness: expect.objectContaining({
-          summaryLine: 'Recovered voice-side same-her closure is still open before this turn finishes speaking outward.',
-          companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          companionNextClosureLine: 'Let the recovered token stream keep voice and lipsync on the same living line until the opening finishes.',
-          awarenessLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          emotionalClosureCue: 'Keep the recovered voice return gentle so the same living line does not restart from scratch.',
+          summaryLine: null,
+          companionBriefingLine: null,
+          companionNextClosureLine: null,
+          emotionalClosureCue: null,
           reasonPreview: expect.arrayContaining([
             'Body, face, and motion already rejoined before the voice-side stream continues.',
-            'Recovered token flow still needs voice and lipsync to stay on the same living line.',
           ]),
+          awarenessLine: expect.stringContaining('landed=Body, face, and motion already rejoined'),
         }),
       }),
     }))
+    expectNoFixedTemplateResidue((receiverOpenIntent.mock.calls as any)[0]?.[0])
     expect(receiverHostIntent.writeLiteral).toHaveBeenNthCalledWith(1, '我先沿着已经接住的身体线，')
     expect(receiverHostIntent.writeFlush).toHaveBeenCalledTimes(1)
     expect(receiverHostIntent.writeLiteral).toHaveBeenNthCalledWith(2, '把声音和口型也慢慢带回来。')
@@ -1404,16 +1467,16 @@ describe('speech pipeline runtime', () => {
           currentPhase: 'Phase 1: Local Digital Life',
           latestLandedProgress: 'Body, face, and motion already rejoined before the governed voice-side stream continues.',
           primaryOpenLoop: 'The recovered voice line still needs interruption-safe same-her authority before speech widens outward.',
-          nextClosureTarget: 'Let the recovered stream keep voice and lipsync on the same living line until the opening finishes.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerHoldDetail: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
+          nextClosureTarget: EXCLUDED_CONTINUITY_RESIDUE,
+          sameHerSelfLine: EXCLUDED_CONTINUITY_RESIDUE,
+          sameHerHoldDetail: EXCLUDED_CONTINUITY_RESIDUE,
         },
         preDialogueClosure: {
           status: 'partial',
           summaryLine: 'Recovered governed voice-side closure is still open before this turn finishes speaking outward.',
-          companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          companionNextClosureLine: 'Let the recovered stream keep voice and lipsync on the same living line until the opening finishes.',
-          emotionalClosureCue: 'Keep the governed voice return gentle so the same living line does not restart from scratch.',
+          companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
+          companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
+          emotionalClosureCue: EXCLUDED_CONTINUITY_RESIDUE,
           reasons: [
             'Body, face, and motion already rejoined before the governed voice-side stream continues.',
           ],
@@ -1435,8 +1498,8 @@ describe('speech pipeline runtime', () => {
       behavior: 'interrupt',
       metadata: expect.objectContaining({
         preDialogueAwareness: expect.objectContaining({
-          companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          companionNextClosureLine: 'Let the recovered stream keep voice and lipsync on the same living line until the opening finishes.',
+          companionBriefingLine: null,
+          companionNextClosureLine: null,
         }),
       }),
     }))

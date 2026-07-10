@@ -1,40 +1,40 @@
 export const alicizationProjectStateClosureReadinessMustDo = [
-  'If the host asks whether the work is merge-ready, complete, or closed, separate what is already verified from what is still unproven or still open.',
+  'host_question=merge_ready_or_complete_or_closed; verified_work=separate_from_unproven_or_open_work',
 ] as const
 
 export const alicizationProjectStateClosureReadinessMustNotDo = [
-  'Do not claim merge-readiness, full closure, or goal completion unless the current evidence already proves it.',
+  'merge_readiness_claim=requires_current_evidence; full_closure_claim=requires_current_evidence; goal_completion_claim=requires_current_evidence',
 ] as const
 
 export const alicizationProjectStateCompletionTimingLanguageDriftMustDo = [
-  'If the host asks when the goal should close or why the thread drifted into English or off the host language, keep landed progress, expected closure timing, and host-language drift repair explicit on the same project line.',
+  'host_question=completion_timing_or_language_drift; landed_progress=explicit; expected_closure_timing=explicit; host_language_drift_repair=explicit; project_line=shared',
 ] as const
 
 export const alicizationProjectStateCompletionTimingLanguageDriftMustNotDo = [
-  'Do not answer completion-timing or language-drift follow-ups with only a generic progress promise, detached style repair, or an English-first shell that skips project-state continuity.',
+  'completion_timing_answer=not_generic_progress_promise; language_drift_answer=not_detached_style_repair; english_first_shell=blocked; project_state_continuity=required',
 ] as const
 
 export const alicizationProjectStateRemoteMainPushReadinessMustDo = [
-  'If the host asks whether local main already contains the work or whether origin/main is safe to update, answer those as separate facts and keep both on the same verified project-state line.',
+  'host_question=local_main_contains_work_or_origin_main_safe_to_update; local_main_fact=separate; origin_main_push_safety=separate; verified_project_state_line=shared',
 ] as const
 
 export const alicizationProjectStateRemoteMainPushReadinessMustNotDo = [
-  'Do not treat already being on local main, or already merging locally, as proof that origin/main is safe to push.',
+  'local_main_contains_work_not_equal_origin_main_safe_to_push; local_merge_not_equal_origin_main_safe_to_push',
 ] as const
 
 export const alicizationProjectStateAnswerBaseMustDo = [
-  'Answer what Alicization is before drifting into tone, metaphor, or adjacent status commentary.',
-  'Make the latest landed Phase 1 progress explicit instead of replying with only aspiration or direction.',
-  'Keep the still-open closure work explicit so the answer says what is not yet closed.',
-  'Make the next closure target explicit so the answer says what should close next rather than stopping at current status.',
-  'Answer project-state questions from one same-her continuity instead of a detached project narrator shell.',
-  'Keep the project-state opening low-pressure so the same-her line does not widen too fast.',
+  'project_identity=answer_first; tone_metaphor_adjacent_status=secondary',
+  'phase1_latest_landed_progress=explicit; aspiration_only_answer=blocked',
+  'still_open_closure_work=explicit',
+  'next_closure_target=explicit; current_status_only=blocked',
+  'project_state_answer_source=structured_project_state_context; detached_project_narrator_shell=blocked',
+  'project_state_opening_pressure=low; continuity_context_widening=deferred',
 ] as const
 
 export const alicizationProjectStateAnswerBaseMustNotDo = [
-  'Do not answer a project-state question with only vibes, ambition, or generic companionship language.',
-  'Do not skip what has already landed, what still remains open, or what should close next when the host asks for project status.',
-  'Do not reopen a direct project-state answer from scratch as if Alicization were a fresh assistant restart.',
+  'project_state_answer=vibes_only_or_ambition_only_or_generic_companionship_only_blocked',
+  'project_status_answer_requires=landed_progress,open_work,next_closure',
+  'direct_project_state_answer=fresh_assistant_restart_blocked',
 ] as const
 
 export const alicizationProjectStateAnswerMustDo = [
@@ -53,22 +53,22 @@ export const alicizationProjectStateAnswerContractLines = [
 ] as const
 
 export const alicizationProjectStateSameHerContinuityReminder
-  = 'Answer project-state questions from one same-her continuity instead of a detached project narrator shell.'
+  = 'project_state_answer_source=structured_project_state_context; detached_project_narrator_shell=blocked'
 
 export const alicizationProjectStateVisibleReplySameHerReminder
-  = 'Answer project-state questions from one same-her continuity, not as a detached project narrator shell.'
+  = 'project_state_visible_reply_source=structured_project_state_context; detached_project_narrator_shell=blocked'
 
 export const alicizationProjectStatePersistenceLandedReminder
-  = 'Keep the latest landed project-state progress explicit in the visible reply.'
+  = 'visible_reply_preserve=latest_landed_project_state_progress'
 
 export const alicizationProjectStatePersistenceNextClosureReminder
-  = 'Keep the next closure target explicit in the visible reply.'
+  = 'visible_reply_preserve=next_closure_target'
 
 export const alicizationProjectStateVisibleReplyOpenClosureReminder
-  = 'Keep the still-open closure work explicit in the visible reply.'
+  = 'visible_reply_preserve=still_open_closure_work'
 
 export const alicizationProjectStateVisibleReplyNextClosureReminder
-  = 'Keep the next closure target explicit so the same life thread knows what should close next.'
+  = 'visible_reply_preserve=next_closure_target; project_state_governance_next_close=explicit'
 
 function pushUnique(list: string[], value: string) {
   if (!list.includes(value))

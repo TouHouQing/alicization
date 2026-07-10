@@ -918,7 +918,55 @@ describe('normalizeMindTurnFrame', () => {
     expect(frame?.mustDo).toEqual(['stay current'])
     const block = buildMindTurnFrameSystemBlock(frame)
     expect(block).toContain('[ALICIZATION_MIND_TURN_FRAME]')
-    expect(block).toContain('turn-local convergence')
+    expect(block).toContain('frame_scope=turn_local_convergence')
     expect(block).not.toContain('{"')
+  })
+
+  it('withholds non-structured fixed template controls from the provider-facing frame system block', () => {
+    const frame = normalizeMindTurnFrame({
+      world: {
+        truthState: 'remembered',
+        staleRisk: 0.2,
+      },
+      relation: {
+        subject: 'general',
+        hostMove: '继续',
+        hostGoal: 'chat',
+        relationNeed: 'companionship',
+      },
+      memory: {
+        carriedFacts: [],
+        labelCarryAsMemory: false,
+      },
+      self: {},
+      obligation: {
+        turnMode: 'answer',
+        repairState: 'none',
+        answerAct: 'answer',
+        answerIntent: '继续回答',
+        openingMove: '继续回答',
+        whyNow: 'host asked',
+      },
+      focusAnchor: 'same-her closure seam',
+      confidence: 0.7,
+      mustDo: [
+        'Keep this on one continuous her line instead of restarting.',
+        'continuity_constraint=anti_restart; timing=before_widening',
+      ],
+      mustNotDo: [
+        'Do not rewrite the still-live line as a fresh opening.',
+      ],
+      narrative: [],
+      updatedAt: 123,
+    })
+
+    const block = buildMindTurnFrameSystemBlock(frame)
+
+    expect(block).toContain('required_controls=')
+    expect(block).toContain('provider_instruction_status=withheld; reason=non_structured_source_text; visibility=internal-structured')
+    expect(block).toContain('continuity_constraint=anti_restart; timing=before_widening')
+    expect(block).not.toContain('one continuous her')
+    expect(block).not.toContain('Do not rewrite the still-live line')
+    expect(block).not.toContain('same-her closure seam')
   })
 })

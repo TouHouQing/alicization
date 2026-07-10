@@ -49,9 +49,9 @@ function resolveSurvivingVisibleLane(
     return 'face+lipsync+voice-only'
   if (value.includes('当前仅剩动作、口型、声音维持同一段连续性'))
     return 'motion+lipsync+voice-only'
-  if (value.includes('当前只有 face 和 lipsync 这条 same-her 生命线'))
+  if (value.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线'))
     return 'face+lipsync-only'
-  if (value.includes('当前只有 motion 和 lipsync 这条 same-her 生命线'))
+  if (value.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线'))
     return 'motion+lipsync-only'
 
   return null
@@ -88,19 +88,19 @@ function formatRendererRejoinWithoutBodyAnchorLine(input: {
   rendererRejoinSurface: string | null
 }) {
   if (input.survivingVisibleLane === 'face+lipsync+voice-only') {
-    return '这张默认连续性锚点记录的不是可信身体连续性基线，而是当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。'
+    return '这张默认连续性锚点记录的不是可信身体连续性基线，而是当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。'
   }
 
   if (input.survivingVisibleLane === 'motion+lipsync+voice-only') {
-    return '这张默认连续性锚点记录的不是可信身体连续性基线，而是当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线。'
+    return '这张默认连续性锚点记录的不是可信身体连续性基线，而是当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线。'
   }
 
   if (input.survivingVisibleLane === 'face+lipsync-only') {
-    return '这张默认连续性锚点记录的不是可信身体连续性基线，而是当前只有 face 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线。'
+    return '这张默认连续性锚点记录的不是可信身体连续性基线，而是当前只有 face 和 lipsync 这条 identity-continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线。'
   }
 
   if (input.survivingVisibleLane === 'motion+lipsync-only') {
-    return '这张默认连续性锚点记录的不是可信身体连续性基线，而是当前只有 motion 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线。'
+    return '这张默认连续性锚点记录的不是可信身体连续性基线，而是当前只有 motion 和 lipsync 这条 identity-continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线。'
   }
 
   return input.rendererRejoinSurface
@@ -244,7 +244,7 @@ export function buildSelfEvolutionAdoptedAnchorTraceability(input: {
 
   if (input.adoptedAnchor.projectStateContinuityGovernanceNote) {
     supportingLines.push(
-      `采纳前提仍然可追溯到${input.adoptedAnchor.projectStateContinuityGovernanceNote.replace(/。$/, '')}，而不是把项目身份、Phase 1 主线和未闭环任务承接误写成普通 same-her 漂移修复。`,
+      `采纳前提仍然可追溯到${input.adoptedAnchor.projectStateContinuityGovernanceNote.replace(/。$/, '')}，而不是把项目身份、Phase 1 主线和未闭环任务承接误写成普通 identity-continuity 漂移修复。`,
     )
   }
 
@@ -254,7 +254,7 @@ export function buildSelfEvolutionAdoptedAnchorTraceability(input: {
       && input.adoptedAnchor.relationshipCadenceGovernanceNote.includes('callback line')
         ? `采纳前提仍然可追溯到${input.adoptedAnchor.relationshipCadenceGovernanceNote.replace(/。$/, '')}，而不是把这种仍停在同一条 callback line 上的慢回归误写成已经可以全面外放的长期关系基线。`
         : input.adoptedAnchor.relationshipCadenceGovernanceNote.includes('长期关系节律')
-          ? `采纳前提仍然可追溯到${input.adoptedAnchor.relationshipCadenceGovernanceNote.replace(/。$/, '')}，而不是把这种慢回归误写成需要被强行加速的漂移，而是把它视为同一个她正在稳定下来的关系韵律。`
+          ? `采纳前提仍然可追溯到${input.adoptedAnchor.relationshipCadenceGovernanceNote.replace(/。$/, '')}，而不是把这种慢回归误写成需要被强行加速的漂移，而是把它视为身份连续性正在稳定下来的关系韵律。`
           : `采纳前提仍然可追溯到${input.adoptedAnchor.relationshipCadenceGovernanceNote.replace(/。$/, '')}，而不是把慢回归误写成需要被强行加速的漂移。`,
     )
   }

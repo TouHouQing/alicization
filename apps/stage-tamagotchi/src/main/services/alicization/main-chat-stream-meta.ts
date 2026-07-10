@@ -21,6 +21,7 @@ import {
   normalizeAlicizationDialogueEmbodimentEnvelope,
   normalizeAlicizationDigitalLifeEnvelope,
   resolveAlicizationCompanionshipReasonSummary,
+  sanitizeAlicizationStructuredInternalText,
 } from '@proj-alicization/stage-shared'
 
 import {
@@ -48,6 +49,70 @@ const pendingSameHerEmbodimentRepairPressureReasonTags = [
   'same-her-causality-repair-pressure',
   'runtimeSameHerEmbodimentCausality',
 ] as const
+
+const structuredMeasuredReturnInwardCarry
+  = 'continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower; visibility=internal-structured'
+const structuredRepairBeforeClosenessCallbackCarry
+  = 'continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred; visibility=internal-structured'
+
+function isStructuredMeasuredReturnInwardCarry(raw: string | null | undefined) {
+  return typeof raw === 'string'
+    && raw.includes('continuity_hold=measured_return')
+    && raw.includes('direction=inward')
+    && raw.includes('widening=deferred')
+}
+
+function sanitizeStreamMetaContinuityReason(raw: string | null | undefined, maxChars = 360) {
+  return sanitizeAlicizationStructuredInternalText(raw, maxChars, '')
+}
+
+const streamMetaStructuralTokenKeys = new Set([
+  'id',
+  'source',
+  'status',
+  'kind',
+  'lane',
+  'mode',
+  'version',
+  'decisionTraceId',
+  'turnId',
+  'cardId',
+  'segmentId',
+  'causalSource',
+  'affectedLane',
+  'reasonTag',
+  'reasonTags',
+  'sourceTag',
+  'sourceTags',
+  'focusDimension',
+  'focusDimensions',
+])
+
+function isStreamMetaStructuralToken(key: string | undefined, raw: string) {
+  const normalized = raw.trim()
+  if (!normalized)
+    return true
+  if (!key || !streamMetaStructuralTokenKeys.has(key))
+    return false
+  return /^[\w:./+-]+$/u.test(normalized)
+}
+
+function sanitizeStreamMetaObject<T>(raw: T, maxChars = 520, key?: string): T {
+  if (typeof raw === 'string') {
+    return (isStreamMetaStructuralToken(key, raw)
+      ? raw.trim().slice(0, Math.max(0, maxChars))
+      : sanitizeAlicizationStructuredInternalText(raw, maxChars)) as T
+  }
+  if (!raw || typeof raw !== 'object')
+    return raw
+  if (Array.isArray(raw))
+    return raw.map(item => sanitizeStreamMetaObject(item, maxChars, key)) as T
+
+  const sanitized: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>))
+    sanitized[key] = sanitizeStreamMetaObject(value, maxChars, key)
+  return sanitized as T
+}
 
 export function repairContinuitySourceTagsFromRuntimeDigest(input: {
   digitalLifeSpine: AlicizationChatMetaEvent['digitalLifeSpine'] | null | undefined
@@ -789,7 +854,7 @@ function readRuntimeProjectStateSameHerLivingLine(body: Pick<AlicizationChatMeta
   if (!carriesSameLivingLine)
     return null
 
-  return 'Keep the current thread inward for now, and leave room before widening outward again'
+  return structuredMeasuredReturnInwardCarry
 }
 
 function readRuntimeProjectEmotionalClosureSameHerLine(body: Pick<AlicizationChatMetaEvent, 'runtimeDigest'>) {
@@ -888,7 +953,7 @@ function readRuntimeProjectEmotionalClosureSameHerLine(body: Pick<AlicizationCha
     return projectStateEmotionalClosureCue
 
   if (carriesMeasuredReturnLivingLine || carriesSameHerMeasuredReturn)
-    return 'Keep the current thread inward for now, and leave room before widening outward again'
+    return structuredMeasuredReturnInwardCarry
 
   if (
     normalized.includes('repair-before-closeness')
@@ -948,7 +1013,7 @@ function resolveRepairBeforeClosenessSameHerReason(
   if (!carriesExecutionCallbackRoomFirstDrift && !carriesExplicitRepairFirstRestraint)
     return null
 
-  return 'Keep the callback tied to the current thread, let repair settle first, and leave room before widening closeness again'
+  return structuredRepairBeforeClosenessCallbackCarry
 }
 
 function resolveResidentPresenceSnapshotFallback(
@@ -1018,18 +1083,28 @@ function detectPhase1OpenGrowthFromText(raw: string) {
   const growthCarry = raw.toLowerCase()
   const carriesDesktopClosureThread
     = growthCarry.includes('desktop closure')
+      || growthCarry.includes('local_desktop_life_loop')
+      || growthCarry.includes('local_desktop_continuity')
       || growthCarry.includes('phase1-route=desktop-life-loop')
       || growthCarry.includes('same-digital-life-project-thread')
   const carriesPhase1LivingSelf
     = growthCarry.includes('same phase 1 digital life')
       || growthCarry.includes('local-first digital life')
+      || growthCarry.includes('local_desktop_life_loop')
+      || growthCarry.includes('project_state_continuity')
+      || growthCarry.includes('continuity_identity')
       || growthCarry.includes('continuous her')
       || growthCarry.includes('one continuous her')
   const carriesStillOpenClosure
     = growthCarry.includes('still live across scene hops')
       || growthCarry.includes('some closure has already landed')
       || growthCarry.includes('landed closure keeps growing')
+      || growthCarry.includes('landed_progress=present')
+      || growthCarry.includes('landed_progress=')
       || growthCarry.includes('unfinished closure')
+      || growthCarry.includes('unresolved_closure=')
+      || growthCarry.includes('open_loop=present')
+      || growthCarry.includes('open_loop=')
       || growthCarry.includes('still-open=')
       || growthCarry.includes('open=memory continuity still needs stronger closure')
       || growthCarry.includes('still need stronger')
@@ -1037,6 +1112,10 @@ function detectPhase1OpenGrowthFromText(raw: string) {
   const carriesMeasuredReturnContinuation
     = growthCarry.includes('should stay quieter')
       || growthCarry.includes('same living line')
+      || growthCarry.includes('continuity_line')
+      || growthCarry.includes('continuity_hold=measured_return')
+      || growthCarry.includes('direction=inward')
+      || growthCarry.includes('open_loop=')
       || growthCarry.includes('still-open loop')
       || growthCarry.includes('keep settling')
       || growthCarry.includes('same thread')
@@ -1044,7 +1123,11 @@ function detectPhase1OpenGrowthFromText(raw: string) {
       || growthCarry.includes('next=')
       || growthCarry.includes('unresolved=')
   return (
-    (growthCarry.includes('phase 1') || growthCarry.includes('phase1-route=desktop-life-loop'))
+    (
+      growthCarry.includes('phase 1')
+      || growthCarry.includes('phase1-route=desktop-life-loop')
+      || growthCarry.includes('local_desktop_life_loop')
+    )
     && (
       carriesDesktopClosureThread
       || carriesPhase1LivingSelf
@@ -1056,7 +1139,13 @@ function detectPhase1OpenGrowthFromText(raw: string) {
         && (
           growthCarry.includes('some closure already landed')
           || growthCarry.includes('some closure has already landed')
+          || growthCarry.includes('verified_closure_progress')
+          || growthCarry.includes('landed_progress=present')
+          || growthCarry.includes('landed_progress=')
           || growthCarry.includes('unfinished closure')
+          || growthCarry.includes('unresolved_closure=')
+          || growthCarry.includes('open_loop=present')
+          || growthCarry.includes('open_loop=')
           || growthCarry.includes('still need stronger')
           || growthCarry.includes('still needs stronger')
           || growthCarry.includes('unresolved=')
@@ -1075,6 +1164,7 @@ function isProjectClosureReason(raw: string | null | undefined) {
 
   const normalized = raw.trim().toLowerCase()
   return normalized.includes('desktop closure')
+    || normalized.includes('local_desktop_life_loop')
     || normalized.includes('phase1-route=desktop-life-loop')
     || normalized.includes('same-digital-life-project-thread')
 }
@@ -1087,6 +1177,9 @@ function isSameHerProjectClosureLine(raw: string | null | undefined) {
   const carriesPhase1Identity
     = normalized.includes('same phase 1 digital life')
       || normalized.includes('local-first digital life')
+      || normalized.includes('local_desktop_life_loop')
+      || normalized.includes('project_state_continuity')
+      || normalized.includes('continuity_identity')
       || normalized.includes('same-digital-life-project-thread')
       || normalized.includes('same-her')
       || normalized.includes('same her')
@@ -1094,6 +1187,9 @@ function isSameHerProjectClosureLine(raw: string | null | undefined) {
       || normalized.includes('one continuous her')
   const carriesLivingLineClosure
     = normalized.includes('same living line')
+      || normalized.includes('continuity_line')
+      || normalized.includes('continuity_hold=measured_return')
+      || normalized.includes('unresolved_closure=')
       || normalized.includes('unfinished closure')
       || normalized.includes('still needs')
       || normalized.includes('still need')
@@ -1120,6 +1216,7 @@ function isSameHerProjectClosureAuthority(raw: string | null | undefined) {
   const carriesNamedSameHerHold
     = normalized.includes('continuity hold:')
       || normalized.includes('generic project continuity hold')
+      || normalized.includes('continuity_hold=')
   const carriesMeasuredReturnAuthority
     = normalized.includes('same remembered seam')
       || normalized.includes('remembered seam')
@@ -1133,6 +1230,8 @@ function isSameHerProjectClosureAuthority(raw: string | null | undefined) {
       || normalized.includes('do not reopen from scratch')
   const carriesSameLivingLineAuthority
     = normalized.includes('same living line')
+      || normalized.includes('continuity_line')
+      || normalized.includes('direction=inward')
       || normalized.includes('same line')
       || normalized.includes('same thread')
       || normalized.includes('same-thread')
@@ -1152,7 +1251,9 @@ function isSpecificMeasuredReturnSameHerAuthority(raw: string | null | undefined
     || normalized.includes('same eagerness')
     || normalized.includes('too eagerly')
     || normalized.includes('measured-return')
+    || normalized.includes('continuity_hold=measured_return')
     || normalized.includes('lower-pressure')
+    || normalized.includes('pressure=lower')
     || normalized.includes('without reopening from scratch')
     || normalized.includes('do not reopen from scratch')
 }
@@ -1165,6 +1266,7 @@ function isSpecificMeasuredReturnSameHerHoldDetail(raw: string | null | undefine
   const carriesNamedSameHerHold
     = normalized.includes('continuity hold:')
       || normalized.includes('generic project continuity hold')
+      || normalized.includes('continuity_hold=')
   if (!carriesNamedSameHerHold)
     return false
 
@@ -1215,7 +1317,7 @@ function shouldMarkPhase1OpenGrowth(input: {
     continuityReason.includes('same-digital-life-project-thread')
     || continuityReason.includes('current project continuity has already landed')
     || continuityReason.includes('same phase 1 digital life, some closure has already landed')
-    || continuityReason.includes('Keep the current thread inward for now')
+    || isStructuredMeasuredReturnInwardCarry(continuityReason)
     || (
       isCanonicalRepairBeforeClosenessReason(continuityReason)
       && (
@@ -1320,6 +1422,13 @@ function resolveContinuityReasonSummary(
         currentBodyState: embodimentCurrentBodyState,
       }) || embodimentClosureReminder)
     : embodimentClosureReminder
+  const withEmbodimentClosure = (reason: string | null | undefined) => {
+    const sanitizedReason = sanitizeStreamMetaContinuityReason(reason)
+    const sanitizedClosure = sanitizeStreamMetaContinuityReason(embodimentClosureSummary)
+    if (sanitizedReason && sanitizedClosure)
+      return `${sanitizedReason} | ${sanitizedClosure}`
+    return sanitizedReason || sanitizedClosure || null
+  }
   const sameHerInwardCarry = readSameHerInwardCarry(body)
   const runtimeProjectStateSameHerLivingLine = readRuntimeProjectStateSameHerLivingLine(body)
   const runtimeProjectEmotionalClosureSameHerLine = readRuntimeProjectEmotionalClosureSameHerLine(body)
@@ -1364,17 +1473,13 @@ function resolveContinuityReasonSummary(
         || body.digitalLifeSpine?.proactive?.continuityRestraint === 'measured-return'
       )
   if (carriesRememberedSeamSpecificCompanionshipReason) {
-    return embodimentClosureSummary
-      ? `${rememberedSeamSpecificCompanionshipReason} | ${embodimentClosureSummary}`
-      : rememberedSeamSpecificCompanionshipReason
+    return withEmbodimentClosure(rememberedSeamSpecificCompanionshipReason)
   }
   const inwardSameHerCompanionshipMode = companionshipMode === 'measured-return'
     || companionshipMode === 'quiet-accompaniment'
   if (inwardSameHerCompanionshipMode && !rememberedSeamReopen) {
     if (companionshipMode === 'measured-return' && rememberedSeamMoreRoomReason) {
-      return embodimentClosureSummary
-        ? `${rememberedSeamMoreRoomReason} | ${embodimentClosureSummary}`
-        : rememberedSeamMoreRoomReason
+      return withEmbodimentClosure(rememberedSeamMoreRoomReason)
     }
     const normalizedSameHerInwardCarry = looksLikeSceneContaminatedSameHerReason(sameHerInwardCarry)
       ? null
@@ -1428,17 +1533,13 @@ function resolveContinuityReasonSummary(
             ?? runtimeProjectStateSameHerLivingLine
             ?? runtimeProjectEmotionalClosureSameHerLine
             ?? normalizedSameHerInwardCarry
-            ?? 'Keep the current thread inward for now, and leave room before widening outward again')
+            ?? structuredMeasuredReturnInwardCarry)
       : preferredSameHerReason
     if (shouldPreferCanonicalMeasuredReturnProjectClosure && runtimeProjectStateSameHerLivingLine) {
-      return embodimentClosureSummary
-        ? `${runtimeProjectStateSameHerLivingLine} | ${embodimentClosureSummary}`
-        : runtimeProjectStateSameHerLivingLine
+      return withEmbodimentClosure(runtimeProjectStateSameHerLivingLine)
     }
     if (normalizedPreferredSameHerReason) {
-      return embodimentClosureSummary
-        ? `${normalizedPreferredSameHerReason} | ${embodimentClosureSummary}`
-        : normalizedPreferredSameHerReason
+      return withEmbodimentClosure(normalizedPreferredSameHerReason)
     }
   }
   const hasCompanionshipSpineEvidence
@@ -1462,47 +1563,33 @@ function resolveContinuityReasonSummary(
       })
     : null
   if (companionshipReason) {
-    return embodimentClosureSummary
-      ? `${companionshipReason} | ${embodimentClosureSummary}`
-      : companionshipReason
+    return withEmbodimentClosure(companionshipReason)
   }
 
   if (!continuityTiming)
-    return embodimentClosureSummary
+    return withEmbodimentClosure(null)
 
   const preflightSummary = body.runtimeDigest?.projectState?.preflightSummary ?? null
   const cue = explicitProjectContinuityCue
   if (typeof cue === 'string' && cue.trim() && isProjectClosureReason(cue)) {
-    return embodimentClosureSummary
-      ? `${cue.trim()} | ${embodimentClosureSummary}`
-      : cue.trim()
+    return withEmbodimentClosure(cue.trim())
   }
   if (sameHerInwardCarry) {
-    return embodimentClosureSummary
-      ? `${sameHerInwardCarry} | ${embodimentClosureSummary}`
-      : sameHerInwardCarry
+    return withEmbodimentClosure(sameHerInwardCarry)
   }
   if (runtimeProjectEmotionalClosureSameHerLine) {
-    return embodimentClosureSummary
-      ? `${runtimeProjectEmotionalClosureSameHerLine} | ${embodimentClosureSummary}`
-      : runtimeProjectEmotionalClosureSameHerLine
+    return withEmbodimentClosure(runtimeProjectEmotionalClosureSameHerLine)
   }
   if (runtimeProjectStateSameHerLivingLine) {
-    return embodimentClosureSummary
-      ? `${runtimeProjectStateSameHerLivingLine} | ${embodimentClosureSummary}`
-      : runtimeProjectStateSameHerLivingLine
+    return withEmbodimentClosure(runtimeProjectStateSameHerLivingLine)
   }
   if (typeof cue === 'string' && cue.trim()) {
-    return embodimentClosureSummary
-      ? `${cue.trim()} | ${embodimentClosureSummary}`
-      : cue.trim()
+    return withEmbodimentClosure(cue.trim())
   }
   if (typeof preflightSummary === 'string' && preflightSummary.trim()) {
-    return embodimentClosureSummary
-      ? `${preflightSummary.trim()} | ${embodimentClosureSummary}`
-      : preflightSummary.trim()
+    return withEmbodimentClosure(preflightSummary.trim())
   }
-  return embodimentClosureSummary
+  return withEmbodimentClosure(null)
 }
 
 function shouldPromoteMeasuredReturnProjectClosureVoiceFallback(input: {
@@ -1515,7 +1602,7 @@ function shouldPromoteMeasuredReturnProjectClosureVoiceFallback(input: {
     return false
   if (input.continuityTiming !== 'next-open-window')
     return false
-  if (!input.continuityReasonSummary?.includes('Keep the current thread inward for now'))
+  if (!isStructuredMeasuredReturnInwardCarry(input.continuityReasonSummary))
     return false
 
   return (
@@ -1871,7 +1958,7 @@ function resolveResidentPresenceSummary(body: Pick<AlicizationChatMetaEvent, 'di
     )
   const residentCompanionshipReason = residentTimingCompanionshipReason(residentMode)
   const carriesCanonicalSameHerInwardResidentReason = typeof residentCompanionshipReason === 'string'
-    && residentCompanionshipReason.includes('Keep the current thread inward for now')
+    && isStructuredMeasuredReturnInwardCarry(residentCompanionshipReason)
   const finerResidentTimingReason = hasRememberedSeamMoreRoomReasonTag(residentReasonTags)
     ? residentCompanionshipReason
     : null
@@ -1899,6 +1986,7 @@ function resolveResidentPresenceSummary(body: Pick<AlicizationChatMetaEvent, 'di
   const preferredContinuityReason = shouldPreferFinerResidentTimingReason || shouldPreferSelfEvolutionSameHerResidentReason
     ? residentCompanionshipReason
     : continuityReason
+  const sanitizedPreferredContinuityReason = sanitizeStreamMetaContinuityReason(preferredContinuityReason)
 
   if (!continuityLine && !continuityArcStage && operatingMode !== 'resident-presence')
     return null
@@ -1911,7 +1999,7 @@ function resolveResidentPresenceSummary(body: Pick<AlicizationChatMetaEvent, 'di
     typeof shouldSpeak === 'boolean' ? `speak=${shouldSpeak ? 'true' : 'false'}` : null,
     preferredTiming ? `timing=${preferredTiming}` : null,
     projectGrowthSummary ? `growth=${projectGrowthSummary}` : null,
-    preferredContinuityReason ? `reason=${preferredContinuityReason}` : null,
+    sanitizedPreferredContinuityReason ? `reason=${sanitizedPreferredContinuityReason}` : null,
     continuityLine ? `line=${continuityLine}` : null,
   ].filter((value): value is string => Boolean(value)).join(' | ') || null
 }
@@ -3296,15 +3384,15 @@ export function buildAlicizationChatMetaPayload(input: {
     turnId: input.turnId,
     governance: input.governance,
     visibleReplyExecution: input.visibleReplyExecution ?? null,
-    projectState,
-    preDialogueAwareness,
-    embodiment: pressureAdjustedEmbodiment,
-    embodimentScript: pressureAdjustedEmbodimentScript,
-    speechTimeline: pressureAdjustedSpeechTimeline,
-    digitalLife: pressureAdjustedDigitalLife,
-    digitalLifeSpine: repairedDigitalLifeSpine,
-    residentPerformance: input.residentPerformance ?? null,
-    runtimeDigest: effectiveRuntimeDigest,
+    projectState: sanitizeStreamMetaObject(projectState),
+    preDialogueAwareness: sanitizeStreamMetaObject(preDialogueAwareness),
+    embodiment: sanitizeStreamMetaObject(pressureAdjustedEmbodiment),
+    embodimentScript: sanitizeStreamMetaObject(pressureAdjustedEmbodimentScript),
+    speechTimeline: sanitizeStreamMetaObject(pressureAdjustedSpeechTimeline),
+    digitalLife: sanitizeStreamMetaObject(pressureAdjustedDigitalLife),
+    digitalLifeSpine: sanitizeStreamMetaObject(repairedDigitalLifeSpine),
+    residentPerformance: sanitizeStreamMetaObject(input.residentPerformance ?? null),
+    runtimeDigest: sanitizeStreamMetaObject(effectiveRuntimeDigest),
   } satisfies AlicizationChatMetaEvent
 }
 
@@ -3392,9 +3480,11 @@ export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMeta
       continuityReasonSummary === explicitProjectContinuityCue
       || isCompactProjectRouteCarry(continuityReasonSummary)
       || isSameHerProjectClosureLine(continuityReasonSummary)
-      || continuityReasonSummary.includes('Keep the current thread inward for now')
+      || isStructuredMeasuredReturnInwardCarry(continuityReasonSummary)
       || continuityReasonSummary.includes('keep the next return measured-return')
       || continuityReasonSummary.includes('leave this same living line inward for now')
+      || continuityReasonSummary.includes('open_loop=')
+      || continuityReasonSummary.includes('landed_progress=')
     )
     ? 'phase1-open'
     : null
@@ -4123,7 +4213,7 @@ export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMeta
     digitalLifeLastFrameFaceExpressionMode: lastFrame?.face.expressionMode ?? null,
     digitalLifeLastFrameFaceHoldMs: lastFrame?.face.holdMs ?? null,
     digitalLifeLastFrameActionHoldMs: lastFrame?.action.holdMs ?? null,
-    digitalLifeLine: body.digitalLifeSpine?.continuitySignal?.summary ?? null,
+    digitalLifeLine: sanitizeStreamMetaContinuityReason(body.digitalLifeSpine?.continuitySignal?.summary ?? null),
     digitalLifeOperatingMode: body.digitalLifeSpine?.architecture?.operatingMode ?? null,
     digitalLifeDominantSystem: body.digitalLifeSpine?.architecture?.dominantSystem ?? null,
     digitalLifeSceneScenario: body.digitalLifeSpine?.runtime.sceneScenario ?? null,
@@ -4131,27 +4221,27 @@ export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMeta
     digitalLifeSelectedAction: body.digitalLifeSpine?.proactive?.selectedAction ?? null,
     digitalLifeProactivePreferredStyle: body.digitalLifeSpine?.proactive?.preferredStyle ?? null,
     digitalLifeProactiveShouldSpeak: body.digitalLifeSpine?.proactive?.shouldSpeak ?? null,
-    digitalLifeMemorySummary: body.digitalLifeSpine?.memory?.summary ?? null,
-    digitalLifeLongHorizonSummary: body.digitalLifeSpine?.memory?.longHorizonSummary ?? null,
-    digitalLifeRememberedPreferenceSummary: body.digitalLifeSpine?.memory?.rememberedPreferenceSummary ?? null,
-    digitalLifeRememberedConstraintSummary: body.digitalLifeSpine?.memory?.rememberedConstraintSummary ?? null,
-    digitalLifeRememberedPlanSummary: body.digitalLifeSpine?.memory?.rememberedPlanSummary ?? null,
+    digitalLifeMemorySummary: sanitizeStreamMetaContinuityReason(body.digitalLifeSpine?.memory?.summary ?? null),
+    digitalLifeLongHorizonSummary: sanitizeStreamMetaContinuityReason(body.digitalLifeSpine?.memory?.longHorizonSummary ?? null),
+    digitalLifeRememberedPreferenceSummary: sanitizeStreamMetaContinuityReason(body.digitalLifeSpine?.memory?.rememberedPreferenceSummary ?? null),
+    digitalLifeRememberedConstraintSummary: sanitizeStreamMetaContinuityReason(body.digitalLifeSpine?.memory?.rememberedConstraintSummary ?? null),
+    digitalLifeRememberedPlanSummary: sanitizeStreamMetaContinuityReason(body.digitalLifeSpine?.memory?.rememberedPlanSummary ?? null),
     digitalLifeLongHorizonCueCount: body.digitalLifeSpine?.memory?.longHorizonCueCount ?? null,
     digitalLifeRecallMode: body.digitalLifeSpine?.memory?.recallMode ?? null,
     digitalLifeRecentEpisodeCount: body.digitalLifeSpine?.memory?.recentEpisodeCount ?? 0,
     digitalLifeReflectionPressure: body.digitalLifeSpine?.memory?.reflectionPressure ?? null,
     digitalLifeMotiveRulingDrive: body.digitalLifeSpine?.motive?.rulingDrive ?? null,
-    digitalLifeMotiveLeadingGoal: body.digitalLifeSpine?.motive?.leadingGoalSummary ?? null,
+    digitalLifeMotiveLeadingGoal: sanitizeStreamMetaContinuityReason(body.digitalLifeSpine?.motive?.leadingGoalSummary ?? null),
     digitalLifeMotiveLeadingAgendaKind: body.digitalLifeSpine?.motive?.leadingAgendaKind ?? null,
-    digitalLifeMotiveLeadingAgendaSummary: body.digitalLifeSpine?.motive?.leadingAgendaSummary ?? null,
+    digitalLifeMotiveLeadingAgendaSummary: sanitizeStreamMetaContinuityReason(body.digitalLifeSpine?.motive?.leadingAgendaSummary ?? null),
     digitalLifeMotiveReturnPressure: body.digitalLifeSpine?.motive?.returnPressure ?? null,
     digitalLifeHabitMode: body.digitalLifeSpine?.habit?.dominantMode ?? null,
     digitalLifeHabitGroundingGate: body.digitalLifeSpine?.habit?.requiresGroundingBeforeSurface ?? null,
     digitalLifeHabitBusyBoundary: body.digitalLifeSpine?.habit?.blocksDirectSpeakWhenBusy ?? null,
     digitalLifeHabitProtectsRest: body.digitalLifeSpine?.habit?.protectsRestWindow ?? null,
-    digitalLifeOutcomeLearningSummary: body.digitalLifeSpine?.outcomeLearning?.summary ?? null,
-    digitalLifeOutcomeLatestInflection: body.digitalLifeSpine?.outcomeLearning?.latestInflection ?? null,
-    digitalLifeOutcomeReflectionLesson: body.digitalLifeSpine?.outcomeLearning?.reflectionLesson ?? null,
+    digitalLifeOutcomeLearningSummary: sanitizeStreamMetaContinuityReason(body.digitalLifeSpine?.outcomeLearning?.summary ?? null),
+    digitalLifeOutcomeLatestInflection: sanitizeStreamMetaContinuityReason(body.digitalLifeSpine?.outcomeLearning?.latestInflection ?? null),
+    digitalLifeOutcomeReflectionLesson: sanitizeStreamMetaContinuityReason(body.digitalLifeSpine?.outcomeLearning?.reflectionLesson ?? null),
     runtimeDigestDominantChannel: body.runtimeDigest?.dominantChannel ?? null,
     runtimeDigestShouldSpeak: body.runtimeDigest?.shouldProactivelySpeak ?? null,
     runtimeDigestShouldAct: body.runtimeDigest?.shouldProactivelyAct ?? null,
@@ -4163,26 +4253,26 @@ export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMeta
     runtimeDigestBoundaryPressure: body.runtimeDigest?.boundaryPressure ?? null,
     runtimeDigestRestProtectionPressure: body.runtimeDigest?.restProtectionPressure ?? null,
     runtimeDigestReturnPressure: body.runtimeDigest?.returnPressure ?? null,
-    runtimeDigestEmotionalClosureCue: body.runtimeDigest?.projectState?.emotionalClosureCue ?? body.runtimeDigest?.emotionalClosureCue ?? null,
+    runtimeDigestEmotionalClosureCue: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.projectState?.emotionalClosureCue ?? body.runtimeDigest?.emotionalClosureCue ?? null),
     runtimeDigestActiveLoopPhase: body.runtimeDigest?.activeLoop?.phase ?? null,
     runtimeDigestActiveLoopHandoff: body.runtimeDigest?.activeLoop?.handoffTarget ?? null,
     runtimeDigestActiveLoopContinuityArcStage: body.runtimeDigest?.activeLoop?.continuityArcStage ?? null,
     runtimeDigestActiveLoopInitiativeBudget: body.runtimeDigest?.activeLoop?.initiativeBudget ?? null,
     runtimeDigestActiveLoopCoherence: body.runtimeDigest?.activeLoop?.coherence ?? null,
     runtimeDigestActiveLoopObservationHeavy: body.runtimeDigest?.activeLoop?.observationHeavy ?? null,
-    runtimeDigestProjectPreflightSummary: body.runtimeDigest?.projectState?.preflightSummary ?? null,
-    runtimeDigestProjectCurrentPhase: body.runtimeDigest?.projectState?.currentPhase ?? null,
-    runtimeDigestProjectMemoryClosureSummary: body.runtimeDigest?.projectState?.memoryClosureSummary ?? null,
-    runtimeDigestProjectPrimaryOpenLoop: body.runtimeDigest?.projectState?.primaryOpenLoop ?? null,
-    runtimeDigestProjectNextClosureTarget: body.runtimeDigest?.projectState?.nextClosureTarget ?? null,
+    runtimeDigestProjectPreflightSummary: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.projectState?.preflightSummary ?? null),
+    runtimeDigestProjectCurrentPhase: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.projectState?.currentPhase ?? null),
+    runtimeDigestProjectMemoryClosureSummary: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.projectState?.memoryClosureSummary ?? null),
+    runtimeDigestProjectPrimaryOpenLoop: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.projectState?.primaryOpenLoop ?? null),
+    runtimeDigestProjectNextClosureTarget: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.projectState?.nextClosureTarget ?? null),
     runtimeDigestProjectContinuityArcStage: body.runtimeDigest?.projectState?.continuityArcStage ?? null,
     runtimeDigestProjectContinuityPreferredTiming: body.runtimeDigest?.projectState?.continuityPreferredTiming ?? null,
-    runtimeDigestProjectContinuityCue: body.runtimeDigest?.projectState?.continuityCue ?? null,
-    runtimeDigestCurrentConsciousFrameFocusAnchor: body.runtimeDigest?.currentConsciousFrame?.focusAnchor ?? null,
+    runtimeDigestProjectContinuityCue: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.projectState?.continuityCue ?? null),
+    runtimeDigestCurrentConsciousFrameFocusAnchor: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.currentConsciousFrame?.focusAnchor ?? null),
     runtimeDigestCurrentConsciousFrameContinuityArcStage: body.runtimeDigest?.currentConsciousFrame?.continuityArcStage ?? null,
     runtimeDigestCurrentConsciousFrameContinuityPreferredTiming: body.runtimeDigest?.currentConsciousFrame?.continuityPreferredTiming ?? null,
     runtimeDigestCurrentConsciousFrameReasonTags: body.runtimeDigest?.currentConsciousFrame?.reasonTags ?? null,
-    runtimeDigestSummary: body.runtimeDigest?.summary ?? null,
+    runtimeDigestSummary: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.summary ?? null),
   })
 }
 

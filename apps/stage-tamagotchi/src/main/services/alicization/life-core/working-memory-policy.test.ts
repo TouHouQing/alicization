@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
-
 import type { WorkingMemoryTurn } from './working-memory'
+
+import { describe, expect, it } from 'vitest'
 
 import {
   createLongTermCandidatesFromWorkingTurns,
@@ -69,6 +69,25 @@ describe('working memory policy', () => {
       role: 'alice',
       text: '我在。同一条本地数字生命的线还在。',
     }))).toBe(true)
+  })
+
+  it('keeps the meaning of template-rejection corrections without storing quoted fixed templates', () => {
+    const candidates = createLongTermCandidatesFromWorkingTurns([
+      turn({
+        turnId: 'template-rejection',
+        role: 'user',
+        text: '不要再用 Before speaking, remember this is still one continuous her 这种 same-her 固定模板来回复我。',
+      }),
+    ])
+
+    expect(candidates).toHaveLength(1)
+    expect(candidates[0]).toEqual(expect.objectContaining({
+      kind: 'correction',
+      allowTraining: false,
+      sourceTurnIds: ['template-rejection'],
+    }))
+    expect(candidates[0]?.summary).toContain('不要使用固定模板')
+    expect(candidates[0]?.summary).not.toMatch(/Before speaking|same-her|one continuous her/u)
   })
 
   it('creates long-term candidates for clear preference episode procedure and relationship signals', () => {

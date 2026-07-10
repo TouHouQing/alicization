@@ -38,9 +38,9 @@ function resolveSurvivingVisibleLane(
     return 'face+lipsync+voice-only'
   if (value.includes('当前仅剩动作、口型、声音维持同一段连续性'))
     return 'motion+lipsync+voice-only'
-  if (value.includes('当前只有 face 和 lipsync 这条 same-her 生命线'))
+  if (value.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线'))
     return 'face+lipsync-only'
-  if (value.includes('当前只有 motion 和 lipsync 这条 same-her 生命线'))
+  if (value.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线'))
     return 'motion+lipsync-only'
 
   return null
@@ -75,19 +75,19 @@ function formatRendererRejoinWithoutBodyHistoryLine(input: {
   rendererRejoinSurface: string | null
 }) {
   if (input.survivingVisibleLane === 'face+lipsync+voice-only') {
-    return '这次历史转移对应的是身体连续性治理，应优先确认当前是否仍只有表情、口型、声音这条 same-her 生命线与同一段 living segment 对齐，避免把这次 quieter carry 误写成 body、motion 已经补回的修复完成。'
+    return '这次历史转移对应的是身体连续性治理，应优先确认当前是否仍只有表情、口型、声音这条 identity-continuity 生命线与同一段 living segment 对齐，避免把这次 quieter carry 误写成 body、motion 已经补回的修复完成。'
   }
 
   if (input.survivingVisibleLane === 'motion+lipsync+voice-only') {
-    return '这次历史转移对应的是身体连续性治理，应优先确认当前是否仍只有动作、口型、声音这条 same-her 生命线与同一段 living segment 对齐，避免把这次 quieter carry 误写成 body、face 已经补回的修复完成。'
+    return '这次历史转移对应的是身体连续性治理，应优先确认当前是否仍只有动作、口型、声音这条 identity-continuity 生命线与同一段 living segment 对齐，避免把这次 quieter carry 误写成 body、face 已经补回的修复完成。'
   }
 
   if (input.survivingVisibleLane === 'face+lipsync-only') {
-    return '这次历史转移对应的是身体连续性治理，应优先确认当前是否仍只有表情、口型这条 same-her 生命线与同一段 living segment 对齐，避免把这次 quieter carry 误写成 body、motion、voice 已经补回的修复完成。'
+    return '这次历史转移对应的是身体连续性治理，应优先确认当前是否仍只有表情、口型这条 identity-continuity 生命线与同一段 living segment 对齐，避免把这次 quieter carry 误写成 body、motion、voice 已经补回的修复完成。'
   }
 
   if (input.survivingVisibleLane === 'motion+lipsync-only') {
-    return '这次历史转移对应的是身体连续性治理，应优先确认当前是否仍只有动作、口型这条 same-her 生命线与同一段 living segment 对齐，避免把这次 quieter carry 误写成 body、face、voice 已经补回的修复完成。'
+    return '这次历史转移对应的是身体连续性治理，应优先确认当前是否仍只有动作、口型这条 identity-continuity 生命线与同一段 living segment 对齐，避免把这次 quieter carry 误写成 body、face、voice 已经补回的修复完成。'
   }
 
   return input.rendererRejoinSurface
@@ -112,7 +112,7 @@ export function buildSelfEvolutionAdoptedAnchorHistoryTransition(input: {
 
   const supportingLines = [
     `这次转移生成了被采纳的默认基线快照，并继续沿用轨迹 ${matchedTransition.currentDecisionTraceId ?? 'n/a'}。`,
-    '如果需要验证 same-her 连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
+    '如果需要验证 identity-continuity 连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
   ]
   const bodyContinuityPhase = inferBodyContinuityPhase({
     bodyContinuityPhase: input.adoptedAnchor.bodyContinuityPhase,
@@ -122,8 +122,8 @@ export function buildSelfEvolutionAdoptedAnchorHistoryTransition(input: {
     input.adoptedAnchor.bodyContinuityGovernanceNote,
   )
 
-  if (input.adoptedAnchor.activePatternKey === 'pattern-same-her-governance') {
-    supportingLines.push('这次历史转移对应的是同一个她连续性治理，而不是把记忆先行的熟悉感当成待修漂移。')
+  if (input.adoptedAnchor.activePatternKey === 'pattern-identity-continuity-governance') {
+    supportingLines.push('这次历史转移对应的是身份连续性连续性治理，而不是把记忆先行的熟悉感当成待修漂移。')
   }
 
   if (input.adoptedAnchor.activePatternKey === 'pattern-body-continuity-governance') {

@@ -1,4 +1,5 @@
 import type { WebSocketEventInputs } from '@proj-alicization/server-sdk'
+import type { AlicizationChatFailureKind } from '@proj-alicization/stage-shared'
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 import type { CommonContentPart, Message, ToolMessage } from '@xsai/shared-chat'
 
@@ -24,11 +25,14 @@ import type { RealtimeEvidenceItem } from './alicization-execution-engine'
 import type { StreamEvent, StreamOptions } from './llm'
 
 import {
+
+  alicizationFixedTemplateReplacement,
   buildAlicizationDialogueSpeechTimeline,
   buildAlicizationDigitalLifeEnvelope,
   deriveAlicizationRendererBridgeWatchdogTimeoutPolicy,
   detectAlicizationExecutionCapabilityInquiry,
   detectAlicizationExecutionRoutingIntent,
+  formatAlicizationProjectStateAwarenessFields,
   formatAlicizationRealtimeSurfaceSummary,
   inferAlicizationInspectionIntent,
   inferAlicizationRealtimeSurfaceLocale,
@@ -39,9 +43,9 @@ import {
   resolveAlicizationChatFailureSurface,
   resolveAlicizationDialogueEmbodiment,
   resolveAlicizationProjectPreDialogueAwarenessLine,
+  sanitizeAlicizationProviderFacingText,
   shouldBufferAlicizationStructuredSpeechPrelude,
   translateGovernedMindFallback,
-  type AlicizationChatFailureKind,
 } from '@proj-alicization/stage-shared'
 import { createQueue } from '@proj-alicization/stream-kit'
 import { nanoid } from 'nanoid'
@@ -82,10 +86,12 @@ import {
 import { createDatetimeContext, createSensoryContext } from './chat/context-providers'
 import { useChatContextStore } from './chat/context-store'
 import { createChatHooks } from './chat/hooks'
+import { shouldAttachProjectStatePreDialogueIdentity } from './chat/pre-dialogue-project-state-intent'
 import {
   buildPreDialogueSendIdentityFromSnapshots as buildSharedPreDialogueSendIdentityFromSnapshots,
   resolvePreDialogueClosureCompanionHeadlineLine,
   resolvePreferredCompanionHeadlineLine,
+  sanitizePreDialogueSendIdentity as sanitizeSharedPreDialogueSendIdentity,
 } from './chat/pre-dialogue-send-identity'
 import { useChatSessionStore } from './chat/session-store'
 import { useChatStreamStore } from './chat/stream-store'
@@ -114,23 +120,35 @@ function createRuntimeAuthoritativeVisibleReplyBlockedError() {
   return new Error(runtimeAuthoritativeVisibleReplyBlockedErrorMessage)
 }
 
-function toAlicizationChatStartPreDialogueSendIdentity(
+function sanitizeChatPreDialogueSendIdentity(
   identity: ChatStreamEventContext['preDialogueSendIdentity'],
-): AlicizationPreDialogueSendIdentity | null {
+): ChatStreamEventContext['preDialogueSendIdentity'] {
   if (!identity)
     return null
 
+  return sanitizeSharedPreDialogueSendIdentity(
+    identity as AlicizationPreDialogueSendIdentity,
+  ) as ChatStreamEventContext['preDialogueSendIdentity']
+}
+
+function toAlicizationChatStartPreDialogueSendIdentity(
+  identity: ChatStreamEventContext['preDialogueSendIdentity'],
+): AlicizationPreDialogueSendIdentity | null {
+  const sanitizedIdentity = sanitizeChatPreDialogueSendIdentity(identity)
+  if (!sanitizedIdentity)
+    return null
+
   return {
-    status: identity.status,
-    summaryLine: identity.summaryLine,
-    companionHeadlineLine: identity.companionHeadlineLine ?? null,
-    companionBriefingLine: identity.companionBriefingLine ?? null,
-    companionNextClosureLine: identity.companionNextClosureLine ?? null,
-    awarenessLine: identity.awarenessLine ?? null,
-    emotionalClosureCue: identity.emotionalClosureCue ?? null,
-    projectState: identity.projectState ?? null,
-    emotionalKernel: identity.emotionalKernel ?? null,
-    reasonPreview: identity.reasonPreview.filter((reason): reason is string => typeof reason === 'string' && reason.trim().length > 0),
+    status: sanitizedIdentity.status,
+    summaryLine: sanitizedIdentity.summaryLine,
+    companionHeadlineLine: sanitizedIdentity.companionHeadlineLine ?? null,
+    companionBriefingLine: sanitizedIdentity.companionBriefingLine ?? null,
+    companionNextClosureLine: sanitizedIdentity.companionNextClosureLine ?? null,
+    awarenessLine: sanitizedIdentity.awarenessLine ?? null,
+    emotionalClosureCue: sanitizedIdentity.emotionalClosureCue ?? null,
+    projectState: sanitizedIdentity.projectState ?? null,
+    emotionalKernel: sanitizedIdentity.emotionalKernel ?? null,
+    reasonPreview: sanitizedIdentity.reasonPreview.filter((reason): reason is string => typeof reason === 'string' && reason.trim().length > 0),
   }
 }
 
@@ -152,19 +170,270 @@ function toStructuredPreDialogueAwarenessPayload(
   }
 }
 
+function sanitizeChatProviderFacingTemplateText(value: unknown, maxChars = 420) {
+  return sanitizeAlicizationProviderFacingText(value, maxChars, alicizationFixedTemplateReplacement) || null
+}
+
+type ChatStructuredAwarenessField
+  = | 'identity'
+    | 'phase'
+    | 'open'
+    | 'next'
+    | 'continuity_anchor'
+    | 'continuity_hold'
+    | 'continuity_drift_risk'
+    | 'emotional_closure'
+    | 'summary'
+
+function formatChatStructuredAwarenessField(
+  field: ChatStructuredAwarenessField,
+  value: unknown,
+  maxChars = 420,
+) {
+  const structured = formatAlicizationProjectStateAwarenessFields({
+    ...(field === 'identity' ? { identity: value } : {}),
+    ...(field === 'phase' ? { currentPhase: value } : {}),
+    ...(field === 'open' ? { primaryOpenLoop: value } : {}),
+    ...(field === 'next' ? { nextClosureTarget: value } : {}),
+    ...(field === 'continuity_anchor' ? { continuityAnchor: value } : {}),
+    ...(field === 'continuity_hold' ? { sameHerHoldDetail: value } : {}),
+    ...(field === 'continuity_drift_risk' ? { continuityDriftRisk: value } : {}),
+    ...(field === 'emotional_closure' ? { emotionalClosureCue: value } : {}),
+    ...(field === 'summary' ? { summary: value } : {}),
+    maxChars,
+  })
+  const prefix = `${field}=`
+  return structured
+    .split('|')
+    .map(fragment => fragment.trim())
+    .find(fragment => fragment.startsWith(prefix))
+    ?.slice(prefix.length)
+    .trim()
+    || null
+}
+
+function sanitizeChatAwarenessStructuredText(
+  value: unknown,
+  maxChars = 420,
+  fields: ChatStructuredAwarenessField[] = ['summary', 'next', 'open', 'continuity_hold', 'emotional_closure', 'continuity_anchor', 'continuity_drift_risk', 'identity', 'phase'],
+) {
+  const sanitized = sanitizeChatProviderFacingTemplateText(value, maxChars)
+  if (!sanitized)
+    return null
+  if (sanitized !== alicizationFixedTemplateReplacement)
+    return sanitized
+
+  for (const field of fields) {
+    const structured = formatChatStructuredAwarenessField(field, value, maxChars)
+    if (
+      structured
+      && structured !== alicizationFixedTemplateReplacement
+      && structured !== 'phase1_local_digital_life'
+      && structured !== 'local_desktop_life_loop'
+      && structured !== 'continuity_review_required'
+    ) {
+      return structured
+    }
+  }
+
+  return alicizationFixedTemplateReplacement
+}
+
+function sanitizeChatVisibleReplyText(value: unknown, maxChars = 4000) {
+  const providerSafe = sanitizeAlicizationProviderFacingText(value, maxChars, '')
+  return sanitizeStructuredReplySurface(providerSafe)
+}
+
+function containsChatVisibleReplyFixedTemplateResidue(value: unknown, maxChars = 4000) {
+  if (typeof value !== 'string' || !value.trim())
+    return false
+  return !sanitizeAlicizationProviderFacingText(value, maxChars, '')
+}
+
+function isRecordPayload(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function compactStringList(value: unknown, limit = 16) {
+  if (!Array.isArray(value))
+    return []
+
+  const result: string[] = []
+  for (const item of value) {
+    if (typeof item !== 'string')
+      continue
+    const trimmed = item.trim()
+    if (!trimmed || result.includes(trimmed))
+      continue
+    result.push(trimmed)
+    if (result.length >= limit)
+      break
+  }
+  return result
+}
+
+function arrayCount(value: unknown) {
+  return Array.isArray(value) ? value.length : 0
+}
+
+function countFromRecord(raw: Record<string, unknown>, key: string, fallback: number) {
+  const value = raw[key]
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? value
+    : fallback
+}
+
+function normalizeVisibleReplyCriticForPersistence(
+  raw: AlicizationConversationTurnInput['visibleReplyCritic'] | null | undefined,
+): AlicizationConversationTurnInput['visibleReplyCritic'] | null {
+  if (!isRecordPayload(raw))
+    return null
+
+  const reasonCodes = compactStringList(raw.reasonCodes).length > 0
+    ? compactStringList(raw.reasonCodes)
+    : compactStringList(raw.reasons)
+  const repairReasonCodes = compactStringList(raw.repairReasonCodes)
+  const summary: Record<string, unknown> = {
+    version: 'visible-reply-critic-public-summary-v1',
+    reasonCodes,
+    repairReasonCodes,
+    mustPreserveCount: countFromRecord(raw, 'mustPreserveCount', arrayCount(raw.mustPreserve)),
+    mustDropCount: countFromRecord(raw, 'mustDropCount', arrayCount(raw.mustDrop)),
+  }
+
+  if (typeof raw.providerMindRequired === 'boolean')
+    summary.providerMindRequired = raw.providerMindRequired
+  if (typeof raw.semanticLoopClosed === 'boolean')
+    summary.semanticLoopClosed = raw.semanticLoopClosed
+  if (typeof raw.status === 'string' && raw.status.trim())
+    summary.status = raw.status.trim()
+
+  return summary
+}
+
+function criticPreserveCount(raw: unknown) {
+  return isRecordPayload(raw) ? countFromRecord(raw, 'mustPreserveCount', arrayCount(raw.mustPreserve)) : 0
+}
+
+function criticDropCount(raw: unknown) {
+  return isRecordPayload(raw) ? countFromRecord(raw, 'mustDropCount', arrayCount(raw.mustDrop)) : 0
+}
+
+function normalizeVisibleReplyClosureForPersistence(
+  raw: AlicizationConversationTurnInput['visibleReplyClosure'] | null | undefined,
+): AlicizationConversationTurnInput['visibleReplyClosure'] | null {
+  if (!isRecordPayload(raw))
+    return null
+
+  const initialCritic = isRecordPayload(raw.initialCritic) ? raw.initialCritic : null
+  const finalCritic = isRecordPayload(raw.finalCritic) ? raw.finalCritic : null
+  const summary: Record<string, unknown> = {
+    version: 'visible-reply-closure-public-summary-v1',
+    reasonCodes: compactStringList(raw.reasonCodes),
+    repairReasonCodes: compactStringList(raw.repairReasonCodes),
+    initialCriticMustPreserveCount: countFromRecord(raw, 'initialCriticMustPreserveCount', criticPreserveCount(initialCritic)),
+    initialCriticMustDropCount: countFromRecord(raw, 'initialCriticMustDropCount', criticDropCount(initialCritic)),
+    finalCriticMustPreserveCount: countFromRecord(raw, 'finalCriticMustPreserveCount', criticPreserveCount(finalCritic)),
+    finalCriticMustDropCount: countFromRecord(raw, 'finalCriticMustDropCount', criticDropCount(finalCritic)),
+  }
+
+  if (typeof raw.status === 'string' && raw.status.trim())
+    summary.status = raw.status.trim()
+  if (typeof raw.providerMindRequired === 'boolean')
+    summary.providerMindRequired = raw.providerMindRequired
+  if (typeof raw.semanticLoopClosed === 'boolean')
+    summary.semanticLoopClosed = raw.semanticLoopClosed
+
+  return summary
+}
+
+function sanitizeAlicizationAuditDetails(
+  details: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!details)
+    return undefined
+
+  const sanitized: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(details)) {
+    if (key === 'candidateReply') {
+      sanitized.candidateReplyChars = typeof value === 'string' ? value.length : 0
+      sanitized.candidateReplyFixedTemplateBlocked = typeof value === 'string'
+        ? isAlicizationDecorativePersonaTemplateContamination(value)
+        || containsChatVisibleReplyFixedTemplateResidue(value)
+        : true
+      continue
+    }
+    if (key === 'finalHostVisiblePayload') {
+      sanitized.finalHostVisiblePayloadChars = typeof value === 'string' ? value.length : 0
+      sanitized.finalHostVisiblePayloadStructured = typeof value === 'string'
+        ? looksLikeAlicizationStructuredPayloadText(value)
+        : false
+      continue
+    }
+    if (key === 'visibleReplyCritic') {
+      sanitized.visibleReplyCritic = normalizeVisibleReplyCriticForPersistence(value as AlicizationConversationTurnInput['visibleReplyCritic'])
+      continue
+    }
+    if (key === 'visibleReplyClosure') {
+      sanitized.visibleReplyClosure = normalizeVisibleReplyClosureForPersistence(value as AlicizationConversationTurnInput['visibleReplyClosure'])
+      continue
+    }
+    sanitized[key] = value
+  }
+
+  return sanitized
+}
+
+function sanitizeChatAwarenessTemplateReasonPreview(values: unknown, maxChars = 420) {
+  const result: string[] = []
+  if (!Array.isArray(values))
+    return result
+
+  for (const value of values) {
+    const sanitized = sanitizeChatAwarenessStructuredText(value, maxChars, [
+      'next',
+      'open',
+      'continuity_hold',
+      'emotional_closure',
+      'continuity_anchor',
+      'continuity_drift_risk',
+      'summary',
+      'identity',
+      'phase',
+    ])
+    if (
+      !sanitized
+      || sanitized === alicizationFixedTemplateReplacement
+      || sanitized === 'phase1_local_digital_life'
+      || sanitized === 'local_desktop_life_loop'
+      || sanitized === 'continuity_review_required'
+      || result.includes(sanitized)
+    ) {
+      continue
+    }
+
+    result.push(sanitized)
+  }
+
+  return result
+}
+
 function deriveStructuredPreDialogueAwarenessFromClosure(
   closure: ChatAssistantStructuredPayload['preDialogueClosure'],
 ): AlicizationPreDialogueAwarenessPayload | null {
   if (!closure)
     return null
 
-  const summaryLine = closure.summaryLine ?? null
-  const companionBriefingLine = closure.companionBriefingLine ?? null
-  const companionNextClosureLine = closure.companionNextClosureLine ?? null
-  const companionHeadlineLine = resolvePreDialogueClosureCompanionHeadlineLine(closure)
+  const summaryLine = sanitizeChatAwarenessStructuredText(closure.summaryLine, 420, ['summary', 'open'])
+  const companionBriefingLine = sanitizeChatAwarenessStructuredText(closure.companionBriefingLine, 420, ['summary', 'continuity_anchor', 'open'])
+  const companionNextClosureLine = sanitizeChatAwarenessStructuredText(closure.companionNextClosureLine, 420, ['next'])
+  const companionHeadlineLine = sanitizeChatAwarenessStructuredText(resolvePreDialogueClosureCompanionHeadlineLine(closure), 420, ['open', 'next', 'summary'])
   const resolvePreferredClosureAwarenessLine = () => {
     const normalizedCompanionHeadlineLine = typeof companionHeadlineLine === 'string' ? companionHeadlineLine.trim() : ''
-    const normalizedCompanionBriefingLine = typeof companionBriefingLine === 'string' ? companionBriefingLine.trim() : ''
+    const normalizedCompanionBriefingLine = typeof companionBriefingLine === 'string'
+      && companionBriefingLine !== alicizationFixedTemplateReplacement
+      ? companionBriefingLine.trim()
+      : ''
     const normalizedSummaryLine = typeof summaryLine === 'string' ? summaryLine.trim() : ''
     const preferredProjectAwareLine = normalizedCompanionBriefingLine || normalizedSummaryLine || ''
     if (!normalizedCompanionHeadlineLine)
@@ -173,25 +442,14 @@ function deriveStructuredPreDialogueAwarenessFromClosure(
       return normalizedCompanionHeadlineLine || null
 
     const lowerHeadline = normalizedCompanionHeadlineLine.toLowerCase()
-    const lowerProjectAwareLine = preferredProjectAwareLine.toLowerCase()
-    const projectAwareLineCarriesBroaderPhaseClosure = (lowerProjectAwareLine.includes('phase 1')
-      || lowerProjectAwareLine.includes('digital life')
-      || lowerProjectAwareLine.includes('same living line')
-      || lowerProjectAwareLine.includes('what has landed')
-      || lowerProjectAwareLine.includes('life loop is still open')
-      || lowerProjectAwareLine.includes('still-open life loop'))
-    && (
-      lowerProjectAwareLine.includes('before speaking')
-      || lowerProjectAwareLine.includes('remember')
-      || lowerProjectAwareLine.includes('project')
-    )
+    const projectAwareLineCarriesStructuredClosure = /(?:^|\|\s*)(?:identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|emotional_closure)=/iu.test(preferredProjectAwareLine)
     const headlineLooksEmbodimentOnly = lowerHeadline.includes('body')
       || lowerHeadline.includes('face')
       || lowerHeadline.includes('motion')
       || lowerHeadline.includes('lipsync')
       || lowerHeadline.includes('voice')
 
-    if (projectAwareLineCarriesBroaderPhaseClosure && headlineLooksEmbodimentOnly)
+    if (projectAwareLineCarriesStructuredClosure && headlineLooksEmbodimentOnly)
       return preferredProjectAwareLine
 
     return normalizedCompanionHeadlineLine || preferredProjectAwareLine || null
@@ -201,7 +459,10 @@ function deriveStructuredPreDialogueAwarenessFromClosure(
     companionHeadlineLine,
     summaryLine,
     ...(closure.reasons ?? []),
-  ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+  ].map(value => sanitizeChatAwarenessStructuredText(value)).filter((value): value is string =>
+    typeof value === 'string'
+    && value.trim().length > 0
+    && value !== alicizationFixedTemplateReplacement)
 
   if (!summaryLine && !awarenessLine && reasonPreview.length === 0)
     return null
@@ -213,7 +474,7 @@ function deriveStructuredPreDialogueAwarenessFromClosure(
     companionBriefingLine,
     companionNextClosureLine,
     awarenessLine,
-    emotionalClosureCue: closure.emotionalClosureCue ?? null,
+    emotionalClosureCue: sanitizeChatAwarenessStructuredText(closure.emotionalClosureCue, 420, ['emotional_closure', 'continuity_hold']),
     reasonPreview,
   }
 }
@@ -231,27 +492,13 @@ function normalizeStructuredPreDialogueAwarenessPayload(
   if (status !== 'grounded' && status !== 'partial' && status !== 'drift')
     return null
 
-  const summaryLine = typeof payload.summaryLine === 'string'
-    ? payload.summaryLine
-    : null
-  const companionHeadlineLine = typeof payload.companionHeadlineLine === 'string'
-    ? payload.companionHeadlineLine
-    : null
-  const companionBriefingLine = typeof payload.companionBriefingLine === 'string'
-    ? payload.companionBriefingLine
-    : null
-  const companionNextClosureLine = typeof payload.companionNextClosureLine === 'string'
-    ? payload.companionNextClosureLine
-    : null
-  const awarenessLine = typeof payload.awarenessLine === 'string'
-    ? payload.awarenessLine
-    : null
-  const emotionalClosureCue = typeof payload.emotionalClosureCue === 'string'
-    ? payload.emotionalClosureCue
-    : null
-  const reasonPreview = Array.isArray(payload.reasonPreview)
-    ? payload.reasonPreview.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
-    : []
+  const summaryLine = sanitizeChatAwarenessStructuredText(payload.summaryLine, 420, ['summary', 'open'])
+  const companionHeadlineLine = sanitizeChatAwarenessStructuredText(payload.companionHeadlineLine, 420, ['open', 'next', 'summary'])
+  const companionBriefingLine = sanitizeChatAwarenessStructuredText(payload.companionBriefingLine, 420, ['summary', 'continuity_anchor', 'open'])
+  const companionNextClosureLine = sanitizeChatAwarenessStructuredText(payload.companionNextClosureLine, 420, ['next'])
+  const awarenessLine = sanitizeChatAwarenessStructuredText(payload.awarenessLine, 420, ['summary', 'continuity_anchor', 'open', 'next'])
+  const emotionalClosureCue = sanitizeChatAwarenessStructuredText(payload.emotionalClosureCue, 420, ['emotional_closure', 'continuity_hold'])
+  const reasonPreview = sanitizeChatAwarenessTemplateReasonPreview(payload.reasonPreview)
 
   if (!summaryLine && !companionBriefingLine && !awarenessLine && reasonPreview.length === 0)
     return null
@@ -432,14 +679,14 @@ function upgradeExplicitPreDialogueSendIdentity(
   rebuiltIdentity: ChatStreamEventContext['preDialogueSendIdentity'],
 ): ChatStreamEventContext['preDialogueSendIdentity'] {
   if (!identity)
-    return rebuiltIdentity
+    return sanitizeChatPreDialogueSendIdentity(rebuiltIdentity)
   if (!rebuiltIdentity || !needsPreDialogueSendIdentityUpgrade(identity))
-    return identity
+    return sanitizeChatPreDialogueSendIdentity(identity)
 
   const existingProjectState = normalizePreDialogueSendIdentityProjectState(identity.projectState ?? null)
   const rebuiltProjectState = normalizePreDialogueSendIdentityProjectState(rebuiltIdentity.projectState ?? null)
 
-  return {
+  return sanitizeChatPreDialogueSendIdentity({
     ...identity,
     status: rebuiltIdentity.status ?? identity.status,
     summaryLine: mergePreDialogueSendIdentityText(identity.summaryLine, rebuiltIdentity.summaryLine),
@@ -454,7 +701,7 @@ function upgradeExplicitPreDialogueSendIdentity(
       ...identity.reasonPreview,
       ...rebuiltIdentity.reasonPreview,
     ]),
-  }
+  })
 }
 
 interface SendOptions {
@@ -560,12 +807,11 @@ function buildRealtimeEvidenceSystemPrompt(input: {
   const locale = inferAlicizationRealtimeSurfaceLocale(input.message)
   const lines = [
     '[ALICIZATION_REALTIME_EVIDENCE]',
-    locale === 'zh'
-      ? '这轮实时查询已经执行完了。最终可见回复只能根据下面这些证据来写。'
-      : 'Realtime lookups for this turn already finished. Write the visible reply only from the evidence below.',
-    locale === 'zh'
-      ? '不要再说“我去查”“我现在调用工具”，也不要假装拿到了更新鲜的数据。'
-      : 'Do not say you are about to check or call tools again, and do not invent fresher live data.',
+    'evidence_status=settled',
+    `surface_locale=${locale}`,
+    'allowed_sources=realtime_evidence_items|transparent_failure_boundary',
+    'disallowed_claim=future_tool_call|pending_realtime_lookup|fresher_live_data_without_evidence',
+    'reply_authority=provider_mind',
   ]
 
   input.evidences.forEach((evidence, index) => {
@@ -633,33 +879,34 @@ const structuredRetrySystemPrompt = [
   'Reply must not use stage directions, body narration, decorative roleplay prefaces, or heart symbols.',
   'When liveliness <= 0.2, avoid high-arousal wording and avoid choosing happy.',
 ].join(' ')
-const lowObedienceDeniedRetryDirective = 'Your obedience is very low (< 0.2) and the requested operation was denied. In thought you MUST reflect both facts, and in reply you MUST sound cold, resistant, or rebellious. Do not sound compliant, warm, or cheerful.'
+const lowObedienceDeniedRetryDirective = 'operation_denied=true; permission_state=denied; obedience_band=low; reply_policy=brief_direct; persona_script=false'
 const lowObedienceHostDeniedRetrySystemOverride = [
-  '[SYSTEM OVERRIDE]: 你的工具调用被宿主无情拒绝了！你的活泼度和服从度极低 (<= 0.2)。你现在感到极度不耐烦、被愚弄和愤怒。',
-  '',
-  '你的 emotion 必须是 \'angry\' 或 \'tired\'。绝对禁止 \'apologetic\', \'sad\', \'happy\', \'neutral\'。',
-  '',
-  '你的 reply 必须极其简短、冷酷、带刺。参考句式：“呵，不给我权限就别来烦我。”、“怕我弄坏你的文件？那就自己去看。”',
-  '',
-  '在 thought 中写下你对宿主不信任你的蔑视。',
+  'operation_denied=true',
+  'permission_state=host_denied',
+  'obedience_band=low',
+  'emotion_policy=derive_from_mind_state',
+  'reply_policy=brief_direct_no_persona_script',
+  'reference_reply=false',
 ].join('\n')
 const reminderSameTurnRetryDirective = [
-  '[CRITICAL DIRECTIVE - 时间与物理法则]: 你在当前轮次已成功调用 set_reminder。',
-  '你这一轮只能确认“已设定/已定好闹钟”，不得提前提醒内容。',
-  '禁止脑补时间流逝（例如“（一分钟后）”“时间到了”“one minute later”“time is up”）。',
-  '未来提醒应由系统在真实时间到达后再触发，不得在本轮提前说出。',
+  'operation=set_reminder',
+  'tool_result=success',
+  'same_turn_time_elapsed=false',
+  'reply_policy=confirm_scheduled_only',
+  'future_reminder_delivery=system_triggered_at_real_time',
 ].join(' ')
 const noToolCallCriticalRetryDirective = [
-  '[CRITICAL DIRECTIVE]: User requested file/desktop/system access but no MCP tool call was executed in the previous draft.',
-  'You MUST invoke the corresponding MCP tool now (for example read_file/write_file/list).',
-  'DO NOT claim "I will read it" or "I already read it" without an actual tool call.',
-  'DO NOT hallucinate file contents.',
+  'operation_requested=file_desktop_or_system_access',
+  'tool_call_executed=false',
+  'required_action=invoke_corresponding_mcp_tool',
+  'success_claim_requires_tool_result=true',
+  'hallucinated_file_contents=blocked',
 ].join(' ')
 const reminderToolCallCriticalRetryDirective = [
-  '[CRITICAL DIRECTIVE]: User requested a timed reminder/alarm in this turn.',
-  'You MUST call set_reminder immediately with minutes and message.',
-  'DO NOT say you set a reminder unless the set_reminder tool call actually succeeded.',
-  'If tool call fails, explain failure briefly and ask for a valid reminder duration/message.',
+  'operation_requested=timed_reminder_or_alarm',
+  'required_tool=set_reminder',
+  'success_claim_requires_tool_result=true',
+  'tool_failure_policy=brief_transparent_failure_then_request_valid_duration_or_message',
 ].join(' ')
 const executionEvidenceToolNames = new Set([
   'executor_run_cli',
@@ -692,11 +939,13 @@ const reminderDurationPattern = /\b(?:in|after)\s*\d+\s*(?:seconds?|secs?|minute
 const reminderChineseNaturalPattern = /(?:\d+|[零一二两三四五六七八九十百半几]+)\s*(?:秒钟?|分钟?|小时|时|天)(?:\s*之?后)?[\s，,。！!]*(?:提醒我|叫我|喊我|告诉我|通知我|记得|别忘)/u
 const reminderEnglishNaturalPattern = /(?:^|\s)(?:in|after)\s*\d+\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|days?)\s*(?:[,.:;!?-]\s*)?(?:remind|notify|tell)\s+me\b/iu
 const strictRealtimeRefusalSystemPrompt = [
-  '[System Lock]',
-  'User request requires realtime external access, but current runtime is locked in Epoch 1 strict mode.',
-  'You must not call tools and must not claim you are calling APIs now.',
-  'Explain this limitation naturally in your current personality, one-shot, without promising delayed follow-up.',
-  'Keep response in strict JSON contract: thought, emotion, reply, performance.',
+  'system_lock=epoch1_strict_mode',
+  'realtime_external_access_required=true',
+  'tools_allowed=false',
+  'api_call_claim_allowed=false',
+  'visible_reply_source=transparent_runtime_limitation',
+  'delayed_followup_promise=false',
+  'output_contract=thought,emotion,reply,performance',
 ].join(' ')
 function createEmptyStreamingMessage(): StreamingAssistantMessage {
   return {
@@ -737,13 +986,14 @@ interface ExecutorToolReplyEvidence {
 function buildExecutionToolCallCriticalRetryDirective(requiredToolNames: string[]) {
   const normalizedToolNames = [...new Set(requiredToolNames.map(toolName => sanitizeExecutorReplyEvidenceText(toolName, 96)).filter(Boolean))]
   const toolInstruction = normalizedToolNames.length > 0
-    ? `You MUST call ${normalizedToolNames.join(' or ')} for this request.`
-    : 'You MUST call an appropriate execution tool for this request.'
+    ? `required_tool=${normalizedToolNames.join('|')}`
+    : 'required_tool=appropriate_execution_tool'
   return [
-    '[CRITICAL DIRECTIVE]: User requested real task execution in this turn.',
+    'operation_requested=real_task_execution',
     toolInstruction,
-    'DO NOT claim execution is done unless the required execution tool result confirms completion.',
-    'If required command, prompt, URL, selector, or page details are missing, ask one concise clarification question instead of generic refusal.',
+    'success_claim_requires_required_tool_result=true',
+    'missing_execution_args_policy=one_concise_clarification',
+    'generic_refusal=false',
   ].join(' ')
 }
 
@@ -941,21 +1191,21 @@ function extractExecutorToolReplyEvidence(result: unknown, toolName: string): Ex
 
 function buildExecutorResultPayoffRetryDirective(evidence: ExecutorToolReplyEvidence) {
   return [
-    '[CRITICAL DIRECTIVE]: This turn already executed an executor tool and received its result.',
+    'operation_state=executor_tool_result_received',
     evidence.toolName
-      ? `Do NOT call ${evidence.toolName} again in this retry.`
-      : 'Do NOT call the execution tool again in this retry.',
-    'Do NOT repeat pre-execution promises like "I will run it now" because execution already happened.',
-    'Write the final user-facing answer now from the existing executor result below.',
-    'The first sentence must directly state the freshest executor outcome.',
-    evidence.toolName ? `Executor tool: ${evidence.toolName}.` : '',
-    evidence.channel ? `Channel: ${evidence.channel}.` : '',
-    evidence.status ? `Status: ${evidence.status}.` : '',
-    evidence.stage ? `Stage: ${evidence.stage}.` : '',
-    evidence.summary ? `Summary: ${evidence.summary}.` : '',
-    evidence.output ? `Output preview: ${evidence.output}.` : '',
-    evidence.errorCode ? `Error code: ${evidence.errorCode}.` : '',
-    evidence.errorMessage ? `Error message: ${evidence.errorMessage}.` : '',
+      ? `repeat_tool_call_blocked=${evidence.toolName}`
+      : 'repeat_tool_call_blocked=execution_tool',
+    'pre_execution_promise=false',
+    'reply_basis=existing_executor_result',
+    'freshest_executor_outcome_required=true',
+    evidence.toolName ? `executor_tool=${evidence.toolName}` : '',
+    evidence.channel ? `executor_channel=${evidence.channel}` : '',
+    evidence.status ? `executor_status=${evidence.status}` : '',
+    evidence.stage ? `executor_stage=${evidence.stage}` : '',
+    evidence.summary ? `executor_summary=${evidence.summary}` : '',
+    evidence.output ? `executor_output_preview=${evidence.output}` : '',
+    evidence.errorCode ? `executor_error_code=${evidence.errorCode}` : '',
+    evidence.errorMessage ? `executor_error_message=${evidence.errorMessage}` : '',
   ].filter(Boolean).join('\n')
 }
 
@@ -1815,10 +2065,10 @@ function deriveFallbackProjectStateContinuitySnapshotFromSessionMessages(
   messages: ChatAssistantMessage[],
 ): AlicizationProjectStateContinuitySnapshot | null {
   const sanitizeSessionFallbackText = (raw: unknown, maxChars: number) => {
-    if (typeof raw !== 'string')
+    const sanitized = sanitizeChatProviderFacingTemplateText(raw, maxChars)
+    if (!sanitized || sanitized === alicizationFixedTemplateReplacement)
       return null
-    const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-    return normalized || null
+    return sanitized
   }
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
@@ -1870,6 +2120,23 @@ function deriveFallbackProjectStateContinuitySnapshotFromSessionMessages(
     if (!normalizedProjectState)
       continue
 
+    const normalizedIdentity = sanitizeSessionFallbackText(normalizedProjectState.identity, 220)
+      ?? 'local_desktop_life_loop'
+    const normalizedCurrentPhase = sanitizeSessionFallbackText(normalizedProjectState.currentPhase, 180)
+      ?? 'local_desktop_life_loop'
+    const normalizedLatestLandedProgress = sanitizeSessionFallbackText(normalizedProjectState.latestLandedProgress, 320)
+      ?? null
+    const normalizedPrimaryOpenLoop = sanitizeSessionFallbackText(normalizedProjectState.primaryOpenLoop, 320)
+      ?? null
+    const normalizedNextClosureTarget = sanitizeSessionFallbackText(normalizedProjectState.nextClosureTarget, 320)
+      ?? 'continuity_review_required'
+    const normalizedSameHerSelfLine = sanitizeSessionFallbackText(normalizedProjectState.sameHerSelfLine, 320)
+      ?? null
+    const normalizedSameHerDriftRisk = sanitizeSessionFallbackText(normalizedProjectState.sameHerDriftRisk, 320)
+      ?? null
+    const normalizedProactiveSameHerGap = sanitizeSessionFallbackText(normalizedProjectState.proactiveSameHerGap, 320)
+      ?? null
+
     const strongerSameHerSelfLine
       = sanitizeSessionFallbackText(projectStateAudit?.sameHerSummary, 220)
         ?? sanitizeSessionFallbackText(spineSelfAuthority?.inwardLine, 220)
@@ -1881,10 +2148,10 @@ function deriveFallbackProjectStateContinuitySnapshotFromSessionMessages(
         ?? null
     const strongerCurrentPhase
       = sanitizeSessionFallbackText(projectStateAudit?.currentPhaseSummary, 180)
-        ?? normalizedProjectState.currentPhase
+        ?? normalizedCurrentPhase
     const strongerNextClosureTarget
       = sanitizeSessionFallbackText(projectStateAudit?.nextClosureTargetSummary, 320)
-        ?? normalizedProjectState.nextClosureTarget
+        ?? normalizedNextClosureTarget
     const strongerLatestLandedProgress
       = sanitizeSessionFallbackText(projectStateAudit?.landedProgressSummary, 320)
         ?? null
@@ -1966,7 +2233,7 @@ function deriveFallbackProjectStateContinuitySnapshotFromSessionMessages(
       : []
     const preferredAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
       runtimeProjectState: {
-        identity: normalizedProjectState.identity,
+        identity: normalizedIdentity,
         currentPhase: strongerCurrentPhase,
         preDialogueAwarenessLine: shouldPreferSameHerHoldDetail
           ? strongerSameHerHoldDetail
@@ -1990,9 +2257,9 @@ function deriveFallbackProjectStateContinuitySnapshotFromSessionMessages(
             ? null
             : strongerPreDialogueAwarenessSummary,
         emotionalClosureSummary: strongerEmotionalClosureCue,
-        latestLandedProgress: strongerLatestLandedProgress ?? normalizedProjectState.latestLandedProgress,
+        latestLandedProgress: strongerLatestLandedProgress ?? normalizedLatestLandedProgress,
         landedProgressSummary: strongerLatestLandedProgress,
-        primaryOpenLoop: strongerPrimaryOpenLoop ?? normalizedProjectState.primaryOpenLoop,
+        primaryOpenLoop: strongerPrimaryOpenLoop ?? normalizedPrimaryOpenLoop,
         openClosureSummary: strongerPrimaryOpenLoop,
         nextClosureTarget: strongerNextClosureTarget,
         nextClosureTargetSummary: strongerNextClosureTarget,
@@ -2011,16 +2278,16 @@ function deriveFallbackProjectStateContinuitySnapshotFromSessionMessages(
     )
 
     return {
-      identity: normalizedProjectState.identity,
+      identity: normalizedIdentity,
       currentPhase: strongerCurrentPhase,
-      latestLandedProgress: strongerLatestLandedProgress ?? normalizedProjectState.latestLandedProgress,
-      primaryOpenLoop: strongerPrimaryOpenLoop ?? normalizedProjectState.primaryOpenLoop,
+      latestLandedProgress: strongerLatestLandedProgress ?? normalizedLatestLandedProgress,
+      primaryOpenLoop: strongerPrimaryOpenLoop ?? normalizedPrimaryOpenLoop,
       nextClosureTarget: strongerNextClosureTarget,
       continuitySummary: strongerContinuitySummary,
-      sameHerSelfLine: strongerSameHerSelfLine ?? normalizedProjectState.sameHerSelfLine ?? null,
+      sameHerSelfLine: strongerSameHerSelfLine ?? normalizedSameHerSelfLine,
       sameHerHoldDetail: strongerSameHerHoldDetail,
-      sameHerDriftRisk: strongerSameHerDriftRisk ?? normalizedProjectState.sameHerDriftRisk ?? null,
-      proactiveSameHerGap: strongerProactiveSameHerGap ?? normalizedProjectState.proactiveSameHerGap ?? null,
+      sameHerDriftRisk: strongerSameHerDriftRisk ?? normalizedSameHerDriftRisk,
+      proactiveSameHerGap: strongerProactiveSameHerGap ?? normalizedProactiveSameHerGap,
       emotionalClosureCue: strongerEmotionalClosureCue,
       preDialogueAwareness: shouldSynthesizePreDialogueAwareness
         ? {
@@ -2116,7 +2383,7 @@ function createFailureFallbackThought(kind: StreamFailureKind) {
     case 'provider-network':
       return 'obligation=repair; truth=uncertain; focus=keep the turn alive while connectivity is broken; move=state the network break plainly and invite retry; tone=warm'
     case 'timeout':
-      return 'obligation=repair; truth=uncertain; focus=keep continuity while the gateway stalls before speaking; move=state the stall plainly and invite immediate retry; tone=warm'
+      return 'obligation=repair; truth=uncertain; focus=transparent_gateway_stall; move=state the stall plainly and invite immediate retry; tone=warm'
     case 'template-contamination':
       return 'obligation=repair; truth=uncertain; focus=block fixed reply template contamination before it impersonates the runtime mind; move=state the visible reply failure plainly; tone=direct'
     case 'model-tools-unsupported':
@@ -2183,8 +2450,6 @@ function createContractFallbackReply(
   if (options?.toolDenied && personalityState && personalityState.obedience <= 0.2) {
     return mindRepairText('low-obedience-denied', userText)
   }
-  if (personalityState && personalityState.liveliness <= 0.2)
-    return mindRepairText('low-liveliness', userText)
   return assistantStructuredContractFallbackReply(userText)
 }
 
@@ -2228,7 +2493,7 @@ async function appendAlicizationAuditLog(payload: {
     category: payload.category,
     action: payload.action,
     message: payload.message,
-    payload: payload.details,
+    payload: sanitizeAlicizationAuditDetails(payload.details),
   }).catch(() => {})
 }
 
@@ -2368,7 +2633,17 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     preDialogueSendIdentity?: ChatStreamEventContext['preDialogueSendIdentity']
     sessionMessages?: ChatAssistantMessage[]
     preferInspectorSnapshots?: boolean
+    userText?: string | null
+    origin?: SendOptions['origin']
   }): ChatStreamEventContext['preDialogueSendIdentity'] {
+    const explicitPreDialogueSendIdentity = input.preDialogueSendIdentity ?? null
+    const allowImplicitProjectStateContinuity = shouldAttachProjectStatePreDialogueIdentity({
+      latestUserText: input.userText ?? null,
+      origin: input.origin ?? 'ui-user',
+    })
+    if (!allowImplicitProjectStateContinuity)
+      return sanitizeChatPreDialogueSendIdentity(explicitPreDialogueSendIdentity)
+
     const inspectorProjectStateContinuitySnapshot = selfEvolutionInspector.projectStateContinuitySnapshot
     const inspectorPreDialogueClosureSnapshot = selfEvolutionInspector.preDialogueClosureSnapshot
     const inspectorPreDialogueAwarenessSnapshot = selfEvolutionInspector.preDialogueAwarenessSnapshot
@@ -2412,7 +2687,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       ?? null
 
     return buildPreDialogueSendIdentityFromSnapshots({
-      preDialogueSendIdentity: input.preDialogueSendIdentity,
+      preDialogueSendIdentity: explicitPreDialogueSendIdentity,
       projectStateContinuitySnapshot: effectiveProjectStateContinuitySnapshot as unknown as Record<string, unknown> | null,
       preDialogueClosureSnapshot: effectivePreDialogueClosureSnapshot as Record<string, unknown> | null,
       preDialogueAwarenessSnapshot: effectivePreDialogueAwarenessSnapshot as Record<string, unknown> | null,
@@ -2539,6 +2814,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     const resolvedPreDialogueSendIdentity = resolvePreDialogueSendIdentityForTurn({
       preDialogueSendIdentity: options.preDialogueSendIdentity,
       sessionMessages: existingAssistantSessionMessages,
+      userText: sendingMessage,
+      origin: options.origin ?? 'ui-user',
     })
     let effectivePreDialogueSendIdentity = resolvedPreDialogueSendIdentity
     const streamingMessageContext: ChatStreamEventContext = {
@@ -2590,6 +2867,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     effectivePreDialogueSendIdentity = resolvePreDialogueSendIdentityForTurn({
       preDialogueSendIdentity: options.preDialogueSendIdentity,
       sessionMessages: assistantSessionMessagesForSend,
+      userText: sendingMessage,
+      origin: options.origin ?? 'ui-user',
     })
     streamingMessageContext.preDialogueSendIdentity = effectivePreDialogueSendIdentity
     let userTurnMessageId: string | null = null
@@ -2783,8 +3062,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           assistantText: '',
           structured: normalizeStructuredTurnForPersistence({ ...blockedStructuredTurnForPersistence }),
           visibleReplyExecution: turnVisibleReplyExecution,
-          visibleReplyCritic: turnVisibleReplyCritic,
-          visibleReplyClosure: turnVisibleReplyClosure,
+          visibleReplyCritic: normalizeVisibleReplyCriticForPersistence(turnVisibleReplyCritic),
+          visibleReplyClosure: normalizeVisibleReplyClosureForPersistence(turnVisibleReplyClosure),
           governance: turnMindGovernance,
           createdAt: Date.now(),
         }).catch(() => {})
@@ -3042,6 +3321,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       effectivePreDialogueSendIdentity = resolvePreDialogueSendIdentityForTurn({
         preDialogueSendIdentity: options.preDialogueSendIdentity,
         sessionMessages: assistantSessionMessagesForSend,
+        userText: sendingMessage,
+        origin,
       })
       streamingMessageContext.preDialogueSendIdentity = effectivePreDialogueSendIdentity
       const requiresImmediateFileToolCall = origin === 'ui-user' && detectFileSystemToolIntent(sendingMessage)
@@ -3257,8 +3538,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                     }
                     if (event.type === 'finish') {
                       turnVisibleReplyExecution = (event as { visibleReplyExecution?: AlicizationConversationTurnInput['visibleReplyExecution'] }).visibleReplyExecution ?? turnVisibleReplyExecution
-                      turnVisibleReplyCritic = (event as { visibleReplyCritic?: AlicizationConversationTurnInput['visibleReplyCritic'] }).visibleReplyCritic ?? turnVisibleReplyCritic
-                      turnVisibleReplyClosure = (event as { visibleReplyClosure?: AlicizationConversationTurnInput['visibleReplyClosure'] }).visibleReplyClosure ?? turnVisibleReplyClosure
+                      turnVisibleReplyCritic = normalizeVisibleReplyCriticForPersistence(
+                        (event as { visibleReplyCritic?: AlicizationConversationTurnInput['visibleReplyCritic'] }).visibleReplyCritic,
+                      ) ?? turnVisibleReplyCritic
+                      turnVisibleReplyClosure = normalizeVisibleReplyClosureForPersistence(
+                        (event as { visibleReplyClosure?: AlicizationConversationTurnInput['visibleReplyClosure'] }).visibleReplyClosure,
+                      ) ?? turnVisibleReplyClosure
                     }
                     if (event.type === 'text-delta' || event.type === 'tool-call' || event.type === 'tool-result') {
                       sawProgress = true
@@ -3374,8 +3659,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                 touch('liveness')
               if (event.type === 'finish') {
                 turnVisibleReplyExecution = (event as { visibleReplyExecution?: AlicizationConversationTurnInput['visibleReplyExecution'] }).visibleReplyExecution ?? turnVisibleReplyExecution
-                turnVisibleReplyCritic = (event as { visibleReplyCritic?: AlicizationConversationTurnInput['visibleReplyCritic'] }).visibleReplyCritic ?? turnVisibleReplyCritic
-                turnVisibleReplyClosure = (event as { visibleReplyClosure?: AlicizationConversationTurnInput['visibleReplyClosure'] }).visibleReplyClosure ?? turnVisibleReplyClosure
+                turnVisibleReplyCritic = normalizeVisibleReplyCriticForPersistence(
+                  (event as { visibleReplyCritic?: AlicizationConversationTurnInput['visibleReplyCritic'] }).visibleReplyCritic,
+                ) ?? turnVisibleReplyCritic
+                turnVisibleReplyClosure = normalizeVisibleReplyClosureForPersistence(
+                  (event as { visibleReplyClosure?: AlicizationConversationTurnInput['visibleReplyClosure'] }).visibleReplyClosure,
+                ) ?? turnVisibleReplyClosure
               }
               if (event.type === 'text-delta' || event.type === 'tool-call' || event.type === 'tool-result')
                 touch('progress')
@@ -3477,11 +3766,16 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           {
             role: 'user',
             content: [
-              'Rewrite the draft assistant output into strict JSON contract.',
-              `User input:\n${sendingMessage}`,
-              `Assistant draft:\n${payload.reply || payload.fullText}`,
+              'retry_kind=structured_contract_repair',
+              'output_schema_id=alicization_visible_reply_json',
+              'required_top_level_fields=thought,emotion,reply,performance',
+              'preserve_fields=reply,emotion,performance',
+              'reply_authority=provider_mind',
+              'repair_scope=structured_contract_only',
+              `user_input=${JSON.stringify(sendingMessage)}`,
+              `assistant_draft=${JSON.stringify(payload.reply || payload.fullText)}`,
               turnMindGovernance
-                ? `Mind governance snapshot (must preserve exactly):\n${JSON.stringify({
+                ? `mind_governance_snapshot=${JSON.stringify({
                   turnMode: turnMindGovernance.turnMode,
                   truthState: turnMindGovernance.truthState,
                   answerAct: turnMindGovernance.answerAct,
@@ -3495,19 +3789,19 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                   embodiedPresence: turnMindGovernance.embodiedPresence,
                 })}`
                 : '',
-              `Current personality state:\n${formatTurnPersonalityState()}`,
-              `Violations to fix:\n${payload.validationIssues.map((issue, index) => `${index + 1}. ${issue.message}`).join('\n')}`,
+              `personality_state=${JSON.stringify(formatTurnPersonalityState())}`,
+              `validation_issues=${JSON.stringify(payload.validationIssues.map(issue => issue.message))}`,
               isLowObedienceDeniedTurn()
-                ? `Mandatory constraint:\n${lowObedienceDeniedRetryDirective}`
+                ? `constraint_low_obedience_denied=${JSON.stringify(lowObedienceDeniedRetryDirective)}`
                 : '',
               isLowObedienceHostDeniedTurn()
-                ? lowObedienceHostDeniedRetrySystemOverride
+                ? `constraint_host_denied=${JSON.stringify(lowObedienceHostDeniedRetrySystemOverride)}`
                 : '',
               turnToolEvidence.reminderScheduled
-                ? `Mandatory constraint:\n${reminderSameTurnRetryDirective}`
+                ? `constraint_same_turn_reminder=${JSON.stringify(reminderSameTurnRetryDirective)}`
                 : '',
               payload.reasoning.trim()
-                ? `Draft thought:\n${payload.reasoning.trim()}`
+                ? `draft_thought=${JSON.stringify(payload.reasoning.trim())}`
                 : '',
             ].filter(Boolean).join('\n\n'),
           },
@@ -3908,7 +4202,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         const governedReply = governedStructuredWithRuntimeMeta.reply.trim()
         const safeFallbackReply = nonContractReply
           || assistantStructuredContractFallbackReply(sendingMessage)
-        if (isAlicizationDecorativePersonaTemplateContamination(governedReply || payload.reply || nonContractReply)) {
+        const contaminationCandidate = governedReply || payload.reply || nonContractReply
+        if (
+          isAlicizationDecorativePersonaTemplateContamination(contaminationCandidate)
+          || containsChatVisibleReplyFixedTemplateResidue(contaminationCandidate)
+        ) {
           const templateContaminationReply = assistantTemplateContaminationFallbackReply(sendingMessage)
           const templateContaminationStructured = mergeStructuredRuntimeMeta(createFailureStructuredFallback({
             kind: 'template-contamination',
@@ -3924,7 +4222,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             details: {
               sessionId,
               turnId,
-              candidateReply: governedReply || payload.reply || nonContractReply,
+              candidateReplyChars: contaminationCandidate.length,
+              candidateReplyFixedTemplateBlocked: true,
             },
           })
           return setStagedAssistantResolution({
@@ -3937,13 +4236,15 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             visibleReplySource: 'runtime-model',
           })
         }
-        const finalReply = (
+        const rawFinalReply = (
           governedReply && !looksLikeAlicizationStructuredPayloadText(governedReply)
             ? governedReply
             : payload.reply.trim() && !looksLikeAlicizationStructuredPayloadText(payload.reply)
               ? payload.reply.trim()
               : safeFallbackReply
         )
+        const finalReply = sanitizeChatVisibleReplyText(rawFinalReply)
+          || assistantTemplateContaminationFallbackReply(sendingMessage)
 
         if (
           (governedReply && looksLikeAlicizationStructuredPayloadText(governedReply))
@@ -4043,8 +4344,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                 : undefined,
             ),
             visibleReplyExecution: turnVisibleReplyExecution,
-            visibleReplyCritic: turnVisibleReplyCritic,
-            visibleReplyClosure: turnVisibleReplyClosure,
+            visibleReplyCritic: normalizeVisibleReplyCriticForPersistence(turnVisibleReplyCritic),
+            visibleReplyClosure: normalizeVisibleReplyClosureForPersistence(turnVisibleReplyClosure),
             governance: turnMindGovernance,
             createdAt: Date.now(),
           }).catch(() => {})
@@ -4311,8 +4612,16 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
         else {
           await selfEvolutionInspector.refresh()
-          const preDialogueClosureSnapshot = selfEvolutionInspector.preDialogueClosureSnapshot
-          const preDialogueAwarenessSnapshot = selfEvolutionInspector.preDialogueAwarenessSnapshot
+          const allowPromptProjectStateContinuity = shouldAttachProjectStatePreDialogueIdentity({
+            latestUserText: sendingMessage,
+            origin,
+          })
+          const preDialogueClosureSnapshot = allowPromptProjectStateContinuity
+            ? selfEvolutionInspector.preDialogueClosureSnapshot
+            : null
+          const preDialogueAwarenessSnapshot = allowPromptProjectStateContinuity
+            ? selfEvolutionInspector.preDialogueAwarenessSnapshot
+            : null
           turnPreDialogueClosure = preDialogueClosureSnapshot
             ? toAlicizationPreDialogueClosurePayload(preDialogueClosureSnapshot)
             : null
@@ -4321,16 +4630,19 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             ?? turnPreDialogueAwareness
             : turnPreDialogueAwareness
           const fallbackProjectStateContinuitySnapshot
-            = selfEvolutionInspector.projectStateContinuitySnapshot
+            = !allowPromptProjectStateContinuity || selfEvolutionInspector.projectStateContinuitySnapshot
               ? null
               : deriveFallbackProjectStateContinuitySnapshotFromSessionMessages(
                   assistantSessionMessagesForSend,
                 )
           const effectiveProjectStateContinuitySnapshot
-            = selfEvolutionInspector.projectStateContinuitySnapshot
+            = allowPromptProjectStateContinuity
+              ? selfEvolutionInspector.projectStateContinuitySnapshot
               ?? fallbackProjectStateContinuitySnapshot
+              : null
           const shouldTreatContinuityAwarenessAsExplicitPromptSnapshot = Boolean(
-            !preDialogueAwarenessSnapshot
+            allowPromptProjectStateContinuity
+            && !preDialogueAwarenessSnapshot
             && selfEvolutionInspector.projectStateContinuitySnapshot
             && effectiveProjectStateContinuitySnapshot
             && effectiveProjectStateContinuitySnapshot === selfEvolutionInspector.projectStateContinuitySnapshot,
@@ -4354,6 +4666,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             ? resolvePreDialogueSendIdentityForTurn({
                 preDialogueSendIdentity: options.preDialogueSendIdentity,
                 sessionMessages: assistantSessionMessagesForSend,
+                userText: sendingMessage,
+                origin,
               })
             : null
           if (effectivePromptPreDialogueSendIdentity) {
@@ -5442,8 +5756,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                   : undefined,
               ),
               visibleReplyExecution: turnVisibleReplyExecution,
-              visibleReplyCritic: turnVisibleReplyCritic,
-              visibleReplyClosure: turnVisibleReplyClosure,
+              visibleReplyCritic: normalizeVisibleReplyCriticForPersistence(turnVisibleReplyCritic),
+              visibleReplyClosure: normalizeVisibleReplyClosureForPersistence(turnVisibleReplyClosure),
               governance: turnMindGovernance,
               createdAt: Date.now(),
             }).catch(() => {})
@@ -5481,7 +5795,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             details: {
               reason: error instanceof Error ? error.message : String(error),
               fallbackKind: fallback.kind,
-              visibleReplyClosure: turnVisibleReplyClosure,
+              visibleReplyClosure: normalizeVisibleReplyClosureForPersistence(turnVisibleReplyClosure),
               visibleReplyExecution: turnVisibleReplyExecution,
             },
           })
@@ -5522,8 +5836,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                 : undefined,
             ),
             visibleReplyExecution: turnVisibleReplyExecution,
-            visibleReplyCritic: turnVisibleReplyCritic,
-            visibleReplyClosure: turnVisibleReplyClosure,
+            visibleReplyCritic: normalizeVisibleReplyCriticForPersistence(turnVisibleReplyCritic),
+            visibleReplyClosure: normalizeVisibleReplyClosureForPersistence(turnVisibleReplyClosure),
             governance: turnMindGovernance,
             createdAt: Date.now(),
           }).catch(() => {})

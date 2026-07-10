@@ -64,8 +64,8 @@ function inferBodyContinuityPhaseFromHint(hint: string | null | undefined) {
   if (!hint)
     return null
   if (
-    hint.includes('当前只有 face 和 lipsync 这条 same-her 生命线')
-    || hint.includes('当前只有 motion 和 lipsync 这条 same-her 生命线')
+    hint.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
+    || hint.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
     || hint.includes('当前仅剩表情、口型、声音维持同一段连续性')
     || hint.includes('当前仅剩动作、口型、声音维持同一段连续性')
   ) {
@@ -141,9 +141,9 @@ export function buildSelfEvolutionRepairSession(input: {
       ? 'face+lipsync+voice-only'
       : input.activeWorkflowFocus.bodyContinuityHint?.includes('当前仅剩动作、口型、声音维持同一段连续性')
         ? 'motion+lipsync+voice-only'
-        : input.activeWorkflowFocus.bodyContinuityHint?.includes('当前只有 face 和 lipsync 这条 same-her 生命线')
+        : input.activeWorkflowFocus.bodyContinuityHint?.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
           ? 'face+lipsync-only'
-          : input.activeWorkflowFocus.bodyContinuityHint?.includes('当前只有 motion 和 lipsync 这条 same-her 生命线')
+          : input.activeWorkflowFocus.bodyContinuityHint?.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
             ? 'motion+lipsync-only'
             : null
   )
@@ -206,7 +206,7 @@ export function buildSelfEvolutionRepairSession(input: {
     summaryLines.push(`剩余事件：${remainingEvents.map(item => formatSelfEvolutionEventKindLabel(item.replace('event:', ''))).join('，')}`)
   if (isProjectStateContinuity && remainingChecklist.length > 0) {
     summaryLines.push(
-      '本轮仍在核对项目身份、Phase 1 本地主数字生命主线与未闭环任务承接，确认这些生命线是否还被同一个她连续带入下一轮。',
+      '本轮仍在核对项目身份、Phase 1 本地主continuity evidence与未闭环任务承接，确认这些生命线是否还被身份连续性连续带入下一轮。',
     )
   }
   if (isBodyContinuity && remainingChecklist.length > 0) {
@@ -227,16 +227,16 @@ export function buildSelfEvolutionRepairSession(input: {
     }
     else if (bodyContinuityPhase === 'renderer-rejoin-without-body') {
       if (survivingVisibleLane === 'face+lipsync+voice-only') {
-        bodyContinuitySummaryLine = '本轮仍在核对当前是否仍只有 face、lipsync 和 voice 这条 same-her 生命线与同一段 living segment 对齐，并确认 body、motion 为什么还没有重新接回这条表情口型声音线。'
+        bodyContinuitySummaryLine = '本轮仍在核对当前是否仍只有 face、lipsync 和 voice 这条 identity-continuity 生命线与同一段 living segment 对齐，并确认 body、motion 为什么还没有重新接回这条表情口型声音线。'
       }
       else if (survivingVisibleLane === 'motion+lipsync+voice-only') {
-        bodyContinuitySummaryLine = '本轮仍在核对当前是否仍只有 motion、lipsync 和 voice 这条 same-her 生命线与同一段 living segment 对齐，并确认 body、face 为什么还没有重新接回这条动作口型声音线。'
+        bodyContinuitySummaryLine = '本轮仍在核对当前是否仍只有 motion、lipsync 和 voice 这条 identity-continuity 生命线与同一段 living segment 对齐，并确认 body、face 为什么还没有重新接回这条动作口型声音线。'
       }
       else if (survivingVisibleLane === 'face+lipsync-only') {
-        bodyContinuitySummaryLine = '本轮仍在核对当前是否仍只有 face 和 lipsync 这条 same-her 生命线与同一段 living segment 对齐，并确认 body、motion 和 voice 为什么还没有重新接回这条表情口型线。'
+        bodyContinuitySummaryLine = '本轮仍在核对当前是否仍只有 face 和 lipsync 这条 identity-continuity 生命线与同一段 living segment 对齐，并确认 body、motion 和 voice 为什么还没有重新接回这条表情口型线。'
       }
       else if (survivingVisibleLane === 'motion+lipsync-only') {
-        bodyContinuitySummaryLine = '本轮仍在核对当前是否仍只有 motion 和 lipsync 这条 same-her 生命线与同一段 living segment 对齐，并确认 body、face 和 voice 为什么还没有重新接回这条动作口型线。'
+        bodyContinuitySummaryLine = '本轮仍在核对当前是否仍只有 motion 和 lipsync 这条 identity-continuity 生命线与同一段 living segment 对齐，并确认 body、face 和 voice 为什么还没有重新接回这条动作口型线。'
       }
       else {
         bodyContinuitySummaryLine = rendererRejoinSurfaceLabel

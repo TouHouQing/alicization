@@ -89,7 +89,7 @@ describe('resolveRuntimeSubconsciousTickEntry', () => {
         style: 'silent-observe',
         reasonCodes: [
           'project-phase1-life-loop-open',
-          'project-same-her-pressure',
+          'project-continuity-pressure',
           'project-measured-return-pressure',
           'project-next-closure-pressure',
         ],
@@ -134,7 +134,7 @@ describe('resolveRuntimeSubconsciousTickEntry', () => {
           'world-model-revalidation-required',
           'continuity-next-open-window',
           'project-phase1-life-loop-open',
-          'project-same-her-pressure',
+          'project-continuity-pressure',
           'project-measured-return-pressure',
         ],
         presenceOnlyHold: true,

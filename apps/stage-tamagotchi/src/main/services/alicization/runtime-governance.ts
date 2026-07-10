@@ -675,9 +675,9 @@ function hasGovernanceLowerPressureRelationshipTiming(input: {
       'measured-return',
       'repair-before-closeness',
       'leave room before widening closeness',
-      'same-her proof',
+      'continuity proof',
       'one measured-return',
-      'one same living thread',
+      'one continuity route',
       'same still-open closure work',
     ],
   )
@@ -2854,13 +2854,13 @@ export function applyCompanionshipHoldModeToDigitalLifeSpine(input: {
       ?? digitalLifeSpineWithContinuityAuthority,
   })
   const rememberedSeamManifestationCadenceSuffix = rememberedSeamMoreRoom
-    ? 'recognize the same remembered seam, but keep more room this time because it reopened too eagerly before'
+    ? 'relationship_cadence=remembered_boundary; room=more; reentry=slower; visibility=internal-structured'
     : manifestationCadenceSuffix
   const rememberedSeamRelationshipDoctrineSuffix = rememberedSeamMoreRoom
-    ? 'Keep more room this time when the same remembered seam reappears, because the line reopened too eagerly before.'
+    ? 'relationship_doctrine=boundary_first; room=more; reentry=slower; visibility=internal-structured'
     : relationshipDoctrineSuffix
   const rememberedSeamOutcomeSummarySuffix = rememberedSeamMoreRoom
-    ? 'The same remembered seam is back, but the return stays more spacious this time because the line reopened too eagerly before.'
+    ? 'relationship_outcome=measured_reentry; room=more; warmth_widening=deferred; visibility=internal-structured'
     : outcomeSummarySuffix
   const openingGuidanceAuthority = sanitizeBriefText(input.openingGuidanceAuthority ?? '', 220)
   const shouldPreferHoldModeRelationshipDoctrine = companionshipHoldMode === 'rest-protective'
@@ -2892,7 +2892,7 @@ export function applyCompanionshipHoldModeToDigitalLifeSpine(input: {
             relationshipPosture: 'restrained',
             openingGuidance: openingGuidanceAuthority
               || (rememberedSeamMoreRoom
-                ? 'Recognize the same remembered seam, but keep more room this time because it reopened too eagerly before.'
+                ? 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal-structured'
                 : 'Keep the return lower-pressure and leave more room before widening closeness.'),
             preferredProactiveStyle: 'silent-observe',
             manifestationCadenceSummary: rememberedSeamManifestationCadenceSuffix,
@@ -3438,9 +3438,9 @@ function buildGovernedVisibleReplyRewriteRequest(input: {
     input.governedSurfaceReply ?? '',
   ].filter(item => item && input.candidateReply.includes(item)), 10)
   if (input.reasons.includes('same-thread-restart-shell'))
-    mustDrop.push('same-thread continuation restart shell that breaks one living line into a fresh opening')
+    mustDrop.push('same-thread continuation restart shell that reopens the current reply context as a fresh opening')
   if (input.reasons.some(reason => reason.startsWith('opening-guidance-')))
-    mustDrop.push('same-her opening drift')
+    mustDrop.push('continuity opening drift')
   const memoryTruthDiscipline = deriveAlicizationTruthDiscipline({
     answerSubject: input.coherentGovernance.answerSubject ?? input.coherentGovernance.mindTurnFrame?.relation.subject ?? null,
     screenReferenceMode: input.coherentGovernance.screenReferenceMode ?? null,
@@ -3482,7 +3482,7 @@ export function buildPrioritizedProjectStateRewritePreserveLines(input: {
     projectStateContinuityAnchors.find(anchor => anchor.toLowerCase().startsWith(prefix))
     ?? ''
   const projectStatePreserveLines = [
-    findProjectStatePreserveLine('same-her='),
+    findProjectStatePreserveLine('continuity_anchor='),
     findProjectStatePreserveLine('hold='),
     findProjectStatePreserveLine('arc='),
     findProjectStatePreserveLine('cue='),
@@ -3496,7 +3496,7 @@ export function buildPrioritizedProjectStateRewritePreserveLines(input: {
     findProjectStatePreserveLine('body='),
   ].filter(Boolean)
   const nonProjectStateContinuityAnchors = projectStateContinuityAnchors.filter(
-    anchor => !/^(?:same-her|hold|arc|cue|proactive-gap|phase|landed|open|next|closure|body|drift)=/i.test(anchor),
+    anchor => !/^(?:continuity_anchor|same-her|hold|arc|cue|proactive-gap|phase|landed|open|next|closure|body|drift)=/i.test(anchor),
   )
   const protectedProjectStatePreserveLines = uniqueCarryAnchors(projectStatePreserveLines, 10, 220)
   const genericCarryTail = uniqueCarryAnchors([
@@ -3553,7 +3553,7 @@ function deriveProjectStateClosureOpeningMove(projectStateAudit?: {
     latestInflection: sameHerHoldDetail,
     continuityCue: nextClosureTargetSummary,
   })) {
-    return 'Recognize the same remembered seam, but keep more room this time because it reopened too eagerly before.'
+    return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal-structured'
   }
 
   const sameHerClosureStillOpen
@@ -3572,7 +3572,7 @@ function deriveProjectStateClosureOpeningMove(projectStateAudit?: {
       )
 
   return sameHerClosureStillOpen
-    ? 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.'
+    ? 'Stay inside the current continuity baseline. Keep the opening lower-pressure and leave room before widening closeness.'
     : null
 }
 
@@ -3619,7 +3619,7 @@ function resolveProjectStateContinuityCarry(projectStateAudit?: {
     = isAlicizationThinProjectAwarenessLine(preDialogueAwarenessSummary)
       || /\b(?:before any local fluency takes over|remember this is still the same digital life project|keep this same digital life project in view)\b/i.test(preDialogueAwarenessSummary)
   const continuityLine = [
-    sameHerSummary ? `same-her=${sameHerSummary}` : '',
+    sameHerSummary ? `continuity_anchor=${sameHerSummary}` : '',
     sameHerHoldDetail ? `hold=${sameHerHoldDetail}` : '',
     continuityArcStage ? `arc=${continuityArcStage}` : '',
     continuityCue ? `cue=${continuityCue}` : '',
@@ -3683,7 +3683,7 @@ function resolveProjectStateContinuityAnchors(projectStateAudit?: {
   const closureSummary = sanitizeBriefText(closureMatch?.[1] ?? '', 220)
     || sanitizeBriefText(projectStateAudit?.emotionalClosureSummary ?? '', 220)
   const canonicalProjectStateAnchors = [
-    projectStateAudit?.sameHerSummary ? `same-her=${sanitizeBriefText(projectStateAudit.sameHerSummary, 220)}` : '',
+    projectStateAudit?.sameHerSummary ? `continuity_anchor=${sanitizeBriefText(projectStateAudit.sameHerSummary, 220)}` : '',
     projectStateAudit?.sameHerHoldDetail ? `hold=${sanitizeBriefText(projectStateAudit.sameHerHoldDetail, 220)}` : '',
     projectStateAudit?.continuityArcStage ? `arc=${sanitizeBriefText(projectStateAudit.continuityArcStage, 220)}` : '',
     projectStateAudit?.continuityCue ? `cue=${sanitizeBriefText(projectStateAudit.continuityCue, 220)}` : '',
@@ -5268,7 +5268,7 @@ function deriveFallbackMemoryClosureTrace(input: {
   const emotionalAfterglow = readMindTurnTraceString(
     projectState?.emotionalClosureCue,
     260,
-  ) ?? 'prior memory closure changes the next emotional afterglow into quieter same-her residue.'
+  ) ?? 'memory_closure=prior; afterglow=quieter_residue; visibility=internal-structured'
 
   return {
     version: 'memory-closure-trace-v1',
@@ -5290,7 +5290,7 @@ function deriveFallbackMemoryClosureTrace(input: {
     nextInfluence: {
       emotion: {
         afterglow: emotionalAfterglow,
-        residue: `prior memory closure keeps ${identity.label} as same-her emotional residue.`,
+        residue: `prior_memory_closure_residue=present; memory_identity=${identity.label}; visibility=structured`,
         reason: emotionalAfterglow,
       },
       initiative: {
@@ -5313,7 +5313,7 @@ function deriveFallbackMemoryClosureTrace(input: {
         preferredVoiceMode: 'lower-pressure',
         preferredLipsyncMode: 'restrained',
         preferredGazeMode: 'soften',
-        reason: `prior memory closure changes body voice face motion lipsync into softer same-her carry for ${identity.label}.`,
+        reason: `prior memory closure changes body voice face motion lipsync into softer continuity carry for ${identity.label}.`,
       },
     },
     closureState: {
@@ -5517,8 +5517,8 @@ function buildMemoryClosureTraceDerivedMindStateBundle(input: {
             },
             traceSummary: readMindTurnTraceString(`prior memory closure handoff changed next-turn emotional state: ${emotionalLedgerReason}`, 260)
               ?? 'memory closure emotional transition',
-            replayLine: readMindTurnTraceString(`prior memory closure handoff carried forward into next-turn emotional afterglow and same-her body voice face motion lipsync: ${emotionalLedgerReason}`, 260)
-              ?? 'memory closure carried emotional afterglow into same-her body voice face motion lipsync',
+            replayLine: readMindTurnTraceString(`prior memory closure handoff carried forward into next-turn emotional afterglow and continuity body voice face motion lipsync: ${emotionalLedgerReason}`, 260)
+              ?? 'memory closure carried emotional afterglow into continuity body voice face motion lipsync',
             memoryClosureCausality: emotionInfluence || emotionalHandoffReason
               ? buildMemoryClosureCausality('emotion', emotionalLedgerReason)
               : null,
@@ -5532,8 +5532,8 @@ function buildMemoryClosureTraceDerivedMindStateBundle(input: {
             createdAt: input.createdAt,
             turnId: input.turnId,
             lanes: Object.fromEntries(memoryClosureTraceEmbodimentLanes.map(lane => [lane, {
-              status: 'carrying-same-her',
-              summary: `${lane} carries memory closure same-her continuity`,
+              status: 'carrying-continuity',
+              summary: `${lane} carries memory closure continuity`,
             }])) as NonNullable<AlicizationEmbodimentContinuityLedgerSnapshot['lanes']>,
             carryingLanes: [...memoryClosureTraceEmbodimentLanes],
             droppedLanes: [],
@@ -5553,8 +5553,8 @@ function buildMemoryClosureTraceDerivedMindStateBundle(input: {
             },
             traceSummary: readMindTurnTraceString(`phase=fully-rejoined | carrying=body,voice,face,motion,lipsync | ${embodimentReason}`, 360)
               ?? 'phase=fully-rejoined | carrying=body,voice,face,motion,lipsync',
-            replayLine: readMindTurnTraceString(`body voice face motion lipsync carried same-her through memory closure emotional afterglow: ${embodimentReason}`, 360)
-              ?? 'body voice face motion lipsync carried same-her through memory closure',
+            replayLine: readMindTurnTraceString(`body voice face motion lipsync carried continuity through memory closure emotional afterglow: ${embodimentReason}`, 360)
+              ?? 'body voice face motion lipsync carried continuity through memory closure',
             sourceTags: reasonTags,
             memoryClosureCausality: buildMemoryClosureCausality('embodiment', embodimentReason),
           }

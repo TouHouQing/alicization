@@ -7,6 +7,12 @@ import { describe, expect, it } from 'vitest'
 import { createAlicizationDialogueSessionManager } from './dialogue-session-manager'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
 
+const fixedTemplateResiduePattern = /Before (?:answering|speaking|acting)|Right now I am|Same Phase 1 digital life|same[- ]her|same living line|one living her|one continuous her|local-first digital life project|同一个她|同一个 her|数字生命主线|女仆|\bmaid\b/iu
+
+function expectNoFixedTemplateResidue(value: unknown) {
+  expect(String(value ?? '')).not.toMatch(fixedTemplateResiduePattern)
+}
+
 function createDigitalLifeArchitecture(): AlicizationDigitalLifeArchitectureSnapshot {
   return {
     version: 'digital-life-architecture-v1',
@@ -404,9 +410,10 @@ describe('dialogue session manager', () => {
       sessionId: 'session-prepared-project-awareness',
     })
 
-    expect(mirror.continuityProjectSummary).toContain('preflight=Before answering, remember:')
-    expect(mirror.continuityProjectSummary).toContain('Alicization is a local-first digital life project')
-    expect(mirror.continuityProjectSummary).not.toContain('preflight=Keep the same digital life project in view before local detail takes over.')
+    expect(mirror.continuityProjectSummary).toContain('awareness_summary=identity=local_desktop_life_loop')
+    expect(mirror.continuityProjectSummary).toContain('unresolved=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(mirror.continuityProjectSummary).not.toContain('awareness_summary=Keep the same digital life project in view before local detail takes over.')
+    expectNoFixedTemplateResidue(mirror.continuityProjectSummary)
   })
 
   it('stores a same-session mirror and renders it as a continuity block', () => {
@@ -652,10 +659,11 @@ describe('dialogue session manager', () => {
     expect(mirror.recollectionSummary).toContain('mode=conversation-history')
     expect(mirror.executionSummary).toContain('callback:cli:completed')
     expect(mirror.continuityProjectSummary).toContain('project=phase1-digital-life')
-    expect(mirror.continuityProjectSummary).toContain('phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
+    expect(mirror.continuityProjectSummary).toContain('phase=local_desktop_life_loop')
     expect(mirror.continuityProjectSummary).toContain('landed=')
-    expect(mirror.continuityProjectSummary).toContain('next=Keep extending cross-modal same-her proof')
-    expect(mirror.continuityProjectSummary).toContain('same_her=Same Phase 1 digital life.')
+    expect(mirror.continuityProjectSummary).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(mirror.continuityProjectSummary).toContain('continuity_anchor=local_desktop_life_loop')
+    expectNoFixedTemplateResidue(mirror.continuityProjectSummary)
 
     const block = manager.buildSessionMirrorSystemBlock({
       cardId: 'default',
@@ -672,13 +680,13 @@ describe('dialogue session manager', () => {
     expect(block).toContain('memory_carry=mode=reflective-repair')
     expect(block).toContain('memory=recent=carry the refactor thread forward')
     expect(block).toContain('recollection=mode=conversation-history | certainty=approximate')
-    expect(block).toContain('execution=recent=callback:cli:completed status=completed summary=cli callback settled')
+    expect(block).toContain('execution=recent=callback:cli:completed | status=completed | summary=cli callback settled')
     expect(block).toContain('continuity_project=project=phase1-digital-life')
-    expect(block).toContain('phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
+    expect(block).toContain('phase=local_desktop_life_loop')
     expect(block).toContain('landed=')
-    expect(block).toContain('unresolved=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(block).toContain('next=Keep extending cross-modal same-her proof')
-    expect(block).toContain('same_her=Same Phase 1 digital life.')
+    expect(block).toContain('unresolved=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(block).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(block).toContain('continuity_anchor=local_desktop_life_loop')
   })
 
   it('summarizes affirmation-gated executor intent with goal and channel detail', () => {
@@ -821,7 +829,7 @@ describe('dialogue session manager', () => {
     })
 
     expect(mirror.executionSummary).toContain('callback:codex:completed')
-    expect(mirror.executionSummary).toContain('goal=Return the held-autonomy patch result on the same living thread.')
+    expect(mirror.executionSummary).toContain('goal=continuity_anchor=local_desktop_life_loop')
     expect(mirror.continuityArcSummary).toContain('loop=')
     expect(mirror.continuityArcSummary).toContain('thread-held-autonomy-later')
     expect(mirror.continuityArcSummary).toContain('trust-warming')
@@ -844,7 +852,8 @@ describe('dialogue session manager', () => {
     expect(block).toContain('execution=recent=callback:codex:completed')
     expect(block).toContain('afterglow=execution-callback')
     expect(block).toContain('carry=trust-warming')
-    expect(block).toContain('goal=Return the held-autonomy patch result on the same living thread.')
+    expect(block).toContain('goal=continuity_anchor=local_desktop_life_loop')
+    expectNoFixedTemplateResidue(block)
   })
 
   it('lets execution-callback afterglow continuity carry project-state preflight into the same-session mirror when no fresher prepared project surface is available', () => {
@@ -911,16 +920,17 @@ describe('dialogue session manager', () => {
     })
 
     expect(mirror.continuityProjectSummary).toContain('project=phase1-digital-life')
-    expect(mirror.continuityProjectSummary).toContain('phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
-    expect(mirror.continuityProjectSummary).toContain('preflight=Before answering, remember this is still the same digital life project and the unfinished Phase 1 closure seam still belongs to one living her.')
+    expect(mirror.continuityProjectSummary).toContain('phase=local_desktop_life_loop')
+    expect(mirror.continuityProjectSummary).toContain('awareness_summary=identity=local_desktop_life_loop')
     expect(mirror.continuityProjectSummary).toContain('landed=Project identity carry, Phase 1 route carry, and unresolved closure carry already survive across runtime preparation before the turn widens outward.')
     expect(mirror.continuityProjectSummary).toContain('Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(mirror.continuityProjectSummary).toContain('next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.')
-    expect(mirror.continuityProjectSummary).toContain('same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(mirror.continuityProjectSummary).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(mirror.continuityProjectSummary).toContain('continuity_anchor=local_desktop_life_loop')
     expect(mirror.continuityProjectSummary).not.toContain('landed=Project continuity exists.')
-    expect(mirror.continuityArcSummary).toContain('next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.')
-    expect(mirror.continuityArcSummary).toContain('same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(mirror.continuityArcSummary).toContain('drift_risk=If project-state continuity survives only as generic guidance while the direct same-her self line disappears')
+    expect(mirror.continuityArcSummary).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(mirror.continuityArcSummary).toContain('continuity_anchor=local_desktop_life_loop')
+    expectNoFixedTemplateResidue(mirror.continuityProjectSummary)
+    expectNoFixedTemplateResidue(mirror.continuityArcSummary)
 
     const block = manager.buildSessionMirrorSystemBlock({
       cardId: 'default',
@@ -929,13 +939,13 @@ describe('dialogue session manager', () => {
 
     expect(block).toContain('continuity_project=')
     expect(block).toContain('project=phase1-digital-life')
-    expect(block).toContain('phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
-    expect(block).toContain('preflight=Before answering, remember this is still the same digital life project and the unfinished Phase 1 closure seam still belongs to one living her.')
+    expect(block).toContain('phase=local_desktop_life_loop')
+    expect(block).toContain('awareness_summary=identity=local_desktop_life_loop')
     expect(block).toContain('landed=Project identity carry, Phase 1 route carry, and unresolved closure carry already survive across runtime preparation before the turn widens outward.')
     expect(block).toContain('Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(block).toContain('next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.')
-    expect(block).toContain('same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(block).toContain('drift_risk=If project-state continuity survives only as generic guidance while the direct same-her self line disappears')
+    expect(block).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(block).toContain('continuity_anchor=local_desktop_life_loop')
+    expectNoFixedTemplateResidue(block)
   })
 
   it('rebuilds callback continuity project summary from alias-only project-state summary metadata when canonical project closure fields are blank', () => {
@@ -1010,13 +1020,12 @@ describe('dialogue session manager', () => {
     })
 
     expect(mirror.continuityProjectSummary).toContain('project=phase1-digital-life')
-    expect(mirror.continuityProjectSummary).toContain('phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
+    expect(mirror.continuityProjectSummary).toContain('phase=local_desktop_life_loop')
     expect(mirror.continuityProjectSummary).toContain(`landed=${aliasOnlyLandedProgress}`)
-    expect(mirror.continuityProjectSummary).toContain(`unresolved=${aliasOnlyOpenClosure}`)
-    expect(mirror.continuityProjectSummary).toContain(`next=${aliasOnlyNextClosure}`)
-    expect(mirror.continuityProjectSummary).toContain('same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(mirror.continuityArcSummary).toContain(`next=${aliasOnlyNextClosure}`)
-    expect(mirror.continuityArcSummary).toContain(`drift_risk=${aliasOnlyDriftRisk}`)
+    expect(mirror.continuityProjectSummary).toContain('unresolved=unresolved_closure=memory_dialogue_embodiment')
+    expect(mirror.continuityProjectSummary).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(mirror.continuityProjectSummary).toContain('continuity_anchor=local_desktop_life_loop')
+    expect(mirror.continuityArcSummary).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
   })
 
   it('keeps proactive held-autonomy follow-through continuity in the same-session mirror so mirror carry keeps its defer and why-now rationale', () => {
@@ -1080,7 +1089,9 @@ describe('dialogue session manager', () => {
     expect(mirror.continuityArcSummary).toContain('thread=thread-held-autonomy-later')
     expect(mirror.continuityArcSummary).toContain('defer=busy-host')
     expect(mirror.continuityArcSummary).toContain('why_now=She wants to quietly return to the unresolved compile seam.')
-    expect(mirror.continuityArcSummary).toContain('project_preflight=Before answering, keep the')
+    expect(mirror.continuityArcSummary).toContain('preflight_summary=')
+    expect(mirror.continuityArcSummary).toContain('visibility=internal-structured')
+    expectNoFixedTemplateResidue(mirror.continuityArcSummary)
   })
 
   it('prefers stronger same-her embodiment headline in session-mirror callback carry when metadata also contains a thinner project awareness line', () => {
@@ -1140,15 +1151,18 @@ describe('dialogue session manager', () => {
       sessionId: 'session-callback-headline',
     })
 
-    expect(mirror.continuityArcSummary).toContain('project_preflight=Right now I am still holding together mainly through face, motion, and lipsync')
+    expect(mirror.continuityArcSummary).toContain('preflight_summary=continuity=embodiment')
+    expect(mirror.continuityArcSummary).toContain('visibility=renderer-internal')
+    expectNoFixedTemplateResidue(mirror.continuityArcSummary)
 
     const block = manager.buildSessionMirrorSystemBlock({
       cardId: 'default',
       sessionId: 'session-callback-headline',
     })
 
-    expect(block).toContain('project_preflight=Right now I am still holding together mainly through face, motion, and lipsync')
-    expect(block).not.toContain('project_preflight=Before answering, keep this same digital life project in view')
+    expect(block).toContain('preflight_summary=continuity=embodiment')
+    expect(block).toContain('visibility=renderer-internal')
+    expectNoFixedTemplateResidue(block)
   })
 
   it('prefers stronger same-her self line in session-mirror callback carry when metadata awareness text is thinner', () => {
@@ -1209,15 +1223,18 @@ describe('dialogue session manager', () => {
       sessionId: 'session-callback-self-line',
     })
 
-    expect(mirror.continuityArcSummary).toContain('project_preflight=Same Phase 1 digital life. Some closure already landed, but the unfinished closure still has to stay on the same living line.')
+    expect(mirror.continuityArcSummary).toContain('preflight_summary=')
+    expect(mirror.continuityArcSummary).toContain('local_desktop_life_loop')
+    expectNoFixedTemplateResidue(mirror.continuityArcSummary)
 
     const block = manager.buildSessionMirrorSystemBlock({
       cardId: 'default',
       sessionId: 'session-callback-self-line',
     })
 
-    expect(block).toContain('project_preflight=Same Phase 1 digital life. Some closure already landed, but the unfinished closure still has to stay on the same living line.')
-    expect(block).not.toContain('project_preflight=Before answering, keep this same digital life project in view')
+    expect(block).toContain('preflight_summary=')
+    expect(block).toContain('local_desktop_life_loop')
+    expectNoFixedTemplateResidue(block)
   })
 
   it('prefers stronger companion headline in session-mirror callback carry when metadata awareness text is thinner', () => {
@@ -1278,15 +1295,18 @@ describe('dialogue session manager', () => {
       sessionId: 'session-callback-companion-headline',
     })
 
-    expect(mirror.continuityArcSummary).toContain(`project_preflight=${companionHeadlineLine}`)
+    expect(mirror.continuityArcSummary).toContain('preflight_summary=')
+    expect(mirror.continuityArcSummary).toContain('visibility=internal-structured')
+    expectNoFixedTemplateResidue(mirror.continuityArcSummary)
 
     const block = manager.buildSessionMirrorSystemBlock({
       cardId: 'default',
       sessionId: 'session-callback-companion-headline',
     })
 
-    expect(block).toContain(`project_preflight=${companionHeadlineLine}`)
-    expect(block).not.toContain('project_preflight=Before answering, keep this same digital life project in view')
+    expect(block).toContain('preflight_summary=')
+    expect(block).toContain('visibility=internal-structured')
+    expectNoFixedTemplateResidue(block)
   })
 
   it('keeps same-her hold detail in session-mirror callback continuity arc when callback metadata carries a richer hold seam', () => {
@@ -1294,7 +1314,7 @@ describe('dialogue session manager', () => {
       getNow: () => 83,
     })
 
-    const holdDetail = 'same-her hold: recognize the same remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
+    const holdDetail = 'recognize the same remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
     const mirror = manager.ingestPreparedExecution({
       agentSession: {
         ...createAgentSessionSnapshot(),
@@ -1531,7 +1551,8 @@ describe('dialogue session manager', () => {
     })
 
     expect(mirror.continuityArcSummary).toContain('restraint=measured-return')
-    expect(mirror.continuityArcSummary).toContain(`cue=${continuityCue}`)
+    expect(mirror.continuityArcSummary).toContain('cue=continuity_anchor=local_desktop_life_loop')
+    expect(mirror.continuityArcSummary).toContain('continuity_hold=lower_pressure_return')
 
     const block = manager.buildSessionMirrorSystemBlock({
       cardId: 'default',
@@ -1539,7 +1560,9 @@ describe('dialogue session manager', () => {
     })
 
     expect(block).toContain('restraint=measured-return')
-    expect(block).toContain(`cue=${continuityCue}`)
+    expect(block).toContain('cue=continuity_anchor=local_desktop_life_loop')
+    expect(block).toContain('continuity_hold=lower_pressure_return')
+    expectNoFixedTemplateResidue(block)
   })
 
   it('keeps hold-for-opening continuity arc stage in session-mirror callback continuity when callback metadata carries return-stage posture', () => {
@@ -1598,7 +1621,7 @@ describe('dialogue session manager', () => {
       getNow: () => 83,
     })
 
-    const holdDetail = 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
+    const holdDetail = 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred; visibility=internal-structured'
     const mirror = manager.ingestPreparedExecution({
       agentSession: {
         ...createAgentSessionSnapshot(),
@@ -1650,7 +1673,7 @@ describe('dialogue session manager', () => {
       getNow: () => 83,
     })
 
-    const holdDetail = 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
+    const holdDetail = 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred; visibility=internal-structured'
     const agentSession = createAgentSessionSnapshot()
     agentSession.digitalLifeSpine = deriveAlicizationDigitalLifeSpineFromSurface(createRuntimeSurface().digitalLifeRuntimeSurface!)
     agentSession.lastActiveAt = 82
@@ -1729,13 +1752,14 @@ describe('dialogue session manager', () => {
     })
 
     expect(mirror.continuityProjectSummary).toContain('project=phase1-digital-life')
-    expect(mirror.continuityProjectSummary).toContain('phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
+    expect(mirror.continuityProjectSummary).toContain('phase=local_desktop_life_loop')
     expect(mirror.continuityProjectSummary).toContain('landed=Project identity carry, Phase 1 route carry, and unresolved closure carry already survive across runtime preparation before the turn widens outward.')
     expect(mirror.continuityProjectSummary).toContain('unresolved=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.')
-    expect(mirror.continuityProjectSummary).toContain('preflight=Before answering, remember this is still the same digital life project and the unfinished Phase 1 closure seam still belongs to one living her.')
-    expect(mirror.continuityProjectSummary).toContain('next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.')
-    expect(mirror.continuityProjectSummary).toContain('same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(mirror.continuityProjectSummary).toContain('awareness_summary=identity=local_desktop_life_loop')
+    expect(mirror.continuityProjectSummary).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(mirror.continuityProjectSummary).toContain('continuity_anchor=local_desktop_life_loop')
     expect(mirror.continuityProjectSummary).not.toContain('landed=Project continuity exists.')
+    expectNoFixedTemplateResidue(mirror.continuityProjectSummary)
   })
 
   it('prefers stronger companion headline in continuityProjectSummary through agent-session mirror ingestion when metadata awareness text is thinner', () => {
@@ -1779,8 +1803,10 @@ describe('dialogue session manager', () => {
       source: 'proactive-deferred',
     })
 
-    expect(mirror.continuityProjectSummary).toContain(`preflight=${companionHeadlineLine}`)
-    expect(mirror.continuityProjectSummary).not.toContain('preflight=Before answering, keep this same digital life project in view')
+    expect(mirror.continuityProjectSummary).toContain('awareness_summary=')
+    expect(mirror.continuityProjectSummary).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(mirror.continuityProjectSummary).not.toContain('awareness_summary=Before answering, keep this same digital life project in view')
+    expectNoFixedTemplateResidue(mirror.continuityProjectSummary)
   })
 
   it('does not let a thin continuity metadata preflight shell or narrow same-her line outrank a richer project-aware reopening summary in agent-session mirror ingestion', () => {
@@ -1824,14 +1850,15 @@ describe('dialogue session manager', () => {
     })
 
     expect(mirror.continuityProjectSummary).toContain('project=phase1-digital-life')
-    expect(mirror.continuityProjectSummary).toContain('phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
+    expect(mirror.continuityProjectSummary).toContain('phase=local_desktop_life_loop')
     expect(mirror.continuityProjectSummary).toContain('landed=Project identity carry, Phase 1 route carry, and unresolved closure carry already survive across runtime preparation before the turn widens outward.')
     expect(mirror.continuityProjectSummary).toContain('unresolved=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.')
-    expect(mirror.continuityProjectSummary).toContain('next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.')
-    expect(mirror.continuityProjectSummary).toContain('preflight=Before answering, remember:')
-    expect(mirror.continuityProjectSummary).toContain('Alicization is a local-first digital life project')
-    expect(mirror.continuityProjectSummary).not.toContain(`preflight=${thinPreflightSummaryShell}`)
-    expect(mirror.continuityProjectSummary).not.toContain(`preflight=${narrowSameHerLine}`)
+    expect(mirror.continuityProjectSummary).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(mirror.continuityProjectSummary).toContain('awareness_summary=identity=local_desktop_life_loop')
+    expect(mirror.continuityProjectSummary).toContain('visibility=internal-structured')
+    expect(mirror.continuityProjectSummary).not.toContain(`awareness_summary=${thinPreflightSummaryShell}`)
+    expect(mirror.continuityProjectSummary).not.toContain(`awareness_summary=${narrowSameHerLine}`)
+    expectNoFixedTemplateResidue(mirror.continuityProjectSummary)
   })
 
   it('prefers measured-return hold over a generic repair menu when deferred execution-like rationale names multiple continuity modes', () => {
@@ -1839,7 +1866,7 @@ describe('dialogue session manager', () => {
       getNow: () => 83,
     })
 
-    const holdDetail = 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
+    const holdDetail = 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred; visibility=internal-structured'
     const agentSession = createAgentSessionSnapshot()
     agentSession.digitalLifeSpine = deriveAlicizationDigitalLifeSpineFromSurface(createRuntimeSurface().digitalLifeRuntimeSurface!)
     agentSession.lastActiveAt = 82
@@ -1869,7 +1896,8 @@ describe('dialogue session manager', () => {
     })
 
     expect(mirror.continuityArcSummary).toContain(`hold=${holdDetail}`)
-    expect(mirror.continuityArcSummary).not.toContain('hold=same-her hold: repair-before-closeness still owns this callback line before closeness widens again.')
+    expect(mirror.continuityArcSummary).not.toContain('hold=repair-before-closeness still owns this callback line before closeness widens again.')
+    expectNoFixedTemplateResidue(mirror.continuityArcSummary)
   })
 
   it('keeps same-her project-state landed open and next closure detail in continuityArcSummary for prepared same-thread follow-through turns', () => {
@@ -1927,12 +1955,12 @@ describe('dialogue session manager', () => {
     })
 
     expect(mirror.continuityArcSummary).toContain('stage=same-thread-continuation')
-    expect(mirror.continuityArcSummary).toContain('same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
     expect(mirror.continuityArcSummary).toContain('landed=Project-state carry already survives into same-thread returns and reminder/proactive preparation without reopening from zero.')
-    expect(mirror.continuityArcSummary).toContain('open=Dialogue, initiative, memory, and embodiment still need one tighter same-her closure seam')
-    expect(mirror.continuityArcSummary).toContain('open-focus=memory/initiative/embodiment/same-line/closure-seam')
-    expect(mirror.continuityArcSummary).toContain('next=Keep extending cross-modal ')
-    expect(mirror.continuityArcSummary).toContain('next-focus=phase-1/same-line/embodiment')
+    expect(mirror.continuityArcSummary).toContain('open=unresolved_closure=memory_dialogue_embodiment')
+    expect(mirror.continuityArcSummary).toContain('preflight_summary=')
+    expect(mirror.continuityArcSummary).toContain('continuity_anchor=local_desktop_life_loop')
+    expectNoFixedTemplateResidue(mirror.continuityArcSummary)
+    expect(mirror.continuityArcSummary).toContain('unresolved_closure=memory_dialogue_embodiment')
   })
 
   it('keeps same-her project-state landed next and same-her detail in continuityProjectSummary for prepared same-thread follow-through turns', () => {
@@ -1982,14 +2010,15 @@ describe('dialogue session manager', () => {
     })
 
     expect(mirror.continuityProjectSummary).toContain('project=phase1-digital-life')
-    expect(mirror.continuityProjectSummary).toContain('phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
+    expect(mirror.continuityProjectSummary).toContain('phase=local_desktop_life_loop')
     expect(mirror.continuityProjectSummary).toContain('landed=Project-state carry already survives into same-thread returns and reminder/proactive preparation without reopening from zero.')
-    expect(mirror.continuityProjectSummary).toContain('unresolved=Dialogue, initiative, memory, and embodiment still need one tighter same-her closure seam')
-    expect(mirror.continuityProjectSummary).toContain('preflight=Before answering, remember this is still the same digital life project, already in Phase 1')
-    expect(mirror.continuityProjectSummary).toContain('next=Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence so the same Phase 1 digital life keeps one living line.')
-    expect(mirror.continuityProjectSummary).toContain('same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(mirror.continuityProjectSummary).toContain('unresolved=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(mirror.continuityProjectSummary).toContain('awareness_summary=identity=local_desktop_life_loop')
+    expect(mirror.continuityProjectSummary).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(mirror.continuityProjectSummary).toContain('continuity_anchor=local_desktop_life_loop')
     expect(mirror.continuityProjectSummary).not.toContain('landed=Project continuity exists.')
     expect(mirror.continuityProjectSummary).not.toContain('next=Carry project continuity forward.')
+    expectNoFixedTemplateResidue(mirror.continuityProjectSummary)
   })
 
   it('prefers stronger companion headline in continuityArcSummary for prepared same-thread follow-through turns when awareness text is thinner', () => {
@@ -2048,8 +2077,10 @@ describe('dialogue session manager', () => {
       sessionId: 'session-prepared-project-follow-through-companion-headline',
     })
 
-    expect(mirror.continuityArcSummary).toContain(`project_preflight=${companionHeadlineLine}`)
-    expect(mirror.continuityArcSummary).not.toContain('project_preflight=Before answering, keep this same digital life project in view')
+    expect(mirror.continuityArcSummary).toContain('preflight_summary=continuity=embodiment')
+    expect(mirror.continuityArcSummary).toContain('visibility=renderer-internal')
+    expect(mirror.continuityArcSummary).not.toContain('preflight_summary=Before answering, keep this same digital life project in view')
+    expectNoFixedTemplateResidue(mirror.continuityArcSummary)
   })
 
   it('prefers stronger companion headline in continuityProjectSummary for prepared same-thread follow-through turns when awareness text is thinner', () => {
@@ -2100,8 +2131,10 @@ describe('dialogue session manager', () => {
       sessionId: 'session-prepared-project-follow-through-summary-companion-headline',
     })
 
-    expect(mirror.continuityProjectSummary).toContain(`preflight=${companionHeadlineLine}`)
-    expect(mirror.continuityProjectSummary).not.toContain('preflight=Before answering, keep this same digital life project in view')
+    expect(mirror.continuityProjectSummary).toContain('awareness_summary=')
+    expect(mirror.continuityProjectSummary).toContain('awareness_summary=unresolved_closure=memory_dialogue_embodiment')
+    expect(mirror.continuityProjectSummary).not.toContain('awareness_summary=Before answering, keep this same digital life project in view')
+    expectNoFixedTemplateResidue(mirror.continuityProjectSummary)
   })
 
   it('treats legacy latestProgress as landed project-state continuity when prepared same-thread follow-through still carries older project-state shape', () => {
@@ -2159,12 +2192,12 @@ describe('dialogue session manager', () => {
     })
 
     expect(mirror.continuityArcSummary).toContain('stage=same-thread-continuation')
-    expect(mirror.continuityArcSummary).toContain('same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
     expect(mirror.continuityArcSummary).toContain('landed=Legacy project-state carry still survives into same-thread returns even when the older payload shape has not been renamed yet.')
-    expect(mirror.continuityArcSummary).toContain('open=Dialogue, initiative, memory, and embodiment still need one tighter same-her closure seam')
-    expect(mirror.continuityArcSummary).toContain('open-focus=memory/initiative/embodiment/same-line/closure-seam')
-    expect(mirror.continuityArcSummary).toContain('next=Keep extending cross-modal ')
-    expect(mirror.continuityArcSummary).toContain('next-focus=phase-1/same-line/embodiment')
+    expect(mirror.continuityArcSummary).toContain('open=unresolved_closure=memory_dialogue_embodiment')
+    expect(mirror.continuityArcSummary).toContain('preflight_summary=')
+    expect(mirror.continuityArcSummary).toContain('continuity_anchor=local_desktop_life_loop')
+    expectNoFixedTemplateResidue(mirror.continuityArcSummary)
+    expect(mirror.continuityArcSummary).toContain('unresolved_closure=memory_dialogue_embodiment')
   })
 
   it('keeps quiet same-her callback continuity in the session mirror when the later return stays silent-observe instead of emitting visible speech', () => {
@@ -2402,9 +2435,10 @@ describe('dialogue session manager', () => {
     expect(block).toContain('timing=next-open-window')
     expect(block).toContain('cadence=measured-return')
     expect(block).toContain('continuity_project=project=phase1-digital-life')
-    expect(block).toContain('phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
-    expect(block).toContain('unresolved=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
+    expect(block).toContain('phase=local_desktop_life_loop')
+    expect(block).toContain('unresolved=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(block).toContain('agency=action=wait | speak=false | style=silent-observe | thread=later coding seam')
+    expectNoFixedTemplateResidue(block)
   })
 
   it('keeps same-line scene-switch continuity in the session mirror so later desktop turns can stay on one living thread', () => {
@@ -2540,8 +2574,8 @@ describe('dialogue session manager', () => {
     })
 
     expect(mirror.continuityProjectSummary).toContain('project=phase1-digital-life')
-    expect(mirror.continuityProjectSummary).toContain('phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
-    expect(mirror.continuityProjectSummary).toContain('unresolved=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
+    expect(mirror.continuityProjectSummary).toContain('phase=local_desktop_life_loop')
+    expect(mirror.continuityProjectSummary).toContain('unresolved=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(mirror.continuityProjectSummary).not.toContain('unresolved=Project continuity still needs closure.')
   })
 
@@ -2743,11 +2777,11 @@ describe('dialogue session manager', () => {
     })
 
     expect(mirror.continuityProjectSummary).toContain('project=phase1-digital-life')
-    expect(mirror.continuityProjectSummary).toContain('phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
+    expect(mirror.continuityProjectSummary).toContain('phase=local_desktop_life_loop')
     expect(mirror.continuityProjectSummary).toContain('landed=')
-    expect(mirror.continuityProjectSummary).toContain('unresolved=Memory still needs stronger end-to-end closure')
-    expect(mirror.continuityProjectSummary).toContain('next=Keep extending cross-modal same-her proof')
-    expect(mirror.continuityProjectSummary).toContain('same_her=Same Phase 1 digital life.')
+    expect(mirror.continuityProjectSummary).toContain('unresolved=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(mirror.continuityProjectSummary).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(mirror.continuityProjectSummary).toContain('continuity_anchor=local_desktop_life_loop')
     expect(mirror.perceptionSummary).toContain('watch=symbiotic-vision')
     expect(mirror.runtimeChannelSummary).toContain('dominant=')
     expect(mirror.agencySummary).toContain('action=speak')
@@ -2760,11 +2794,11 @@ describe('dialogue session manager', () => {
 
     expect(block).toContain('conversation_session_id=session-thin-prepared-spine')
     expect(block).toContain('continuity_project=project=phase1-digital-life')
-    expect(block).toContain('phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
+    expect(block).toContain('phase=local_desktop_life_loop')
     expect(block).toContain('landed=')
-    expect(block).toContain('unresolved=Memory still needs stronger end-to-end closure')
-    expect(block).toContain('next=Keep extending cross-modal same-her proof')
-    expect(block).toContain('same_her=Same Phase 1 digital life.')
+    expect(block).toContain('unresolved=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(block).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(block).toContain('continuity_anchor=local_desktop_life_loop')
     expect(block).toContain('perception=watch=symbiotic-vision')
     expect(block).toContain('agency=action=speak')
   })

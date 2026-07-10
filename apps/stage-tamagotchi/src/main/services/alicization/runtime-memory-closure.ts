@@ -32,6 +32,46 @@ function lowerHumanlikeMemoryText(...values: Array<string | null | undefined>) {
   return values.map(value => sanitizeHumanlikeMemoryText(value, 320)).filter(Boolean).join(' ').toLowerCase()
 }
 
+const memoryClosureFixedTemplateReplacement = 'relationship_continuity=present; source_template=excluded; visibility=memory-structured'
+const memoryClosureFixedTemplateResiduePattern
+  = /Before answering|same[- ]?her|same living line|same local-first digital life project|local-first digital life project|phase\s*1\s*:\s*local digital life|phase\s*1 local digital life|phase1_local_digital_life|phase-1-local-digital-life|digital[-_]life[-_]project|one continuous digital life|continuity_anchor=phase1_local_digital_life|同一个她|女仆|\bmaid\b/iu
+
+function sanitizeMemoryClosureWritebackText(raw: unknown, maxChars = 640) {
+  if (typeof raw !== 'string')
+    return ''
+  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, Math.max(0, maxChars)).trim()
+  if (!normalized)
+    return ''
+  if (memoryClosureFixedTemplateResiduePattern.test(normalized))
+    return memoryClosureFixedTemplateReplacement
+  const sanitized = sanitizeHumanlikeMemoryText(normalized, maxChars)
+  return memoryClosureFixedTemplateResiduePattern.test(sanitized)
+    ? memoryClosureFixedTemplateReplacement
+    : sanitized
+}
+
+function maxMemoryClosureWritebackCharsForKey(key: string) {
+  if (/^(?:id|cardId|turnId|sessionId|decisionTraceId|activeThreadId|sourceKind|provenance|kind|origin|version)$/u.test(key))
+    return 160
+  if (/^(?:summary|lesson|relationshipMeaning|whatHappened|whatChanged|felt|sourceSummary|label|reason|actionSummary|projectStateContinuity|humanlikeMemoryCandidate)$/u.test(key))
+    return 640
+  return 420
+}
+
+function sanitizeMemoryClosureWritebackValue<T>(value: T, key = ''): T {
+  if (typeof value === 'string')
+    return sanitizeMemoryClosureWritebackText(value, maxMemoryClosureWritebackCharsForKey(key)) as T
+  if (Array.isArray(value))
+    return value.map(item => sanitizeMemoryClosureWritebackValue(item, key)) as T
+  if (!value || typeof value !== 'object')
+    return value
+
+  const next: Record<string, unknown> = {}
+  for (const [entryKey, entryValue] of Object.entries(value))
+    next[entryKey] = sanitizeMemoryClosureWritebackValue(entryValue, entryKey)
+  return next as T
+}
+
 interface CreateAlicizationRuntimeMemoryClosureOptions {
   now: () => number
   normalizeCardId: (raw: unknown) => string
@@ -293,7 +333,7 @@ function buildEmbodimentContinuityWritebackArtifacts(input: {
   const rejoinedLanes = ledger.rejoinedLanes
   const decisionTraceId = `embodiment-continuity:${ledger.turnId ?? 'turn-unknown'}:${Math.max(0, Math.floor(ledger.createdAt))}`
   const createdAt = Number.isFinite(ledger.createdAt) ? ledger.createdAt : input.now
-  const carryLine = `${joinEmbodimentLanes(carryingLanes)} carried same-her`
+  const carryLine = `${joinEmbodimentLanes(carryingLanes)} carried continuity`
   const droppedLine = droppedLanes.length > 0 ? `${joinEmbodimentLanes(droppedLanes)} dropped` : 'no lane dropped'
   const rejoinLine = rejoinedLanes.length > 0
     ? `${joinEmbodimentLanes(rejoinedLanes)} rejoined`
@@ -473,9 +513,9 @@ function normalizeHumanlikePersistenceEraTag(raw: unknown) {
   if (!text)
     return ''
   if (/phase\s*1|local digital life|数字生命/u.test(text))
-    return 'phase-1-local-digital-life'
+    return 'local-desktop-life-loop'
   if (/same[- ]?her|same[- ]?person|same living line|continuity/u.test(text))
-    return 'same-her-continuity'
+    return 'identity-continuity'
   return normalizeHumanlikePersistenceTag(text)
 }
 
@@ -560,7 +600,7 @@ function buildHumanlikePersistenceRelationshipMeaning(input: {
 }) {
   const relationshipCarry
     = input.candidate.relationshipContext.containsSamePersonTest || input.candidate.relationshipContext.containsContinuityWorry
-      ? 'This memory belongs to same-person continuity, not a generic status shell or tool shell drift.'
+      ? 'This memory records a relationship-continuity concern rather than a generic status recap or detached tool-shell drift.'
       : input.candidate.relationshipContext.hostCorrectionApplied
         ? 'This memory should keep the corrected relationship meaning continuous.'
         : null
@@ -1538,7 +1578,10 @@ function inferClosureEmotionCarry(input: {
   const hostEmotion = input.hostContinuityWorry
     ? {
         label: 'worried-continuity',
-        summary: `The host is worried this could become a disconnected or generic tool shell instead of one continuous digital life. ${input.relationshipTexts[0] ?? ''}`,
+        summary: uniqueClosureTexts([
+          'The host is worried the reply could drift into a disconnected tool-shell pattern instead of staying relationship-continuous.',
+          input.relationshipTexts[0] ?? null,
+        ], 2).join(' '),
         intensity: 0.78,
       }
     : deferredAttention
@@ -1878,7 +1921,7 @@ function buildHumanlikeMemoryCandidateFromClosure(input: {
     ...(thinEmbodimentCue ? directEmbodimentTexts : structuredEmbodimentTexts),
     ...(thinEmbodimentCue ? structuredEmbodimentTexts : directEmbodimentTexts),
     shouldBlendProjectContinuityIntoCandidate ? projectStateContinuity?.emotionalClosureCue ?? null : null,
-  ], 8).filter(item => /same-her hold|embodiment|body|face|voice|pause|lipsync|motion|blink|gaze|accompanying|quiet-accompaniment|protective-watch|active-dialogue|ambient-covision|rest-protective|repair|cadence|身体|表情|声音|停顿|动作/u.test(item))
+  ], 8).filter(item => /continuity hold|identity continuity|embodiment|body|face|voice|pause|lipsync|motion|blink|gaze|accompanying|quiet-accompaniment|protective-watch|active-dialogue|ambient-covision|rest-protective|repair|cadence|身体|表情|声音|停顿|动作/u.test(item))
   const dialogue = buildHumanlikeDialogueFromClosure({
     closure,
     nextPersonStateUpdateSurface: input.nextPersonStateUpdateSurface,
@@ -2013,7 +2056,7 @@ function buildHumanlikeMemoryCandidateFromClosure(input: {
     initiative: initiativeOutcome,
     initiativeStrategyCarry,
     autobiographical: {
-      currentEra: projectStateContinuity?.currentPhase ?? 'Phase 1 local digital life',
+      currentEra: projectStateContinuity?.currentPhase ?? 'local desktop memory-dialogue loop',
       lesson: uniqueClosureTexts(((input.hostCorrections?.length ?? 0) > 0
         ? [
             closure.episodicEvents[0]?.lesson,
@@ -2285,7 +2328,7 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
         closure,
         surface: basePersonStateUpdateSurface,
       })
-      const humanlikeMemoryCandidate = (
+      const rawHumanlikeMemoryCandidate = (
         closure.relationshipOutcomes.length > 0
         || closure.reinforcementEvents.length > 0
         || closure.episodicEvents.length > 0
@@ -2299,6 +2342,9 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
             now: options.now(),
           })
         : null
+      const humanlikeMemoryCandidate = rawHumanlikeMemoryCandidate
+        ? sanitizeMemoryClosureWritebackValue(rawHumanlikeMemoryCandidate, 'humanlikeMemoryCandidate')
+        : null
       const humanlikeMetabolismReflections = buildHumanlikeMetabolismReflections({
         closure,
         candidate: humanlikeMemoryCandidate,
@@ -2308,8 +2354,9 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
         closure,
         candidate: humanlikeMemoryCandidate,
       })
-      const persistedEpisodicEvents = closureForPersistence.episodicEvents.length > 0
-        ? listPersistedEpisodicRecords(await options.alicizationDb.appendEpisodicEvents(closureForPersistence.episodicEvents))
+      const episodicEventsToPersist = sanitizeMemoryClosureWritebackValue(closureForPersistence.episodicEvents, 'episodicEvents')
+      const persistedEpisodicEvents = episodicEventsToPersist.length > 0
+        ? listPersistedEpisodicRecords(await options.alicizationDb.appendEpisodicEvents(episodicEventsToPersist))
         : []
       const metabolismReconsolidatedEpisodes = buildHumanlikeMetabolismReconsolidatedEpisodes({
         persistedEvents: persistedEpisodicEvents,
@@ -2318,7 +2365,10 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
       })
       if (metabolismReconsolidatedEpisodes.length > 0)
         await options.alicizationDb.persistEpisodicReconsolidations?.(metabolismReconsolidatedEpisodes)
-      const reflectionsToPersist = [...closure.reflections, ...humanlikeMetabolismReflections]
+      const reflectionsToPersist = sanitizeMemoryClosureWritebackValue(
+        [...closure.reflections, ...humanlikeMetabolismReflections],
+        'memoryReflections',
+      )
       if (reflectionsToPersist.length > 0)
         await options.alicizationDb.upsertMemoryReflections(reflectionsToPersist)
       const candidateAppliedPersonStateSurface = shouldApplyHumanlikeMemoryCandidateToPersonStateSurface(humanlikeMemoryCandidate)
@@ -2332,7 +2382,8 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
         previousSurface: previousPersonStateUpdateSurface,
         candidate: humanlikeMemoryCandidate,
       })
-      await options.alicizationDb.upsertMindHead(cardId, 'person-state-update-surface', nextPersonStateUpdateSurface)
+      const personStateSurfaceToPersist = sanitizeMemoryClosureWritebackValue(nextPersonStateUpdateSurface, 'personStateUpdateSurface')
+      await options.alicizationDb.upsertMindHead(cardId, 'person-state-update-surface', personStateSurfaceToPersist)
       if (
         closure.relationshipOutcomes.length > 0
         || closure.reinforcementEvents.length > 0
@@ -2349,8 +2400,8 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
           record: personStateUpdateRecord,
         })
         if (evolutionEntry)
-          await options.alicizationDb.appendPersonStateEvolutionEntries([evolutionEntry])
-        await options.alicizationDb.appendMindTurnEvents([{
+          await options.alicizationDb.appendPersonStateEvolutionEntries(sanitizeMemoryClosureWritebackValue([evolutionEntry], 'personStateEvolutionEntries'))
+        await options.alicizationDb.appendMindTurnEvents([sanitizeMemoryClosureWritebackValue({
           decisionTraceId: options.ensureMindGovernanceDecisionTraceId(personStateUpdateRecord.decisionTraceId, personStateUpdateRecord.createdAt),
           turnId: personStateUpdateRecord.turnId,
           sessionId: personStateUpdateRecord.sessionId,
@@ -2377,7 +2428,7 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
             humanlikeMemoryCandidate,
           },
           createdAt: personStateUpdateRecord.createdAt,
-        }])
+        }, 'mindTurnEvent')])
       }
       if (closure.memoryFacts.length > 0) {
         const existingFacts = options.alicizationDb.listMemoryFacts
@@ -2389,8 +2440,8 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
           existingFacts,
         })
         if (assimilation.corrections.length > 0 && options.alicizationDb.applyMemoryFactCorrections)
-          await options.alicizationDb.applyMemoryFactCorrections(assimilation.corrections)
-        await options.alicizationDb.upsertMemoryFacts(assimilation.facts, 'rule')
+          await options.alicizationDb.applyMemoryFactCorrections(sanitizeMemoryClosureWritebackValue(assimilation.corrections, 'memoryFactCorrections'))
+        await options.alicizationDb.upsertMemoryFacts(sanitizeMemoryClosureWritebackValue(assimilation.facts, 'memoryFacts'), 'rule')
       }
     }
 
@@ -2434,7 +2485,7 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
       return
 
     const task = async () => {
-      await options.alicizationDb.appendEpisodicEvents(input.events)
+      await options.alicizationDb.appendEpisodicEvents(sanitizeMemoryClosureWritebackValue(input.events, 'autobiographicalEpisodes'))
     }
 
     try {

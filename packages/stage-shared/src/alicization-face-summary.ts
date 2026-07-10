@@ -1,9 +1,16 @@
+import { sanitizeAlicizationStructuredInternalText } from './alicization-fixed-template-sanitizer'
+
 function normalizeSummaryString(raw: unknown) {
   if (typeof raw !== 'string')
     return null
 
   const normalized = raw.trim()
   return normalized || null
+}
+
+function normalizeReasonSummaryString(raw: unknown) {
+  const normalized = normalizeSummaryString(raw)
+  return normalized ? sanitizeAlicizationStructuredInternalText(normalized, 520, normalized) || null : null
 }
 
 export function buildAlicizationFaceSummary(input: {
@@ -50,7 +57,7 @@ export function buildAlicizationFaceSummary(input: {
     normalizeSummaryString(input.continuityTiming) ? `timing=${normalizeSummaryString(input.continuityTiming)}` : null,
     normalizeSummaryString(input.preferredBlinkCadence) ? `blink=${normalizeSummaryString(input.preferredBlinkCadence)}` : null,
     normalizeSummaryString(input.preferredGazeMode) ? `gaze=${normalizeSummaryString(input.preferredGazeMode)}` : null,
-    normalizeSummaryString(input.reasonSummary) ? `reason=${normalizeSummaryString(input.reasonSummary)}` : null,
+    normalizeReasonSummaryString(input.reasonSummary) ? `reason=${normalizeReasonSummaryString(input.reasonSummary)}` : null,
     normalizeSummaryString(input.source) ? `src=${normalizeSummaryString(input.source)}` : null,
     formatNumber(input.confidence) ? `conf=${formatNumber(input.confidence)}` : null,
     normalizeSummaryString(input.segmentId) ? `seg=${normalizeSummaryString(input.segmentId)}` : null,

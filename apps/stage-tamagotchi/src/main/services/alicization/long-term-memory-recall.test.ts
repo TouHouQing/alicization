@@ -52,6 +52,7 @@ describe('long-term memory recall owner', () => {
     expect(plan.episodicQueries.join(' ')).toContain('一起做过的事情')
     expect(bundle.evidence[0]?.candidate.id).toBe('episode-game-last-week')
     expect(block).toContain('[ALICIZATION_RECALLED_MEMORY]')
+    expect(block).toContain('owner=LongTermMemoryRecall')
     expect(block).toContain('Minecraft')
     expect(block).toContain('source=episodic_events:episode-game-last-week')
   })
@@ -76,6 +77,7 @@ describe('long-term memory recall owner', () => {
         source: 'memory_reflections',
         confidence: 0.88,
         salience: 0.92,
+        reviewStatus: 'confirmed',
         cues: ['固定模板', '数字生命人格', '用户纠正'],
       }],
     })
@@ -141,6 +143,158 @@ describe('long-term memory recall owner', () => {
 
     expect(bundle.evidence[0]?.visibleMode).toBe('inward-only')
     expect(block).toContain('inward:')
+  })
+
+  it('drops historical fixed-template residue before recall ranking can boost it', () => {
+    const intent = deriveLongTermMemoryRecallIntent({
+      currentUserText: '你还记得我不要固定模板回复吗？',
+    })
+    const plan = buildLongTermMemoryQueryPlan({
+      intent,
+      currentUserText: '你还记得我不要固定模板回复吗？',
+    })
+    const bundle = buildLongTermMemoryEvidenceBundle({
+      intent,
+      plan,
+      now,
+      candidates: [{
+        id: 'reflection-old-template',
+        kind: 'reflection',
+        summary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        source: 'memory_reflections',
+        confidence: 0.9,
+        salience: 0.9,
+        cues: ['固定模板', '数字生命'],
+      }],
+      semanticScores: {
+        'reflection-old-template': 1,
+      },
+    })
+    const block = buildLongTermMemoryRecallBlock({ bundle })
+
+    expect(bundle.evidence).toEqual([])
+    expect(block).toBeNull()
+  })
+
+  it('does not treat pending reflection candidates as confirmed long-term recall', () => {
+    const intent = deriveLongTermMemoryRecallIntent({
+      currentUserText: '你还记得我不要固定模板回复吗？',
+    })
+    const plan = buildLongTermMemoryQueryPlan({
+      intent,
+      currentUserText: '你还记得我不要固定模板回复吗？',
+    })
+    const bundle = buildLongTermMemoryEvidenceBundle({
+      intent,
+      plan,
+      now,
+      candidates: [{
+        id: 'reflection-pending-template-correction',
+        kind: 'reflection',
+        summary: '用户刚刚提出不要固定模板回复，这条还在 review 队列等待确认。',
+        source: 'memory_reflections',
+        confidence: 0.99,
+        salience: 0.99,
+        reviewStatus: 'pending',
+        cues: ['固定模板', 'review 队列'],
+      }],
+      semanticScores: {
+        'reflection-pending-template-correction': 1,
+      },
+    })
+
+    expect(bundle.evidence).toEqual([])
+    expect(buildLongTermMemoryRecallBlock({ bundle })).toBeNull()
+  })
+
+  it('does not recall any reviewed candidate until its review status is confirmed', () => {
+    const intent = deriveLongTermMemoryRecallIntent({
+      currentUserText: '你还记得我说过的偏好吗？',
+    })
+    const plan = buildLongTermMemoryQueryPlan({
+      intent,
+      currentUserText: '你还记得我说过的偏好吗？',
+    })
+    const bundle = buildLongTermMemoryEvidenceBundle({
+      intent,
+      plan,
+      now,
+      candidates: [
+        {
+          id: 'fact-pending-preference',
+          kind: 'fact',
+          summary: '用户刚刚说过一个偏好，但这条事实还在 review 队列等待确认。',
+          source: 'memory_facts',
+          confidence: 0.99,
+          salience: 0.99,
+          reviewStatus: 'pending',
+          cues: ['偏好'],
+        },
+        {
+          id: 'episode-review-needed',
+          kind: 'episode',
+          summary: '用户刚刚描述了一段经历，但这段 episode 还需要复核。',
+          source: 'episodic_events',
+          confidence: 0.98,
+          salience: 0.98,
+          reviewStatus: 'review-needed',
+          cues: ['偏好'],
+        },
+      ],
+      semanticScores: {
+        'fact-pending-preference': 1,
+        'episode-review-needed': 0.9,
+      },
+    })
+
+    expect(bundle.evidence).toEqual([])
+    expect(buildLongTermMemoryRecallBlock({ bundle })).toBeNull()
+  })
+
+  it('keeps clean recalled evidence above a higher-scored fixed-template candidate', () => {
+    const intent = deriveLongTermMemoryRecallIntent({
+      currentUserText: '你还记得我不要固定模板回复吗？',
+    })
+    const plan = buildLongTermMemoryQueryPlan({
+      intent,
+      currentUserText: '你还记得我不要固定模板回复吗？',
+    })
+    const bundle = buildLongTermMemoryEvidenceBundle({
+      intent,
+      plan,
+      now,
+      candidates: [
+        {
+          id: 'reflection-old-template',
+          kind: 'reflection',
+          summary: 'Before answering, remember this is still the same local-first digital life project. Same Phase 1 digital life.',
+          source: 'memory_reflections',
+          confidence: 0.99,
+          salience: 0.99,
+          cues: ['固定模板', '数字生命'],
+        },
+        {
+          id: 'reflection-cleaned',
+          kind: 'reflection',
+          summary: '用户明确要求失败面透明，不要用固定模板遮盖 provider failure。',
+          source: 'memory_reflections',
+          confidence: 0.74,
+          salience: 0.62,
+          reviewStatus: 'confirmed',
+          cues: ['固定模板', '失败面透明'],
+        },
+      ],
+      semanticScores: {
+        'reflection-old-template': 1,
+        'reflection-cleaned': 0.2,
+      },
+    })
+    const block = buildLongTermMemoryRecallBlock({ bundle })
+
+    expect(bundle.evidence.map(item => item.candidate.id)).toEqual(['reflection-cleaned'])
+    expect(block).toContain('用户明确要求失败面透明')
+    expect(block).not.toContain('Before answering')
+    expect(block).not.toContain('Same Phase 1 digital life')
   })
 
   it('fuses semantic scores into the evidence bundle instead of dropping vector recall', () => {

@@ -5,7 +5,18 @@ import {
   resolveAlicizationCompanionshipReasonSummary,
 } from './alicization-companionship-reason'
 
+const fixedTemplateResiduePattern = /Same Phase 1 digital life|same-her|same living line|same living thread|one continuous her|one living her|Alicization is a local-first digital life project|local-first digital life project|Recognize the same remembered seam|Keep the callback|Keep the same living line|Memory deliberation still says/iu
+
 describe('alicization companionship reason', () => {
+  const measuredReturnInwardCarryReason
+    = 'continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower; visibility=internal'
+  const repairBeforeClosenessReason
+    = 'continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred; visibility=internal'
+  const rememberedBoundaryPreserveReason
+    = 'relationship_cadence=remembered_boundary; room=preserve_before_widening; visibility=internal'
+  const rememberedBoundaryMoreRoomReason
+    = 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal'
+
   it('detects remembered-seam reopen pressure from shared digital-life relationship signals', () => {
     expect(detectRememberedSeamCompanionshipReopen({
       digitalLifeSpineDigest: {
@@ -27,7 +38,7 @@ describe('alicization companionship reason', () => {
     })).toBe(true)
   })
 
-  it('prefers remembered-seam reason wording for measured-return reopenings', () => {
+  it('prefers remembered-seam structured reason for measured-return reopenings', () => {
     expect(resolveAlicizationCompanionshipReasonSummary({
       residentMode: 'measured-return',
       digitalLifeSpineDigest: {
@@ -46,7 +57,7 @@ describe('alicization companionship reason', () => {
           latestInflection: 'The same remembered seam is visible again, so reopen gently instead of widening closeness too fast.',
         },
       } as any,
-    })).toBe('Recognize the same remembered seam before reopening, and leave room before closeness widens')
+    })).toBe(rememberedBoundaryPreserveReason)
   })
 
   it('reinterprets remembered-seam reopenings when newer relationship learning says the earlier return was too eager', () => {
@@ -68,7 +79,7 @@ describe('alicization companionship reason', () => {
           latestInflection: 'The last seam reopened too eagerly, so this time keep more room before closeness widens.',
         },
       } as any,
-    })).toBe('Recognize the same remembered seam, but keep more room this time because the line reopened too eagerly before')
+    })).toBe(rememberedBoundaryMoreRoomReason)
   })
 
   it('keeps remembered-seam more-room reinterpretation visible when only downstream reason tags still carry that finer timing evidence', () => {
@@ -82,7 +93,7 @@ describe('alicization companionship reason', () => {
         },
       } as any,
       reasonTags: ['resident-performance', 'measured-return', 'timing:remembered-seam-more-room'],
-    })).toBe('Recognize the same remembered seam, but keep more room this time because the line reopened too eagerly before')
+    })).toBe(rememberedBoundaryMoreRoomReason)
   })
 
   it('prefers remembered-seam more-room reinterpretation over generic same-her inward carry when both survive on the same measured-return line', () => {
@@ -109,7 +120,7 @@ describe('alicization companionship reason', () => {
         sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
       },
       reasonTags: ['resident-performance', 'measured-return', 'timing:remembered-seam-more-room'],
-    })).toBe('Recognize the same remembered seam, but keep more room this time because the line reopened too eagerly before')
+    })).toBe(rememberedBoundaryMoreRoomReason)
   })
 
   it('prefers remembered-seam more-room reinterpretation over a generic same-her hold detail when long-horizon memory is the only surviving finer cue', () => {
@@ -130,7 +141,7 @@ describe('alicization companionship reason', () => {
         primaryOpenLoop: null,
         sameHerHoldDetail: 'Same Phase 1 digital life. Staying near preserves continuity without forcing the opening.',
       },
-    })).toBe('Recognize the same remembered seam, but keep more room this time because the line reopened too eagerly before')
+    })).toBe(rememberedBoundaryMoreRoomReason)
   })
 
   it('keeps remembered-seam more-room reinterpretation visible when only memory person-state projection still carries that finer reopening cue beside a generic same-her hold detail', () => {
@@ -150,7 +161,7 @@ describe('alicization companionship reason', () => {
         primaryOpenLoop: null,
         sameHerHoldDetail: 'same-her hold: keep this project-state answer on the same living line before widening outward, because some closure already landed and the unfinished closure still belongs to one continuous "her".',
       },
-    })).toBe('Recognize the same remembered seam, but keep more room this time because the line reopened too eagerly before')
+    })).toBe(rememberedBoundaryMoreRoomReason)
   })
 
   it('prefers same-her inward carry wording for measured-return resident presence when the line is being held inward rather than reopened outward', () => {
@@ -159,27 +170,53 @@ describe('alicization companionship reason', () => {
       digitalLifeSpineDigest: {
       } as any,
       reasonTags: ['resident-performance', 'same-her-inward-carry', 'measured-return', 'body:accompanying'],
-    })).toBe('Keep the same living line inward for now, and leave room before widening outward again')
+    })).toBe(measuredReturnInwardCarryReason)
   })
 
-  it('prefers same-her inward carry wording for measured-return when only memory self-evolution still carries the durable same-her cadence', () => {
+  it('prefers structured inward carry wording for measured-return when memory self-evolution carries durable cadence evidence', () => {
     expect(resolveAlicizationCompanionshipReasonSummary({
       residentMode: 'measured-return',
       digitalLifeSpineDigest: {
         memory: {
           selfEvolution: {
-            relationshipDoctrine: 'Stay the same living her across quiet, memory, initiative, and speech instead of reopening from scratch.',
-            relationshipCadenceSummary: 'The same living line should stay lower-pressure and continue as the same her across quiet, memory, and speech without reopening from scratch.',
-            latestInflection: 'I am learning to keep the same living line audible before widening outward again.',
-            trustMeaning: 'Trust means she can return as the same her without rebuilding the relationship from zero.',
+            relationshipDoctrine: 'continuity_hold=measured_return; direction=inward; reopening=not_from_scratch; owner=self_evolution',
+            relationshipCadenceSummary: 'continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower; lanes=quiet+memory+speech',
+            latestInflection: 'continuity_hold=measured_return; direction=inward; widening=deferred',
+            trustMeaning: 'continuity_anchor=local_desktop_life_loop; relationship_rebuild=not_from_zero',
           },
         },
       } as any,
-    })).toBe('Keep the same living line inward for now, and leave room before widening outward again')
+    })).toBe(measuredReturnInwardCarryReason)
   })
 
-  it('prefers same-her inward carry wording for measured-return resident presence when project-state sameHerSelfLine and inwardLine already carry one continuous her', () => {
+  it('prefers structured inward carry wording for measured-return resident presence when project-state carries continuity evidence', () => {
     expect(resolveAlicizationCompanionshipReasonSummary({
+      residentMode: 'measured-return',
+      digitalLifeSpineDigest: {
+        memory: {
+          personStateProjection: {
+            selfContinuityAuthority: {
+              inwardLine: 'continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower; owner=LongTermMemoryRecall',
+            },
+          },
+        },
+        proactive: {
+          personaBias: {
+            manifestationCadenceSummary: 'continuity_hold=measured_return; source=execution_callback_afterglow; scope=noisy_desktop_detours',
+          },
+        },
+      } as any,
+      projectState: {
+        currentPhase: 'local_desktop_life_loop',
+        memoryClosureSummary: null,
+        primaryOpenLoop: null,
+        sameHerSelfLine: 'continuity_anchor=local_desktop_life_loop; open_loop=memory+initiative+embodiment; owner=project_state_governance',
+      },
+    })).toBe(measuredReturnInwardCarryReason)
+  })
+
+  it('does not let fixed project continuity templates alone trigger measured-return inward carry', () => {
+    const reason = resolveAlicizationCompanionshipReasonSummary({
       residentMode: 'measured-return',
       digitalLifeSpineDigest: {
         memory: {
@@ -189,45 +226,40 @@ describe('alicization companionship reason', () => {
             },
           },
         },
-        proactive: {
-          personaBias: {
-            manifestationCadenceSummary: 'Execution-callback afterglow is still live across noisier desktop detours, so the later chat turn should stay measured-return.',
-          },
-        },
       } as any,
       projectState: {
-        currentPhase: 'Phase 1: Local Digital Life',
-        memoryClosureSummary: null,
-        primaryOpenLoop: null,
-        sameHerSelfLine: 'Keep one continuous her explicit: identity=Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper. | still-open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-      },
-    })).toBe('Keep the same living line inward for now, and leave room before widening outward again')
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      } as any,
+    })
+
+    expect(reason).not.toBe(measuredReturnInwardCarryReason)
+    expect(JSON.stringify(reason ?? '')).not.toMatch(fixedTemplateResiduePattern)
   })
 
-  it('keeps project emotional closure seam legible in companionship reason when that seam is the only surviving same-her authority', () => {
+  it('keeps project emotional closure seam legible in companionship reason when that seam is the only surviving continuity authority', () => {
     expect(resolveAlicizationCompanionshipReasonSummary({
       residentMode: 'measured-return',
       digitalLifeSpineDigest: {
       } as any,
       projectState: {
-        currentPhase: 'Phase 1: Local Digital Life',
+        currentPhase: 'local_desktop_life_loop',
         memoryClosureSummary: null,
         primaryOpenLoop: null,
-        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        emotionalClosureCue: 'continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower; room=more; reopen_from_scratch=false',
       },
-    })).toBe('Keep the same living line inward for now, and leave room before widening outward again')
+    })).toBe(measuredReturnInwardCarryReason)
 
     expect(resolveAlicizationCompanionshipReasonSummary({
       residentMode: 'repair-before-closeness',
       digitalLifeSpineDigest: {
       } as any,
       projectState: {
-        currentPhase: 'Phase 1: Local Digital Life',
+        currentPhase: 'local_desktop_life_loop',
         memoryClosureSummary: null,
         primaryOpenLoop: null,
-        emotionalClosureCue: 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the same living line.',
+        emotionalClosureCue: 'late_night_drain=true; continuity_hold=repair_before_closeness; pressure=lower; initiative=rest_protective; embodiment=repair_before_closeness',
       },
-    })).toBe('late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the same living line')
+    })).toBe(repairBeforeClosenessReason)
   })
 
   it('prefers same-her hold detail for quiet-companionship when a thinner rest-protective carry is the surviving authority', () => {
@@ -246,27 +278,27 @@ describe('alicization companionship reason', () => {
           },
         },
       } as any,
-    })).toBe('same-her hold: rest-protective companionship is still keeping this return fatigue-aware, quiet, and inward before warmth widens again')
+    })).toBe('continuity_hold=rest_protective; fatigue_aware=true; quiet=true; direction=inward; warmth_widening=deferred')
   })
 
-  it('prefers same-her inward carry wording for repair-before-closeness when project-state inward continuity already carries one continuous her', () => {
+  it('prefers repair-before-closeness wording when project-state carries structured inward continuity evidence', () => {
     expect(resolveAlicizationCompanionshipReasonSummary({
       residentMode: 'repair-before-closeness',
       digitalLifeSpineDigest: {
         memory: {
           personStateProjection: {
             selfContinuityAuthority: {
-              inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              inwardLine: 'continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred; owner=LongTermMemoryRecall',
             },
           },
         },
         proactive: {
           personaBias: {
-            manifestationCadenceSummary: 'The callback seam should stay repair-before-closeness until the body line settles.',
+            manifestationCadenceSummary: 'continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred',
           },
         },
       } as any,
-    })).toBe('Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again')
+    })).toBe(repairBeforeClosenessReason)
   })
 
   it('keeps memory-deliberation repair-first provenance visible in companionship reason summaries for diagnostics consumers', () => {
@@ -279,7 +311,7 @@ describe('alicization companionship reason', () => {
         'repair-before-closeness',
         'memory-deliberation-cadence:repair-before-closeness',
       ],
-    })).toBe('Memory deliberation still says let repair settle first on the same living line before closeness widens again')
+    })).toBe('memory_deliberation=repair_before_closeness; repair=settle_first; widening=deferred; visibility=internal')
   })
 
   it('keeps memory-deliberation measured-return provenance visible in companionship reason summaries for diagnostics consumers', () => {
@@ -292,7 +324,7 @@ describe('alicization companionship reason', () => {
         'measured-return',
         'memory-deliberation-cadence:measured-return',
       ],
-    })).toBe('Memory deliberation still says keep the same living line lower-pressure before widening outward again')
+    })).toBe('memory_deliberation=measured_return; pressure=lower; widening=deferred; visibility=internal')
   })
 
   it('prefers a concrete same-her life-loop gap reason when measured-return carries memory, initiative, and embodiment closure pressure with project-shell drift risk', () => {
@@ -314,7 +346,7 @@ describe('alicization companionship reason', () => {
           latestInflection: 'Memory is landing, but initiative and embodiment still need the same-her line to stay explicit.',
         },
       } as any,
-    })).toBe('Keep memory, initiative, embodiment closing on one same-her line before this turn flattens into project-shell narration')
+    })).toBe('closure_gap=memory, initiative, embodiment; project_shell_risk=true; widening=deferred; visibility=internal')
   })
 
   it('keeps emotional closure explicit inside the concrete same-her life-loop gap reason when emotion is part of the active unfinished loop', () => {
@@ -336,7 +368,7 @@ describe('alicization companionship reason', () => {
           latestInflection: 'Emotion is landing again, but memory, initiative, and embodiment still need the same-her line to stay explicit.',
         },
       } as any,
-    })).toBe('Keep emotion, memory, initiative, embodiment closing on one same-her line before this turn flattens into project-shell narration')
+    })).toBe('closure_gap=emotion, memory, initiative, embodiment; project_shell_risk=true; widening=deferred; visibility=internal')
   })
 
   it('keeps thinner affective-residue room-making wording visible in measured-return companionship summaries when no stronger same-her override is present', () => {
@@ -374,6 +406,47 @@ describe('alicization companionship reason', () => {
           },
         },
       } as any,
-    })).toBe('Deliver the result on the same living thread, but leave room before widening closeness')
+    })).toBe('Deliver the result on the continuity_thread, but leave room before widening closeness')
+  })
+
+  it('does not return fixed-template residue from companionship reason summaries', () => {
+    const samples = [
+      resolveAlicizationCompanionshipReasonSummary({
+        residentMode: 'measured-return',
+        digitalLifeSpineDigest: {
+          proactive: {
+            personaBias: {
+              manifestationCadenceSummary: 'Deliver the result on the same living thread, but leave room before widening closeness.',
+              openingGuidance: 'This follow-up is reopening because the current scene feels like the same remembered relationship seam.',
+            },
+          },
+        } as any,
+      }),
+      resolveAlicizationCompanionshipReasonSummary({
+        residentMode: 'repair-before-closeness',
+        digitalLifeSpineDigest: {
+          memory: {
+            personStateProjection: {
+              selfContinuityAuthority: {
+                inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              },
+            },
+          },
+        } as any,
+      }),
+      resolveAlicizationCompanionshipReasonSummary({
+        residentMode: 'quiet-companionship',
+        digitalLifeSpineDigest: {
+          runtime: {
+            projectState: {
+              sameHerHoldDetail: 'same-her hold: rest-protective companionship is still keeping this return fatigue-aware, quiet, and inward before warmth widens again.',
+            },
+          },
+        } as any,
+      }),
+    ]
+
+    for (const sample of samples)
+      expect(sample).not.toMatch(fixedTemplateResiduePattern)
   })
 })

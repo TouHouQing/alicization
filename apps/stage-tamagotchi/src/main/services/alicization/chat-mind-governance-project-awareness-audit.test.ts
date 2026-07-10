@@ -8,9 +8,9 @@ const proofRows = [
     file: './chat-mind-governance.test.ts',
     snippets: [
       'threads project phase and still-open life loop into governance before local reply tactics take over',
-      'expect(result.mustDo.some(item => item.includes(\'Phase 1\'))).toBe(true)',
-      'expect(result.mustDo.some(item => item.includes(\'Some closure has already landed\'))).toBe(true)',
-      'expect(result.mustDo.some(item => item.includes(\'Keep the next project closure target explicit in this turn:\'))).toBe(true)',
+      'expect(result.mustDo.some(item => item.includes(\'local_desktop_life_loop\'))).toBe(true)',
+      'expect(result.mustDo.some(item => item.includes(\'project_focus=\') && item.includes(\'continuity_gap=still_open\'))).toBe(true)',
+      'expect(result.mustDo.some(item => item.includes(\'project_next_closure_target=\'))).toBe(true)',
     ],
   },
   {
@@ -18,7 +18,7 @@ const proofRows = [
     file: './chat-mind-governance.test.ts',
     snippets: [
       'threads the active emotional closure seam into final governance mustDo constraints',
-      'Keep the turn inside the active emotional closure seam: Let the answer sound steady enough to hold the same-her emotional line while easing late-night drain..',
+      'emotional_closure=active; surface=low_pressure_internal_until_payoff; cue=Let the answer sound steady enough to hold the continuity_identity emotional line while easing late-night drain.',
       'Let the answer sound steady enough to hold the same-her emotional line while easing late-night drain.',
     ],
   },
@@ -28,7 +28,7 @@ const proofRows = [
     snippets: [
       'keeps a fuller project-and-phase awareness line over a narrower embodiment governing-project shell in governance mustDo cues',
       'Alicization is still the same Phase 1 local digital life, not a generic assistant shell. Some closure has landed, but memory, initiative, and embodiment still need stronger end-to-end closure before the life loop is truly closed.',
-      'Keep the next project closure target explicit in this turn: Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      'expect(result.mustDo.some(item => item.includes(\'project_next_closure_target=\') && item.includes(\'cross_modal_continuity_proof\'))).toBe(true)',
     ],
   },
   {
@@ -38,7 +38,7 @@ const proofRows = [
       'prefers the live conscious-frame project state so this turn keeps the actual next closure target explicit',
       'Phase 1: Local Digital Life. Active proving ground: runtime carry in stage-tamagotchi.',
       'same still-open closure work across memory, initiative, dialogue, and embodiment',
-      'Keep the next project closure target explicit in this turn: Carry the active next closure target into this turn before any local implementation detail takes over..',
+      'project_next_closure_target=Carry the active next closure target into this turn before any local implementation detail takes over.',
     ],
   },
 ] as const

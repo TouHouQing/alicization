@@ -266,14 +266,14 @@ function buildProjectBriefingNarrative(
       ? `Recent landed progress to preserve during execution planning: ${latestLandedProgress}`
       : '',
     primaryOpenLoop && nextClosureTarget
-      ? `Execution planning should help the same Phase 1 closure arc by respecting the open loop "${primaryOpenLoop}" and the next closure target "${nextClosureTarget}".`
+      ? `Execution planning should respect project_context=local_desktop_life_loop, open_loop="${primaryOpenLoop}", and next_closure_target="${nextClosureTarget}".`
       : primaryOpenLoop
         ? `Execution planning should respect the current open loop: ${primaryOpenLoop}`
         : nextClosureTarget
           ? `Execution planning should respect the next closure target: ${nextClosureTarget}`
           : '',
     sameHerSelfLine
-      ? `Keep the same-her line explicit while planning execution: ${sameHerSelfLine}`
+      ? `Keep identity_continuity explicit while planning execution: ${sameHerSelfLine}`
       : '',
     sameHerDriftRisk
       ? `Avoid execution-planning drift: ${sameHerDriftRisk}`
@@ -679,7 +679,7 @@ export function buildClawFabricPlan(input: {
   const projectBriefingReasonTags = unique([
     projectBriefing?.currentPhase ? 'project-phase-briefing' : '',
     hasProjectOpenLoopBriefing ? 'project-open-loop-briefing' : '',
-    projectBriefing?.sameHerSelfLine ? 'project-same-her-briefing' : '',
+    projectBriefing?.sameHerSelfLine ? 'project-identity-continuity-briefing' : '',
   ])
   if (input.killSwitchSuspended) {
     return {

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { buildAlicizationEmbodimentContinuityLedger } from './embodiment-continuity-ledger'
 
 describe('embodiment-continuity-ledger', () => {
-  it('records which embodiment lanes drop, carry same-her, and need rejoin writeback', () => {
+  it('records which embodiment lanes drop, carry continuity, and need rejoin writeback', () => {
     const ledger = buildAlicizationEmbodimentContinuityLedger({
       createdAt: 1_720_000,
       turnId: 'turn-embodiment-1',
@@ -51,7 +51,9 @@ describe('embodiment-continuity-ledger', () => {
       'embodiment-pending-rejoin:lipsync',
     ]))
     expect(ledger.traceSummary).toContain('dropped=face,motion')
-    expect(ledger.replayLine).toContain('body+voice carried same-her while face+motion dropped')
+    expect(ledger.lanes.body.status).toBe('carrying-continuity')
+    expect(ledger.lanes.voice.status).toBe('carrying-continuity')
+    expect(ledger.replayLine).toContain('body+voice carried continuity evidence while face+motion dropped')
   })
 
   it('marks full rejoin when previously missing lanes come back with same-her carry', () => {

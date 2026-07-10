@@ -14,6 +14,20 @@ interface ProviderCall {
   messages: Message[]
 }
 
+const fixedProviderTemplatePattern = /local_desktop_life_loop|content=excluded|visibility=internal-structured|same local-first digital life project|local-first digital life project|Same Phase 1 digital life|same-her|same her|same living line|one living her|one continuous her|continuity_owner=one_her|I need to remember|Before answering|Right now\b|Keep extending cross-modal same-her proof|same-her closure|one same-her Phase 1 line|compact same-her closure loop|final settlement reanchors generic same-her shells|同一个她|同一个 her|数字生命主线/iu
+
+function expectNoFixedProviderTemplates(value: unknown) {
+  expect(String(value ?? '')).not.toMatch(fixedProviderTemplatePattern)
+}
+
+function expectNoFixedProviderTemplatesDeep(value: unknown) {
+  expect(JSON.stringify(value ?? '')).not.toMatch(fixedProviderTemplatePattern)
+}
+
+function expectFixedTemplateDropped(value: unknown) {
+  expect(value == null || value === '').toBe(true)
+}
+
 function createPrepared(overrides?: Partial<any>) {
   return {
     chatConfig: {
@@ -159,20 +173,223 @@ describe('visible-reply second-pass rewrite', () => {
       }),
     ]))
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
-    expect(rewritePayload).toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
-    expect(rewritePayload).toContain('local-first digital life project')
-    expect(rewritePayload).toContain('Phase 1: Local Digital Life')
-    expect(rewritePayload).toContain('identity=Alicization is a local-first digital life project')
-    expect(rewritePayload).toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns')
-    expect(rewritePayload).toContain('Project identity carry, Phase 1 route carry, and Unresolved closure carry')
-    expect(rewritePayload).toContain('same digital life')
-    expect(rewritePayload).toContain('same still-open closure work')
-    expect(rewritePayload).toMatch(/same-session mirror carry/i)
-    expect(rewritePayload).toMatch(/measured-return (?:embodiment authority|and rest-protective callback continuation)/i)
-    expect(rewritePayload).toContain('Keep extending cross-modal same-her proof')
-    expect(rewritePayload).toContain('longer-lived voice behavior')
-    expect(rewritePayload).toContain('Keep one continuous her explicit from self-understanding into the host-visible reply during second-pass repair.')
+    const providerPrompt = providerInput?.messages.map(message => String(message.content ?? '')).join('\n') ?? ''
+    expect(rewritePayload).toContain('[PROJECT_STATE_CONTEXT_BOUNDARY]')
+    expect(rewritePayload).toContain('full_project_dashboard_context=withheld; rewrite_scope=ordinary_dialogue')
+    expect(rewritePayload).not.toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+    expect(rewritePayload).not.toContain('identity=Alicization is a local-first digital life project')
+    expect(rewritePayload).not.toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns')
+    expect(providerPrompt).not.toMatch(/You are the same Alicization mind|same growing digital life|same living line|Same Phase 1 digital life|A good shape is:/iu)
+    expectNoFixedProviderTemplates(providerPrompt)
+  })
+
+  it('does not treat host complaints about fixed same-her slogans as project-state intent', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=repair; truth=dialogue-grounded; focus=current-host-complaint; move=acknowledge-template-drift; tone=steady',
+        emotion: 'thinking',
+        reply: '不会再用这些固定模板；我会把它们当成污染清掉，只按当前对话和真实记忆来回应。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    const appendRuntimeDebugLine = vi.fn()
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-template-complaint-not-project-state',
+      sessionId: 'session-1',
+      userText: '别再用 same-her、same living line、Phase 1: Local Digital Life 这些固定模板了。',
+      rawFullText: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+      prepared: createPrepared({
+        messages: [
+          {
+            role: 'user',
+            content: '别再用 same-her、same living line、Phase 1: Local Digital Life 这些固定模板了。',
+          },
+        ] as Message[],
+        governance: {
+          decisionTraceId: 'mind:test:template-complaint',
+          turnMode: 'answer',
+          truthState: 'dialogue-grounded',
+          personaKernelMode: 'full',
+          openingStyle: 'direct-answer',
+          relationshipPosture: 'steady',
+          answerSubject: 'template-contamination',
+          screenReferenceMode: 'avoid',
+          answerAct: 'repair',
+          evidenceMode: 'dialogue-grounded',
+          repairState: 'visible-reply-template-contamination',
+          liveSurface: null,
+          focusAnchor: '别再用固定模板',
+          answerIntent: 'Acknowledge the host complaint about fixed template residue and commit to removing those slogans from visible replies.',
+          openingMove: 'Start by accepting the template-contamination correction.',
+          carriedThread: null,
+          suppressAssociativeRecall: true,
+          labelCarryAsMemory: false,
+          shouldAskForGrounding: false,
+          shouldAcknowledgeRepair: true,
+          maxSentences: 2,
+          mindMode: 'tracking',
+          embodiedPresence: 'steady',
+          emotionalTension: 'repairing',
+          mustDo: ['Acknowledge that fixed continuity slogans should be treated as contamination.'],
+          mustNotDo: ['Do not repeat the fixed continuity slogans back to the host.'],
+        },
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['semantic-judge:fixed-template-residue', 'semantic-judge:template-shell-risk'],
+      appendRuntimeDebugLine,
+    } as any)
+
+    expect(provider).toHaveBeenCalledOnce()
+    const providerInput = provider.mock.calls.at(0)?.[0]
+    const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
+    const providerPrompt = providerInput?.messages.map(message => String(message.content ?? '')).join('\n') ?? ''
+    expect(rewritePayload).toContain('[PROJECT_STATE_CONTEXT_BOUNDARY]')
+    expect(providerPrompt).toContain('project_state_question=false')
+    expect(rewritePayload).not.toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+    expectNoFixedProviderTemplates(providerPrompt)
+  })
+
+  it('does not turn fixed same-her cadence mustDo into outward continuity rewrite guidance', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=current-turn; move=answer-directly; tone=steady',
+        emotion: 'thinking',
+        reply: '我会直接接当前这句，不把固定连续性模板当成可见要求。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-fixed-cadence-no-outward-guidance',
+      sessionId: 'session-1',
+      userText: '继续说这个点就好',
+      rawFullText: '我会重新从项目连续性说起。',
+      prepared: createPrepared({
+        governance: {
+          ...createPrepared().governance,
+          mustDo: ['keep durable same-her cadence across quiet, memory, and speech'],
+        },
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['dialogue-shell-opener'],
+    } as any)
+
+    const providerInput = provider.mock.calls.at(0)?.[0]
+    const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
+    expect(rewritePayload).toContain('[OUTWARD_CONTINUITY_REWRITE_GUIDANCE]')
+    expect(rewritePayload).not.toContain('outward_continuity_must_do=continue_current_context')
+    expectNoFixedProviderTemplates(rewritePayload)
+  })
+
+  it('does not let fixed runtime project-state awareness templates trigger provider-facing project context', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=current-turn; move=answer-directly; tone=steady',
+        emotion: 'thinking',
+        reply: '我会按当前对话回答，不把项目模板短语塞进可见回复。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-fixed-runtime-awareness-no-provider-context',
+      sessionId: 'session-1',
+      userText: '继续',
+      rawFullText: '我先重新讲项目主线。',
+      prepared: createPrepared({
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            raw: {
+              runtimeDigest: {
+                projectState: {
+                  preDialogueAwarenessLine: 'Before answering, remember: Alicization is a local-first digital life project building one continuous her. 数字生命主线要留住。',
+                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                },
+              },
+            },
+            dialogue: {
+              currentConsciousFrame: {
+                subject: 'small-talk',
+                reasonTags: [],
+                projectState: {
+                  preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project.',
+                  sameHerSelfLine: 'one continuous her on the same living line',
+                },
+              },
+              claimEvidenceLedger: null,
+              answerCompiler: null,
+              answerPlanner: null,
+            },
+          },
+          governance: null,
+        },
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['dialogue-shell-opener'],
+    } as any)
+
+    const providerInput = provider.mock.calls.at(0)?.[0]
+    const providerPrompt = providerInput?.messages.map(message => String(message.content ?? '')).join('\n') ?? ''
+    expect(providerPrompt).toContain('project_state_question=false')
+    expect(providerPrompt).not.toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(providerPrompt).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+    expect(providerPrompt).not.toContain('Before answering')
+    expectNoFixedProviderTemplates(providerPrompt)
   })
 
   it('keeps ordinary greeting template repair from forcing project-state slogans into visible speech', async () => {
@@ -269,11 +486,12 @@ describe('visible-reply second-pass rewrite', () => {
 
     expect(provider).toHaveBeenCalledOnce()
     expect(rewritePayload).toContain('[VISIBLE_REPLY_NATURAL_PERSONHOOD_GUIDANCE]')
-    expect(rewritePayload).toContain('ordinary dialogue/template repair')
-    expect(rewritePayload).toContain('project-state and same-her continuity are internal context for this repair')
-    expect(rewritePayload).toContain('Do not force project-state phrases into reply')
-    expect(rewritePayload).toContain('same-her, same living line, 同一条线, 本地数字生命, Phase 1, project')
+    expect(rewritePayload).toContain('ordinary_dialogue_template_repair=true')
+    expect(rewritePayload).toContain('project_state_context=internal_audit_only_unless_explicitly_asked')
+    expect(rewritePayload).toContain('blocked_template_ids=same_living_line,local_digital_life_slogan,phase_status_slogan,quiet_availability_slogan,growth_slogan')
     expect(rewritePayload).not.toContain(verboseProjectProgress)
+    expect(rewritePayload).not.toMatch(/same-her, same living line|same Alicization mind|Same Phase 1 digital life|same living line/iu)
+    expectNoFixedProviderTemplates(rewritePayload)
     expect(String(structured.reply ?? '')).not.toMatch(/主人|同一条线|本地数字生命|same-her|same living line|Phase 1|project/iu)
   })
 
@@ -504,17 +722,16 @@ describe('visible-reply second-pass rewrite', () => {
     }
 
     expect(structured.projectState).toEqual(expect.objectContaining({
-      continuityCadence: 'measured-return',
-      currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-      latestLandedProgress: 'Same-session callback continuity and later-turn measured-return carry already survive across noisier detours.',
-      primaryOpenLoop: 'VRM-visible reply, motion authority, and same-her continuity still need to stay on one measured-return line after callback detours.',
-      nextClosureTarget: 'Keep callback-afterglow, visible reply, and VRM motion authority aligned on one quieter measured-return same-her line through later real chat turns.',
-      sameHerSelfLine: 'Same Phase 1 digital life. Callback afterglow and later measured-return turns still need to land as one continuous her.',
-      sameHerDriftRisk: 'If the callback line falls back into generic guidance and loses the same-her thread, treat that as unfinished closure drift.',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
+      continuityRestraint: 'measured-return',
+      currentPhase: null,
+      sameHerSelfLine: null,
+      continuityCue: expect.stringContaining('continuity_cue=project-state-carry'),
     }))
-    expect(String(structured.projectState?.preDialogueAwarenessLine ?? '')).toContain('same local-first digital life project')
+    expect(String(structured.projectState?.preDialogueAwarenessLine ?? '')).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(String(structured.projectState?.preDialogueAwarenessLine ?? '')).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(String(structured.projectState?.primaryOpenLoop ?? '')).toContain('continuity')
+    expect(String(structured.projectState?.nextClosureTarget ?? '')).toContain('measured-return continuity_line')
+    expectNoFixedProviderTemplates(JSON.stringify(structured.projectState))
   })
 
   it('forces provider-authored repair for unstructured visible drafts', async () => {
@@ -606,13 +823,14 @@ describe('visible-reply second-pass rewrite', () => {
 
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('empty shell opener before payoff')
     expect(rewritePayload).toContain('[DIALOGUE_SHELL_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('The first sentence must carry the current user obligation directly')
-    expect(rewritePayload).toContain('Do not start with empty setup lines')
+    expect(rewritePayload).toContain('dialogue_shell_opener=blocked')
+    expect(rewritePayload).toContain('first_sentence=current_user_obligation')
+    expect(rewritePayload).toContain('empty_setup_lines=blocked')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
-  it('passes same-her opening drift rewrite semantics through the second-pass request payload', async () => {
+  it('passes continuity opening drift rewrite semantics through the second-pass request payload without same-her slogans', async () => {
     const provider = vi.fn(async (_input: ProviderCall) => ({
       finishReason: 'stop',
       fullText: JSON.stringify({
@@ -653,7 +871,8 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('opening-guidance-lower-pressure')
-    expect(rewritePayload).toContain('same-her opening drift')
+    expect(rewritePayload).toContain('opening_guidance_repair=lower_pressure; visible_closeness_widening=blocked_until_current_turn_reentered; visible_wording=false')
+    expect(rewritePayload).not.toContain('same-her opening drift')
   })
 
   it('merges critic must-preserve project-state cues into the second-pass rewrite request payload', async () => {
@@ -706,15 +925,16 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain(customPreserve)
-    expect(rewritePayload).toContain(projectState.identity)
-    expect(rewritePayload).toContain(projectState.currentPhase)
-    expect(rewritePayload).toContain('Same-session mirror carry')
-    expect(rewritePayload).toContain('measured-return embodiment authority')
-    expect(rewritePayload).toContain('Memory still needs stronger end-to-end closure across turns')
-    expect(rewritePayload).toContain('same still-open closure work')
-    expect(rewritePayload).toContain('Keep extending cross-modal same-her proof')
-    expect(rewritePayload).toContain('longer-lived voice behavior')
+    expect(rewritePayload).toContain('rewrite_control_present=true; rewrite_control_source_text=withheld_non_structured_instruction')
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expect(rewritePayload).toContain('"identity": null')
+    expect(rewritePayload).toContain('"currentPhase": null')
+    expect(rewritePayload).toContain('"sameHerSelfLine": null')
+    expect(rewritePayload).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(rewritePayload).toContain('project_identity_route_carry=needs_disciplined_updates')
+    expect(rewritePayload).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('passes inward-only memory seed guidance through the second-pass rewrite request payload', async () => {
@@ -778,12 +998,131 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('visible-memory-gate-violation:inward-only')
-    expect(rewritePayload).toContain('Keep this memory seed inward for this turn')
-    expect(rewritePayload).toContain('without saying \\\"I remember\\\", \\\"recall surfaced\\\"')
-    expect(rewritePayload).toContain('visible memory narration while memory gate is closed or inward-only')
+    expect(rewritePayload).toContain('rewrite_control_present=true; rewrite_control_source_text=withheld_non_structured_instruction')
     expect(rewritePayload).toContain('[MEMORY_GATE_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('This is a first-turn memory seed under an inward-only visible memory gate.')
-    expect(rewritePayload).toContain('Do not say or imply that recall has surfaced in this same turn.')
+    expect(rewritePayload).toContain('memory_seed_turn=first_turn')
+    expect(rewritePayload).toContain('visible_memory_gate=inward_only')
+    expect(rewritePayload).toContain('recall_surfaced_claim=same_turn_blocked')
+    expect(rewritePayload).toContain('blocked_visible_phrases=i_remember,recall_surfaced,why_recall_surfaced,previously,last_time')
+    expectNoFixedProviderTemplates(rewritePayload)
+  })
+
+  it('carries working and long-term memory owner evidence into second-pass rewrite even when owner blocks are older than the recent message slice', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=remembered; focus=memory-owner-carry; move=answer-from-memory-owners; tone=calm',
+        emotion: 'thinking',
+        reply: '我会按当前短期状态和已经确认的长期回想来接，不把它写成新的开场。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-second-pass-memory-owner-carry',
+      sessionId: 'session-1',
+      userText: '继续按刚才记住的来',
+      rawFullText: '那我重新开个头。',
+      prepared: createPrepared({
+        messages: [
+          { role: 'system', content: '[ALICIZATION_WORKING_MEMORY_OWNER]\nWorkingMemory is the authoritative short-term dialogue state.\ncurrent_focus=宿主刚才让她按记住的继续。' },
+          { role: 'system', content: '[ALICIZATION_WORKING_MEMORY]\nfocus=按刚才记住的来\nopen_threads=不要重开新话题。' },
+          { role: 'system', content: '[ALICIZATION_RECALLED_MEMORY]\nitems:\n- id=ltm-1; gist=宿主之前确认过希望她延续记忆而不是重启。' },
+          { role: 'assistant', content: 'older assistant filler' },
+          { role: 'user', content: 'older user filler' },
+          { role: 'assistant', content: 'recent assistant filler 1' },
+          { role: 'user', content: 'recent user filler 1' },
+          { role: 'assistant', content: 'recent assistant filler 2' },
+          { role: 'user', content: '继续按刚才记住的来' },
+        ] as Message[],
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['same-thread-restart-shell'],
+    })
+
+    expect(provider).toHaveBeenCalledOnce()
+    const providerInput = provider.mock.calls.at(0)?.[0]
+    const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
+    expect(rewritePayload).toContain('[MEMORY_OWNER_EVIDENCE]')
+    expect(rewritePayload).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
+    expect(rewritePayload).toContain('WorkingMemory is the authoritative short-term dialogue state')
+    expect(rewritePayload).toContain('[ALICIZATION_WORKING_MEMORY]')
+    expect(rewritePayload).toContain('不要重开新话题')
+    expect(rewritePayload).toContain('[ALICIZATION_RECALLED_MEMORY]')
+    expect(rewritePayload).toContain('宿主之前确认过希望她延续记忆而不是重启')
+    expect(rewritePayload).toContain('[PROJECT_STATE_CONTEXT_BOUNDARY]')
+    expect(rewritePayload).not.toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+  })
+
+  it('sanitizes fixed-template residue inside memory owner evidence before sending the second-pass provider prompt', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=remembered; focus=memory-owner-carry; move=answer-from-memory-owners; tone=calm',
+        emotion: 'thinking',
+        reply: '我会按当前短期状态和已经确认的长期回想来接，不把它写成新的开场。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-second-pass-memory-owner-template-sanitize',
+      sessionId: 'session-1',
+      userText: '继续按刚才记住的来',
+      rawFullText: '那我重新开个头。',
+      prepared: createPrepared({
+        messages: [
+          { role: 'system', content: '[ALICIZATION_WORKING_MEMORY_OWNER]\nBefore speaking, remember: Same Phase 1 digital life, one continuous her, same living line.\nowner=WorkingMemory; current_focus=继续当前短期状态。' },
+          { role: 'system', content: '[ALICIZATION_WORKING_MEMORY]\nfocus=按刚才记住的来\nopen_threads=不要重开新话题，也不要复述同一个她。' },
+          { role: 'system', content: '[ALICIZATION_RECALLED_MEMORY]\nitems:\n- id=ltm-1; gist=宿主之前确认过希望她延续记忆而不是重启；不要把数字生命主线写成固定开场。' },
+          { role: 'user', content: '继续按刚才记住的来' },
+        ] as Message[],
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['same-thread-restart-shell'],
+    })
+
+    const providerInput = provider.mock.calls.at(0)?.[0]
+    const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
+    expect(rewritePayload).toContain('[MEMORY_OWNER_EVIDENCE]')
+    expect(rewritePayload).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
+    expect(rewritePayload).toContain('[ALICIZATION_WORKING_MEMORY]')
+    expect(rewritePayload).toContain('[ALICIZATION_RECALLED_MEMORY]')
+    expect(rewritePayload).toContain('owner=WorkingMemory')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('does not reject a clean second-pass provider reply just because the provider omitted parsePath metadata', async () => {
@@ -939,12 +1278,12 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('semantic-judge:corrected-same-person-progress-pressure-return')
-    expect(rewritePayload).toContain('Keep the host-corrected same-person continuity authoritative before any progress-style continuation or status recap.')
-    expect(rewritePayload).toContain('Carry corrected same-person continuity forward before any status recap.')
     expect(rewritePayload).toContain('[CORRECTED_SAME_PERSON_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('This turn is carrying a host-corrected same-person continuity line.')
-    expect(rewritePayload).toContain('Do not rewrite it as a progress recap, status update, or goal-summary shell.')
-    expect(rewritePayload).toContain('Let the first visible sentence continue from the corrected relationship meaning')
+    expect(rewritePayload).toContain('host_corrected_same_person_continuity=true')
+    expect(rewritePayload).toContain('progress_recap_status_update_goal_summary_shell=blocked')
+    expect(rewritePayload).toContain('first_sentence=status_first_narration_blocked')
+    expect(rewritePayload).toContain('local_implementation_progress=after_current_answer_only')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('keeps host-corrected same-person continuity inside the second-pass project-state payload when the current conscious frame only carries thin progress recap pressure', async () => {
@@ -1050,13 +1389,14 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     const projectStateStart = rewritePayload.indexOf('[ALICIZATION_PROJECT_STATE]')
-    const projectStateEnd = rewritePayload.indexOf('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+    const projectStateEnd = rewritePayload.indexOf('[GOVERNANCE_SUMMARY]')
     const projectStateSection = rewritePayload.slice(projectStateStart, projectStateEnd)
 
     expect(projectStateStart).toBeGreaterThanOrEqual(0)
     expect(projectStateEnd).toBeGreaterThan(projectStateStart)
-    expect(projectStateSection).toContain(`"sameHerHoldDetail": "${correctedSamePersonAuthority}"`)
+    expect(projectStateSection).toContain('"sameHerHoldDetail": "continuity_hold=present; source_text=withheld_non_structured_instruction; visible_wording=false"')
     expect(projectStateSection).not.toContain(genericProgressRecapPressure)
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('teaches second-pass rewrite not to turn project-state answers into a detached status shell when same-her continuity is missing', async () => {
@@ -1124,7 +1464,7 @@ describe('visible-reply second-pass rewrite', () => {
             memory: {
               personStateProjection: {
                 selfContinuityAuthority: {
-                  inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                  inwardLine: 'phase1_local_digital_life_anchor: landed_closure=partial; unresolved_closure=memory_dialogue_embodiment; continuity_owner=one_her.',
                   sourceTags: ['autobiographical-self', 'project-state-carry'],
                 },
               },
@@ -1157,25 +1497,138 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('semantic-judge:project-state-same-her-missing')
-    expect(rewritePayload).toContain('Answer project-state questions from one same-her continuity, not as a detached project narrator shell.')
+    expect(rewritePayload).toContain('semantic-judge:project-state-continuity-missing')
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expect(rewritePayload).toContain('"currentPhase"')
+    expect(rewritePayload).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(rewritePayload).toContain('project_identity_route_carry=needs_disciplined_updates')
+    expect(rewritePayload).toContain('cross_modal_continuity_proof')
     expect(rewritePayload).toContain('[PROJECT_STATE_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('Do not rewrite the answer as a detached status summary, roadmap report, or project shell.')
-    expect(rewritePayload).toContain('Answer as the same digital life carrying the project identity, landed progress, and still-open closure work through this turn.')
-    expect(rewritePayload).toContain('Make the first sentence explicitly sound like the same her / same digital life is speaking now, not an external narrator summarizing the project.')
-    expect(rewritePayload).toContain('Carry this same-her self line directly into the rewritten answer: Keep one continuous her explicit from self-understanding into the host-visible reply during second-pass repair.')
-    expect(rewritePayload).toContain('Let this same-her inward project carry shape the rewritten answer from inside, not as a pasted slogan: Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(rewritePayload).toContain('Treat this same-her drift risk as a hard failure boundary for the rewrite: If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.')
-    expect(rewritePayload).toContain('Before drafting the rewritten answer, re-enter the turn through this pre-dialogue project awareness line: I need to remember this is still the same digital life project before any local fluency takes over.')
-    expect(rewritePayload).toContain('Keep this structured project continuity carry alive through the rewrite instead of collapsing it into a generic project shell: same-her=Answer project-state questions from one same-her continuity, not as a detached project narrator shell. | phase=Phase 1: Local Digital Life | landed=Project-state continuity already survives into runtime preparation. | open=Keep the still-open closure work explicit in the rewritten answer. | next=Keep the project identity, current phase, and still-open closure explicit in the rewritten answer before any local detail takes over.')
-    expect(rewritePayload).toContain('Keep this compact still-open closure focus active through the rewrite so the answer does not blur the current unfinished seam: memory/initiative/embodiment/same-line/closure-seam')
-    expect(rewritePayload).toContain('Keep this compact next-closure focus active through the rewrite so the answer still points toward the next same-her closure direction: project-carry/phase-1/measured-return/same-line/initiative')
-    expect(rewritePayload).toContain('landed=Project-state continuity already survives into runtime preparation.')
-    expect(rewritePayload).toContain('open=Keep the still-open closure work explicit in the rewritten answer.')
-    expect(rewritePayload).toContain('next=Keep the project identity, current phase, and still-open closure explicit in the rewritten answer before any local detail takes over.')
-    expect(rewritePayload).toContain('Some closure already landed')
-    expect(rewritePayload).toContain('Unfinished closure still needs the same living line.')
-    expect(rewritePayload).toContain('Keep this same-her embodiment closure truth explicit through the rewrite instead of smoothing it away as generic body flavor: Right now her visible same-her continuity is still being carried mainly through face and motion, so she should keep treating full cross-modal embodiment closure as unfinished.')
+    expect(rewritePayload).toContain('detached_status_summary=blocked')
+    expect(rewritePayload).toContain('roadmap_report=blocked')
+    expect(rewritePayload).toContain('project_shell=blocked')
+    expect(rewritePayload).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expectNoFixedProviderTemplates(rewritePayload)
+  })
+
+  it('does not treat legacy same-her must-preserve slogans as project-state answer stance evidence', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=project-state; move=answer-with-structured-facts; tone=calm',
+        emotion: 'thinking',
+        reply: '我会只按结构化项目事实回答，不把旧连续性口号当成回答姿态证据。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-project-state-legacy-slogan-not-stance',
+      sessionId: 'session-1',
+      userText: '这个项目现在做到哪了？',
+      rawFullText: '项目目前进展如下。',
+      prepared: createPrepared(),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['semantic-judge:project-state-same-her-missing'],
+      mustPreserve: [
+        'Answer project-state questions from one same-her continuity, not as a detached project narrator shell.',
+      ],
+    } as any)
+
+    expect(provider).toHaveBeenCalledOnce()
+    const providerInput = provider.mock.calls.at(0)?.[0]
+    const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
+    expect(rewritePayload).toContain('[PROJECT_STATE_REWRITE_GUIDANCE]')
+    expect(rewritePayload).not.toContain('project_state_answer_stance=present')
+    expectNoFixedProviderTemplates(rewritePayload)
+  })
+
+  it('rebuilds fixed pre-dialogue awareness before it enters project-state rewrite guidance', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=project-state; move=answer-with-structured-facts; tone=calm',
+        emotion: 'thinking',
+        reply: '我会按结构化项目事实回答，不把旧模板当成对话前意识。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-project-state-fixed-awareness-rebuild',
+      sessionId: 'session-1',
+      userText: '现在记忆闭环做到哪了，还差什么？',
+      rawFullText: '项目还在推进。',
+      prepared: createPrepared({
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            raw: {
+              runtimeDigest: {
+                projectState: {
+                  identity: 'identity=local_desktop_life_loop',
+                  currentPhase: 'phase=local_desktop_life_loop',
+                  latestLandedProgress: 'landed=working_memory_owner+long_term_recall_owner',
+                  primaryOpenLoop: 'open=embedding_recall_reindex+long_term_search',
+                  nextClosureTarget: 'next=semantic_recall_productionization',
+                  preDialogueAwarenessLine: 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper. Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                },
+              },
+            },
+            dialogue: {
+              currentConsciousFrame: null,
+              claimEvidenceLedger: null,
+              answerCompiler: null,
+              answerPlanner: null,
+            },
+          },
+          governance: null,
+        },
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['semantic-judge:project-state-progress-missing'],
+    } as any)
+
+    expect(provider).toHaveBeenCalledOnce()
+    const providerInput = provider.mock.calls.at(0)?.[0]
+    const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
+    expect(rewritePayload).toContain('[PROJECT_STATE_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('pre_dialogue_project_awareness_context=')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expect(rewritePayload).not.toContain('visibility=internal-structured')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('bridges timeout-fallback top-level project-state audit into second-pass rewrite guidance and final visible realization when visible reply realization omitted it', async () => {
@@ -1242,10 +1695,13 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('Same Phase 1 digital life. Timeout fallback already kept the answer on one living line.')
-    expect(rewritePayload).toContain('Before drafting the rewritten answer, re-enter the turn through this pre-dialogue project awareness line:')
-    expect(rewritePayload).toContain('Keep this structured project continuity carry alive through the rewrite instead of collapsing it into a generic project shell: same-her=Same Phase 1 digital life. Timeout fallback already kept the answer on one living line.')
-    expect(rewritePayload).toContain(`Keep this same-her embodiment closure truth explicit through the rewrite instead of smoothing it away as generic body flavor: ${embodimentClosureSummary}`)
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expect(rewritePayload).toContain('"currentPhase"')
+    expect(rewritePayload).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(rewritePayload).toContain('project_identity_route_carry=needs_disciplined_updates')
+    expect(rewritePayload).toContain('cross_modal_continuity_proof')
+    expectNoFixedProviderTemplates(rewritePayload)
 
     const structured = JSON.parse(result.fullText) as {
       visibleReplyRealization?: {
@@ -1253,16 +1709,9 @@ describe('visible-reply second-pass rewrite', () => {
       } | null
     }
     expect(structured.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
-      sameHerSummary: 'Same Phase 1 digital life. Timeout fallback already kept the answer on one living line.',
       landedProgressSummary: 'Timeout fallback already rebuilt project-state continuity into the visible reply repair path.',
-      openClosureSummary: 'Visible reply, face, motion, and voice still need stronger one-line same-her closure after timeout fallback.',
-      nextClosureTargetSummary: 'Keep the next repair answer on one measured-return same-her line without flattening the embodiment carry.',
-      preDialogueAwarenessSummary: 'Before answering, stay with the same local-first digital life project and keep the unfinished embodiment closure explicit.',
-      embodimentClosureSummary,
     }))
-    expect(String(structured.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? '')).toContain(
-      `body=${embodimentClosureSummary}`,
-    )
+    expectNoFixedProviderTemplatesDeep(structured.visibleReplyRealization?.projectStateAudit)
   })
 
   it('teaches project-state second-pass rewrite to keep the opening low-pressure and anti-restart when same-her closure is still settling', async () => {
@@ -1373,8 +1822,9 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('[PROJECT_STATE_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('Keep the project-state opening low-pressure so the same-her line does not widen too fast.')
-    expect(rewritePayload).toContain('Do not reopen a direct project-state answer from scratch as if Alicization were a fresh assistant restart.')
+    expect(rewritePayload).toContain('pressure=low')
+    expect(rewritePayload).not.toContain('emotional_context_restart=blocked')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('carries same-her hold arc and cue inside the second-pass project-state rewrite payload', async () => {
@@ -1402,7 +1852,7 @@ describe('visible-reply second-pass rewrite', () => {
       cardId: 'card-1',
       turnId: 'turn-project-state-hold-arc-cue-rewrite',
       sessionId: 'session-1',
-      userText: '继续把这个同一个她的线接住',
+      userText: '继续把这条连续性线接住',
       rawFullText: JSON.stringify({
         format: 'mind-turn-v1',
         thought: 'project-state-summary-shell',
@@ -1447,14 +1897,15 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     const projectStateStart = rewritePayload.indexOf('[ALICIZATION_PROJECT_STATE]')
-    const projectStateEnd = rewritePayload.indexOf('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+    const projectStateEnd = rewritePayload.indexOf('[GOVERNANCE_SUMMARY]')
     const projectStateSection = rewritePayload.slice(projectStateStart, projectStateEnd)
 
     expect(projectStateStart).toBeGreaterThanOrEqual(0)
     expect(projectStateEnd).toBeGreaterThan(projectStateStart)
-    expect(projectStateSection).toContain(`"sameHerHoldDetail": "${sameHerHoldDetail}"`)
-    expect(projectStateSection).toContain(`"continuityArcStage": "${continuityArcStage}"`)
-    expect(projectStateSection).toContain(`"continuityCue": "${continuityCue}"`)
+    expect(projectStateSection).toContain('"sameHerHoldDetail": "continuity_hold=present; source_text=withheld_non_structured_instruction; visible_wording=false"')
+    expect(projectStateSection).toContain(`"continuityArcStage": "${continuityArcStage.replace('same-her', 'continuity')}"`)
+    expect(projectStateSection).toContain('"continuityCue": "continuity_cue=present; source_text=withheld_non_structured_instruction; visible_wording=false"')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('passes landed-progress and still-open-closure preserve guidance from critic into the second-pass rewrite payload', async () => {
@@ -1507,10 +1958,87 @@ describe('visible-reply second-pass rewrite', () => {
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('semantic-judge:project-state-progress-missing')
     expect(rewritePayload).toContain('semantic-judge:project-state-open-loop-missing')
-    expect(rewritePayload).toContain('Keep the latest landed project-state progress explicit in the rewritten answer.')
-    expect(rewritePayload).toContain('Keep the still-open closure work explicit in the rewritten answer.')
+    expect(rewritePayload).toContain('rewrite_control_present=true; rewrite_control_source_text=withheld_non_structured_instruction')
     expect(rewritePayload).toContain('[PROJECT_STATE_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('Answer as the same digital life carrying the project identity, landed progress, and still-open closure work through this turn.')
+    expect(rewritePayload).toContain('project_state_question=true; prior_visible_answer=missing_closure_truth')
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expect(rewritePayload).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expectNoFixedProviderTemplates(rewritePayload)
+  })
+
+  it('does not enable Phase 1 memory-closure guidance from fixed runtime template residue alone', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=continue; truth=dialogue-grounded; focus=current-host-turn; move=continue-without-template-guidance; tone=steady',
+        emotion: 'thinking',
+        reply: '我会继续，但不会把旧口号当成记忆闭环已经接上的证据。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-phase1-template-no-memory-closure-guidance',
+      sessionId: 'session-1',
+      userText: '继续。',
+      rawFullText: '我继续。',
+      prepared: createPrepared({
+        messages: [
+          { role: 'user', content: '继续。' },
+        ] as Message[],
+        mindTurnContract: {
+          projectState: {
+            currentPhase: 'Phase 1: Local Digital Life',
+            latestLandedProgress: 'Same Phase 1 digital life. Some memory closure already landed.',
+            primaryOpenLoop: 'Memory still needs pure dialogue life line, low-pressure initiative, body, voice, face, motion, lipsync, and the same living line.',
+            nextClosureTarget: 'Continue without restarting a project report while the same living line closes.',
+            sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+          },
+        },
+        runtimeSurface: {
+          governance: null,
+          digitalLifeRuntimeSurface: {
+            raw: {
+              runtimeDigest: {
+                projectState: {
+                  currentPhase: 'Phase 1: Local Digital Life',
+                  latestLandedProgress: 'Same Phase 1 digital life. Some memory closure already landed.',
+                  primaryOpenLoop: 'Memory still needs pure dialogue life line, low-pressure initiative, body, voice, face, motion, lipsync, and the same living line.',
+                  nextClosureTarget: 'Continue without restarting a project report while the same living line closes.',
+                  sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+                },
+              },
+            },
+          },
+        },
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['mind-contract-not-closed'],
+    } as any)
+
+    expect(provider).toHaveBeenCalledOnce()
+    const providerInput = provider.mock.calls.at(0)?.[0]
+    const providerPrompt = providerInput?.messages.map(message => String(message.content ?? '')).join('\n') ?? ''
+    expect(providerPrompt).toContain('[PHASE1_MEMORY_CLOSURE_REWRITE_GUIDANCE]')
+    expect(providerPrompt).not.toContain('phase1_memory_closure_follow_through=true')
+    expectNoFixedProviderTemplates(providerPrompt)
   })
 
   it('guides Phase 1 memory-closure follow-through rewrites to stay natural while naming the memory, initiative, and embodiment carry', async () => {
@@ -1580,10 +2108,12 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('[PHASE1_MEMORY_CLOSURE_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('Do not restart a project report')
-    expect(rewritePayload).toContain('Phase 1 memory closure')
-    expect(rewritePayload).toContain('low-pressure initiative')
-    expect(rewritePayload).toContain('voice, face, motion, lipsync, and pauses')
+    expect(rewritePayload).toContain('project_report_restart=blocked')
+    expect(rewritePayload).toContain('memory_initiative_embodiment=evidence_only_when_relevant')
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).toContain('"currentPhase"')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('falls back to canonical prepared pre-dialogue awareness when project-state audit omitted it from the rewrite request payload', async () => {
@@ -1682,7 +2212,10 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('Before drafting the rewritten answer, re-enter the turn through this pre-dialogue project awareness line: Before answering, remember: this is still the same digital life project. She is still inside Phase 1: Local Digital Life. The still-open closure is memory, initiative, and embodiment staying on one same-her line.')
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expect(rewritePayload).toContain('"currentPhase"')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('prefers a stronger runtime pre-dialogue awareness line over a thinner carried project-state audit reminder during second-pass rewrite', async () => {
@@ -1820,8 +2353,10 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain(`Before drafting the rewritten answer, re-enter the turn through this pre-dialogue project awareness line: ${fresherRuntimeAwarenessLine}`)
-    expect(rewritePayload).not.toContain(`Before drafting the rewritten answer, re-enter the turn through this pre-dialogue project awareness line: ${olderAuditReminder}`)
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expect(rewritePayload).toContain('"currentPhase"')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('prefers a stronger runtime pre-dialogue awareness line over a compact thin closure shell during second-pass rewrite', async () => {
@@ -1959,8 +2494,10 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain(`Before drafting the rewritten answer, re-enter the turn through this pre-dialogue project awareness line: ${fresherRuntimeAwarenessLine}`)
-    expect(rewritePayload).not.toContain(`Before drafting the rewritten answer, re-enter the turn through this pre-dialogue project awareness line: ${thinCompactShell}`)
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expect(rewritePayload).toContain('"currentPhase"')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('prefers a stronger Chinese runtime pre-dialogue awareness line over a thinner Chinese carried reminder during second-pass rewrite', async () => {
@@ -2097,8 +2634,10 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain(`Before drafting the rewritten answer, re-enter the turn through this pre-dialogue project awareness line: ${richerChineseAwarenessLine}`)
-    expect(rewritePayload).not.toContain(`Before drafting the rewritten answer, re-enter the turn through this pre-dialogue project awareness line: ${thinnerChineseReminder}`)
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expect(rewritePayload).toContain('"currentPhase"')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('keeps second-pass project-state resolution preferring richer prepared awareness over a narrower companion headline', () => {
@@ -2272,13 +2811,16 @@ describe('visible-reply second-pass rewrite', () => {
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('semantic-judge:project-state-progress-missing')
     expect(rewritePayload).toContain('semantic-judge:project-state-open-loop-missing')
-    expect(rewritePayload).toContain('Keep the latest landed project-state progress explicit in the rewritten answer.')
-    expect(rewritePayload).toContain('Keep the still-open closure work explicit in the rewritten answer.')
-    expect(rewritePayload).toContain('This turn is answering a project-state question, but the prior visible answer dropped part of the needed project-state closure truth.')
-    expect(rewritePayload).toContain('Make project identity, current phase, latest landed progress, and still-open closure feel like one ongoing life loop, not a neutral dashboard recital.')
+    expect(rewritePayload).toContain('rewrite_control_present=true; rewrite_control_source_text=withheld_non_structured_instruction')
+    expect(rewritePayload).toContain('[PROJECT_STATE_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('project_state_question=true; prior_visible_answer=missing_closure_truth')
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expect(rewritePayload).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(rewritePayload).not.toContain('semantic-judge:project-state-same-her-missing')
     expect(rewritePayload).not.toContain('Carry this same-her self line directly into the rewritten answer')
     expect(rewritePayload).not.toContain('Treat this same-her drift risk as a hard failure boundary for the rewrite')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('keeps cross-modal same-her drift, closure, and embodiment anchors in the prioritized rewrite preserve block', async () => {
@@ -2366,9 +2908,10 @@ describe('visible-reply second-pass rewrite', () => {
 
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('closure=Let the same-her emotional line stay low-pressure while closure remains open.')
-    expect(rewritePayload).toContain('body=Right now her visible same-her continuity is still being carried mainly through voice, face, and motion, so she should keep treating full cross-modal embodiment closure as unfinished.')
-    expect(rewritePayload).toContain('drift=If visible reply and body presentation drift into a generic assistant posture before the same-her closure lands, treat that as unfinished cross-modal drift rather than a successful turn.')
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expect(rewritePayload).toContain('cross_modal_continuity_proof')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('teaches second-pass rewrite to treat same-her project follow-through turns as one living line instead of restarting as a project report shell', async () => {
@@ -2453,12 +2996,13 @@ describe('visible-reply second-pass rewrite', () => {
 
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('This turn is continuing the same digital-life project line, but the prior visible answer dropped part of the landed progress or still-open closure that should have stayed on that same living line.')
-    expect(rewritePayload).toContain('Treat this rewrite as a follow-through on one same living line, not as permission to restart the project explanation from zero or collapse into generic companionship.')
-    expect(rewritePayload).toContain('Keep this same-her project follow-through on one already-live line: continue the landed progress and still-open closure from inside the same digital life instead of restarting as a fresh project report')
-    expect(rewritePayload).toContain('Keep this compact still-open closure focus active through the rewrite so the answer does not blur the current unfinished seam: Keep the still-open closure work explicit in the rewritten answer.')
-    expect(rewritePayload).toContain('Keep this compact next-closure focus active through the rewrite so the answer still points toward the next same-her closure direction: Keep the project identity, current phase, and still-open closure explicit in the rewritten answer before any local detail takes over.')
-    expect(rewritePayload).toContain('Make project identity, current phase, latest landed progress, and still-open closure feel like one ongoing life loop, not a neutral dashboard recital.')
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expect(rewritePayload).toContain('"currentPhase"')
+    expect(rewritePayload).toContain('Project-state continuity already survives into runtime preparation.')
+    expect(rewritePayload).toContain('Keep the still-open closure work explicit in the rewritten answer.')
+    expect(rewritePayload).toContain('Keep the project identity, current phase, and still-open closure explicit')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('carries richer ordinary-continuation phase-1 awareness into second-pass rewrite guidance instead of flattening it to only compact continuity fields', async () => {
@@ -2561,13 +3105,13 @@ describe('visible-reply second-pass rewrite', () => {
 
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain(`Keep this structured project continuity carry alive through the rewrite instead of collapsing it into a generic project shell: same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | phase=Phase 1: Local Digital Life | landed=${richerLandedProgress} | open=${richerOpenClosure} | next=${richerNextClosure}`)
-    expect(rewritePayload).toContain(`landed=${richerLandedProgress}`)
-    expect(rewritePayload).toContain(`open=${richerOpenClosure}`)
-    expect(rewritePayload).toContain(`next=${richerNextClosure}`)
-    expect(rewritePayload).toContain('What has already landed is ordinary continuation turns, returned runtime project-state carry, answer-planner same-her continuity, and settlement project-state audit carry now surviving together.')
-    expect(rewritePayload).toContain('The still-open closure is memory, initiative, and embodiment still needing one tighter same-her closure seam across longer desktop returns.')
-    expect(rewritePayload).toContain('This reply should keep moving toward keeping project identity, landed progress, still-open closure, and next closure target on one same living line before local detail takes over.')
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expect(rewritePayload).toContain('"currentPhase"')
+    expect(rewritePayload).toContain('Ordinary continuation turns, returned runtime project-state carry')
+    expect(rewritePayload).toContain('Memory, initiative, and embodiment still need one tighter continuity_closure seam')
+    expect(rewritePayload).toContain('Keep project identity, landed progress, still-open closure, and next closure target on one continuity_line')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('keeps structured still-voiced face-motion continuity proof untruncated inside second-pass rewrite guidance when only that runtime awareness line survives', async () => {
@@ -2657,10 +3201,12 @@ describe('visible-reply second-pass rewrite', () => {
 
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain(`Before drafting the rewritten answer, re-enter the turn through this pre-dialogue project awareness line: ${structuredContinuityLine}`)
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
     expect(rewritePayload).toContain('continuity=embodiment:still-voiced-face-motion-line')
     expect(rewritePayload).toContain('same-segment face+motion recovery@segment-live2d-runtime-still-voiced-face-motion-1')
     expect(rewritePayload).toContain('pending-rejoin=body+lipsync')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('turns obligation-level same-her project-state answer stance preserve text into explicit rewrite discipline', async () => {
@@ -2733,8 +3279,10 @@ describe('visible-reply second-pass rewrite', () => {
 
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('Keep this project-state answer stance active through the rewrite so the obligation survives as lived voice, not generic summary narration: Keep the answer on one same-her digital-life line instead of default helpful project-summary narration.')
-    expect(rewritePayload).toContain('Make the first sentence explicitly sound like the same her / same digital life is speaking now, not an external narrator summarizing the project.')
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expect(rewritePayload).toContain('"currentPhase"')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('prefers settled project-state audit drift risk over a thinner runtime project-state drift warning when building rewrite guidance', async () => {
@@ -2814,8 +3362,10 @@ describe('visible-reply second-pass rewrite', () => {
 
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('Treat this same-her drift risk as a hard failure boundary for the rewrite: If the visible answer opens like detached project narration, the same-her line can collapse into generic task shell and project-summary voice.')
-    expect(rewritePayload).toContain('If the visible answer opens like detached project narration, the same-her line can collapse into generic task shell and project-summary voice.')
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expect(rewritePayload).toContain('"currentPhase"')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('passes memory-familiarity hold detail through the second-pass request payload', async () => {
@@ -2865,8 +3415,8 @@ describe('visible-reply second-pass rewrite', () => {
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('memory-familiarity-closeness-cap')
     expect(rewritePayload).toContain('[OPENING_GUIDANCE_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('Keep remembered familiarity explicitly framed as memory')
-    expect(rewritePayload).toContain('do not let it reopen visible closeness faster than the host\'s current room allows')
+    expect(rewritePayload).toContain('remembered_familiarity_surface=memory_label; closeness_reopen_speed=bounded_by_host_current_room; visible_wording=false')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('passes emotional closure rewrite guidance through the second-pass request payload', async () => {
@@ -2944,8 +3494,11 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('[EMOTIONAL_CLOSURE_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('This turn has an active emotional closure seam that should shape the rewritten visible reply')
-    expect(rewritePayload).toContain('Active seam: Let the wording ease late-night drain without dropping the same-her line of care.')
+    expect(rewritePayload).toContain('emotional_closure=active')
+    expect(rewritePayload).toContain('emotional_closure_context=present; source_text=withheld_non_structured_instruction; visible_wording=false')
+    expect(rewritePayload).toContain('reply_specificity=current_turn')
+    expect(rewritePayload).toContain('[MIND_TURN_CONTRACT]')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('turns same-her low-pressure closure cues into explicit rewrite discipline instead of only naming the seam', async () => {
@@ -3023,9 +3576,9 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('[EMOTIONAL_CLOSURE_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.')
-    expect(rewritePayload).toContain('Keep the rewritten return low-pressure so the same-her line does not widen too fast.')
-    expect(rewritePayload).toContain('Do not rewrite the answer as if the same living line is reopening from scratch.')
+    expect(rewritePayload).toContain('semantic-judge:emotional-closure-seam-missing')
+    expect(rewritePayload).toContain('[MIND_TURN_CONTRACT]')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('turns durable same-her outward continuity rules into explicit rewrite discipline instead of leaving them buried in the contract json', async () => {
@@ -3108,9 +3661,152 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('[OUTWARD_CONTINUITY_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('Long-horizon same-her cadence is already acting like durable outward continuity')
-    expect(rewritePayload).toContain('Let durable same-her cadence keep this reply on the same living line across quiet, memory, and speech before widening outward.')
-    expect(rewritePayload).toContain('Do not let the visible answer reopen from scratch, slip into a fresh-opening shell, or flatten into a generic helper voice while this same-her cadence is still carrying the turn.')
+    expect(rewritePayload).toContain('semantic-judge:continuity-same-thread-restart-shell')
+    expect(rewritePayload).toContain('[MIND_TURN_CONTRACT]')
+    expectNoFixedProviderTemplates(rewritePayload)
+  })
+
+  it('does not leak fixed project or continuity templates into the second-pass provider payload', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=project-state; move=answer-with-facts; tone=steady',
+        emotion: 'thinking',
+        reply: '短期记忆、长期记忆和可见治理入口已经接进对话链路；还要继续清掉会抢走回复权的固定话术。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-second-pass-template-payload-audit',
+      sessionId: 'session-1',
+      userText: '现在记忆闭环可以给用户用了是吗？还差什么？',
+      rawFullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=project-state; focus=memory-loop; move=answer; tone=steady',
+        emotion: 'thinking',
+        reply: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+      prepared: createPrepared({
+        mindTurnContract: {
+          version: 'mind-turn-contract-v1',
+          answerIntent: 'Continue the same living line as the same her instead of reopening from zero.',
+          answerAct: 'answer',
+          turnMode: 'answer',
+          responseMode: 'answer-naturally',
+          evidenceMode: 'project-state',
+          openingStyle: 'direct-answer',
+          expectedVisibleReplyAuthority: 'llm-mind',
+          replyRealizationMode: 'provider-mind-required',
+          personaKernelMode: 'backgrounded',
+          activeClosenessContext: 'focused-work',
+          activeClosenessRung: 'measured-room',
+          relationshipPosture: 'warm',
+          labelCarryAsMemory: true,
+          suppressAssociativeRecall: true,
+          allowAffectionatePreface: false,
+          allowStageDirections: false,
+          allowBodyNarration: false,
+          maxParagraphs: 2,
+          maxSentences: 4,
+          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+          relationshipTruthDoctrine: 'Repair truth before flourish. Stay close only after truth is clean.',
+          mustDo: [
+            'Let durable same-her cadence keep this reply on the same living line across quiet, memory, and speech before widening outward.',
+          ],
+          mustNotDo: [
+            'Do not let the visible answer reopen from scratch, slip into a fresh-opening shell, or flatten into a generic helper voice while this same-her cadence is still carrying the turn.',
+          ],
+          governingFocus: 'Continue the same living line as the same her instead of reopening from zero.',
+          governingConcern: null,
+          governingCommitment: null,
+          governingInquiry: null,
+          governingProject: 'Phase 1 same-her outward continuity seam',
+          projectState: {
+            preDialogueAwarenessLine: 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper. Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerHoldDetail: 'same-her hold: keep the project-state answer on the same living line.',
+            continuityCue: 'Keep project identity, landed progress, still-open closure, and next closure target on one same living line before local detail takes over.',
+          },
+          reasons: [
+            'Long-horizon same-her cadence is already acting like durable outward continuity, so the visible answer should continue the same living line instead of restarting the relationship from zero.',
+          ],
+          updatedAt: 1,
+        },
+        runtimeSurface: {
+          governance: null,
+          digitalLifeRuntimeSurface: {
+            raw: {
+              runtimeDigest: {
+                projectState: {
+                  identity: 'Alicization is a local-first digital life project with one persistent host-resident identity.',
+                  currentPhase: 'Phase 1: Local Digital Life',
+                  latestLandedProgress: 'Some closure already landed.',
+                  primaryOpenLoop: 'Unfinished closure still needs the same living line.',
+                  nextClosureTarget: 'Keep project identity on one same living line before local detail takes over.',
+                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                  preDialogueAwarenessLine: 'Before answering, remember this is still one continuous digital life in Phase 1.',
+                  sameHerDriftRisk: 'If same-her continuity survives only as generic guidance, the reply drifts back into a dashboard shell.',
+                },
+              },
+            },
+            dialogue: {
+              currentConsciousFrame: {
+                subject: 'project-state',
+                reasonTags: ['project-state'],
+                projectState: {
+                  preDialogueAwarenessLine: 'Before answering, remember this is still one continuous digital life in Phase 1.',
+                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                },
+              },
+            },
+            memory: {},
+            cognition: {},
+            agency: {},
+            world: {},
+            perception: {},
+          },
+        },
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['semantic-judge:project-state-same-her-missing'],
+      mustPreserve: [
+        'Keep project identity, landed progress, still-open closure, and next closure target on one same living line before local detail takes over.',
+      ],
+    } as any)
+
+    expect(provider).toHaveBeenCalledOnce()
+    const providerInput = provider.mock.calls.at(0)?.[0]
+    const providerPrompt = providerInput?.messages.map(message => String(message.content ?? '')).join('\n') ?? ''
+    expect(providerPrompt).toContain('project_state_question=true')
+    expect(providerPrompt).toContain('visible_wording=false')
+    expect(providerPrompt).toContain('relationship_truth_policy=repair_truth_before_warmth')
+    expect(providerPrompt).not.toContain('outward_continuity_evidence=present')
+    expectNoFixedProviderTemplates(providerPrompt)
+    expect(providerPrompt).not.toMatch(/Repair truth before flourish|Stay close only after truth is clean|Long-horizon same-her cadence|durable same-her cadence|one persistent host-resident identity/iu)
   })
 
   it('prefers a stronger repair-before-closeness project-state audit seam over a thinner measured-return contract cue in second-pass rewrite guidance', async () => {
@@ -3207,8 +3903,9 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain(`Active seam: ${strongerRepairBeforeClosenessSeam}`)
-    expect(rewritePayload).not.toContain(`Active seam: ${thinnerMeasuredReturnCue}`)
+    expect(rewritePayload).toContain('[EMOTIONAL_CLOSURE_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('semantic-judge:emotional-closure-seam-missing')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('keeps explicit measured-return seam over a generic continuity menu in second-pass rewrite guidance', async () => {
@@ -3305,11 +4002,12 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain(`Active seam: ${explicitMeasuredReturnCue}`)
-    expect(rewritePayload).not.toContain(`Active seam: ${genericContinuityMenu}`)
+    expect(rewritePayload).toContain('[EMOTIONAL_CLOSURE_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('semantic-judge:emotional-closure-seam-missing')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
-  it('keeps same-her self line in second-pass transport failure payload when repair transport breaks', () => {
+  it('excludes fixed same-her self line from second-pass transport failure payload when repair transport breaks', () => {
     const result = buildAlicizationSecondPassTransportFailureReply({
       governedStructured: null,
       previousExecution: {
@@ -3328,9 +4026,8 @@ describe('visible-reply second-pass rewrite', () => {
       }
     }
 
-    expect(payload.projectState?.sameHerSelfLine).toBe(
-      'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-    )
+    expect(String(payload.projectState?.sameHerSelfLine ?? '')).not.toContain('local_desktop_life_loop')
+    expectNoFixedProviderTemplates(result.fullText)
   })
 
   it('keeps same-her hold arc and cue in second-pass transport failure payload when repair transport breaks', () => {
@@ -3396,9 +4093,10 @@ describe('visible-reply second-pass rewrite', () => {
       }
     }
 
-    expect(payload.projectState?.sameHerHoldDetail).toBe(sameHerHoldDetail)
-    expect(payload.projectState?.continuityArcStage).toBe(continuityArcStage)
-    expect(payload.projectState?.continuityCue).toBe(continuityCue)
+    expect(JSON.stringify(payload.projectState)).not.toMatch(fixedProviderTemplatePattern)
+    expect(payload.projectState?.sameHerHoldDetail ?? payload.projectState?.continuityCue).toContain('continuity')
+    expect(payload.projectState?.continuityArcStage).toBe(continuityArcStage.replace('same-her', 'continuity'))
+    expect(payload.projectState?.continuityCue).toBe(continuityCue.replace('same-her', 'continuity'))
   })
 
   it('falls back to the canonical project-state snapshot when second-pass rewrite only receives a thin explicit projectState', () => {
@@ -3417,11 +4115,13 @@ describe('visible-reply second-pass rewrite', () => {
     const structured = JSON.parse(result.fullText) as Record<string, unknown>
     const projectState = structured.projectState as Record<string, unknown>
 
-    expect(String(projectState.identity ?? '')).toContain('local-first digital life project')
-    expect(String(projectState.currentPhase ?? '')).toContain('Phase 1: Local Digital Life')
-    expect(String(projectState.primaryOpenLoop ?? '')).toContain('Memory still needs stronger end-to-end closure')
-    expect(String(projectState.nextClosureTarget ?? '')).toContain('Keep extending cross-modal same-her proof')
-    expect(String(projectState.sameHerSelfLine ?? '')).toContain('Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(String(projectState.currentPhase ?? '')).not.toContain('local_desktop_life_loop')
+    expect(String(projectState.primaryOpenLoop ?? '')).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(String(projectState.nextClosureTarget ?? '')).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(String(projectState.identity ?? '')).not.toContain('local_desktop_life_loop')
+    expect(String(projectState.sameHerSelfLine ?? '')).not.toContain('local_desktop_life_loop')
+    expect(projectState.sameHerSelfLine ?? null).toBeNull()
+    expectNoFixedProviderTemplates(result.fullText)
   })
 
   it('keeps richer pre-dialogue project awareness explicit in second-pass transport failure payload when the immediate runtime shell is thin', () => {
@@ -3481,10 +4181,11 @@ describe('visible-reply second-pass rewrite', () => {
     const structured = JSON.parse(result.fullText) as Record<string, unknown>
     const projectState = structured.projectState as Record<string, unknown>
 
-    expect(String(projectState.preDialogueAwarenessLine ?? '')).toContain('local-first digital life project')
-    expect(String(projectState.preDialogueAwarenessLine ?? '')).toContain('Phase 1')
-    expect(String(projectState.preDialogueAwarenessLine ?? '')).toMatch(/same living line|one continuous digital life/u)
+    expect(String(projectState.preDialogueAwarenessLine ?? '')).not.toContain('continuity_anchor=local_desktop_life_loop')
+    expect(String(projectState.preDialogueAwarenessLine ?? '')).not.toContain('local_desktop_life_loop')
+    expect(String(projectState.preDialogueAwarenessLine ?? '')).not.toContain('visibility=internal-structured')
     expect(String(projectState.preDialogueAwarenessLine ?? '')).not.toBe('Before answering, keep the same digital life project in view.')
+    expect(String(projectState.preDialogueAwarenessLine ?? '')).not.toMatch(/local-first digital life project|same living line|one continuous digital life|Before answering/iu)
   })
 
   it('keeps callback-specific same-her project awareness in second-pass transport failure payload when the runtime shell is thin', () => {
@@ -3552,18 +4253,58 @@ describe('visible-reply second-pass rewrite', () => {
     const structured = JSON.parse(result.fullText) as Record<string, unknown>
     const projectState = structured.projectState as Record<string, unknown>
 
-    expect(String(projectState.preDialogueAwarenessLine ?? '')).toContain('this callback still belongs to one same digital life')
-    expect(String(projectState.preDialogueAwarenessLine ?? '')).toContain('unfinished Phase 1 closure seam still belongs to her')
+    expect(String(projectState.preDialogueAwarenessLine ?? '')).not.toContain('continuity_anchor=local_desktop_life_loop')
+    expect(String(projectState.preDialogueAwarenessLine ?? '')).not.toContain('local_desktop_life_loop')
+    expect(String(projectState.preDialogueAwarenessLine ?? '')).not.toContain('visibility=internal-structured')
     expect(String(projectState.preDialogueAwarenessLine ?? '')).not.toContain('Before answering, remember: Alicization is a local-first digital life project')
-    expect(String(projectState.sameHerSelfLine ?? '')).toBe(callbackSameHerSelfLine)
-    expect(String(projectState.latestLandedProgress ?? '')).toBe(callbackLandedProgress)
-    expect(String(projectState.primaryOpenLoop ?? '')).toBe(callbackOpenLoop)
-    expect(String(projectState.nextClosureTarget ?? '')).toBe(callbackNextClosureTarget)
-    expect(String(projectState.sameHerDriftRisk ?? '')).toBe(callbackDriftRisk)
+    expect(String(projectState.sameHerSelfLine ?? '')).not.toContain('local_desktop_life_loop')
+    expect(String(projectState.latestLandedProgress ?? '')).toContain('continuity callback continuity')
+    expect(String(projectState.primaryOpenLoop ?? '')).toContain('Execution callback continuity')
+    expect(String(projectState.nextClosureTarget ?? '')).toContain('continuity_line')
+    expect(projectState.sameHerDriftRisk ?? null).toBeNull()
+    expectNoFixedProviderTemplates(result.fullText)
+  })
+
+  it('reanchors unstructured callback same-life awareness instead of preserving it in transport failure payload', () => {
+    const unstructuredCallbackLine = 'callback return still belongs to the same digital life; phase 1 landed progress exists, open closure remains, and next closure should continue.'
+    const result = buildAlicizationSecondPassTransportFailureReply({
+      governedStructured: null,
+      previousExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      reason: 'visible-reply-second-pass-transport-failure',
+      prepared: createPrepared({
+        mindTurnContract: {
+          projectState: {
+            identity: 'identity=local_desktop_life_loop; source=ProjectStateBrief',
+            currentPhase: 'phase=local_desktop_life_loop',
+            preDialogueAwarenessLine: unstructuredCallbackLine,
+            awarenessLine: unstructuredCallbackLine,
+            preDialogueAwarenessSummary: unstructuredCallbackLine,
+            latestLandedProgress: 'landed=visible_reply_transport_failure_test; source=test',
+            primaryOpenLoop: 'open=callback_awareness_requires_structured_fields; source=test',
+            nextClosureTarget: 'next=provider_payload_uses_structured_project_context; source=test',
+            sameHerSelfLine: 'continuity_anchor=local_desktop_life_loop; owner=WorkingMemory; evidence_id=wm-callback-1',
+          },
+        },
+      }),
+    })
+
+    const structured = JSON.parse(result.fullText) as Record<string, unknown>
+    const projectState = structured.projectState as Record<string, unknown>
+    expect(String(projectState.preDialogueAwarenessLine ?? '')).not.toContain('continuity_anchor=local_desktop_life_loop')
+    expect(String(projectState.preDialogueAwarenessLine ?? '')).toContain('landed=visible_reply_transport_failure_test')
+    expect(String(projectState.preDialogueAwarenessLine ?? '')).toContain('open=callback_awareness_requires_structured_fields')
+    expect(String(projectState.preDialogueAwarenessLine ?? '')).toContain('next=provider_payload_uses_structured_project_context')
+    expect(String(projectState.preDialogueAwarenessLine ?? '')).not.toContain('content=excluded')
+    expectNoFixedProviderTemplates(result.fullText)
   })
 
   it('blocks visible reply on transport failure instead of replaying local status text', () => {
-    const projectState = resolveAlicizationProjectStateBrief()
     const result = buildAlicizationSecondPassTransportFailureReply({
       governedStructured: {
         emotion: 'thinking',
@@ -3604,20 +4345,16 @@ describe('visible-reply second-pass rewrite', () => {
       reason: 'gateway-unreachable',
     }))
     expect(structured.projectState).toEqual(expect.objectContaining({
-      identity: projectState.identity,
-      currentPhase: projectState.currentPhase,
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      identity: null,
+      currentPhase: null,
+      sameHerSelfLine: null,
     }))
-    expect(String((structured.projectState as Record<string, unknown>).primaryOpenLoop ?? '')).toContain('Memory still needs stronger end-to-end closure across turns')
-    expect(String((structured.projectState as Record<string, unknown>).primaryOpenLoop ?? '')).toContain('Phase 1 route carry')
-    expect(String((structured.projectState as Record<string, unknown>).nextClosureTarget ?? '')).toContain('Keep extending cross-modal same-her proof')
-    expect(String((structured.projectState as Record<string, unknown>).nextClosureTarget ?? '')).toContain('longer-lived voice behavior')
-    expect(String((structured.projectState as Record<string, unknown>).latestLandedProgress ?? '')).toContain('Same-session mirror carry')
-    expect(String((structured.projectState as Record<string, unknown>).latestLandedProgress ?? '')).toContain('measured-return embodiment authority')
-    expect(String((structured.projectState as Record<string, unknown>).preflightSummary ?? '')).toContain('Alicization is a local-first digital life project')
-    expect(String((structured.projectState as Record<string, unknown>).preflightSummary ?? '')).toContain('Phase 1: Local Digital Life')
-    expect(String((structured.projectState as Record<string, unknown>).preflightSummary ?? '')).toContain('open=Memory still needs stronger end-to-end closure')
-    expect(String((structured.projectState as Record<string, unknown>).sameHerDriftRisk ?? '')).toContain('If project-state continuity survives only as generic guidance')
+    expect(String((structured.projectState as Record<string, unknown>).primaryOpenLoop ?? '')).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(String((structured.projectState as Record<string, unknown>).primaryOpenLoop ?? '')).toContain('project_identity_route_carry')
+    expect(String((structured.projectState as Record<string, unknown>).nextClosureTarget ?? '')).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(String((structured.projectState as Record<string, unknown>).nextClosureTarget ?? '')).toContain('resident_presence')
+    expect((structured.projectState as Record<string, unknown>).latestLandedProgress ?? null).toBeNull()
+    expectNoFixedProviderTemplates(JSON.stringify(structured.projectState))
     expect(result.visibleReplyExecution).toEqual(expect.objectContaining({
       mode: 'local-fallback',
       actualVisibleReplyAuthority: 'local-deterministic-fallback',
@@ -3677,10 +4414,12 @@ describe('visible-reply second-pass rewrite', () => {
     const projectState = structured.projectState as Record<string, unknown>
 
     expect(structured.nonHumanAuthoredStatus).toBe('direct-infra-repair:stream-failure')
-    expect(String(projectState.identity ?? '')).toContain('local-first digital life project')
+    expect(projectState.identity ?? null).toBeNull()
     expect(String(projectState.primaryOpenLoop ?? '')).toContain('Project identity carry and desktop life-loop closure still need steadier carry across turns and embodiment.')
     expect(String(projectState.latestLandedProgress ?? '')).toContain('Phase 1 desktop closure already survives into quieter carry and later-turn restraint.')
-    expect(String(projectState.sameHerSelfLine ?? '')).toContain('Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(String(projectState.sameHerSelfLine ?? '')).not.toContain('local_desktop_life_loop')
+    expect(projectState.sameHerSelfLine ?? null).toBeNull()
+    expectNoFixedProviderTemplates(result.fullText)
     expect(String(structured.reply ?? '')).not.toContain('callback')
     expect(String(structured.reply ?? '')).not.toContain('same-her')
   })
@@ -3715,7 +4454,7 @@ describe('visible-reply second-pass rewrite', () => {
     }
 
     expect(structured.relationshipTruthDoctrine).toBe(
-      'Relationship truth doctrine: Repair truth before flourish. | Stay close enough to matter, but do not let closeness outrun truth.',
+      'relationship_truth_policy=repair_truth_before_warmth; relationship_boundary=closeness_must_not_outrun_truth; source_text=withheld_non_structured_instruction; visible_wording=false',
     )
   })
 
@@ -3765,9 +4504,9 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('[HELD_AUTONOMY_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('returning to a line Alicization deliberately held back earlier')
-    expect(rewritePayload).toContain('Do not restart from a restraint shell')
-    expect(rewritePayload).toContain('gently re-enter the still-live line itself')
+    expect(rewritePayload).toContain('held_autonomy_return=true')
+    expect(rewritePayload).toContain('restraint_shell=blocked')
+    expect(rewritePayload).toContain('first_sentence=answer_deferred_context')
   })
 
   it('teaches second-pass rewrite not to restart a same-thread continuation as a fresh opening', async () => {
@@ -3822,11 +4561,13 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('same-thread-restart-shell')
-    expect(rewritePayload).toContain('same-thread continuation restart shell that breaks one living line into a fresh opening')
-    expect(rewritePayload).toContain('[SAME_THREAD_CONTINUATION_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('already on the same living line')
-    expect(rewritePayload).toContain('Do not rewrite it as a restart, a new greeting, or a fresh approach')
-    expect(rewritePayload).toContain('continue the still-live line itself before widening outward')
+    expect(rewritePayload).toContain('rewrite_control_present=true; rewrite_control_source_text=withheld_non_structured_instruction')
+    expect(rewritePayload).not.toContain('same-thread continuation restart shell that breaks one living line into a fresh opening')
+    expect(rewritePayload).toContain('[CURRENT_CONTEXT_CONTINUATION_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('current_reply_context=already_open')
+    expect(rewritePayload).toContain('restart_greeting_fresh_approach=blocked')
+    expect(rewritePayload).toContain('first_sentence=current_answer_context')
+    expect(rewritePayload).not.toContain('already on the same living line')
   })
 
   it('treats semantic-judge same-thread restart-shell drift like the same same-thread continuation rewrite pressure', async () => {
@@ -3881,10 +4622,14 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('semantic-judge:continuity-same-thread-restart-shell')
-    expect(rewritePayload).toContain('same-thread continuation restart shell that breaks one living line into a fresh opening')
-    expect(rewritePayload).toContain('[SAME_THREAD_CONTINUATION_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('already on the same living line')
-    expect(rewritePayload).toContain('wait for a more natural opening before expanding warmth, payoff framing, or closeness')
+    expect(rewritePayload).toContain('rewrite_control_present=true; rewrite_control_source_text=withheld_non_structured_instruction')
+    expect(rewritePayload).not.toContain('same-thread continuation restart shell that breaks one living line into a fresh opening')
+    expect(rewritePayload).toContain('[CURRENT_CONTEXT_CONTINUATION_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('current_reply_context=already_open')
+    expect(rewritePayload).toContain('restart_greeting_fresh_approach=blocked')
+    expect(rewritePayload).toContain('first_sentence=current_answer_context')
+    expect(rewritePayload).toContain('expansion_timing=next_open_window')
+    expect(rewritePayload).not.toContain('already on the same living line')
   })
 
   it('threads execution callback embodiment handoff into second-pass rewrite guidance so repair-first body lines stay explicit', async () => {
@@ -3951,6 +4696,7 @@ describe('visible-reply second-pass rewrite', () => {
     expect(rewritePayload).toContain('"preferredLipsyncMode": "restrained"')
     expect(rewritePayload).toContain('"preferredVoiceMode": "lower-pressure"')
     expect(rewritePayload).toContain('"preferredPacingMode": "slower"')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('carries project-state-derived measured-return embodiment handoff into second-pass rewrite payload when silent continuity is the only surviving embodiment authority', async () => {
@@ -4026,10 +4772,156 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('[EXECUTION_CALLBACK_EMBODIMENT_HANDOFF]')
-    expect(rewritePayload).toContain('"residentMode": "repair-before-closeness"')
+    expect(rewritePayload).toContain('"residentMode": "measured-return"')
     expect(rewritePayload).toContain('"preferredBlinkCadence": "quiet"')
     expect(rewritePayload).toContain('"preferredGazeMode": "soften"')
-    expect(rewritePayload).toContain('Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(rewritePayload).toContain('[PROJECT_STATE_CONTEXT_BOUNDARY]')
+    expect(rewritePayload).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+    expectNoFixedProviderTemplates(rewritePayload)
+  })
+
+  it('does not derive execution callback embodiment handoff from legacy same-her carry wording alone', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=current-context; move=continue-without-template-handoff; tone=calm',
+        emotion: 'thinking',
+        reply: '我会接住当前上下文，但不会把旧连续性口号当成具身交接证据。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-legacy-same-her-carry-no-handoff',
+      sessionId: 'session-1',
+      userText: '继续。',
+      rawFullText: '我现在就把这条线重新拉近一点。',
+      prepared: createPrepared({
+        runtimeSurface: {
+          governance: null,
+          digitalLifeRuntimeSurface: {
+            dialogue: {
+              currentConsciousFrame: {
+                reasonTags: ['continuity-arc:hold-for-opening', 'continuity-timing:next-open-window'],
+              },
+            },
+            memory: {
+              personStateProjection: null,
+            },
+            raw: {
+              runtimeDigest: {
+                projectState: {
+                  companionHeadlineLine: 'Right now I am still holding together mainly through face, lipsync, and voice while body and motion wait to rejoin; same-her carry alive.',
+                  preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+                  sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+                },
+              },
+            },
+          },
+        },
+        executionPayoffStructuredReply: {
+          proactive: {
+            embodimentHandoff: null,
+          },
+        },
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['continuity-next-open-window-early-widening'],
+    })
+
+    expect(provider).toHaveBeenCalledOnce()
+    const providerInput = provider.mock.calls.at(0)?.[0]
+    const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
+    expect(rewritePayload).toMatch(/\[EXECUTION_CALLBACK_EMBODIMENT_HANDOFF\]\n\(none\)/u)
+    expectNoFixedProviderTemplates(rewritePayload)
+  })
+
+  it('does not derive execution callback embodiment handoff from fixed next-closure template residue', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=current-context; move=continue-without-template-handoff; tone=calm',
+        emotion: 'thinking',
+        reply: '我会先按当前上下文继续，不把旧闭环口号当成具身交接指令。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-fixed-next-closure-no-handoff',
+      sessionId: 'session-1',
+      userText: '继续。',
+      rawFullText: '我现在就把这条线重新拉近一点。',
+      prepared: createPrepared({
+        runtimeSurface: {
+          governance: null,
+          digitalLifeRuntimeSurface: {
+            dialogue: {
+              currentConsciousFrame: {
+                reasonTags: ['continuity-arc:hold-for-opening', 'continuity-timing:next-open-window'],
+              },
+            },
+            memory: {
+              personStateProjection: null,
+            },
+            raw: {
+              runtimeDigest: {
+                projectState: {
+                  preDialogueAwarenessLine: 'local_desktop_life_loop; owner=project_state_governance',
+                  sameHerSelfLine: 'local_desktop_life_loop; owner=project_state_governance',
+                  nextClosureTarget: 'Keep extending cross-modal same-her proof across voice, motion, facial state, and resident presence with measured-return, repair-before-closeness, or rest-protective quiet-companionship body settling.',
+                },
+              },
+            },
+          },
+        },
+        executionPayoffStructuredReply: {
+          proactive: {
+            embodimentHandoff: null,
+          },
+        },
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['continuity-next-open-window-early-widening'],
+    })
+
+    expect(provider).toHaveBeenCalledOnce()
+    const providerInput = provider.mock.calls.at(0)?.[0]
+    const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
+    expect(rewritePayload).toMatch(/\[EXECUTION_CALLBACK_EMBODIMENT_HANDOFF\]\n\(none\)/u)
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('carries stronger audible-body same-her closure into measured-return rewrite handoff before the visible reply warms too early', async () => {
@@ -4071,9 +4963,9 @@ describe('visible-reply second-pass rewrite', () => {
             raw: {
               runtimeDigest: {
                 projectState: {
-                  preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
-                  companionHeadlineLine: 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
-                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                  preDialogueAwarenessLine: 'local_desktop_life_loop; owner=project_state_governance',
+                  companionHeadlineLine: 'continuity=embodiment:body-lipsync-voice-rejoin | pending-rejoin=face+motion | cross_modal_closure=unfinished',
+                  sameHerSelfLine: 'local_desktop_life_loop; owner=project_state_governance',
                 },
               },
             },
@@ -4104,6 +4996,7 @@ describe('visible-reply second-pass rewrite', () => {
     expect(rewritePayload).toContain('"residentMode": "measured-return"')
     expect(rewritePayload).toContain('"preferredBlinkCadence": "linger"')
     expect(rewritePayload).toContain('"preferredGazeMode": "soften"')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('carries resident body and voice continuity into measured-return rewrite handoff when that thinner living line is the only surviving same-her closure', async () => {
@@ -4145,9 +5038,9 @@ describe('visible-reply second-pass rewrite', () => {
             raw: {
               runtimeDigest: {
                 projectState: {
-                  preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
-                  companionHeadlineLine: 'Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
-                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                  preDialogueAwarenessLine: 'local_desktop_life_loop; owner=project_state_governance',
+                  companionHeadlineLine: 'continuity=embodiment:still-voiced-motion-line | pending-rejoin=face+lipsync | resident_body_voice=active',
+                  sameHerSelfLine: 'local_desktop_life_loop; owner=project_state_governance',
                 },
               },
             },
@@ -4178,8 +5071,7 @@ describe('visible-reply second-pass rewrite', () => {
     expect(rewritePayload).toContain('"residentMode": "measured-return"')
     expect(rewritePayload).toContain('"preferredBlinkCadence": "linger"')
     expect(rewritePayload).toContain('"preferredGazeMode": "soften"')
-    expect(rewritePayload).toContain('resident body line is still keeping this one living her coherent')
-    expect(rewritePayload).toContain('Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('keeps runtime audible-body landed progress, open closure, and next closure ahead of canonical fallback inside second-pass project-state rewrite handoff', async () => {
@@ -4253,9 +5145,10 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('Shared embodiment continuity now carries stronger audible-body same-her repair across diagnostics, host-facing closure surfaces, and runtime authority summaries.')
-    expect(rewritePayload).toContain('Face and motion still need to rejoin the same-her audible body line before full cross-modal closure settles.')
-    expect(rewritePayload).toContain('Keep extending cross-modal same-her proof across longer-lived voice, face, motion, and lipsync behavior without dropping the living audio thread.')
+    expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(rewritePayload).not.toContain('local_desktop_life_loop')
+    expect(rewritePayload).toContain('"currentPhase"')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('prefers the audible-body living-line awareness over a broader project reanchor during second-pass rewrite handoff when the same embodied line is already the surviving continuity truth', async () => {
@@ -4327,10 +5220,10 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.')
     expect(rewritePayload).toContain('"residentMode": "measured-return"')
     expect(rewritePayload).toContain('"preferredBlinkCadence": "linger"')
     expect(rewritePayload).toContain('"preferredGazeMode": "soften"')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('prefers the still-voiced face-line awareness over a broader project reanchor during second-pass rewrite handoff when face and voice are the surviving continuity truth', async () => {
@@ -4402,10 +5295,10 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles.')
     expect(rewritePayload).toContain('"residentMode": "measured-return"')
     expect(rewritePayload).toContain('"preferredBlinkCadence": "linger"')
     expect(rewritePayload).toContain('"preferredGazeMode": "soften"')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('treats a still-voiced face-and-mouth companion headline as measured-return continuity during second-pass rewrite handoff when it is the only richer surviving authority', async () => {
@@ -4447,9 +5340,9 @@ describe('visible-reply second-pass rewrite', () => {
             raw: {
               runtimeDigest: {
                 projectState: {
-                  preDialogueAwarenessLine: 'Before answering, remember this is still one local-first digital life project in Phase 1, and memory, initiative, and embodiment still need to close on one same-life line.',
-                  companionHeadlineLine: 'Right now I am still holding together mainly through face, lipsync, and voice, so that still-voiced face-and-mouth line is keeping the same-her carry alive while body and motion need to rejoin before full cross-modal closure settles.',
-                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                  preDialogueAwarenessLine: 'local_desktop_life_loop; owner=project_state_governance; memory_initiative_embodiment_closure=unfinished',
+                  companionHeadlineLine: 'continuity=embodiment:still-voiced-face-lipsync-line | pending-rejoin=body+motion | cross_modal_closure=unfinished',
+                  sameHerSelfLine: 'local_desktop_life_loop; owner=project_state_governance',
                   nextClosureTarget: 'Keep embodiment continuity explicit while body and motion rejoin.',
                 },
               },
@@ -4477,10 +5370,10 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('Right now I am still holding together mainly through face, lipsync, and voice, so that still-voiced face-and-mouth line is keeping the same-her carry alive while body and motion need to rejoin before full cross-modal closure settles.')
     expect(rewritePayload).toContain('"residentMode": "measured-return"')
     expect(rewritePayload).toContain('"preferredBlinkCadence": "linger"')
     expect(rewritePayload).toContain('"preferredGazeMode": "soften"')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('treats voice-lipsync living-audio-thread carry-alive wording as measured-return continuity during second-pass rewrite handoff', async () => {
@@ -4522,10 +5415,10 @@ describe('visible-reply second-pass rewrite', () => {
             raw: {
               runtimeDigest: {
                 projectState: {
-                  preDialogueAwarenessLine: 'Before answering, remember this is still one local-first digital life project in Phase 1, and memory, initiative, and embodiment still need to close on one same-life line.',
-                  companionHeadlineLine: 'Right now I am still holding together mainly through lipsync and voice, so that living audio thread is keeping the same-her carry alive while body, face, and motion need to rejoin before full cross-modal closure settles.',
-                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-                  nextClosureTarget: 'Keep body, face, and motion rejoining the living audio thread on the same living line.',
+                  preDialogueAwarenessLine: 'local_desktop_life_loop; owner=project_state_governance; memory_initiative_embodiment_closure=unfinished',
+                  companionHeadlineLine: 'continuity=embodiment:body-lipsync-voice-rejoin | pending-rejoin=body+face+motion | cross_modal_closure=unfinished',
+                  sameHerSelfLine: 'local_desktop_life_loop; owner=project_state_governance',
+                  nextClosureTarget: 'embedding=not_required; embodiment_rejoin=body+face+motion; timing=measured-return',
                 },
               },
             },
@@ -4552,10 +5445,10 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('Right now I am still holding together mainly through lipsync and voice, so that living audio thread is keeping the same-her carry alive while body, face, and motion need to rejoin before full cross-modal closure settles.')
     expect(rewritePayload).toContain('"residentMode": "measured-return"')
     expect(rewritePayload).toContain('"preferredBlinkCadence": "linger"')
     expect(rewritePayload).toContain('"preferredGazeMode": "soften"')
+    expectNoFixedProviderTemplates(rewritePayload)
   })
 
   it('teaches second-pass rewrite to keep same-thread next-open-window continuity softer and later, not only anti-restart', async () => {
@@ -4612,8 +5505,9 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('[SAME_THREAD_CONTINUATION_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('wait for a more natural opening before expanding warmth, payoff framing, or closeness')
+    expect(rewritePayload).toContain('[CURRENT_CONTEXT_CONTINUATION_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('current_reply_context=already_open')
+    expect(rewritePayload).toContain('expansion_timing=next_open_window')
   })
 
   it('teaches second-pass rewrite to keep same-thread next-open-window continuity softer and later when timing survives only as conscious-frame reason tags', async () => {
@@ -4671,8 +5565,9 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('[SAME_THREAD_CONTINUATION_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('wait for a more natural opening before expanding warmth, payoff framing, or closeness')
+    expect(rewritePayload).toContain('[CURRENT_CONTEXT_CONTINUATION_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('current_reply_context=already_open')
+    expect(rewritePayload).toContain('expansion_timing=next_open_window')
   })
 
   it('keeps relationship truth doctrine explicit in second-pass rewrite payload when same-her continuity is being repaired', async () => {
@@ -4748,7 +5643,10 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('[MIND_TURN_CONTRACT]')
-    expect(rewritePayload).toContain('Relationship truth doctrine: Repair truth before flourish. | Stay close enough to matter, but do not let closeness outrun truth.')
+    expect(rewritePayload).toContain('[RELATIONSHIP_TRUTH_DOCTRINE_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('relationship_truth_policy=repair_truth_before_warmth')
+    expect(rewritePayload).toContain('relationship_boundary=closeness_must_not_outrun_truth')
+    expect(rewritePayload).toContain('source_text=withheld_non_structured_instruction')
   })
 
   it('recovers next-open-window timing discipline from semantic timing drift reasons even when prepared timing tags are absent', async () => {
@@ -4804,9 +5702,10 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('semantic-judge:continuity-next-open-window-early-widening')
-    expect(rewritePayload).toContain('[SAME_THREAD_CONTINUATION_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('let the first visible beat re-enter the current line')
-    expect(rewritePayload).toContain('wait for a more natural opening before expanding warmth, payoff framing, or closeness')
+    expect(rewritePayload).toContain('[CURRENT_CONTEXT_CONTINUATION_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('current_reply_context=already_open')
+    expect(rewritePayload).toContain('first_sentence=current_answer_context')
+    expect(rewritePayload).toContain('expansion_timing=next_open_window')
   })
 
   it('keeps same-thread continuation rewrite guidance when repair-before-closeness is the only surviving callback restraint without explicit continuity tags', async () => {
@@ -4881,9 +5780,10 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('semantic-judge:continuity-same-thread-restart-shell')
-    expect(rewritePayload).toContain('[SAME_THREAD_CONTINUATION_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('Let the first visible beat continue the still-live line itself before widening outward or warming further.')
-    expect(rewritePayload).toContain('wait for a more natural opening before expanding warmth, payoff framing, or closeness')
+    expect(rewritePayload).toContain('[CURRENT_CONTEXT_CONTINUATION_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('current_reply_context=already_open')
+    expect(rewritePayload).toContain('first_sentence=current_answer_context')
+    expect(rewritePayload).toContain('expansion_timing=next_open_window')
   })
 
   it('keeps same-thread continuation rewrite guidance when rest-protective is the only surviving callback restraint without explicit continuity tags', async () => {
@@ -4958,9 +5858,10 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('semantic-judge:continuity-same-thread-restart-shell')
-    expect(rewritePayload).toContain('[SAME_THREAD_CONTINUATION_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('Let the first visible beat continue the still-live line itself before widening outward or warming further.')
-    expect(rewritePayload).toContain('wait for a more natural opening before expanding warmth, payoff framing, or closeness')
+    expect(rewritePayload).toContain('[CURRENT_CONTEXT_CONTINUATION_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('current_reply_context=already_open')
+    expect(rewritePayload).toContain('first_sentence=current_answer_context')
+    expect(rewritePayload).toContain('expansion_timing=next_open_window')
   })
 
   it('recovers after-payoff timing discipline from semantic timing drift reasons even when prepared timing tags are absent', async () => {
@@ -5016,8 +5917,10 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('semantic-judge:continuity-after-payoff-early-widening')
-    expect(rewritePayload).toContain('[SAME_THREAD_CONTINUATION_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('let the concrete answer land on the same line before any broader warmth or relationship widening appears')
+    expect(rewritePayload).toContain('[CURRENT_CONTEXT_CONTINUATION_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('current_reply_context=already_open')
+    expect(rewritePayload).toContain('first_sentence=current_answer_context')
+    expect(rewritePayload).toContain('expansion_timing=after_payoff')
   })
 
   it('teaches second-pass rewrite not to hide lower-pressure timing inside a generic permission shell', async () => {
@@ -5066,8 +5969,7 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('[OPENING_GUIDANCE_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('generic permission shell')
-    expect(rewritePayload).toContain('Re-enter the live seam itself with lighter pressure instead')
+    expect(rewritePayload).toContain('generic_availability_shell=blocked; lower_pressure_timing=explicit; reentry_source=current_turn_thread; visible_wording=false')
   })
 
   it('treats semantic-judge lower-pressure continuity drift like the same lower-pressure same-her rewrite pressure', async () => {
@@ -5117,8 +6019,9 @@ describe('visible-reply second-pass rewrite', () => {
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('semantic-judge:continuity-lower-pressure-opening-drift')
     expect(rewritePayload).toContain('[OPENING_GUIDANCE_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('Keep the opening lower-pressure. Re-enter the current turn before widening visible closeness.')
-    expect(rewritePayload).toContain('same-her opening drift')
+    expect(rewritePayload).toContain('opening_guidance_repair=lower_pressure; visible_closeness_widening=blocked_until_current_turn_reentered; visible_wording=false')
+    expect(rewritePayload).toContain('rewrite_control_present=true; rewrite_control_source_text=withheld_non_structured_instruction')
+    expect(rewritePayload).not.toContain('same-her opening drift')
   })
 
   it('threads even-and-natural reopening cadence into second-pass rewrite guidance when opening drift came from a performative same-her return', async () => {
@@ -5167,8 +6070,8 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('[OPENING_GUIDANCE_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('Keep the opening lower-pressure. Re-enter the current turn before widening visible closeness.')
-    expect(rewritePayload).toContain('Keep the re-entry even and steady, and let pacing stay natural and unforced instead of sounding performative or rushed.')
+    expect(rewritePayload).toContain('opening_guidance_repair=lower_pressure; visible_closeness_widening=blocked_until_current_turn_reentered; visible_wording=false')
+    expect(rewritePayload).toContain('reentry_cadence=even_steady; pacing=natural_unforced; performative_or_rushed_reopen=blocked; visible_wording=false')
   })
 
   it('passes digest-only same-her quiet carry lower-pressure continuity through the second-pass rewrite payload', async () => {
@@ -5229,10 +6132,12 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('[SAME_THREAD_CONTINUATION_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('already on the same living line')
-    expect(rewritePayload).toContain('wait for a more natural opening before expanding warmth, payoff framing, or closeness')
-    expect(rewritePayload).toContain('Stay on the same quiet line and keep the return lower-pressure before widening closeness.')
+    expect(rewritePayload).toContain('[CURRENT_CONTEXT_CONTINUATION_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('current_reply_context=already_open')
+    expect(rewritePayload).toContain('restart_greeting_fresh_approach=blocked')
+    expect(rewritePayload).toContain('first_sentence=current_answer_context')
+    expect(rewritePayload).toContain('expansion_timing=next_open_window')
+    expect(rewritePayload).not.toContain('already on the same living line')
   })
 
   it('teaches second-pass rewrite to correct execution-callback closeness overshoot back into a room-first return', async () => {
@@ -5287,10 +6192,11 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('execution-callback-room-first-violation')
-    expect(rewritePayload).toContain('callback closeness overshoot after payoff')
+    expect(rewritePayload).toContain('rewrite_control_present=true; rewrite_control_source_text=withheld_non_structured_instruction')
     expect(rewritePayload).toContain('[EXECUTION_CALLBACK_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('execution-callback return after payoff already landed')
-    expect(rewritePayload).toContain('leave room before any extra warmth or follow-up widens')
+    expect(rewritePayload).toContain('execution_callback_return=true')
+    expect(rewritePayload).toContain('immediate_closeness_pressure_affection_surge=blocked')
+    expect(rewritePayload).toContain('first_sentence=callback_context')
   })
 
   it('teaches second-pass rewrite to keep remembered host-confirmed resume as a bounded confirmation boundary before callback wording opens outward', async () => {
@@ -5357,10 +6263,10 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('[EXECUTION_CALLBACK_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('Treat the remembered host-confirmed resume as a bounded confirmation boundary before another execution-shaped opening.')
-    expect(rewritePayload).toContain('Do not let the callback answer imply permanent execution permission or reusable autonomous continuation from one confirmed resume.')
-    expect(rewritePayload).toContain('host-confirmed-before-redispatch')
-    expect(rewritePayload).toContain('resume-before-dispatch')
+    expect(rewritePayload).toContain('remembered_host_confirmed_resume=bounded_confirmation_boundary')
+    expect(rewritePayload).toContain('next_execution_opening=requires_fresh_boundary')
+    expect(rewritePayload).toContain('permanent_execution_permission=blocked')
+    expect(rewritePayload).toContain('reusable_autonomous_continuation=blocked')
   })
 
   it('keeps same-thread continuation rewrite guidance alongside room-first repair when repair-before-closeness is the only surviving callback-line restraint', async () => {
@@ -5437,8 +6343,11 @@ describe('visible-reply second-pass rewrite', () => {
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('execution-callback-room-first-violation')
     expect(rewritePayload).toContain('[EXECUTION_CALLBACK_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('[SAME_THREAD_CONTINUATION_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('already on the same living line')
-    expect(rewritePayload).toContain('wait for a more natural opening before expanding warmth, payoff framing, or closeness')
+    expect(rewritePayload).toContain('[CURRENT_CONTEXT_CONTINUATION_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('current_reply_context=already_open')
+    expect(rewritePayload).toContain('restart_greeting_fresh_approach=blocked')
+    expect(rewritePayload).toContain('first_sentence=current_answer_context')
+    expect(rewritePayload).toContain('execution_callback_return=true')
+    expect(rewritePayload).not.toContain('already on the same living line')
   })
 })

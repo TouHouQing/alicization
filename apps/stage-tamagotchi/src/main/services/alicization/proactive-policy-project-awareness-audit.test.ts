@@ -18,8 +18,8 @@ const proofRows = [
     file: './proactive-policy.test.ts',
     snippets: [
       'falls back to the canonical project-state brief when an explicit proactive projectState is present but too thin to keep the Phase 1 digital-life restraint alive',
-      'expect(decision.reasonCodes).toContain(\'project-next-closure-pressure\')',
-      'expect(String(decision.whyNotLater ?? \'\')).toMatch(/数字生命 Phase 1|闭环|人格连续性|记忆与主动性/i)',
+      'expect(String(decision.whyNotLater ?? \'\')).not.toContain(\'project_next_closure=pressure\')',
+      'expect(decision.reasonCodes).toContain(\'project-phase1-life-loop-open\')',
       'expect(decision.style).toBe(\'silent-observe\')',
     ],
   },
@@ -31,7 +31,7 @@ const proofRows = [
       'expect(decision.consideredSignals).toContain(\'projectState.latestLandedProgress\')',
       'expect(decision.consideredSignals).toContain(\'projectState.nextClosureTarget\')',
       'expect(decision.consideredSignals).toContain(\'projectState.sameHerSelfLine\')',
-      'expect(decision.reasonCodes).toContain(\'project-same-her-pressure\')',
+      'expect(decision.reasonCodes).toContain(\'project-continuity-pressure\')',
     ],
   },
   {
@@ -40,7 +40,7 @@ const proofRows = [
     snippets: [
       'treats a later-opening next closure target as a presence-only hold even when initiative and style would otherwise lean outward',
       'expect(decision.presenceOnlyHold).toBe(true)',
-      'expect(decision.whyNotLater).toMatch(/later opening|same living line|measured-return/i)',
+      'expect(decision.whyNotLater).toMatch(/project identity|unfinished closure|同一条生命线|measured-return/i)',
       'expect(decision.style).toBe(\'silent-observe\')',
     ],
   },
@@ -50,8 +50,8 @@ const proofRows = [
     snippets: [
       'forces proactive style back to silent-observe when the next closure target explicitly says wait for a later opening',
       'expect(decision.consideredSignals).toContain(\'projectState.nextClosureTarget\')',
-      'expect(decision.whyNotLater).toMatch(/landed|unfinished closure|next closure target|同一条生命线/i)',
-      'expect(decision.whyNow).toMatch(/还没有真正闭环|life loop|未闭环|unfinished closure|still-open closure/i)',
+      'expect(decision.whyNotLater).toContain(\'project_next_closure=hover_first\')',
+      'expect(decision.whyNow).toContain(\'project_cadence=measured-return\')',
     ],
   },
   {
@@ -59,9 +59,9 @@ const proofRows = [
     file: './proactive-policy.test.ts',
     snippets: [
       'upgrades thin project open-loop wording into measured-return proactive restraint when same-her unfinished closure is still explicit on the living line',
-      'expect(decision.reasonCodes).toContain(\'project-same-her-pressure\')',
+      'expect(decision.reasonCodes).toContain(\'project-continuity-pressure\')',
       'expect(decision.reasonCodes).toContain(\'project-measured-return-pressure\')',
-      'expect(String(decision.whyNotLater ?? \'\')).toMatch(/cross-modal same-her proof|同一条生命线|same living line|Phase 1/i)',
+      'expect(decision.whyNotLater).toContain(\'measured-return\')',
     ],
   },
   {
@@ -69,7 +69,7 @@ const proofRows = [
     file: './proactive-policy.test.ts',
     snippets: [
       'does not let canonical same-her brief text alone upgrade a generic Phase 1 closure carry into same-her proactive pressure',
-      'expect(decision.reasonCodes).not.toContain(\'project-same-her-pressure\')',
+      'expect(decision.reasonCodes).not.toContain(\'project-continuity-pressure\')',
       'expect(decision.reasonCodes).not.toContain(\'project-measured-return-pressure\')',
       'expect(decision.reasonCodes).toContain(\'project-phase1-life-loop-open\')',
     ],
@@ -79,8 +79,8 @@ const proofRows = [
     file: './proactive-policy.test.ts',
     snippets: [
       'treats richer Phase 1 unfinished-closure carry as lower-pressure proactive governance even without the older same-her-baseline mode',
-      'summary: \'Phase 1: Local Digital Life | project identity carry is still live, and memory, initiative, and embodiment still belong to one same living line of unfinished closure before any wider reopening.\'',
-      'expect(String(decision.whyNow ?? \'\')).toMatch(/same living line|same digital life|unfinished closure|更像还是同一个她/i)',
+      'summary: \'continuity_hold=lower-pressure; project_state_continuity=active; evidence_id=active-governance-project-state.\'',
+      'expect(decision.whyNow).toContain(\'continuity_governance=lower_pressure\')',
       'expect(decision.style).toBe(\'silent-observe\')',
     ],
   },
@@ -90,8 +90,8 @@ const proofRows = [
     snippets: [
       'keeps the next closure target explicit in proactive restraint reasoning when the same-her return still needs to follow one living line',
       'expect(decision.reasonCodes).toContain(\'project-next-closure-pressure\')',
-      'expect(decision.whyNow).toContain(\'next closure target\')',
-      'expect(decision.whyNow).toContain(\'hover-first initiative\')',
+      'expect(decision.whyNow).toContain(\'project_next_closure=pressure\')',
+      'expect(decision.whyNow).toContain(\'project_next_closure=hover_first\')',
     ],
   },
 ] as const

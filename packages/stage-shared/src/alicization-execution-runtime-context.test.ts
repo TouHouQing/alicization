@@ -4,6 +4,7 @@ import {
   buildAlicizationExecutionRuntimeContextBlock,
   normalizeAlicizationExecutionRuntimeContext,
 } from './alicization-execution-runtime-context'
+import { containsAlicizationFixedTemplateResidue } from './alicization-fixed-template-sanitizer'
 
 describe('alicization execution runtime context', () => {
   it('normalizes sensory execution context into a compact shared contract', () => {
@@ -151,21 +152,21 @@ describe('alicization execution runtime context', () => {
     expect(block).toContain('[ALICIZATION_EXECUTION_RUNTIME_CONTEXT]')
     expect(block).toContain('conversation_session_id=session-ctx-2')
     expect(block).toContain('agent_session_id=agent-session-ctx-2')
-    expect(block).toContain('project_same_her_hold=same-her hold: keep execution on the same living line before widening outward.')
-    expect(block).toContain('project_companion_briefing=Keep emotion, memory, initiative, and embodiment aligned before widening outward.')
-    expect(block).toContain('project_emotional_closure=same-her execution seam: keep the return gentle and do not reopen from scratch.')
-    expect(block).toContain('project_continuity_restraint=measured-return')
-    expect(block).toContain('project_continuity=same living line: execution should keep carrying this same Phase 1 digital life before widening outward.')
-    expect(block).toContain('project_preflight=identity=Alicization | phase=Phase 1 | open=Embodiment still needs stronger same-line closure | next=Keep execution grounded on the same living line before widening outward.')
-    expect(block).toContain('project_awareness=Before execution begins, remember this is still the same local-first digital life project and the unfinished Phase 1 closure still belongs to one living her.')
-    expect(block).toContain('project_continuity_preferred_timing=next-open-window')
-    expect(block).toContain('project_continuity_cadence=measured-return')
-    expect(block).toContain('project_preferred_blink_cadence=linger')
-    expect(block).toContain('project_preferred_gaze_mode=soften')
-    expect(block).toContain('project_preferred_pause_mode=longer')
-    expect(block).toContain('project_preferred_lipsync_mode=restrained')
-    expect(block).toContain('project_preferred_voice_mode=lower-pressure')
-    expect(block).toContain('project_preferred_pacing_mode=slower')
+    expect(block).not.toContain('project_same_her_hold=')
+    expect(block).toContain('execution_companion_briefing=Keep emotion, memory, initiative, and embodiment aligned before widening outward.')
+    expect(block).not.toContain('project_emotional_closure=')
+    expect(block).toContain('execution_continuity_restraint=measured-return')
+    expect(block).not.toContain('project_continuity=')
+    expect(block).not.toContain('project_preflight=')
+    expect(block).toContain('template_awareness=withheld_from_execution_runtime_context')
+    expect(block).toContain('execution_continuity_preferred_timing=next-open-window')
+    expect(block).toContain('execution_continuity_cadence=measured-return')
+    expect(block).toContain('execution_preferred_blink_cadence=linger')
+    expect(block).toContain('execution_preferred_gaze_mode=soften')
+    expect(block).toContain('execution_preferred_pause_mode=longer')
+    expect(block).toContain('execution_preferred_lipsync_mode=restrained')
+    expect(block).toContain('execution_preferred_voice_mode=lower-pressure')
+    expect(block).toContain('execution_preferred_pacing_mode=slower')
     expect(block).toContain('recent_runtime_actions=sensory/completed:sensory_capture_state -> capture healthy')
     expect(block).toContain('foreground_window=Chrome | chrome | Docs')
     expect(block).toContain('capture_health=degraded')
@@ -284,7 +285,7 @@ describe('alicization execution runtime context', () => {
       },
     } as any)
 
-    expect(block).toContain('project_landed_progress=legacy execution-context project progress still survives from older runtime briefing payloads')
+    expect(block).toContain('runtime_landed_progress=legacy execution-context project progress still survives from older runtime briefing payloads')
   })
 
   it('preserves structured affective residue inside execution runtime context so execution memory carry does not flatten into project briefing only', () => {
@@ -493,7 +494,8 @@ describe('alicization execution runtime context', () => {
       },
     } as any)
 
-    expect(block).toContain('project_landed_progress=Audit-style execution project progress still says the same-her Phase 1 loop has real landed continuity.')
+    expect(block).not.toContain('project_landed_progress=')
+    expect(block).not.toContain('same-her Phase 1 loop')
   })
 
   it('prefers a richer project-aware execution briefing over a thin explicit Chinese awareness shell so execution starts knowing the project, landed progress, and open loop', () => {
@@ -535,12 +537,16 @@ describe('alicization execution runtime context', () => {
     } as any)
 
     expect(context?.projectBriefing).toEqual(expect.objectContaining({
-      preDialogueAwarenessLine: richerProjectBriefing,
-      companionBriefingLine: richerProjectBriefing,
+      identity: null,
+      currentPhase: null,
+      companionBriefingLine: null,
       latestLandedProgress: 'Execution-side project continuity already survives into runtime context preparation.',
       primaryOpenLoop: 'Execution-side project briefing still needs to keep memory, initiative, and embodiment explicit before widening outward.',
-      nextClosureTarget: 'Keep execution openings aware of the still-open same-her seam before they widen outward.',
+      nextClosureTarget: null,
+      preDialogueAwarenessLine: 'landed=Execution-side project continuity already survives into runtime context preparation. | open=Execution-side project briefing still needs to keep memory, initiative, and embodiment explicit before widening outward.',
     }))
+    expect(JSON.stringify(context?.projectBriefing ?? '')).not.toMatch(/Before execution begins|Before (?:answering|speaking|acting)|same-her|same living line|local-first digital life project|Phase 1: Local Digital Life/iu)
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(context?.projectBriefing ?? ''))).toBe(false)
 
     const block = buildAlicizationExecutionRuntimeContextBlock({
       generatedAt: 1_710_000_000_000,
@@ -576,7 +582,67 @@ describe('alicization execution runtime context', () => {
       },
     } as any)
 
-    expect(block).toContain(`project_awareness=${richerProjectBriefing}`)
+    expect(block).toContain('template_awareness=withheld_from_execution_runtime_context')
+    expect(block).toContain('runtime_landed_progress=Execution-side project continuity already survives into runtime context preparation.')
+    expect(block).toContain('runtime_open_loop=Execution-side project briefing still needs to keep memory, initiative, and embodiment explicit before widening outward.')
+    expect(block).not.toContain('execution_companion_briefing=')
+    expect(block).not.toContain('runtime_identity=')
+    expect(block).not.toContain('runtime_phase=')
+    expect(block).not.toContain(richerProjectBriefing)
+  })
+
+  it('translates legacy fixed-template project briefing fields into structured execution facts instead of dropping them', () => {
+    const context = normalizeAlicizationExecutionRuntimeContext({
+      generatedAt: 1_710_000_000_000,
+      cardId: 'default',
+      turnId: 'turn-ctx-fixed-template-structured',
+      projectBriefing: {
+        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+        currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+        latestLandedProgress: 'Same-session mirror carry and measured-return continuity now survive longer noisy detours.',
+        primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.',
+        nextClosureTarget: 'Keep extending same-her proof so Phase 1 route carry remains visible before execution and dialogue turns.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerHoldDetail: 'same-her hold: keep this execution thread on the same living Phase 1 line before widening into generic task narration.',
+        sameHerDriftRisk: 'If project-state continuity survives only as generic guidance, treat it as unfinished closure drift.',
+        continuityCue: 'same living line: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.',
+        preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+      },
+      sensory: {
+        collectedAt: 1_710_000_000_123,
+        running: true,
+        stale: false,
+        ageMs: 33,
+        foregroundWindow: {
+          appName: 'Cursor',
+          processName: 'cursor',
+          title: 'airi-alice',
+        },
+        capture: {
+          health: 'healthy',
+          permission: 'granted',
+          sourceCount: 2,
+          lastUpdatedAt: 1_710_000_000_100,
+          lastError: null,
+          degradedReasons: [],
+        },
+      },
+    } as any)
+
+    expect(context?.projectBriefing).toEqual(expect.objectContaining({
+      identity: null,
+      currentPhase: null,
+      latestLandedProgress: 'Same-session mirror carry and measured-return continuity now survive longer noisy detours.',
+      primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.',
+      nextClosureTarget: null,
+      sameHerSelfLine: null,
+      sameHerHoldDetail: null,
+      sameHerDriftRisk: null,
+      continuityCue: null,
+      preDialogueAwarenessLine: 'landed=Same-session mirror carry and measured-return continuity now survive longer noisy detours. | open=Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.',
+    }))
+    expect(JSON.stringify(context?.projectBriefing ?? '')).not.toMatch(/Before (?:answering|speaking|acting)|Same Phase 1 digital life|same-her|same living line|one continuous her|local-first digital life project|Phase 1: Local Digital Life/iu)
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(context?.projectBriefing ?? ''))).toBe(false)
   })
 
   it('prefers a richer pre-dialogue awareness summary over a thin explicit awareness shell when normalizing shared execution runtime context', () => {
@@ -618,12 +684,17 @@ describe('alicization execution runtime context', () => {
     } as any)
 
     expect(context?.projectBriefing).toEqual(expect.objectContaining({
-      preDialogueAwarenessLine: richerSummary,
-      preDialogueAwarenessSummary: richerSummary,
+      identity: null,
+      currentPhase: null,
+      preDialogueAwarenessLine: 'landed=Execution-side project continuity already survives into runtime context preparation. | open=Execution-side project briefing still needs to keep memory, initiative, execution, and embodiment explicit before widening outward.',
+      preDialogueAwarenessSummary: null,
       latestLandedProgress: 'Execution-side project continuity already survives into runtime context preparation.',
       primaryOpenLoop: 'Execution-side project briefing still needs to keep memory, initiative, execution, and embodiment explicit before widening outward.',
-      nextClosureTarget: 'Keep execution openings aware of the still-open same-her seam before they widen outward.',
+      nextClosureTarget: null,
     }))
+    expect(context?.projectBriefing?.preDialogueAwarenessLine).toContain('open=Execution-side project briefing still needs to keep memory, initiative, execution, and embodiment explicit before widening outward.')
+    expect(JSON.stringify(context?.projectBriefing ?? '')).not.toMatch(/Before execution begins|Before (?:answering|speaking|acting)|same-her|same living line|local-first digital life project|Phase 1: Local Digital Life/iu)
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(context?.projectBriefing ?? ''))).toBe(false)
 
     const block = buildAlicizationExecutionRuntimeContextBlock({
       generatedAt: 1_710_000_000_000,
@@ -659,7 +730,7 @@ describe('alicization execution runtime context', () => {
       },
     } as any)
 
-    expect(block).toContain(`project_awareness=${richerSummary}`)
+    expect(block).toContain('template_awareness=withheld_from_execution_runtime_context')
     expect(block).not.toContain(`project_awareness=${thinAwarenessLine}`)
   })
 
@@ -710,8 +781,14 @@ describe('alicization execution runtime context', () => {
       preferredLipsyncMode: 'restrained',
       preferredVoiceMode: 'lower-pressure',
       preferredPacingMode: 'slower',
-      preDialogueAwarenessLine: 'same-her hold: keep the return lower-pressure and slower before the line widens again.',
+      identity: null,
+      currentPhase: null,
+      sameHerSelfLine: null,
+      preDialogueAwarenessLine: 'landed=Execution-side continuity already survives into runtime context preparation.',
     }))
+    expect(context?.projectBriefing?.preDialogueAwarenessLine).not.toContain('open_loop=')
+    expect(JSON.stringify(context?.projectBriefing ?? '')).not.toMatch(/same-her|same living line|local-first digital life project|Phase 1: Local Digital Life/iu)
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(context?.projectBriefing ?? ''))).toBe(false)
 
     const block = buildAlicizationExecutionRuntimeContextBlock({
       generatedAt: 1_710_000_000_000,
@@ -752,7 +829,8 @@ describe('alicization execution runtime context', () => {
       },
     } as any)
 
-    expect(block).toContain('project_awareness=same-her hold: keep the return lower-pressure and slower before the line widens again.')
+    expect(block).toContain('template_awareness=withheld_from_execution_runtime_context')
+    expect(block).not.toContain('project_awareness=same-her hold')
     expect(block).not.toContain(`project_awareness=${thinAwarenessLine}`)
   })
 
@@ -798,7 +876,10 @@ describe('alicization execution runtime context', () => {
       companionBriefingLine: null,
       emotionalClosureSummary: null,
     }))
-    expect(context?.projectBriefing?.preDialogueAwarenessLine).toContain('Same Phase 1 digital life')
+    expect(context?.projectBriefing?.preDialogueAwarenessLine).toContain('landed=Execution-side project continuity already survives into runtime context preparation.')
+    expect(context?.projectBriefing?.preDialogueAwarenessLine).toContain('open=Execution-side project briefing still needs to keep emotion, memory, initiative, and embodiment explicit before widening outward.')
+    expect(context?.projectBriefing?.preDialogueAwarenessLine).not.toContain('identity=')
+    expect(context?.projectBriefing?.preDialogueAwarenessLine).not.toContain('phase=')
     expect(context?.projectBriefing?.preDialogueAwarenessLine).not.toBe('unknown')
 
     const block = buildAlicizationExecutionRuntimeContextBlock({
@@ -838,12 +919,13 @@ describe('alicization execution runtime context', () => {
       },
     } as any)
 
-    expect(block).toContain('project_identity=Alicization is a local-first digital life project.')
-    expect(block).toContain('project_phase=Phase 1: Local Digital Life')
-    expect(block).toContain('project_awareness=Same Phase 1 digital life.')
+    expect(block).not.toContain('runtime_identity=')
+    expect(block).not.toContain('runtime_phase=')
+    expect(block).toContain('template_awareness=withheld_from_execution_runtime_context')
     expect(block).not.toContain('project_awareness=unknown')
     expect(block).not.toContain('project_companion_briefing=none')
     expect(block).not.toContain('project_emotional_closure=n/a')
+    expect(block).not.toMatch(/Before (?:answering|speaking|acting)|same-her|same living line|local-first digital life project|Phase 1: Local Digital Life/iu)
   })
 
   it('keeps proactive same-her gap explicit inside execution project briefing so execution starts with the still-open long-run continuity seam in view', () => {
@@ -918,6 +1000,6 @@ describe('alicization execution runtime context', () => {
       },
     } as any)
 
-    expect(block).toContain(`project_proactive_same_her_gap=${proactiveSameHerGap}`)
+    expect(block).toContain(`execution_proactive_continuity_gap=${proactiveSameHerGap}`)
   })
 })

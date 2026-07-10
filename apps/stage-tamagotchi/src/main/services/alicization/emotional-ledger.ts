@@ -407,7 +407,7 @@ function resolveSelfRevisionCandidate(input: {
         input.initiativeSuppression.mode === 'repair-first' ? 'continue-repair-first' : null,
         input.memoryWriteback.shouldWrite ? 'writeback-repair-restraint' : null,
       ], 6),
-      summary: 'Repair-first emotional carry should propose a same-her self-revision so later turns keep closeness restrained until the seam settles.',
+      summary: 'Repair-first emotional carry should propose a continuity self-revision so later turns keep closeness restrained until the seam settles.',
       projectStateContinuity: emptyContinuity,
     }
   }
@@ -421,7 +421,7 @@ function resolveSelfRevisionCandidate(input: {
         input.initiativeSuppression.mode === 'rest-guard' ? 'suppress-outward-initiative' : null,
         input.memoryWriteback.shouldWrite ? 'writeback-rest-window' : null,
       ], 6),
-      summary: 'Rest-protective emotional carry should propose a same-her self-revision so later initiative keeps the body quiet during rest windows.',
+      summary: 'Rest-protective emotional carry should propose a continuity self-revision so later initiative keeps the body quiet during rest windows.',
       projectStateContinuity: emptyContinuity,
     }
   }
@@ -435,7 +435,7 @@ function resolveSelfRevisionCandidate(input: {
         input.next.reasonTags.includes('confirmation-boundary') ? 'confirmation-boundary' : null,
         input.initiativeSuppression.mode === 'single-thread' ? 'single-thread-restraint' : null,
       ], 6),
-      summary: 'Guarded emotional carry should propose a same-her self-revision so later turns preserve the confirmed boundary before widening.',
+      summary: 'Guarded emotional carry should propose a continuity self-revision so later turns preserve the confirmed boundary before widening.',
       projectStateContinuity: emptyContinuity,
     }
   }

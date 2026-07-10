@@ -253,7 +253,7 @@ function formatConvergenceDisplay(view: SpeechObservabilityView) {
 }
 
 function findAuthorityEntry(
-  key: 'authority-binding' | 'authority-match' | 'embodiment-closure-stage' | 'authority-trust' | 'same-her-signature' | 'same-her-reasons',
+  key: 'authority-binding' | 'authority-match' | 'embodiment-closure-stage' | 'authority-trust' | 'continuity-signature' | 'continuity-reasons',
   view: SpeechObservabilityView,
 ) {
   const scopedAuthoritySummary = resolveScopedAuthoritySummary(view)
@@ -413,8 +413,8 @@ export function buildSpeechObservabilityRows(
     const convergenceEntry = formatConvergenceDisplay(view)
     const embodimentClosureStageEntry = findAuthorityEntry('embodiment-closure-stage', view)
     const authorityTrustEntry = findAuthorityEntry('authority-trust', view)
-    const sameHerSignatureEntry = findAuthorityEntry('same-her-signature', view)
-    const sameHerReasonsEntry = findAuthorityEntry('same-her-reasons', view)
+    const sameHerSignatureEntry = findAuthorityEntry('continuity-signature', view)
+    const sameHerReasonsEntry = findAuthorityEntry('continuity-reasons', view)
     rows.push({
       section: 'authority',
       label: scopedAuthoritySummary.segmentId ?? view.authorityBinding.segmentId ?? 'authority',
@@ -466,7 +466,7 @@ export function buildSpeechObservabilityRows(
     if (sameHerSignatureEntry) {
       rows.push(buildRow({
         section: 'authority',
-        label: 'same-her-signature',
+        label: 'continuity-signature',
         value: sameHerSignatureEntry.value,
         technicalValue: sameHerSignatureEntry.technicalValue,
       }))
@@ -474,7 +474,7 @@ export function buildSpeechObservabilityRows(
     if (sameHerReasonsEntry) {
       rows.push(buildRow({
         section: 'authority',
-        label: 'same-her-reasons',
+        label: 'continuity-reasons',
         value: sameHerReasonsEntry.value,
         technicalValue: sameHerReasonsEntry.technicalValue,
       }))

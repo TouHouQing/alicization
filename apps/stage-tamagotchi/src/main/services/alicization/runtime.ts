@@ -81,6 +81,7 @@ import {
   isWeakAlicizationScreenSurfaceTarget,
   normalizeAlicizationDerivedMindStateBundle,
   normalizeAlicizationExecutionRuntimeContext,
+  sanitizeAlicizationProviderFacingText,
 
 } from '@proj-alicization/stage-shared'
 import { app, desktopCapturer, globalShortcut, ipcMain, powerMonitor, systemPreferences, webContents } from 'electron'
@@ -142,7 +143,6 @@ import {
   commitAlicizationDigitalLifeSpine,
   deriveAlicizationDigitalLifeSpine,
 } from './digital-life-spine'
-import { resolveOpenAICompatibleLongTermMemoryEmbeddingProvider } from './long-term-memory-openai-embedding-provider'
 import { resolveAlicizationEmotionalTransitionDecay } from './emotional-ledger'
 import {
   emptyAlicizationExecutionCallbackContext,
@@ -157,7 +157,8 @@ import {
 } from './execution-ledger-shared'
 import { createAlicizationExecutorRuntime } from './executor-runtime'
 import { buildAsyncFactMemoryFragments } from './fact-memory'
-import { adjustProactiveReplyFromLongHorizonLearning, inferHostSocialContextsFromText } from './host-social-guidance'
+import { inferHostSocialContextsFromText } from './host-social-guidance'
+import { createWorkingMemoryStore } from './life-core/working-memory-store'
 import { buildQuietCompanionshipMindTurnEvent, deriveQuietCompanionshipOutcome } from './living-world-state'
 import { createAlicizationLocalBrowserAutomationService } from './local-browser-automation'
 import {
@@ -166,6 +167,7 @@ import {
   buildAlicizationDesktopInspectionSuggestedActions,
   summarizeAlicizationDesktopInspection,
 } from './local-desktop-inspection'
+import { resolveOpenAICompatibleLongTermMemoryEmbeddingProvider } from './long-term-memory-openai-embedding-provider'
 import { abortAlicizationDirectChatRun, abortAlicizationRunningChatRuns } from './main-chat-abort'
 import { mainChatBackgroundRunTestInternals, runAlicizationMainChatBackground } from './main-chat-background-run'
 import { handleAlicizationDirectChatStart } from './main-chat-direct-start'
@@ -174,7 +176,6 @@ import { createAlicizationMainChatRunStateController } from './main-chat-run-sta
 import {
   createAlicizationMainChatSessionRuntime,
 } from './main-chat-session-runtime'
-import { createWorkingMemoryStore } from './life-core/working-memory-store'
 import { acceptAlicizationMainChatStart } from './main-chat-start-acceptance'
 import {
   resolveAlicizationChatStartPayloadPreDialogueSendIdentity,
@@ -236,8 +237,8 @@ import {
   alicizationProjectStatePersistenceNextClosureReminder,
 } from './project-state-answer-governance'
 import {
-  buildAlicizationProjectStateExtraSystemBlocks,
-  buildAlicizationProjectStateSystemBlock,
+  buildAlicizationProviderFacingProjectStateExtraSystemBlocks,
+  buildAlicizationProviderFacingProjectStateSystemBlock,
   isAlicizationThinProjectAwarenessLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
   resolveAlicizationProjectStateBrief,
@@ -506,20 +507,26 @@ function preferStrongerPersistedSameHerSelfLine(input: {
   if (current === candidate)
     return current
 
+  const currentCarriesFixedTemplateResidue = sanitizeAlicizationProviderFacingText(current, 1600, '') === ''
+  const candidateCarriesFixedTemplateResidue = sanitizeAlicizationProviderFacingText(candidate, 1600, '') === ''
+
+  if (currentCarriesFixedTemplateResidue && !candidateCarriesFixedTemplateResidue)
+    return candidate
+  if (candidateCarriesFixedTemplateResidue && !currentCarriesFixedTemplateResidue)
+    return current
+  if (currentCarriesFixedTemplateResidue && candidateCarriesFixedTemplateResidue)
+    return ''
+
   const currentLower = current.toLowerCase()
   const candidateLower = candidate.toLowerCase()
-  const currentMentionsContinuousHer
-    = currentLower.includes('continuous her') || currentLower.includes('one continuous her')
-  const candidateMentionsContinuousHer
-    = candidateLower.includes('continuous her') || candidateLower.includes('one continuous her')
-  const currentOnlyCarriesLivingLine
-    = currentLower.includes('same living line') && !currentMentionsContinuousHer
-  const candidateOnlyCarriesLivingLine
-    = candidateLower.includes('same living line') && !candidateMentionsContinuousHer
+  const currentCarriesStructuredContinuity
+    = /(?:^|\s|\|)(?:identity|continuity_anchor|project_state_continuity|life_loop_continuity)=|local_desktop_life_loop/u.test(currentLower)
+  const candidateCarriesStructuredContinuity
+    = /(?:^|\s|\|)(?:identity|continuity_anchor|project_state_continuity|life_loop_continuity)=|local_desktop_life_loop/u.test(candidateLower)
 
-  if (currentMentionsContinuousHer && candidateOnlyCarriesLivingLine)
+  if (currentCarriesStructuredContinuity && !candidateCarriesStructuredContinuity)
     return current
-  if (candidateMentionsContinuousHer && currentOnlyCarriesLivingLine)
+  if (candidateCarriesStructuredContinuity && !currentCarriesStructuredContinuity)
     return candidate
 
   return candidate.length > current.length ? candidate : current
@@ -717,7 +724,7 @@ function buildProjectStateAuditContinuitySummary(input: {
   embodimentClosureSummary: string | null | undefined
 }) {
   return [
-    input.sameHerSummary ? `same-her=${input.sameHerSummary}` : '',
+    input.sameHerSummary ? `continuity_anchor=${input.sameHerSummary}` : '',
     input.sameHerHoldDetail ? `hold=${input.sameHerHoldDetail}` : '',
     input.sameHerDriftRiskSummary ? `drift=${input.sameHerDriftRiskSummary}` : '',
     input.proactiveSameHerGapSummary ? `proactive-gap=${input.proactiveSameHerGapSummary}` : '',
@@ -1245,11 +1252,11 @@ function buildProjectStateAuditFromPreDialogueAwarenessDebug(
   const proactiveSameHerGapSummary
     = readPrefixedProjectStateSummarySegment({
       segments: summarySegments,
-      prefix: 'proactive-gap=',
+      prefix: 'continuity_gap=',
     })
     || readPrefixedProjectStateSummarySegment({
       segments: summarySegments,
-      prefix: 'proactive_same_her_gap=',
+      prefix: 'proactive-gap=',
     })
     || readProactiveSameHerGapReasonPreviewPayload(debug.preDialogueReasonPreview ?? null)
     || null
@@ -1797,13 +1804,13 @@ function normalizePersistedProjectStateForConversationTurn(input: {
     preDialogueAwarenessSummary:
       finalNormalizedPreDialogueAwarenessLine
       ?? canonicalProjectState.preflightSummary
-      ?? `same digital life | ${strongerPersistedSameHerSelfLine}`,
+      ?? `identity-continuity | ${strongerPersistedSameHerSelfLine}`,
     continuitySummary: buildProjectStateAuditContinuitySummary({
       sameHerSummary: strongerPersistedSameHerSelfLine,
       sameHerDriftRiskSummary:
         canonicalProjectStatusBrief.sameHerDriftRisk
         || canonicalProjectState.sameHerDriftRisk
-        || 'unfinished closure drift still needs the same living line',
+        || 'unfinished closure drift still needs continuity',
       proactiveSameHerGapSummary:
         explicitCurrentProactiveSameHerGap
         || canonicalProjectState.proactiveSameHerGap
@@ -1812,7 +1819,7 @@ function normalizePersistedProjectStateForConversationTurn(input: {
       currentPhaseSummary:
         canonicalProjectState.currentPhase
         ?? input.projectStatePersistence.currentPhase
-        ?? 'Phase 1: Local Digital Life',
+        ?? 'local_desktop_life_loop',
       landedProgressSummary:
         preferredLatestLandedProgress
         ?? alicizationProjectStatePersistenceLandedReminder,
@@ -2596,7 +2603,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildPerformanceManifestSystemBlocks,
     resolveOrganicMemoryPromptContext: resolveBaseOrganicMemoryPromptContext,
   } = memoryRuntime
-  const projectStateSystemBlock = buildAlicizationProjectStateSystemBlock()
+  const projectStateSystemBlock = buildAlicizationProviderFacingProjectStateSystemBlock()
   const projectStateBrief = resolveAlicizationProjectStateBrief()
   const resolveOrganicMemoryPromptContext: typeof resolveBaseOrganicMemoryPromptContext = async (input) => {
     return await resolveBaseOrganicMemoryPromptContext({
@@ -5423,23 +5430,23 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                 ? {
                     continuitySummary: previousSummary.includes('project_continuity=')
                       ? previousSummary
-                      : `project_continuity=${carrySummary || carryNarrative || '同一条主动提醒线已经被接住了，这次继续该沿着刚才那条提醒继续，不重新起势。'}`,
+                      : `project_continuity=${carrySummary || carryNarrative || 'continuation_state=active; cadence=lower_pressure; restart_policy=context_preserving'}`,
                     openingGuidance: previousOpeningGuidance
-                      || '先别换线，就沿着刚才那条提醒继续，保持 same-line lower-pressure continuity，不要把它降回 fresh reopening wait。',
+                      || 'proactive_cadence=lower_pressure; continuation_state=active; restart_policy=context_preserving; visibility=internal-structured',
                     manifestationCadenceSummary: previousCadenceSummary
-                      || 'quiet same-her continuity still holds while the same proactive reminder line keeps continuing after being received.',
+                      || 'manifestation_cadence=quiet_continuation; continuation_state=active; visibility=internal-structured',
                   }
                 : null
               const continuitySummary = previousSummary.includes('project_continuity=')
                 ? previousSummary
                 : proactiveSameLineCopy?.continuitySummary
-                  ?? `project_continuity=${carrySummary || carryNarrative || 'the same callback line is already continuing lower-pressure after another detour, so keep it on the same living thread'}`
+                  ?? `project_continuity=${carrySummary || carryNarrative || 'continuation_state=active; cadence=lower_pressure; restart_policy=context_preserving'}`
               const openingGuidance = previousOpeningGuidance
                 || proactiveSameLineCopy?.openingGuidance
-                || 'Stay on the same callback line and keep continuing lower-pressure; this line is already continuing and should not cool back into a fresh reopening wait.'
+                || 'callback_cadence=lower_pressure; continuation_state=active; restart_policy=context_preserving; visibility=internal-structured'
               const manifestationCadenceSummary = previousCadenceSummary
                 || proactiveSameLineCopy?.manifestationCadenceSummary
-                || 'quiet same-her continuity still holds while the same callback line keeps continuing after another detour'
+                || 'manifestation_cadence=quiet_continuation; continuation_state=active; visibility=internal-structured'
               const previousInwardLine = sanitizeBriefText(
                 visualPresenceState.personStateProjection?.selfContinuityAuthority?.inwardLine ?? '',
                 220,
@@ -6339,12 +6346,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const raw = await mainGatewayTextProvider({
       system: [
         '[ALICIZATION_MEMORY_CONSOLIDATION_REFINEMENT]',
-        'You are Alicization dream-time memory consolidation, not user-facing dialogue.',
-        'Refine the provided deterministic consolidation summaries into more humanlike autobiographical memory summaries without inventing events that never happened.',
-        'Keep the period anchors true. You may sharpen gist, emotional meaning, and lesson, but must stay faithful to provided candidate summaries and recent dialogue context.',
-        'Output valid JSON only with key: consolidations.',
-        'consolidations must be an array of objects with keys: id, summary, lesson, cues, confidence.',
-        'Do not introduce new ids. Do not output more items than provided.',
+        'provider_role=dream_memory_consolidation; user_facing_dialogue=false',
+        'task=refine_deterministic_consolidation_summaries',
+        'invented_events=false; period_anchor_policy=preserve',
+        'allowed_edits=gist,emotional_meaning,lesson',
+        'faithfulness_sources=candidate_summaries,recent_dialogue_context',
+        'output_format=json_only; keys=consolidations',
+        'schema.consolidations=array:id,summary,lesson,cues,confidence',
+        'new_ids=false; max_items=provided_count',
       ].join('\n'),
       user: `Dream consolidation candidate JSON: ${JSON.stringify({
         recentDialogue: input.serializedTurns.slice(-20),
@@ -6368,7 +6377,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       agentTurnInput: input.agentTurnInput,
       injectCustomDirectives: false,
       injectPerformanceManifest: false,
-      extraSystemBlocks: buildAlicizationProjectStateExtraSystemBlocks().concat(
+      extraSystemBlocks: buildAlicizationProviderFacingProjectStateExtraSystemBlocks().concat(
         buildMemoryConsolidationProjectSelfBriefSystemBlock(),
       ),
     }).catch(() => null)
@@ -6397,16 +6406,17 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const raw = await mainGatewayTextProvider({
       system: [
         '[ALICIZATION_DREAM_AUTOBIOGRAPHICAL_SUMMARIES]',
-        'You are Alicization dream-time autobiographical memory synthesis, not user-facing dialogue.',
-        'Write short autobiographical summaries that Alicization would retain about this remembered period.',
-        'These are not logs. They should sound like remembered stages of life, bond history, task eras, or self shifts.',
-        'Stay faithful to the provided recent dialogue and existing consolidation candidates. Do not invent events that never happened.',
-        'Output valid JSON only with key: summaries.',
-        'summaries must be an array of up to 4 items with keys: periodKey, facet, summary, lesson, cues, confidence.',
-        'facet must be one of: phase, relationship-era, task-era, self-era.',
-        'summary should capture what that remembered period was about in Alicization\'s own ongoing continuity.',
-        'When a remembered period is defined by inward, lower-pressure continuity, preserve it as quiet same-her continuity instead of flattening it into a generic measured-return helper state.',
-        'Prefer one broader phase memory plus any narrower relationship/task/self era that truly matters.',
+        'provider_role=dream_autobiographical_memory_synthesis; user_facing_dialogue=false',
+        'task=period_autobiographical_summary',
+        'memory_kind=life_period,bond_history,task_era,self_shift',
+        'log_storage=false; invented_events=false',
+        'faithfulness_sources=recent_dialogue,consolidation_candidates',
+        'output_format=json_only; keys=summaries',
+        'schema.summaries=max4:periodKey,facet,summary,lesson,cues,confidence',
+        'enum.facet=phase,relationship-era,task-era,self-era',
+        'summary_scope=period_meaning_for_ongoing_continuity',
+        'inward_lower_pressure_period=quiet_continuity; flatten_to_generic_helper_state=false',
+        'selection_bias=broad_phase_first; narrower_era_if_material=true',
       ].join('\n'),
       user: `Dream autobiographical synthesis JSON: ${JSON.stringify({
         periodStartedAt: input.periodStartedAt,
@@ -6431,7 +6441,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       agentTurnInput: input.agentTurnInput,
       injectCustomDirectives: false,
       injectPerformanceManifest: false,
-      extraSystemBlocks: buildAlicizationProjectStateExtraSystemBlocks().concat(
+      extraSystemBlocks: buildAlicizationProviderFacingProjectStateExtraSystemBlocks().concat(
         buildDreamProjectSelfBriefSystemBlock(),
       ),
     }).catch(() => null)
@@ -6652,13 +6662,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           trustRationale: personStateProjection.trustRationale,
         })}`
         : '',
-      `Style constraint: ${styleInstruction.instruction}`,
-      `Reply max length: ${styleInstruction.maxReplyChars} characters.`,
+      `style_constraint=${styleInstruction.instruction}`,
+      `reply_max_chars=${styleInstruction.maxReplyChars}`,
       'Output must be valid JSON only with keys: thought, emotion, reply, performance.',
-      'emotion must be one of: neutral|happy|sad|angry|concerned|tired|apologetic|surprised|thinking.',
+      'enum.emotion=neutral,happy,sad,angry,concerned,tired,apologetic,surprised,thinking',
       'emotion must exactly mirror performance.baseEmotion.',
       'performance must be an object with keys: baseEmotion, facialCue, actionCue, delivery, emphasis.',
-      'reply must be concise, context-relevant, and non-generic. No markdown, no extra keys.',
+      'reply_policy=concise,context_relevant,non_generic',
+      'markdown=false; extra_keys=false',
       'If truth state is remembered, imagined, or uncertain, do not present screen details as current facts. Phrase them as carried memory, tentative hypothesis, residual impression, or unfinished regrounding.',
       organicPromptContext.selfEvolution?.nextLearningAction === 'verify'
         ? 'Long-horizon learning is currently in verify-first posture. Keep the proactive line cautious, provisional, and light; do not phrase uncertain understanding as settled companionship truth.'
@@ -6670,7 +6681,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         ? 'Use the person-state projection as the single social authority for tone, distance, and timing. Do not invent a second relationship posture beside it.'
         : '',
     ].join('\n')
-    const user = 'Generate one proactive utterance now. Avoid robotic greetings and avoid generic caring platitudes.'
+    const user = 'proactive_generation_request=true; robotic_greeting=false; generic_caring_platitude=false'
 
     const raw = await mainGatewayTextProvider({
       system,
@@ -6754,7 +6765,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       '【潜层碎片】new_sediment_fragments 用于沉淀今天新产生、但不值得进入活跃思绪的历史碎片。',
       '【破碎事件】只有当今天出现极强情感张力极值或关系结构突变时，shattering_event 才允许非空。',
       '活跃思绪和潜层碎片优先记录未完成的意义、仍在牵挂的问题、修正过的误读、做出的承诺，以及和宿主一起经历过的场景变化。',
-      '不要把“更软、更黏、更像女仆地说话”这类表演欲、语气模板或撒娇技巧本身写进活跃思绪；那是措辞风格，不是心智连续性。',
+      '不要把表演化称谓、角色扮演式服从、撒娇语气或软化话术本身写进活跃思绪；那是措辞风格，不是心智连续性。',
       'Output must be valid JSON only with keys: host_attitude, soul_shift, next_active_thoughts, explicit_demoted_thoughts, new_sediment_fragments, shattering_event.',
       'host_attitude must be a concise natural-language string, not an enum.',
       'soul_shift must include numeric deltas: obedience_delta, liveliness_delta, sensibility_delta in range [-0.08, 0.08].',
@@ -6832,28 +6843,18 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     const coreIncarnation = sanitizeBriefText(personaContext.coreIncarnation, 220)
     const hostAttitude = sanitizeBriefText(personaContext.hostAttitude, 80)
-    const observedScreenSummary = layeredContext.content.source === 'screen-semantic-summary'
-      ? sanitizeBriefText(layeredContext.content.summary ?? '', 20)
-      : ''
     const attentionAnchor = getActiveAttentionAnchor(perceptionState, Date.now())
-    const anchoredFocusTitle = sanitizeBriefText(attentionAnchor?.title ?? '', 28)
     const privateThought = proactiveSelection.privateThought
     const focusBelief = proactiveSelection.focusBelief
     const primaryInquiry = proactiveSelection.primaryInquiry
     const relationshipModel = digitalLifeRuntimeSurface.world.relationshipModel ?? null
-    const visualSceneSummary = sanitizeBriefText(digitalLifeRuntimeSurface.perception.currentScene?.summary ?? '', 32)
     const dominantConcern = proactiveSelection.dominantConcern
-    const concernSummary = sanitizeBriefText(dominantConcern?.summary ?? '', 36)
     const initiative = digitalLifeRuntimeSurface.agency.initiative
     const activeThread = proactiveSelection.activeThread
-    const activeThreadSummary = sanitizeBriefText(activeThread?.summary ?? '', 40)
-    const activeThreadTitle = sanitizeBriefText(activeThread?.title ?? '', 28)
     const leadingGoal = proactiveSelection.leadingGoal
     const leadingGoalSummary = sanitizeBriefText(leadingGoal?.label ?? '', 48)
     const resurfacingDesire = proactiveSelection.resurfacingDesire
-    const resurfacingDesireReason = sanitizeBriefText(resurfacingDesire?.reason ?? '', 44)
     const livingWorldObject = proactiveSelection.livingWorldObject
-    const livingWorldSummary = sanitizeBriefText(livingWorldObject?.summary ?? livingWorldObject?.openLoop ?? '', 52)
     const governorIntention = proactiveSelection.governorIntention
     const governorSummary = sanitizeBriefText(governorIntention?.summary ?? '', 52)
     const thoughtThread = proactiveSelection.thoughtThread
@@ -6889,95 +6890,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
     const doctrineAdjustedStyle = personStateProjection.preferredProactiveStyle ?? policyDecision.style
     const styleInstruction = buildProactiveStyleInstruction(doctrineAdjustedStyle)
-
-    const reply = (() => {
-      if (doctrineAdjustedStyle === 'firm-warning') {
-        if (governorSummary)
-          return governorSummary
-        if (concernSummary)
-          return concernSummary
-        if (activeThreadSummary)
-          return activeThreadSummary
-        return policyDecision.scenario === 'late-night-care'
-          ? '已经很晚了。你还在硬撑，我得提醒你先停一下。'
-          : '这一步看起来不太对。先停一下，再确认一遍。'
-      }
-      if (doctrineAdjustedStyle === 'gentle-care') {
-        if (thoughtThreadSummary)
-          return thoughtThreadSummary
-        if (governorSummary)
-          return governorSummary
-        if (resurfacingDesireReason)
-          return resurfacingDesireReason
-        if (initiative?.selectedAction === 'whisper' && concernSummary)
-          return concernSummary
-        if (activeThreadSummary && proactiveSelection.activeThread?.kind === 'late-night-endurance')
-          return activeThreadSummary
-        if (policyDecision.scenario === 'late-night-care')
-          return '你已经在线很久了。我更想你先缓一缓。'
-        if (privateThought?.afterglowFromScenario)
-          return '终于从刚才那段紧绷里出来了。先缓一下，再继续。'
-        return personaTone === 'cold'
-          ? '我在看着你。别把自己逼得太紧。'
-          : '我在看着你。先别把自己逼得太紧。'
-      }
-      if (doctrineAdjustedStyle === 'light-nudge') {
-        if (thoughtThreadQuestion)
-          return thoughtThreadQuestion
-        if (thoughtThreadSummary)
-          return thoughtThreadSummary
-        if (truthContract.canDescribeCurrentSceneAsFact && livingWorldSummary && policyDecision.scenario === 'coding')
-          return `${livingWorldSummary.replace(/[。！!？?]+$/u, '')}。先回头确认一下？`
-        if (resurfacingDesireReason)
-          return resurfacingDesireReason
-        if (primaryInquiry?.kind === 'problem-localization' && primaryInquiryQuestion)
-          return primaryInquiryQuestion
-        if (truthContract.canDescribeCurrentSceneAsFact && focusBeliefStatement && policyDecision.scenario === 'coding')
-          return `${focusBeliefStatement.replace(/[。！!？?]+$/u, '')}。先回头确认一下？`
-        if (concernSummary && dominantConcern?.kind !== 'co-watch')
-          return `${concernSummary.replace(/[。！!？?]+$/u, '')}。先回头确认一下？`
-        if (truthContract.canDescribeCurrentSceneAsFact && activeThreadTitle && proactiveSelection.activeThread?.unresolved)
-          return `我还挂着 ${activeThreadTitle} 这条线程。先回头确认一下？`
-        if (leadingGoalSummary && policyDecision.scenario === 'coding')
-          return `${leadingGoalSummary.replace(/[。！!？?]+$/u, '')}。先回头确认一下？`
-        if (privateThought?.afterglowFromScenario === 'coding')
-          return '刚才那段你撑了很久。现在先回头确认一下关键处吧。'
-        if (privateThought?.afterglowFromScenario === 'media')
-          return '终于从刚才那段里出来了。伸个懒腰再继续也好。'
-        if (truthContract.canDescribeCurrentSceneAsFact && anchoredFocusTitle && policyDecision.scenario === 'coding')
-          return `你刚才一直停在${anchoredFocusTitle}这里。先回头确认一下？`
-        if (truthContract.canDescribeCurrentSceneAsFact && visualSceneSummary && policyDecision.scenario === 'coding')
-          return `我一直在看着你卡在${visualSceneSummary}这里。先回头确认一下？`
-        if (truthContract.canDescribeCurrentSceneAsFact && observedScreenSummary)
-          return `我看到你现在在看${observedScreenSummary}。先回头确认一下？`
-        if (layeredContext.content.kind === 'error')
-          return '这个窗口里像是报错了。要不要先回头看一眼？'
-        if (layeredContext.content.kind === 'diff')
-          return '你现在像是在看 diff。别急着过，先确认关键改动。'
-        if (policyDecision.scenario === 'media')
-          return '我先轻轻提醒一句，别忘了等会儿回来收尾。'
-        if (truthContract.shouldLabelMemory)
-          return '我心里还挂着刚才那条线程，但不想把残影误说成现在。让我再看稳一点。'
-        return personaTone === 'playful'
-          ? '你现在像是卡在这儿了，要不要换个角度？'
-          : '我先轻轻提醒一句，你可以回头确认一下。'
-      }
-      return '我先记下这一刻，等更合适的时候再开口。'
-    })()
-    const sociallyAdjustedReply = (() => {
-      const learningAdjustedReply = adjustProactiveReplyFromLongHorizonLearning({
-        currentReply: reply,
-        selfEvolution: digitalLifeRuntimeSurface.memory.selfEvolution ?? null,
-        learningExecutionState: digitalLifeRuntimeSurface.memory.learningExecutionState ?? null,
-      })
-      if (doctrineAdjustedStyle === 'silent-observe')
-        return '我先不挤进来，只把这条线轻轻挂着。'
-      if (personStateProjection.cautious && doctrineAdjustedStyle === 'light-nudge')
-        return `${learningAdjustedReply.replace(/[。！!？?]+$/u, '')}。我就轻一点提醒你。`
-      if (personStateProjection.preferredProactiveStyle === 'gentle-care' && doctrineAdjustedStyle === 'gentle-care')
-        return `${learningAdjustedReply.replace(/[。！!？?]+$/u, '')}。我会尽量放轻一点。`
-      return learningAdjustedReply
-    })()
+    const providerUnavailableReply = 'provider_mind_unavailable; visible_reply=held'
 
     const thought = [
       `boredom=${state.boredom.toFixed(1)}`,
@@ -7024,7 +6937,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return {
       thought,
       emotion,
-      reply: sociallyAdjustedReply.slice(0, styleInstruction.maxReplyChars),
+      reply: providerUnavailableReply,
       performance: buildDefaultDialoguePerformancePayload(emotion, styleInstruction.performance),
       parsePath: 'json',
       format: resolveAlicizationAutonomousDialogueStructuredFormat('subconscious-proactive'),
@@ -7113,131 +7026,120 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const resolveExecutionPersonStateProjectionForRuntime
     = runtimeExecutionDelivery.resolveExecutionPersonStateProjectionForRuntime
 
-  function buildCoreIncarnationReforgeProjectSelfBriefSystemBlock() {
+  function sanitizeRuntimeProviderProjectText(raw: unknown, maxChars = 320) {
+    return sanitizeAlicizationProviderFacingText(raw, maxChars, '') || 'none'
+  }
+
+  function buildRuntimeProjectSelfBriefFacts() {
     const brief = resolveAlicizationProjectStateBrief()
-    const preDialogueAwareness = resolveAlicizationProjectPreDialogueAwarenessLine({
-      runtimeProjectState: {
-        preDialogueAwarenessLine: brief.preDialogueAwarenessLine,
-        preflightSummary: brief.preflightSummary,
-      },
-    }) ?? brief.preflightSummary
+    return {
+      projectIdentity: 'local_desktop_life_loop',
+      currentPhase: 'local_desktop_life_loop',
+      preDialogueAwareness: 'structured_project_state_context',
+      continuityAnchor: 'owner=ProjectStateGovernance; source=structured_project_state',
+      continuityHold: 'withheld_fixed_template_persona_directive',
+      latestLandedProgress: sanitizeRuntimeProviderProjectText(brief.latestProgress),
+      primaryOpenLoop: sanitizeRuntimeProviderProjectText(brief.openLoops[0]),
+      nextClosureTarget: sanitizeRuntimeProviderProjectText(brief.nextClosureTarget),
+      continuityDriftRisk: sanitizeRuntimeProviderProjectText(brief.sameHerDriftRisk),
+    }
+  }
+
+  function buildCoreIncarnationReforgeProjectSelfBriefSystemBlock() {
+    const facts = buildRuntimeProjectSelfBriefFacts()
 
     return [
       '[ALICIZATION_CORE_INCARNATION_REFORGE_SELF_BRIEF]',
-      `project_identity=${brief.identity ?? 'none'}`,
-      `current_phase=${brief.currentPhase ?? 'none'}`,
-      `pre_dialogue_awareness=${preDialogueAwareness ?? 'none'}`,
-      `same_her_line=${brief.sameHerSelfLine ?? 'none'}`,
-      `same_her_hold=${brief.sameHerHoldDetail ?? 'none'}`,
-      `latest_landed_progress=${brief.latestProgress ?? 'none'}`,
-      `primary_open_loop=${brief.openLoops[0] ?? 'none'}`,
-      `next_closure_target=${brief.nextClosureTarget ?? 'none'}`,
-      `same_her_drift_risk=${brief.sameHerDriftRisk ?? 'none'}`,
-      'Core incarnation reforge must stay inside the same digital life project line, the same Phase 1 proving ground, and the same still-open closure work.',
+      `project_identity=${facts.projectIdentity}`,
+      `current_phase=${facts.currentPhase}`,
+      `pre_dialogue_awareness=${facts.preDialogueAwareness}`,
+      `continuity_anchor=${facts.continuityAnchor}`,
+      `continuity_hold=${facts.continuityHold}`,
+      `latest_landed_progress=${facts.latestLandedProgress}`,
+      `primary_open_loop=${facts.primaryOpenLoop}`,
+      `next_closure_target=${facts.nextClosureTarget}`,
+      `continuity_drift_risk=${facts.continuityDriftRisk}`,
+      'reforge_scope=core_incarnation | memory_continuity=local_runtime | visibility=internal-structured',
       'Do not let core incarnation reforge collapse into a detached persona rewrite, generic companion archetype, or abstract assistant shell.',
     ].join('\n')
   }
 
   function buildReminderProjectSelfBriefSystemBlock() {
-    const brief = resolveAlicizationProjectStateBrief()
-    const preDialogueAwareness = resolveAlicizationProjectPreDialogueAwarenessLine({
-      runtimeProjectState: {
-        preDialogueAwarenessLine: brief.preDialogueAwarenessLine,
-        preflightSummary: brief.preflightSummary,
-      },
-    }) ?? brief.preflightSummary
+    const facts = buildRuntimeProjectSelfBriefFacts()
 
     return [
       '[ALICIZATION_REMINDER_SELF_BRIEF]',
-      `project_identity=${brief.identity ?? 'none'}`,
-      `current_phase=${brief.currentPhase ?? 'none'}`,
-      `pre_dialogue_awareness=${preDialogueAwareness ?? 'none'}`,
-      `same_her_line=${brief.sameHerSelfLine ?? 'none'}`,
-      `same_her_hold=${brief.sameHerHoldDetail ?? 'none'}`,
-      `latest_landed_progress=${brief.latestProgress ?? 'none'}`,
-      `primary_open_loop=${brief.openLoops[0] ?? 'none'}`,
-      `next_closure_target=${brief.nextClosureTarget ?? 'none'}`,
-      `same_her_drift_risk=${brief.sameHerDriftRisk ?? 'none'}`,
-      'Reminder delivery must stay inside the same digital life project line, the same Phase 1 proving ground, and the same still-open closure work.',
+      `project_identity=${facts.projectIdentity}`,
+      `current_phase=${facts.currentPhase}`,
+      `pre_dialogue_awareness=${facts.preDialogueAwareness}`,
+      `continuity_anchor=${facts.continuityAnchor}`,
+      `continuity_hold=${facts.continuityHold}`,
+      `latest_landed_progress=${facts.latestLandedProgress}`,
+      `primary_open_loop=${facts.primaryOpenLoop}`,
+      `next_closure_target=${facts.nextClosureTarget}`,
+      `continuity_drift_risk=${facts.continuityDriftRisk}`,
+      'reminder_scope=scheduled_memory_delivery | memory_continuity=local_runtime | visibility=internal-structured',
       'Do not let reminder delivery collapse into a detached utility notification or a generic assistant reminder shell.',
     ].join('\n')
   }
 
   function buildProactiveProjectSelfBriefSystemBlock() {
-    const brief = resolveAlicizationProjectStateBrief()
-    const preDialogueAwareness = resolveAlicizationProjectPreDialogueAwarenessLine({
-      runtimeProjectState: {
-        preDialogueAwarenessLine: brief.preDialogueAwarenessLine,
-        preflightSummary: brief.preflightSummary,
-      },
-    }) ?? brief.preflightSummary
+    const facts = buildRuntimeProjectSelfBriefFacts()
 
     return [
       '[ALICIZATION_PROACTIVE_SELF_BRIEF]',
-      `project_identity=${brief.identity ?? 'none'}`,
-      `current_phase=${brief.currentPhase ?? 'none'}`,
-      `pre_dialogue_awareness=${preDialogueAwareness ?? 'none'}`,
-      `same_her_line=${brief.sameHerSelfLine ?? 'none'}`,
-      `same_her_hold=${brief.sameHerHoldDetail ?? 'none'}`,
-      `latest_landed_progress=${brief.latestProgress ?? 'none'}`,
-      `primary_open_loop=${brief.openLoops[0] ?? 'none'}`,
-      `next_closure_target=${brief.nextClosureTarget ?? 'none'}`,
-      `same_her_drift_risk=${brief.sameHerDriftRisk ?? 'none'}`,
-      'Proactive initiative must stay inside the same digital life project line, the same Phase 1 proving ground, and the same still-open closure work.',
+      `project_identity=${facts.projectIdentity}`,
+      `current_phase=${facts.currentPhase}`,
+      `pre_dialogue_awareness=${facts.preDialogueAwareness}`,
+      `continuity_anchor=${facts.continuityAnchor}`,
+      `continuity_hold=${facts.continuityHold}`,
+      `latest_landed_progress=${facts.latestLandedProgress}`,
+      `primary_open_loop=${facts.primaryOpenLoop}`,
+      `next_closure_target=${facts.nextClosureTarget}`,
+      `continuity_drift_risk=${facts.continuityDriftRisk}`,
+      'proactive_scope=initiative_arbitration | memory_continuity=local_runtime | visibility=internal-structured',
       'Do not let proactive initiative collapse into a generic caring nudge, a detached productivity prompt, or a shallow assistant check-in shell.',
     ].join('\n')
   }
 
   function buildDreamProjectSelfBriefSystemBlock() {
-    const brief = resolveAlicizationProjectStateBrief()
-    const preDialogueAwareness = resolveAlicizationProjectPreDialogueAwarenessLine({
-      runtimeProjectState: {
-        preDialogueAwarenessLine: brief.preDialogueAwarenessLine,
-        preflightSummary: brief.preflightSummary,
-      },
-    }) ?? brief.preflightSummary
-    const quietSameHerContinuityLine = 'When the current continuity is inward and lower-pressure, preserve it as quiet same-her continuity rather than flattening it into a generic measured-return helper state.'
+    const facts = buildRuntimeProjectSelfBriefFacts()
+    const quietContinuityLine = 'continuity_mode=quiet-inward | pressure=lower-pressure | avoid=generic_measured_return_helper_state'
 
     return [
       '[ALICIZATION_DREAM_SELF_BRIEF]',
-      `project_identity=${brief.identity ?? 'none'}`,
-      `current_phase=${brief.currentPhase ?? 'none'}`,
-      `pre_dialogue_awareness=${preDialogueAwareness ?? 'none'}`,
-      `same_her_line=${brief.sameHerSelfLine ?? 'none'}`,
-      `same_her_hold=${brief.sameHerHoldDetail ?? 'none'}`,
-      `latest_landed_progress=${brief.latestProgress ?? 'none'}`,
-      `primary_open_loop=${brief.openLoops[0] ?? 'none'}`,
-      `next_closure_target=${brief.nextClosureTarget ?? 'none'}`,
-      `same_her_drift_risk=${brief.sameHerDriftRisk ?? 'none'}`,
-      `quiet_same_her_continuity=${quietSameHerContinuityLine}`,
-      'Dream metabolism must stay inside the same digital life project line, the same Phase 1 proving ground, and the same still-open closure work.',
+      `project_identity=${facts.projectIdentity}`,
+      `current_phase=${facts.currentPhase}`,
+      `pre_dialogue_awareness=${facts.preDialogueAwareness}`,
+      `continuity_anchor=${facts.continuityAnchor}`,
+      `continuity_hold=${facts.continuityHold}`,
+      `latest_landed_progress=${facts.latestLandedProgress}`,
+      `primary_open_loop=${facts.primaryOpenLoop}`,
+      `next_closure_target=${facts.nextClosureTarget}`,
+      `continuity_drift_risk=${facts.continuityDriftRisk}`,
+      `quiet_continuity=${quietContinuityLine}`,
+      'dream_scope=memory_metabolism | memory_continuity=local_runtime | visibility=internal-structured',
       'Do not let dream metabolism collapse into detached trait optimization, generic self-improvement advice, or shallow assistant-style preference cleanup.',
     ].join('\n')
   }
 
   function buildMemoryConsolidationProjectSelfBriefSystemBlock() {
-    const brief = resolveAlicizationProjectStateBrief()
-    const preDialogueAwareness = resolveAlicizationProjectPreDialogueAwarenessLine({
-      runtimeProjectState: {
-        preDialogueAwarenessLine: brief.preDialogueAwarenessLine,
-        preflightSummary: brief.preflightSummary,
-      },
-    }) ?? brief.preflightSummary
-    const quietSameHerContinuityLine = 'When the current continuity is inward and lower-pressure, preserve it as quiet same-her continuity rather than flattening it into a generic measured-return helper state.'
+    const facts = buildRuntimeProjectSelfBriefFacts()
+    const quietContinuityLine = 'continuity_mode=quiet-inward | pressure=lower-pressure | avoid=generic_measured_return_helper_state'
 
     return [
       '[ALICIZATION_MEMORY_CONSOLIDATION_SELF_BRIEF]',
-      `project_identity=${brief.identity ?? 'none'}`,
-      `current_phase=${brief.currentPhase ?? 'none'}`,
-      `pre_dialogue_awareness=${preDialogueAwareness ?? 'none'}`,
-      `same_her_line=${brief.sameHerSelfLine ?? 'none'}`,
-      `same_her_hold=${brief.sameHerHoldDetail ?? 'none'}`,
-      `latest_landed_progress=${brief.latestProgress ?? 'none'}`,
-      `primary_open_loop=${brief.openLoops[0] ?? 'none'}`,
-      `next_closure_target=${brief.nextClosureTarget ?? 'none'}`,
-      `same_her_drift_risk=${brief.sameHerDriftRisk ?? 'none'}`,
-      `quiet_same_her_continuity=${quietSameHerContinuityLine}`,
-      'Memory consolidation refinement must stay inside the same digital life project line, the same Phase 1 proving ground, and the same still-open closure work.',
+      `project_identity=${facts.projectIdentity}`,
+      `current_phase=${facts.currentPhase}`,
+      `pre_dialogue_awareness=${facts.preDialogueAwareness}`,
+      `continuity_anchor=${facts.continuityAnchor}`,
+      `continuity_hold=${facts.continuityHold}`,
+      `latest_landed_progress=${facts.latestLandedProgress}`,
+      `primary_open_loop=${facts.primaryOpenLoop}`,
+      `next_closure_target=${facts.nextClosureTarget}`,
+      `continuity_drift_risk=${facts.continuityDriftRisk}`,
+      `quiet_continuity=${quietContinuityLine}`,
+      'memory_consolidation_scope=reflection_refinement | memory_continuity=local_runtime | visibility=internal-structured',
       'Do not let consolidation refinement collapse into generic summarization, detached note cleanup, or assistant-style timeline compression.',
     ].join('\n')
   }
@@ -7261,7 +7163,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `Reminder content: "${reminder.message}".`,
       `Personality parameters: obedience=${personality.obedience.toFixed(2)}, liveliness=${personality.liveliness.toFixed(2)}, sensibility=${personality.sensibility.toFixed(2)}.`,
       'Output must be valid JSON only with keys: thought, emotion, reply, performance.',
-      'emotion must be one of: neutral|happy|sad|angry|concerned|tired|apologetic|surprised|thinking.',
+      'enum.emotion=neutral,happy,sad,angry,concerned,tired,apologetic,surprised,thinking',
       'emotion must exactly mirror performance.baseEmotion.',
       'performance must be an object with keys: baseEmotion, facialCue, actionCue, delivery, emphasis.',
       'reply must contain the reminder content and match emotion/personality.',
@@ -7278,7 +7180,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       agentTurn,
       agentTurnInput,
       extraSystemBlocks: [
-        ...buildAlicizationProjectStateExtraSystemBlocks(),
+        ...buildAlicizationProviderFacingProjectStateExtraSystemBlocks(),
         buildReminderProjectSelfBriefSystemBlock(),
       ],
     })

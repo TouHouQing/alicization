@@ -41,7 +41,7 @@ export function buildSelfEvolutionTriageTargets(
           'runtime-continuity-projection',
         ]
       }
-      else if (card.detail === 'same-her continuity governance') {
+      else if (card.detail === 'identity-continuity continuity governance') {
         targets[card.id] = [
           'candidate-trajectory-summary',
           'proactive-decision-consumption-summary',

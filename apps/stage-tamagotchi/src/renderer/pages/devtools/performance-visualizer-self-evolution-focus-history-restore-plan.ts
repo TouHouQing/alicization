@@ -50,8 +50,8 @@ function extractSurvivingVisibleLaneTruth(
   if (
     value.includes('当前仅剩表情、口型、声音维持同一段连续性')
     || value.includes('当前仅剩动作、口型、声音维持同一段连续性')
-    || value.includes('当前只有 face 和 lipsync 这条 same-her 生命线')
-    || value.includes('当前只有 motion 和 lipsync 这条 same-her 生命线')
+    || value.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
+    || value.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
   ) {
     return normalizeSummarySentence(value)
   }

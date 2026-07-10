@@ -67,8 +67,8 @@ function extractSurvivingVisibleLaneTruth(
   if (
     value.includes('当前仅剩表情、口型、声音维持同一段连续性')
     || value.includes('当前仅剩动作、口型、声音维持同一段连续性')
-    || value.includes('当前只有 face 和 lipsync 这条 same-her 生命线')
-    || value.includes('当前只有 motion 和 lipsync 这条 same-her 生命线')
+    || value.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
+    || value.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
   ) {
     return normalizeSummaryFragment(value)
   }
@@ -80,13 +80,13 @@ function formatStructuredSurvivingVisibleLaneTruth(
   survivingVisibleLane: SelfEvolutionFocusSnapshotRecord['survivingVisibleLane'],
 ) {
   if (survivingVisibleLane === 'face+lipsync+voice-only')
-    return '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线'
+    return '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线'
   if (survivingVisibleLane === 'motion+lipsync+voice-only')
-    return '当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线'
+    return '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线'
   if (survivingVisibleLane === 'face+lipsync-only')
-    return '当前只有 face 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线'
+    return '当前只有 face 和 lipsync 这条 identity-continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线'
   if (survivingVisibleLane === 'motion+lipsync-only')
-    return '当前只有 motion 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线'
+    return '当前只有 motion 和 lipsync 这条 identity-continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线'
   return null
 }
 
@@ -245,7 +245,7 @@ export function buildSelfEvolutionFocusHistoryDrilldown(
 
     const lines = [
       projectStateContinuityTransition
-        ? '项目状态连续性：当前仍在首查 Project identity carry -> Phase 1 route carry -> Unresolved closure carry，不应把这次转移误写成普通 same-her 漂移。'
+        ? '项目状态连续性：当前仍在首查 Project identity carry -> Phase 1 route carry -> Unresolved closure carry，不应把这次转移误写成普通 identity-continuity 漂移。'
         : null,
       bodyContinuityTransition
         ? formatBodyContinuityLeadLine({

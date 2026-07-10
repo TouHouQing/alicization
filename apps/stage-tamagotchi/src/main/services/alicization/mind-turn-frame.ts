@@ -18,7 +18,12 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
-import { buildAlicizationScreenSurfaceCue, isWeakAlicizationScreenSurfaceCue } from '@proj-alicization/stage-shared'
+import {
+  alicizationFixedTemplateReplacement,
+  buildAlicizationScreenSurfaceCue,
+  isWeakAlicizationScreenSurfaceCue,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
 
 import { anchorsMateriallyAlign, anchorsMateriallyConflict, resolveDialogueAnchorCoherence } from './dialogue-anchor-coherence'
 import { sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
@@ -46,6 +51,26 @@ function uniqueList(values: Array<unknown>, maxItems = 8) {
       break
   }
   return items
+}
+
+function formatPromptValue(value: unknown, maxChars = 220) {
+  const normalized = sanitizeText(value, maxChars)
+  return normalized || 'none'
+}
+
+function looksProviderFacingStructuredControl(value: string) {
+  const normalized = value.trim().replace(/[.。]+$/u, '')
+  return /^[\w.:-]+=[^!?。！？]*?(?:[;|,]\s*[\w.:-]+=[^!?。！？]*?)*$/iu.test(normalized)
+    || /^[\w.:-]+$/iu.test(normalized)
+}
+
+function formatProviderFacingControl(value: unknown) {
+  const normalized = sanitizeAlicizationProviderFacingText(value, 360, '')
+  if (!normalized || normalized === alicizationFixedTemplateReplacement)
+    return 'provider_instruction_status=withheld; reason=non_structured_source_text; visibility=internal-structured'
+  if (looksProviderFacingStructuredControl(normalized))
+    return normalized
+  return 'provider_instruction_status=withheld; reason=non_structured_source_text; visibility=internal-structured'
 }
 
 function pickText(...values: Array<unknown>) {
@@ -616,44 +641,46 @@ export function buildMindTurnFrameSystemBlock(frame: AlicizationMindTurnFrameSna
   const worldTruthLine = (() => {
     switch (frame.world.truthState) {
       case 'live-grounded':
-        return 'Reality status: live grounded evidence.'
+        return 'truth_state=live-grounded'
       case 'live-observed':
-        return 'Reality status: live but coarse observation.'
+        return 'truth_state=live-observed'
       case 'remembered':
-        return 'Reality status: remembered continuity that must be treated as memory.'
+        return 'truth_state=remembered; continuity_source=memory'
       case 'imagined':
-        return 'Reality status: extrapolated rather than directly observed.'
+        return 'truth_state=imagined; direct_observation=false'
       default:
-        return 'Reality status: uncertain and needs a tight truth boundary.'
+        return 'truth_state=uncertain; truth_boundary_required=true'
     }
   })()
 
   return [
     '[ALICIZATION_MIND_TURN_FRAME]',
-    'This frame is the turn-local convergence of world, relation, memory, self, and obligation. Treat it as primary and use supporting blocks only to verify or sharpen it.',
+    'frame_scope=turn_local_convergence',
+    'frame_authority=primary',
+    'supporting_blocks_role=verify_or_sharpen',
     worldTruthLine,
-    frame.world.visibleSurface ? `Visible surface now: ${frame.world.visibleSurface}.` : '',
-    frame.world.activeThread ? `Active living thread: ${frame.world.activeThread}.` : '',
-    frame.world.truthBoundary ? `Truth boundary: ${frame.world.truthBoundary}.` : '',
-    frame.relation.subject ? `Answer subject: ${frame.relation.subject}.` : '',
-    frame.relation.hostMove ? `Host move being answered: ${frame.relation.hostMove}.` : '',
-    frame.relation.hostGoal ? `Host goal: ${frame.relation.hostGoal}.` : '',
-    frame.relation.relationNeed ? `Relationship need: ${frame.relation.relationNeed}.` : '',
-    frame.memory.carriedThread ? `Carried thread: ${frame.memory.carriedThread}.` : '',
-    frame.memory.carriedFacts.length > 0 ? `Carried facts: ${frame.memory.carriedFacts.join(' | ')}.` : '',
-    frame.memory.labelCarryAsMemory ? 'If carry appears in the answer, mark it as memory rather than literal present fact.' : '',
-    frame.self.stance ? `Inner stance: ${frame.self.stance}.` : '',
-    frame.self.embodiedPresence && frame.self.embodiedPresence !== 'none' ? `Embodied presence: ${frame.self.embodiedPresence}.` : '',
-    frame.self.emotionalTension ? `Emotional tension: ${frame.self.emotionalTension}.` : '',
-    frame.self.thought ? `Inner line: ${frame.self.thought}. Keep it internal and let it shape the reply.` : '',
-    frame.obligation.turnMode ? `Turn mode: ${frame.obligation.turnMode}.` : '',
-    frame.obligation.answerAct ? `Answer act: ${frame.obligation.answerAct}.` : '',
-    frame.obligation.answerIntent ? `Immediate answer intent: ${frame.obligation.answerIntent}.` : '',
-    frame.obligation.openingMove ? `Opening move: ${frame.obligation.openingMove}.` : '',
-    frame.obligation.whyNow ? `Why now: ${frame.obligation.whyNow}.` : '',
-    frame.focusAnchor ? `Focus anchor: ${frame.focusAnchor}.` : '',
-    frame.mustDo.length > 0 ? `Must do: ${frame.mustDo.join(' | ')}.` : '',
-    frame.mustNotDo.length > 0 ? `Must not do: ${frame.mustNotDo.join(' | ')}.` : '',
+    frame.world.visibleSurface ? `visible_surface=${formatPromptValue(frame.world.visibleSurface)}` : '',
+    frame.world.activeThread ? `active_thread=${formatPromptValue(frame.world.activeThread)}` : '',
+    frame.world.truthBoundary ? `truth_boundary=${formatPromptValue(frame.world.truthBoundary)}` : '',
+    frame.relation.subject ? `answer_subject=${formatPromptValue(frame.relation.subject, 80)}` : '',
+    frame.relation.hostMove ? `host_move=${formatPromptValue(frame.relation.hostMove)}` : '',
+    frame.relation.hostGoal ? `host_goal=${formatPromptValue(frame.relation.hostGoal, 120)}` : '',
+    frame.relation.relationNeed ? `relationship_need=${formatPromptValue(frame.relation.relationNeed, 120)}` : '',
+    frame.memory.carriedThread ? `carried_thread=${formatPromptValue(frame.memory.carriedThread)}` : '',
+    frame.memory.carriedFacts.length > 0 ? `carried_facts=${frame.memory.carriedFacts.map(fact => formatPromptValue(fact)).join('|')}` : '',
+    frame.memory.labelCarryAsMemory ? 'carry_surface_label=memory_not_present_fact' : '',
+    frame.self.stance ? `inner_stance=${formatPromptValue(frame.self.stance, 80)}` : '',
+    frame.self.embodiedPresence && frame.self.embodiedPresence !== 'none' ? `embodied_presence=${formatPromptValue(frame.self.embodiedPresence, 80)}` : '',
+    frame.self.emotionalTension ? `emotional_tension=${formatPromptValue(frame.self.emotionalTension, 80)}` : '',
+    frame.self.thought ? `inner_line=${formatPromptValue(frame.self.thought)}; surface_visibility=internal_only` : '',
+    frame.obligation.turnMode ? `turn_mode=${formatPromptValue(frame.obligation.turnMode, 80)}` : '',
+    frame.obligation.answerAct ? `answer_act=${formatPromptValue(frame.obligation.answerAct, 80)}` : '',
+    frame.obligation.answerIntent ? `answer_intent=${formatPromptValue(frame.obligation.answerIntent)}` : '',
+    frame.obligation.openingMove ? `opening_move=${formatPromptValue(frame.obligation.openingMove)}` : '',
+    frame.obligation.whyNow ? `why_now=${formatPromptValue(frame.obligation.whyNow)}` : '',
+    frame.focusAnchor ? `focus_anchor=${formatProviderFacingControl(frame.focusAnchor)}` : '',
+    frame.mustDo.length > 0 ? `required_controls=${frame.mustDo.map(item => formatProviderFacingControl(item)).join('|')}` : '',
+    frame.mustNotDo.length > 0 ? `blocked_controls=${frame.mustNotDo.map(item => formatProviderFacingControl(item)).join('|')}` : '',
   ].filter(Boolean).join('\n')
 }
 

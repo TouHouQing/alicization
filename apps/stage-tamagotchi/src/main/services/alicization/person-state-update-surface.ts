@@ -470,7 +470,7 @@ export function buildAlicizationPersonStateUpdateSurface(input: {
     projectStateContinuity: {
       identity: projectStateBrief.identity,
       currentPhase: projectStateBrief.currentPhase,
-      sameHerSummary: 'One local digital life should keep the same-her line across memory, initiative, dialogue, and embodiment.',
+      sameHerSummary: 'continuity_scope=memory,initiative,dialogue,embodiment; owner=project_state; visibility=internal-structured',
       landedProgressSummary: readProjectStateLandedProgress(projectStateBrief),
       openClosureSummary: projectStateBrief.openLoops[0] ?? null,
       nextClosureTarget: projectStateBrief.nextClosureTarget ?? null,

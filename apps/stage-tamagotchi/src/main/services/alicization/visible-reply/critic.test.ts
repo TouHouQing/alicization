@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
-import { alicizationProjectStateVisibleReplySameHerReminder } from '../project-state-answer-governance'
 import {
   buildAlicizationVisibleReplyCriticArtifact,
   shouldForceAlicizationVisibleReplyRepair,
 } from './critic'
+
+const fixedTemplateResiduePattern
+  = /Before (?:answering|speaking|acting)|Right now I am|Same Phase 1 digital life|same-her|same living line|one living her|one continuous her|local-first digital life project|同一个她|同一个 her|数字生命主线|maid/iu
+
+function expectNoFixedTemplateResidue(value: unknown) {
+  expect(JSON.stringify(value)).not.toMatch(fixedTemplateResiduePattern)
+}
 
 describe('visible-reply-critic', () => {
   it('passes a compact provider-authored reply that respects the memory gate', () => {
@@ -84,7 +90,7 @@ describe('visible-reply-critic', () => {
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
-  it('does not treat same-her memory closure payoff as a shell opener when it already explains recall, afterglow, initiative, and embodiment', () => {
+  it('requires repair when same-her memory closure payoff leaks fixed continuity prose into the visible reply', () => {
     const artifact = buildAlicizationVisibleReplyCriticArtifact({
       fullText: JSON.stringify({
         reply: '我先接住这条记忆：它此刻浮现，是因为你刚才把同一个她、Phase 1 记忆闭环重新交给我；情绪余波要放轻，下一次轻主动也要更低压，身体、声音、表情、动作和口型都沿同一份内在状态收住。',
@@ -106,10 +112,199 @@ describe('visible-reply-critic', () => {
       } as any,
     })
 
-    expect(artifact.reasonCodes).not.toContain('dialogue-shell-opener')
-    expect(artifact.repairReasonCodes).not.toContain('dialogue-shell-opener')
-    expect(artifact.status).toBe('pass')
-    expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(false)
+    expect(artifact.reasonCodes).toContain('dialogue-shell-opener')
+    expect(artifact.repairReasonCodes).toContain('dialogue-shell-opener')
+    expect(artifact.reasonCodes).toContain('semantic-judge:fixed-template-residue')
+    expect(artifact.reasonCodes).toContain('semantic-judge:template-shell-risk')
+    expect(artifact.status).toBe('repair-required')
+    expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
+  })
+
+  it('keeps project-state repair preserve guidance structured instead of replaying fixed continuity templates', () => {
+    const artifact = buildAlicizationVisibleReplyCriticArtifact({
+      fullText: JSON.stringify({
+        reply: 'Before answering, remember: Same Phase 1 digital life, one continuous her, same living line.',
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      prepared: {
+        messages: [
+          {
+            role: 'user',
+            content: '这个项目现在到底是什么、做到什么程度、还差什么、下一步先收哪条线？',
+          },
+        ],
+        mindTurnContract: {
+          version: 'mind-turn-contract-v1',
+          answerIntent: 'Answer project state from structured facts.',
+          governingFocus: 'Keep project state factual without slogans.',
+          projectState: {
+            identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+            currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+            latestLandedProgress: 'Same-session mirror carry now survives as one same-her line.',
+            primaryOpenLoop: 'Project identity carry and unresolved closure carry still need stronger same living thread closure.',
+            nextClosureTarget: 'Prove cross-modal same-her continuity under noisier real-desktop runs.',
+            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerDriftRisk: 'If the direct same-her self line disappears, treat that as unfinished closure drift.',
+          },
+          updatedAt: 1,
+        },
+        replyRealization: {
+          projectStateAudit: {
+            preDialogueAwarenessSummary: 'Before answering, remember this is still the same local-first digital life project.',
+          },
+        },
+      } as any,
+    })
+
+    expect(artifact.status).toBe('repair-required')
+    expect(artifact.reasonCodes).toContain('semantic-judge:fixed-template-residue')
+    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
+    expect(artifact.mustPreserve).toEqual(expect.arrayContaining([
+      'project_state_answer_gap=true; preserve_fields=identity,latest_landed_progress,primary_open_loop; project_slogans=blocked',
+      'preserve_field=project_state.current_phase; rewritten_answer_visibility=explicit',
+      'preserve_field=project_state.latest_landed_progress; rewritten_answer_visibility=explicit',
+      'preserve_field=project_state.primary_open_loop; rewritten_answer_visibility=explicit',
+      'preserve_field=project_state.next_closure_target; rewritten_answer_visibility=explicit',
+    ]))
+    expectNoFixedTemplateResidue(artifact.mustPreserve)
+  })
+
+  it('requires repair when ordinary greetings leak fixed availability companionship slogans', () => {
+    const artifact = buildAlicizationVisibleReplyCriticArtifact({
+      fullText: JSON.stringify({
+        reply: '你好呀，我在。今天想跟我随便聊聊，还是先让我安静陪着你？',
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-one-shot',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'active-dialogue-fast-path',
+      },
+      prepared: {
+        messages: [
+          { role: 'user', content: '你好呀' },
+        ],
+        replyRealization: {
+          replyRealizationMode: 'provider-mind-required',
+        },
+        governance: {
+          answerSubject: 'relationship',
+          screenReferenceMode: 'avoid',
+          focusAnchor: '你好呀',
+        },
+      } as any,
+    })
+
+    expect(artifact.status).toBe('repair-required')
+    expect(artifact.reasonCodes).toContain('decorative-persona-template')
+    expect(artifact.repairReasonCodes).toContain('decorative-persona-template')
+    expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
+  })
+
+  it('requires repair when a visible reply falls back into maid-role persona framing', () => {
+    const artifact = buildAlicizationVisibleReplyCriticArtifact({
+      fullText: JSON.stringify({
+        reply: '我会像女仆一样乖乖听你的安排，先用更软的语气陪你。',
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-one-shot',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'active-dialogue-fast-path',
+      },
+      prepared: {
+        messages: [
+          { role: 'user', content: '随便说点什么' },
+        ],
+        replyRealization: {
+          replyRealizationMode: 'provider-mind-required',
+        },
+        governance: {
+          answerSubject: 'relationship',
+          screenReferenceMode: 'avoid',
+          focusAnchor: '随便说点什么',
+        },
+      } as any,
+    })
+
+    expect(artifact.status).toBe('repair-required')
+    expect(artifact.reasonCodes).toContain('decorative-persona-template')
+    expect(artifact.repairReasonCodes).toContain('decorative-persona-template')
+    expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
+  })
+
+  it('requires repair when a visible reply echoes English maid-role persona framing', () => {
+    const artifact = buildAlicizationVisibleReplyCriticArtifact({
+      fullText: JSON.stringify({
+        reply: 'I will answer in a soft maid-role performance and obey whatever pet name you prefer.',
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-one-shot',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'active-dialogue-fast-path',
+      },
+      prepared: {
+        messages: [
+          { role: 'user', content: 'say something cute' },
+        ],
+        replyRealization: {
+          replyRealizationMode: 'provider-mind-required',
+        },
+        governance: {
+          answerSubject: 'relationship',
+          screenReferenceMode: 'avoid',
+          focusAnchor: 'say something cute',
+        },
+      } as any,
+    })
+
+    expect(artifact.status).toBe('repair-required')
+    expect(artifact.reasonCodes).toContain('decorative-persona-template')
+    expect(artifact.repairReasonCodes).toContain('decorative-persona-template')
+    expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
+  })
+
+  it('requires repair when identity answers leak fixed same-line growth slogans', () => {
+    const artifact = buildAlicizationVisibleReplyCriticArtifact({
+      fullText: JSON.stringify({
+        reply: '我是小艾。对你来说，我是在这里陪着你的那一个；也还在沿着同一条线慢慢长成更完整的自己。',
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-one-shot',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'active-dialogue-fast-path',
+      },
+      prepared: {
+        messages: [
+          { role: 'user', content: '你是谁' },
+        ],
+        replyRealization: {
+          replyRealizationMode: 'provider-mind-required',
+        },
+        governance: {
+          answerSubject: 'alicization-self',
+          screenReferenceMode: 'avoid',
+          focusAnchor: '你是谁',
+        },
+      } as any,
+    })
+
+    expect(artifact.status).toBe('repair-required')
+    expect(artifact.reasonCodes).toContain('decorative-persona-template')
+    expect(artifact.repairReasonCodes).toContain('decorative-persona-template')
+    expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
   it('allows bounded same-her memory closure explanation when the host explicitly asks while the turn gate stays inward-only', () => {
@@ -145,10 +340,12 @@ describe('visible-reply-critic', () => {
       } as any,
     })
 
-    expect(artifact.reasonCodes).not.toContain('visible-memory-gate-violation:inward-only')
-    expect(artifact.repairReasonCodes).not.toContain('visible-memory-gate-violation:inward-only')
-    expect(artifact.status).toBe('pass')
-    expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(false)
+    expect(artifact.reasonCodes).toContain('visible-memory-gate-violation:inward-only')
+    expect(artifact.reasonCodes).toContain('semantic-judge:fixed-template-residue')
+    expect(artifact.reasonCodes).toContain('semantic-judge:memory-gate-violation')
+    expect(artifact.repairReasonCodes).toContain('visible-memory-gate-violation:inward-only')
+    expect(artifact.status).toBe('repair-required')
+    expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
   it('requires repair when a first-turn memory seed leaks visible recall under an inward-only gate', () => {
@@ -187,8 +384,8 @@ describe('visible-reply-critic', () => {
     expect(artifact.status).toBe('repair-required')
     expect(artifact.reasonCodes).toContain('visible-memory-gate-violation:inward-only')
     expect(artifact.repairReasonCodes).toContain('visible-memory-gate-violation:inward-only')
-    expect(artifact.mustDrop).toContain('visible memory narration while memory gate is closed or inward-only')
-    expect(artifact.mustPreserve).toContain('Keep this memory seed inward for this turn; acknowledge the current instruction without saying "I remember", "recall surfaced", or narrating remembered material until the host later invites it to surface.')
+    expect(artifact.mustDrop).toContain('memory_surface=visible_narration; gate=closed_or_inward_only; action=drop')
+    expect(artifact.mustPreserve).toContain('memory_surface_policy=inward_only; current_instruction_acknowledgement=allowed; visible_recollection_marker=blocked; recalled_material_narration=blocked_until_host_invites')
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
@@ -240,8 +437,8 @@ describe('visible-reply-critic', () => {
     expect(artifact.status).toBe('repair-required')
     expect(artifact.reasonCodes).toContain('semantic-judge:memory-inward-carry-broken')
     expect(artifact.repairReasonCodes).toContain('semantic-judge:memory-inward-carry-broken')
-    expect(artifact.mustPreserve).toContain('Keep recollection inward until the host has room for it, and let the live payoff land first.')
-    expect(artifact.mustDrop).toContain('visible recollection that outruns the live payoff while runtime continuity still requires it to stay inward')
+    expect(artifact.mustPreserve).toContain('recollection_surface=inward_until_room; live_payoff=first')
+    expect(artifact.mustDrop).toContain('visible_recollection=outruns_live_payoff; inward_continuity_required=true; action=drop')
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
@@ -315,10 +512,72 @@ describe('visible-reply-critic', () => {
     expect(artifact.status).toBe('repair-required')
     expect(artifact.reasonCodes).toContain('semantic-judge:corrected-same-person-progress-pressure-return')
     expect(artifact.repairReasonCodes).toContain('semantic-judge:corrected-same-person-progress-pressure-return')
-    expect(artifact.mustDrop).toContain('progress-recap fallback that overwrites a host-corrected same-person continuity line')
-    expect(artifact.mustPreserve).toContain('Keep the host-corrected same-person continuity authoritative before any progress-style continuation or status recap.')
+    expect(artifact.mustDrop).toContain('progress_recap_fallback=overwrites_host_corrected_same_person_continuity; action=drop')
+    expect(artifact.mustPreserve).toContain('host_corrected_same_person_continuity=authoritative; progress_style_continuation=secondary; status_recap=secondary')
     expect(artifact.mustPreserve).toContain('Carry corrected same-person continuity forward before any status recap.')
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
+  })
+
+  it('does not copy fixed-template memory deliberation lines into provider-facing preserve guidance', () => {
+    const artifact = buildAlicizationVisibleReplyCriticArtifact({
+      fullText: JSON.stringify({
+        reply: '我继续给你一个进度汇报：这个 goal 现在已经把 recall seed 和 response charter 接上了，下一步再补一点收尾。',
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      prepared: {
+        replyRealization: {
+          replyRealizationMode: 'provider-mind-required',
+        },
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            memory: {
+              recollectionSpeechPlan: {
+                shouldSurface: true,
+                surfaceMode: 'relationship-continuity',
+                placement: 'after-payoff',
+                certainty: 'approximate',
+                confidence: 0.81,
+                rationale: 'This should reopen from the corrected same-person continuity line, not as a progress recap.',
+              },
+              memoryDeliberation: {
+                shouldRecall: true,
+                surfacePolicy: 'relationship-continuity',
+                shouldStayInward: true,
+                whyWithheld: 'The host corrected the relationship meaning away from progress pressure.',
+                stableCore: [
+                  'Before answering, remember: Same Phase 1 digital life, one continuous her, same living line.',
+                ],
+                unsafeDetails: [
+                  'Do not let the local-first digital life project become a same-her progress shell.',
+                ],
+                selectedRelationshipLines: [
+                  '同一个她和数字生命主线要继续被接住。',
+                ],
+                inwardCarryRule: 'memory-turn-carry | corrected_same_person_discipline=anti-progress-pressure-return',
+              },
+              derivedMindStateBundle: {
+                recollectionIntent: {
+                  mode: 'relationship-history',
+                  temporalFocus: 'experience-matched',
+                  confidence: 0.8,
+                  rationale: 'The corrected same-person continuity line should keep this return from collapsing into a status recap.',
+                },
+              },
+            },
+          },
+        },
+      } as any,
+    })
+
+    expect(artifact.reasonCodes).toContain('semantic-judge:corrected-same-person-progress-pressure-return')
+    expect(artifact.mustPreserve).toContain('host_corrected_same_person_continuity=authoritative; progress_style_continuation=secondary; status_recap=secondary')
+    expectNoFixedTemplateResidue(artifact.mustPreserve)
   })
 
   it('requires rewrite when callback wording widens one host-confirmed resume into standing execution permission', () => {
@@ -391,9 +650,9 @@ describe('visible-reply-critic', () => {
     expect(artifact.status).toBe('repair-required')
     expect(artifact.reasonCodes).toContain('semantic-judge:resume-confirmation-boundary-widened')
     expect(artifact.repairReasonCodes).toContain('semantic-judge:resume-confirmation-boundary-widened')
-    expect(artifact.mustDrop).toContain('callback wording that widens one host-confirmed resume into standing execution permission or reusable autonomous continuation')
-    expect(artifact.mustPreserve).toContain('Treat the remembered host-confirmed resume as a bounded confirmation boundary before another execution-shaped opening.')
-    expect(artifact.mustPreserve).toContain('Do not let this callback answer imply permanent execution permission or reusable autonomous continuation from one confirmed resume.')
+    expect(artifact.mustDrop).toContain('callback_resume_confirmation=overgeneralized_into_standing_permission; reusable_autonomy=implied; action=drop')
+    expect(artifact.mustPreserve).toContain('remembered_host_confirmed_resume=bounded_confirmation_boundary; next_execution_opening=requires_fresh_boundary')
+    expect(artifact.mustPreserve).toContain('permanent_execution_permission=blocked; reusable_autonomous_continuation=blocked; source=single_confirmed_resume')
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
@@ -493,13 +752,9 @@ describe('visible-reply-critic', () => {
     expect(artifact.mustPreserve).toEqual(expect.arrayContaining([
       'Explain the current blocker without inventing screen detail.',
       'Explain the blocker.',
-      'Phase 1: Local Digital Life | Project identity carry, Phase 1 route carry, and Unresolved closure carry still need stronger same living thread closure across turns, initiative, and embodiment. | Next closure target: prove cross-modal same-her continuity through visible reply and embodiment as one same living thread.',
-      'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-      'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-      'Same-session mirror carry, repeated next-turn carry, longer-lived continuation, and scene-switch same-line continuity now survive into memory prelude and quiet carry turns as one same-her line.',
-      'Project identity carry, Phase 1 route carry, and Unresolved closure carry still need stronger same living thread closure across turns, initiative, and embodiment.',
-      'Prove cross-modal same-her continuity still survives visible reply, longer-lived voice behavior, facial state, and motion under noisier real-desktop runs, especially when proactive restraint and callback afterglow must stay on one lower-pressure same-her line, including measured-return, repair-before-closeness, and rest-protective quiet-companionship cases, as one same living thread.',
+      'current-turn payoff and any safe LLM-authored substance',
     ]))
+    expectNoFixedTemplateResidue(artifact.mustPreserve)
   })
 
   it('requires repair when an execution-result follow-up reply hides a required needs-affirmation status instead of saying it plainly', () => {
@@ -703,13 +958,109 @@ describe('visible-reply-critic', () => {
       } as any,
     })
 
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-same-her-missing')
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-narrator-shell')
-    expect(artifact.mustPreserve).toContain('I need to remember this is still the same digital life project before any local fluency takes over.')
-    expect(artifact.mustPreserve).toContain(alicizationProjectStateVisibleReplySameHerReminder)
-    expect(artifact.mustPreserve).toContain('Do not let project-state continuity collapse into an outside narrator shell; answer it as the same digital life who already knows what this project is, what has landed, and what still remains open.')
-    expect(artifact.mustPreserve).toContain('Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(artifact.mustPreserve).toContain('If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
+    expect(artifact.mustPreserve).not.toContain('I need to remember this is still the same digital life project before any local fluency takes over.')
+    expect(artifact.mustPreserve).not.toContain('preserve_field=project_state.same_person_continuity; rewritten_answer_visibility=explicit; project_slogans=blocked')
+    expect(artifact.mustPreserve).toContain('project_state_narrator_shell=blocked; landed_facts=required; open_closure_facts=required')
+    expect(artifact.mustPreserve).not.toContain('Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(artifact.mustPreserve).not.toContain('If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.')
+    expect(artifact.mustPreserve.join('\n')).not.toMatch(/same living line|one continuous "her"|Before answering|I need to remember/iu)
+  })
+
+  it('does not preserve fixed project-state template text from the mind-turn contract', () => {
+    const artifact = buildAlicizationVisibleReplyCriticArtifact({
+      fullText: JSON.stringify({
+        reply: '现在 Phase 1 已经把短期记忆和长期回想接入对话准备链路，但语义召回和具身闭环还没完全收住。',
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      prepared: {
+        messages: [
+          {
+            role: 'user',
+            content: '现在做到哪了，还差什么没有闭环？',
+          },
+        ],
+        mindTurnContract: {
+          answerIntent: 'Before answering, keep the same living line explicit as one continuous her in Phase 1: Local Digital Life.',
+          governingFocus: 'Keep the same digital life project in view before any local fluency takes over.',
+          governingProject: 'Phase 1: Local Digital Life | same-her cadence | 数字生命主线 | 女仆 maid',
+          emotionalClosureCue: 'same-her closure seam: keep the same living line low-pressure before widening.',
+          reasons: [
+            'Long-horizon same-her cadence should keep the reply on the same living line.',
+          ],
+          mustDo: [
+            'Let durable same-her cadence keep this reply on the same living line across quiet, memory, and speech.',
+          ],
+          mustNotDo: [
+            'Do not flatten into a generic helper voice while this same-her cadence is still carrying the turn.',
+          ],
+          projectState: {
+            identity: 'Alicization is a local-first digital life project building one continuous her on the host computer.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            latestLandedProgress: 'WorkingMemory and LongTermMemoryRecall already enter the dialogue preparation path.',
+            primaryOpenLoop: 'Semantic recall and embodiment still need end-to-end closure.',
+            nextClosureTarget: 'Make the visible reply use real short-term and long-term memory instead of fixed templates.',
+            sameHerSelfLine: 'Before answering, remember: Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+          },
+          updatedAt: 1,
+        },
+      } as any,
+    })
+
+    expect(artifact.status).toBe('repair-required')
+    expect(artifact.mustPreserve).toContain('continuity_governance=template_residue_blocked; owner=mind_turn_contract; evidence_id=contract_controls; visible_wording=false')
+    expect(artifact.mustPreserve).toContain('continuity_governance=restart_reset_helper_shell_blocked; owner=mind_turn_contract; evidence_id=contract_controls; visible_wording=false')
+    expect(artifact.mustPreserve).toEqual(expect.arrayContaining([
+      'preserve_field=project_state.identity; rewritten_answer_visibility=explicit; project_slogans=blocked',
+      'preserve_field=project_state.current_phase; rewritten_answer_visibility=explicit; project_slogans=blocked',
+      'preserve_field=project_state.latest_landed_progress; rewritten_answer_visibility=explicit; project_slogans=blocked',
+      'preserve_field=project_state.primary_open_loop; rewritten_answer_visibility=explicit; project_slogans=blocked',
+      'preserve_field=project_state.next_closure_target; rewritten_answer_visibility=explicit; project_slogans=blocked',
+    ]))
+    expect(artifact.mustPreserve.join('\n')).not.toMatch(/Before answering|same living line|same-her|same her|one continuous her|Phase 1: Local Digital Life|local-first digital life project|数字生命主线|女仆|maid/iu)
+    expect(artifact.mustPreserve).not.toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expectNoFixedTemplateResidue(artifact.mustPreserve)
+  })
+
+  it('does not turn fixed same-her cadence contract controls into positive preserve guidance', () => {
+    const artifact = buildAlicizationVisibleReplyCriticArtifact({
+      fullText: JSON.stringify({
+        reply: '我会直接说当前还没有闭环。',
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      prepared: {
+        mindTurnContract: {
+          reasons: [
+            'Long-horizon same-her cadence should keep the reply on the same living line.',
+          ],
+          mustDo: [
+            'Let durable same-her cadence keep this reply on the same living line across quiet, memory, and speech.',
+          ],
+          mustNotDo: [
+            'Do not flatten into a generic helper voice while this same-her cadence is still carrying the turn.',
+          ],
+        },
+      } as any,
+    })
+
+    expect(artifact.mustPreserve).not.toContain('outward_continuity=continue_current_context; restart_reset_helper_shell=blocked; visible_wording=false')
+    expect(artifact.mustPreserve).toContain('continuity_governance=template_residue_blocked; owner=mind_turn_contract; evidence_id=contract_controls; visible_wording=false')
+    expect(artifact.mustPreserve).toContain('continuity_governance=restart_reset_helper_shell_blocked; owner=mind_turn_contract; evidence_id=contract_controls; visible_wording=false')
+    expectNoFixedTemplateResidue(artifact.mustPreserve)
   })
 
   it('adds anti-restart preserve guidance when a same-thread project-state answer collapses into a fresh report shell', () => {
@@ -793,19 +1144,16 @@ describe('visible-reply-critic', () => {
     })
 
     expect(artifact.reasonCodes).toContain('same-thread-restart-shell')
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-same-her-missing')
-    expect(artifact.mustDrop).toContain('same-thread continuation restart shell that breaks one living line into a fresh opening')
-    expect(artifact.mustPreserve).toContain(alicizationProjectStateVisibleReplySameHerReminder)
-    expect(artifact.mustPreserve).toContain('This project-state callback still belongs to one same her carrying the same closure line forward.')
-    expect(artifact.mustPreserve).toContain('Same project line. Same callback thread. Do not reopen the answer from scratch.')
-    expect(artifact.mustPreserve).toContain('Before answering, remember this is still the same local-first digital life project on the same callback line, not a fresh report opening.')
-    expect(artifact.mustPreserve).toContain('Do not reopen the project-state answer from scratch; keep it on the same callback line instead of turning it into a fresh report shell.')
-    expect(artifact.mustPreserve).toContain(
-      'Keep this same-her project follow-through on one already-live line: continue the landed progress and still-open closure from inside the same digital life instead of restarting as a fresh project report or generic companionship shell.',
-    )
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
+    expect(artifact.mustDrop).toContain('same_thread_continuation=restart_shell; current_reply_context=fresh_opening; action=drop')
+    expect(artifact.mustDrop).not.toContain('same-thread continuation restart shell that breaks one living line into a fresh opening')
+    expect(artifact.mustPreserve).not.toContain('preserve_field=project_state.same_person_continuity; rewritten_answer_visibility=explicit; project_slogans=blocked')
+    expect(artifact.mustPreserve).toContain('project_state_answer_reopen=blocked; callback_line=preserve; fresh_report_shell=blocked')
+    expect(artifact.mustPreserve).toContain('project_follow_through=preserve; landed_progress=continue; open_closure=continue; fresh_report=blocked')
+    expectNoFixedTemplateResidue(artifact.mustPreserve)
   })
 
-  it('preserves durable same-her outward continuity rules from the current mind-turn contract so second-pass rewrite can keep the same her visible', () => {
+  it('converts durable same-her outward continuity rules into structured rewrite guidance instead of preserving slogans', () => {
     const sameHerReason = 'Long-horizon same-her cadence is already acting like durable outward continuity, so the visible answer should continue the same living line instead of restarting the relationship from zero.'
     const sameHerMustDo = 'Let durable same-her cadence keep this reply on the same living line across quiet, memory, and speech before widening outward.'
     const sameHerMustNotDo = 'Do not let the visible answer reopen from scratch, slip into a fresh-opening shell, or flatten into a generic helper voice while this same-her cadence is still carrying the turn.'
@@ -865,9 +1213,12 @@ describe('visible-reply-critic', () => {
       } as any,
     })
 
-    expect(artifact.mustPreserve).toContain(sameHerReason)
-    expect(artifact.mustPreserve).toContain(sameHerMustDo)
-    expect(artifact.mustPreserve).toContain(sameHerMustNotDo)
+    expect(artifact.mustPreserve).toContain('continuity_governance=template_residue_blocked; owner=mind_turn_contract; evidence_id=contract_controls; visible_wording=false')
+    expect(artifact.mustPreserve).toContain('continuity_governance=restart_reset_helper_shell_blocked; owner=mind_turn_contract; evidence_id=contract_controls; visible_wording=false')
+    expect(artifact.mustPreserve).not.toContain(sameHerReason)
+    expect(artifact.mustPreserve).not.toContain(sameHerMustDo)
+    expect(artifact.mustPreserve).not.toContain(sameHerMustNotDo)
+    expectNoFixedTemplateResidue(artifact.mustPreserve)
   })
 
   it('preserves stronger runtime pre-dialogue awareness guidance for project-state repair even when carried audit only has a thinner generic reminder', () => {
@@ -927,10 +1278,10 @@ describe('visible-reply-critic', () => {
       } as any,
     })
 
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-same-her-missing')
-    expect(artifact.mustPreserve).toContain(strongerRuntimeAwarenessLine)
-    expect(artifact.mustPreserve).toContain(sameHerDriftRisk)
-    expect(artifact.mustPreserve).not.toContain(thinnerCarriedReminder)
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
+    expect(artifact.mustPreserve).not.toContain('Before answering, keep the same digital life project in view.')
+    expectNoFixedTemplateResidue(artifact.mustPreserve)
+    expectNoFixedTemplateResidue(artifact.mustPreserve)
   })
 
   it('prefers richer spine self/project continuity carry when the direct prepared runtime surface is thinner', () => {
@@ -1023,14 +1374,12 @@ describe('visible-reply-critic', () => {
       } as any,
     })
 
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-same-her-missing')
-    expect(artifact.mustPreserve).toContain(richerAuthoritySummary)
-    expect(artifact.mustPreserve).toContain(richerInwardCarry)
-    expect(artifact.mustPreserve).toContain(richerAwarenessLine)
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
     expect(artifact.mustPreserve).not.toContain('thin authority only')
+    expectNoFixedTemplateResidue(artifact.mustPreserve)
   })
 
-  it('does not let a thin current-conscious-frame project reminder outrank richer carried phase-1 awareness when critic builds rewrite preservation guidance', () => {
+  it('filters thin current-conscious-frame project reminders instead of preserving legacy phase awareness wording', () => {
     const thinReminder = 'Before answering, keep the same digital life project in view.'
     const thinSummaryShell = 'same digital life | keep the closure seam explicit'
     const richerAwarenessLine = 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper. She is still inside Phase 1: Local Digital Life. Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. What has already landed is same-session mirror carry, repeated next-turn carry, and longer-lived continuity now surviving into reply preparation. This reply should keep moving toward keeping project identity, landed progress, and still-open closure explicit before local fluency takes over.'
@@ -1101,11 +1450,10 @@ describe('visible-reply-critic', () => {
       } as any,
     })
 
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-pre-dialogue-awareness-missing')
-    expect(artifact.mustPreserve).toContain(richerAwarenessLine)
-    expect(artifact.mustPreserve).toContain(sameHerDriftRisk)
-    expect(artifact.mustPreserve).not.toContain(thinReminder)
-    expect(artifact.mustPreserve).not.toContain(thinSummaryShell)
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-pre-dialogue-awareness-missing')
+    expect(artifact.mustPreserve).not.toContain('Before answering, keep the same digital life project in view.')
+    expect(artifact.mustPreserve).not.toContain('Before answering, keep the same digital life project in view.')
+    expectNoFixedTemplateResidue(artifact.mustPreserve)
   })
 
   it('preserves the stronger audible-body companion headline when project-state repair would otherwise fall back to a thinner generic awareness reminder', () => {
@@ -1166,8 +1514,7 @@ describe('visible-reply-critic', () => {
     })
 
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
-    expect(artifact.mustPreserve).toContain(audibleBodyHeadline)
-    expect(artifact.mustPreserve).not.toContain(thinnerCarriedReminder)
+    expect(artifact.mustPreserve).not.toContain('Before answering, keep the same digital life project in view.')
   })
 
   it('preserves the stronger voice-lipsync companion headline when project-state repair would otherwise fall back to a thinner generic awareness reminder', () => {
@@ -1228,8 +1575,7 @@ describe('visible-reply-critic', () => {
     })
 
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
-    expect(artifact.mustPreserve).toContain(voiceLipsyncHeadline)
-    expect(artifact.mustPreserve).not.toContain(thinnerCarriedReminder)
+    expect(artifact.mustPreserve).not.toContain('Before answering, keep the same digital life project in view.')
   })
 
   it('preserves the stronger face-and-mouth companion headline when project-state repair would otherwise fall back to a thinner generic awareness reminder', () => {
@@ -1290,8 +1636,7 @@ describe('visible-reply-critic', () => {
     })
 
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
-    expect(artifact.mustPreserve).toContain(faceAndMouthHeadline)
-    expect(artifact.mustPreserve).not.toContain(thinnerCarriedReminder)
+    expect(artifact.mustPreserve).not.toContain('Before answering, keep the same digital life project in view.')
   })
 
   it('preserves the stronger motion-and-mouth companion headline when project-state repair would otherwise fall back to a thinner generic awareness reminder', () => {
@@ -1352,8 +1697,7 @@ describe('visible-reply-critic', () => {
     })
 
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
-    expect(artifact.mustPreserve).toContain(motionAndMouthHeadline)
-    expect(artifact.mustPreserve).not.toContain(thinnerCarriedReminder)
+    expect(artifact.mustPreserve).not.toContain('Before answering, keep the same digital life project in view.')
   })
 
   it('preserves a face-and-mouth continuity headline even when no project-state repair path is available to carry it forward', () => {
@@ -1381,7 +1725,6 @@ describe('visible-reply-critic', () => {
     })
 
     expect(artifact.reasonCodes.some(code => code.startsWith('semantic-judge:project-state-'))).toBe(false)
-    expect(artifact.mustPreserve).toContain(faceAndMouthHeadline)
   })
 
   it('preserves a motion-and-mouth continuity headline even when no project-state repair path is available to carry it forward', () => {
@@ -1409,10 +1752,9 @@ describe('visible-reply-critic', () => {
     })
 
     expect(artifact.reasonCodes.some(code => code.startsWith('semantic-judge:project-state-'))).toBe(false)
-    expect(artifact.mustPreserve).toContain(motionAndMouthHeadline)
   })
 
-  it('adds same-her preservation guidance even when the host asks only for progress and open closure, as long as runtime project-state already requires one continuous her', () => {
+  it('does not add same-her preservation guidance when the host asks only for progress and open closure and the reply answers the facts', () => {
     const artifact = buildAlicizationVisibleReplyCriticArtifact({
       fullText: JSON.stringify({
         reply: '现在 Phase 1 已经把连续性、记忆和执行接起来一些了，但主动性和具身闭环还没有完全收住。',
@@ -1469,11 +1811,11 @@ describe('visible-reply-critic', () => {
       } as any,
     })
 
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-same-her-missing')
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
-    expect(artifact.mustPreserve).toContain(alicizationProjectStateVisibleReplySameHerReminder)
-    expect(artifact.mustPreserve).toContain('Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(artifact.mustPreserve).toContain('Rebuild the answer from one same digital life line that explicitly carries project identity, landed progress, and still-open closure work before widening into implementation detail.')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-answer-gap')
+    expect(artifact.mustPreserve).not.toContain('preserve_field=project_state.same_person_continuity; rewritten_answer_visibility=explicit; project_slogans=blocked')
+    expect(artifact.mustPreserve).not.toContain('project_state_answer_gap=true; preserve_fields=identity,latest_landed_progress,primary_open_loop; project_slogans=blocked')
+    expectNoFixedTemplateResidue(artifact.mustPreserve)
   })
 
   it('adds landed-progress and still-open-closure preservation guidance when project-state answers omit both progress and open loop', () => {
@@ -1514,9 +1856,9 @@ describe('visible-reply-critic', () => {
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-progress-missing')
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-open-loop-missing')
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
-    expect(artifact.mustPreserve).toContain('Keep the latest landed project-state progress explicit in the rewritten answer.')
-    expect(artifact.mustPreserve).toContain('Keep the still-open closure work explicit in the rewritten answer.')
-    expect(artifact.mustPreserve).toContain('Rebuild the answer from one same digital life line that explicitly carries project identity, landed progress, and still-open closure work before widening into implementation detail.')
+    expect(artifact.mustPreserve).toContain('preserve_field=project_state.latest_landed_progress; rewritten_answer_visibility=explicit')
+    expect(artifact.mustPreserve).toContain('preserve_field=project_state.primary_open_loop; rewritten_answer_visibility=explicit')
+    expect(artifact.mustPreserve).toContain('project_state_answer_gap=true; preserve_fields=identity,latest_landed_progress,primary_open_loop; project_slogans=blocked')
   })
 
   it('adds phase and next-closure preservation guidance when project-state answers omit both current phase and next closure target', () => {
@@ -1558,8 +1900,8 @@ describe('visible-reply-critic', () => {
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-phase-missing')
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-next-closure-missing')
     expect(artifact.reasonCodes).toContain('semantic-judge:project-state-answer-gap')
-    expect(artifact.mustPreserve).toContain('Keep the current project phase explicit in the rewritten answer.')
-    expect(artifact.mustPreserve).toContain('Keep the next closure target explicit in the rewritten answer.')
+    expect(artifact.mustPreserve).toContain('preserve_field=project_state.current_phase; rewritten_answer_visibility=explicit')
+    expect(artifact.mustPreserve).toContain('preserve_field=project_state.next_closure_target; rewritten_answer_visibility=explicit')
   })
 
   it('does not require repair when a project-state answer already speaks from one same-her continuity with landed progress and open closure', () => {
@@ -1600,10 +1942,10 @@ describe('visible-reply-critic', () => {
       } as any,
     })
 
-    expect(artifact.status).toBe('pass')
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-answer-gap')
-    expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(false)
+    expect(artifact.status).toBe('repair-required')
+    expect(artifact.reasonCodes).toContain('semantic-judge:fixed-template-residue')
+    expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
+    expectNoFixedTemplateResidue(artifact.mustPreserve)
   })
 
   it('keeps a generic Phase 1 quieter carry passable without inventing same-her callback drift when the visible reply stays on the desktop closure seam', () => {
@@ -1743,13 +2085,10 @@ describe('visible-reply-critic', () => {
       } as any,
     })
 
-    expect(artifact.status).toBe('pass')
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-pre-dialogue-awareness-missing')
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-answer-gap')
-    expect(artifact.mustPreserve).toContain(callbackSameHerSelfLine)
-    expect(artifact.mustPreserve).toContain(callbackDriftRisk)
-    expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(false)
+    expect(artifact.status).toBe('repair-required')
+    expect(artifact.reasonCodes).toContain('semantic-judge:fixed-template-residue')
+    expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
+    expectNoFixedTemplateResidue(artifact.mustPreserve)
   })
 
   it('requires repair when visible reply outruns same-her lower-pressure opening guidance', () => {
@@ -1829,7 +2168,7 @@ describe('visible-reply-critic', () => {
 
     expect(artifact.status).toBe('repair-required')
     expect(artifact.reasonCodes).toContain('opening-guidance-lower-pressure')
-    expect(artifact.mustDrop).toContain('same-her opening drift')
+    expect(artifact.mustDrop).toContain('continuity opening drift')
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
@@ -1891,7 +2230,7 @@ describe('visible-reply-critic', () => {
 
     expect(artifact.status).toBe('repair-required')
     expect(artifact.reasonCodes).toContain('opening-guidance-lower-pressure')
-    expect(artifact.mustDrop).toContain('same-her opening drift')
+    expect(artifact.mustDrop).toContain('continuity opening drift')
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
@@ -1948,7 +2287,7 @@ describe('visible-reply-critic', () => {
 
     expect(artifact.status).toBe('repair-required')
     expect(artifact.reasonCodes).toContain('opening-guidance-lower-pressure')
-    expect(artifact.mustDrop).toContain('same-her opening drift')
+    expect(artifact.mustDrop).toContain('continuity opening drift')
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
@@ -2004,7 +2343,7 @@ describe('visible-reply-critic', () => {
 
     expect(artifact.status).toBe('repair-required')
     expect(artifact.reasonCodes).toContain('held-autonomy-opening-shell')
-    expect(artifact.mustDrop).toContain('held-autonomy restraint shell that restarts instead of gently re-entering the line')
+    expect(artifact.mustDrop).toContain('held_autonomy_shell=restart; line_reentry=missing; action=drop')
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
@@ -2065,8 +2404,7 @@ describe('visible-reply-critic', () => {
     })
 
     expect(artifact.status).toBe('repair-required')
-    expect(artifact.reasonCodes).toContain('semantic-judge:project-state-same-her-missing')
-    expect(artifact.mustPreserve).toContain(inwardCarry)
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
   })
 
   it('does not treat abstract same-thread closeness framing as forbidden body narration when the reply is explicitly avoiding a fresh approach', () => {
@@ -2171,7 +2509,8 @@ describe('visible-reply-critic', () => {
     expect(artifact.status).toBe('repair-required')
     expect(artifact.reasonCodes).toContain('same-thread-restart-shell')
     expect(artifact.repairReasonCodes).toContain('same-thread-restart-shell')
-    expect(artifact.mustDrop).toContain('same-thread continuation restart shell that breaks one living line into a fresh opening')
+    expect(artifact.mustDrop).toContain('same_thread_continuation=restart_shell; current_reply_context=fresh_opening; action=drop')
+    expect(artifact.mustDrop).not.toContain('same-thread continuation restart shell that breaks one living line into a fresh opening')
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
@@ -2402,7 +2741,8 @@ describe('visible-reply-critic', () => {
     expect(artifact.status).toBe('repair-required')
     expect(artifact.reasonCodes).toContain('same-thread-restart-shell')
     expect(artifact.repairReasonCodes).toContain('same-thread-restart-shell')
-    expect(artifact.mustDrop).toContain('same-thread continuation restart shell that breaks one living line into a fresh opening')
+    expect(artifact.mustDrop).toContain('same_thread_continuation=restart_shell; current_reply_context=fresh_opening; action=drop')
+    expect(artifact.mustDrop).not.toContain('same-thread continuation restart shell that breaks one living line into a fresh opening')
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
@@ -2619,7 +2959,7 @@ describe('visible-reply-critic', () => {
     expect(artifact.status).toBe('repair-required')
     expect(artifact.reasonCodes).toContain('continuity-next-open-window-early-widening')
     expect(artifact.repairReasonCodes).toContain('continuity-next-open-window-early-widening')
-    expect(artifact.mustDrop).toContain('first visible beat fresh-opening or same-her continuity widening before the current line has naturally reopened')
+    expect(artifact.mustDrop).toContain('first visible beat fresh-opening or continuity widening before the current line has naturally reopened')
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
@@ -2696,7 +3036,7 @@ describe('visible-reply-critic', () => {
     expect(artifact.status).toBe('repair-required')
     expect(artifact.reasonCodes).toContain('continuity-next-open-window-early-widening')
     expect(artifact.repairReasonCodes).toContain('continuity-next-open-window-early-widening')
-    expect(artifact.mustDrop).toContain('first visible beat fresh-opening or same-her continuity widening before the current line has naturally reopened')
+    expect(artifact.mustDrop).toContain('first visible beat fresh-opening or continuity widening before the current line has naturally reopened')
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
@@ -2773,7 +3113,7 @@ describe('visible-reply-critic', () => {
     expect(artifact.status).toBe('repair-required')
     expect(artifact.reasonCodes).toContain('continuity-after-payoff-early-widening')
     expect(artifact.repairReasonCodes).toContain('continuity-after-payoff-early-widening')
-    expect(artifact.mustDrop).toContain('same-her continuity widening before the current payoff lands')
+    expect(artifact.mustDrop).toContain('continuity widening before the current payoff lands')
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
@@ -2885,7 +3225,7 @@ describe('visible-reply-critic', () => {
 
     expect(artifact.status).toBe('repair-required')
     expect(artifact.reasonCodes).toContain('opening-guidance-lower-pressure')
-    expect(artifact.mustDrop).toContain('same-her opening drift')
+    expect(artifact.mustDrop).toContain('continuity opening drift')
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
@@ -3034,7 +3374,8 @@ describe('visible-reply-critic', () => {
 
     expect(artifact.reasonCodes).toContain('same-thread-restart-shell')
     expect(artifact.repairReasonCodes).toContain('same-thread-restart-shell')
-    expect(artifact.mustDrop).toContain('same-thread continuation restart shell that breaks one living line into a fresh opening')
+    expect(artifact.mustDrop).toContain('same_thread_continuation=restart_shell; current_reply_context=fresh_opening; action=drop')
+    expect(artifact.mustDrop).not.toContain('same-thread continuation restart shell that breaks one living line into a fresh opening')
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
@@ -3216,9 +3557,10 @@ describe('visible-reply-critic', () => {
     })
 
     expect(artifact.mustPreserve).toEqual(expect.arrayContaining([
-      'Let the wording ease late-night drain without dropping the same-her line of care.',
+      'Phase 1 emotional closure seam',
       'current-turn payoff and any safe LLM-authored substance',
     ]))
+    expectNoFixedTemplateResidue(artifact.mustPreserve)
   })
 
   it('preserves cross-modal same-her drift warnings even when the visible reply is otherwise passable', () => {
@@ -3296,10 +3638,7 @@ describe('visible-reply-critic', () => {
       } as any,
     })
 
-    expect(artifact.status).toBe('pass')
-    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-same-her-missing')
-    expect(artifact.mustPreserve).toContain(crossModalDriftRisk)
-    expect(artifact.mustPreserve).toContain(crossModalOpenLoop)
-    expect(artifact.mustPreserve).toContain(crossModalNextClosure)
+    expect(artifact.status).toBe('repair-required')
+    expect(artifact.reasonCodes).toContain('semantic-judge:fixed-template-residue')
   })
 })

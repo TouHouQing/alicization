@@ -177,9 +177,9 @@ function deriveProjectStateMotiveBias(input?: {
     '生命',
   ].some(needle => combinedProjectState.includes(needle))
   const sameHerClosureDirection = [
-    'same-her',
-    'same her',
-    'one continuous her',
+    'identity-continuity',
+    'identity continuity',
+    'identity continuity',
     'measured-return',
     'repair-before-closeness',
     'cross-modal',
@@ -188,7 +188,7 @@ function deriveProjectStateMotiveBias(input?: {
     'facial state',
     'motion',
     '同一个 her',
-    '同一个她',
+    '连续性',
     '拟人',
     '具身',
     '跨模态',
@@ -214,7 +214,7 @@ function deriveAutobiographicalProjectCarryBias(autobiographicalSelf?: Alicizati
   const carriesPhaseOneProjectLine = [
     'phase 1 digital life',
     'unfinished closure',
-    'same living line',
+    'continuity line',
     'same living bond line',
     'detached status talk',
   ].some(needle => combined.includes(needle))
@@ -482,8 +482,8 @@ export function buildMotiveEngine(input: {
       anchor,
       weight: drives.boundaryRespect,
       summary: resumeConfirmationBoundaryCarry
-        ? 'Treat the remembered host-confirmed resume as a bounded confirmation boundary, not permanent execution permission; keep presence light until a new boundary opens.'
-        : 'Hold the host boundary and keep presence light until the window opens.',
+        ? 'remembered_host_confirmed_resume=bounded_confirmation_boundary; permanent_execution_permission=false; presence_weight=light_until_new_boundary'
+        : 'host_boundary=preserve; presence_weight=light_until_window_opens',
       sourceTags: ['boundary-respect', 'host-busy', ...(resumeConfirmationBoundaryCarry ? ['resume-confirmation-boundary'] : [])],
       worldModel: input.worldModel,
       context: input.context,
@@ -534,13 +534,13 @@ export function buildMotiveEngine(input: {
       anchor: `${anchor}:phase-1-life-loop`,
       weight: clamp01(drives.unfinishedThreadReturn * 0.82 + drives.boundaryRespect * 0.12 + (projectStateBias.sameHerClosureDirection ? 0.08 : 0)),
       summary: projectStateBias.sameHerClosureDirection
-        ? `Phase 1 digital-life closure is still open, so initiative, memory, and personhood should return on one same-her measured-return line${projectStateRhythmClause}.`
+        ? `Phase 1 digital-life closure is still open, so initiative, memory, and personhood should return through measured continuity evidence${projectStateRhythmClause}.`
         : `Phase 1 digital-life closure is still open, so initiative, memory, and personhood should return on one lower-pressure line${projectStateRhythmClause}.`,
       sourceTags: [
         'project-state',
         'phase-1',
         'open-life-loop',
-        ...(projectStateBias.sameHerClosureDirection ? ['same-her-closure-direction'] : []),
+        ...(projectStateBias.sameHerClosureDirection ? ['identity-continuity-closure-direction'] : []),
         ...(projectStateBias.prefersLowerPressureVoice ? ['project-voice:lower-pressure'] : projectStateBias.prefersEvenVoice ? ['project-voice:even'] : []),
         ...(projectStateBias.prefersSlowerPacing ? ['project-pacing:slower'] : projectStateBias.prefersNaturalPacing ? ['project-pacing:natural'] : []),
       ],
@@ -558,7 +558,7 @@ export function buildMotiveEngine(input: {
       kind: 'return-open-loop',
       anchor: `${anchor}:autobiographical-project-carry`,
       weight: clamp01(drives.unfinishedThreadReturn * 0.78 + drives.selfDirection * 0.14),
-      summary: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
+      summary: 'Carry the unfinished Phase 1 digital-life closure forward as the continuity line, not as detached project bookkeeping.',
       sourceTags: ['autobiographical-self', 'project-state-carry', 'unfinished-thread-return'],
       worldModel: input.worldModel,
       context: input.context,

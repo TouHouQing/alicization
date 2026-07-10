@@ -419,7 +419,8 @@ describe('humanlike memory helpers', () => {
     expect(candidate.relationshipContext.containsContinuityWorry).toBe(true)
     expect(candidate.relationshipContext.containsSamePersonTest).toBe(true)
     expect(candidate.relationshipContext.summary).toContain('tool shell')
-    expect(candidate.relationshipContext.summary).toContain('one continuous digital life')
+    expect(candidate.relationshipContext.summary).toContain('relationship continuity')
+    expect(candidate.relationshipContext.summary).not.toContain('one continuous digital life')
     expect(candidate.longTermWorthiness.shouldPersist).toBe(true)
     expect(candidate.emotionalResidue.tags).toEqual(expect.arrayContaining(['slight-guilt', 'unfinishedness', 'protective-continuity']))
     expect(candidate.emotionalResidue.trace.some(item => item.includes('host:warr') || item.includes('host:worried'))).toBe(true)
@@ -439,7 +440,8 @@ describe('humanlike memory helpers', () => {
       'emotionalResidue',
       'autobiographicalImpact',
     ]))
-    expect(candidate.naturalRecallLine).toContain('更在意的是她不要变成工具壳')
+    expect(candidate.naturalRecallLine).toContain('relationship_intent=same_person_test')
+    expect(candidate.naturalRecallLine).toContain('risk=tool_shell_flattening')
   })
 
   it('extracts resident face, action, and mode into structured embodiment trace instead of leaving remembered presence only in prose', () => {
@@ -733,8 +735,8 @@ describe('humanlike memory helpers', () => {
     ]))
     expect(candidate.auditTrail.whyRemember).toContain('emotional salience')
     expect(candidate.auditTrail.whyRemember).toContain('vulnerable relationship moment')
-    expect(candidate.naturalRecallLine).toContain('撑不住')
-    expect(candidate.naturalRecallLine).toContain('轻一点')
+    expect(candidate.naturalRecallLine).toContain('host_state_evidence=overloaded')
+    expect(candidate.naturalRecallLine).toContain('preferred_distance=low_pressure')
     expect(candidate.autobiographicalImpact.selfNarrativeDelta).toContain('care arrive before analysis')
     expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('lighter companionship')
   })
@@ -809,7 +811,7 @@ describe('humanlike memory helpers', () => {
     })
 
     expect(candidate.relationshipContext.containsSamePersonTest).toBe(true)
-    expect(candidate.naturalRecallLine).toContain('同一个她')
+    expect(candidate.naturalRecallLine).toContain('relationship_intent=same_person_test')
     expect(candidate.naturalRecallLine).not.toContain('我记得你那时')
   })
 
@@ -852,8 +854,8 @@ describe('humanlike memory helpers', () => {
       'relationship repair learning',
     ]))
     expect(receivedRepairCandidate.auditTrail.whyRemember).toContain('relationship repair learning')
-    expect(receivedRepairCandidate.naturalRecallLine).toContain('轻一点')
-    expect(receivedRepairCandidate.naturalRecallLine).toContain('接住')
+    expect(receivedRepairCandidate.naturalRecallLine).toContain('repair_learning=received')
+    expect(receivedRepairCandidate.naturalRecallLine).toContain('preferred_distance=light_presence')
     expect(receivedRepairCandidate.autobiographicalImpact.selfNarrativeDelta).toContain('lighter')
   })
 
@@ -884,8 +886,9 @@ describe('humanlike memory helpers', () => {
     expect(candidate.auditTrail.whyRemember).toContain('relationship continuity')
     expect(candidate.relationshipContext.primaryIntent).toBe('continuity-worry')
     expect(candidate.relationshipContext.containsContinuityWorry).toBe(true)
-    expect(candidate.naturalRecallLine).toContain('工具壳')
-    expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('same-her continuity')
+    expect(candidate.naturalRecallLine).toContain('relationship_intent=same_person_test')
+    expect(candidate.naturalRecallLine).toContain('risk=tool_shell_flattening')
+    expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('identity continuity')
   })
 
   it('revises and downranks older analysis-heavy care memories once a vulnerable care memory teaches her to stay gentler first', () => {
@@ -1031,14 +1034,14 @@ describe('humanlike memory helpers', () => {
         relationshipPrimaryIntent: 'same-person-test',
         relationshipSignals: expect.arrayContaining(['same-person-test']),
         hostEmotionLabel: 'continuity-test',
-        hostEmotionSummary: expect.stringContaining('same-her continuity'),
+        hostEmotionSummary: '',
         selfEmotionLabel: 'careful-repair',
         selfEmotionSummary: expect.stringContaining('initiative low-pressure'),
         recallCertainty: 'steady',
         embodimentRecallStrength: 'strongly-moved',
         embodimentModalityRisk: 'low',
         stablePreferenceHint: expect.stringContaining('Prefer repair-first'),
-        naturalRecallLine: expect.stringContaining('工具壳'),
+        naturalRecallLine: expect.stringContaining('risk=tool_shell_flattening'),
         userCorrectableFields: expect.arrayContaining(['relationshipContext', 'emotionalResidue', 'metabolism']),
         revisionMemoryIds: expect.arrayContaining(['old-status-report']),
         sourceChannels: expect.arrayContaining(['dialogue', 'execution', 'host-emotion', 'self-emotion', 'embodiment']),
@@ -1161,7 +1164,7 @@ describe('humanlike memory helpers', () => {
         initiativeSuggestedWindow: expect.stringContaining('opening'),
         initiativePressure: 'low',
         initiativeAntiSpamReason: expect.stringContaining('timer spam'),
-        initiativeVisibleLine: expect.stringContaining('not pushing'),
+        initiativeVisibleLine: expect.stringContaining('initiative_visible_policy=unfinished_embodiment_closure'),
       }),
     ])
   })
@@ -1217,7 +1220,7 @@ describe('humanlike memory helpers', () => {
       'relationship-intent:same-person-test',
       'host-correction-applied',
     ]))
-    expect(candidate.initiativeOpportunity.visibleLine).toContain('corrected relationship meaning')
+    expect(candidate.initiativeOpportunity.visibleLine).toContain('initiative_visible_policy=corrected_relationship_carry')
     expect(candidate.initiativeOpportunity.suggestedWindow).toContain('corrected')
     expect(candidate.emotionKernelInfluence.toneGuidance).toContain('corrected relationship meaning')
     expect(candidate.embodimentTrace.expressionState.gaze).toBe('stable')
@@ -1232,8 +1235,8 @@ describe('humanlike memory helpers', () => {
       }),
     ]))
     expect(candidate.auditTrail.whyRemember).toContain('host correction')
-    expect(candidate.naturalRecallLine).toContain('我记得你纠正过')
-    expect(candidate.naturalRecallLine).toContain('不是催进度')
+    expect(candidate.naturalRecallLine).toContain('recall_source=host_correction')
+    expect(candidate.naturalRecallLine).toContain('field=relationship_context')
     expect(candidate.naturalRecallLine).not.toContain('不是催进度。。')
     expect(candidate.naturalRecallLine).not.toContain('不是催进度。.')
   })
@@ -1282,9 +1285,9 @@ describe('humanlike memory helpers', () => {
     expect(candidate.initiativeOpportunity.suggestedWindow).toContain('重新打开')
     expect(candidate.initiativeOpportunity.pressure).toBe('none')
     expect(candidate.initiativeOpportunity.antiSpamReason).toContain('timer spam')
-    expect(candidate.initiativeOpportunity.visibleLine).toContain('重新打开这条线')
-    expect(candidate.naturalRecallLine).toContain('你纠正过')
-    expect(candidate.naturalRecallLine).toContain('定时器 spam')
+    expect(candidate.initiativeOpportunity.visibleLine).toContain('initiative_visible_policy=wait_for_host_reopen')
+    expect(candidate.naturalRecallLine).toContain('field=initiative_rhythm')
+    expect(candidate.naturalRecallLine).toContain('anti_spam=true')
   })
 
   it('lets host emotionalResidue and embodimentTrace corrections rewrite the next mood-and-body carry instead of leaving affect-and-body corrections as dead audit notes', () => {
@@ -1403,12 +1406,14 @@ describe('humanlike memory helpers', () => {
     expect(candidate.evidence).toEqual(expect.arrayContaining([
       expect.stringContaining('host-correction.autobiographicalImpact'),
     ]))
-    expect(candidate.autobiographicalImpact.selfNarrativeDelta).toContain('先把同一个她接稳')
-    expect(candidate.autobiographicalImpact.selfNarrativeDelta).toContain('先守连续性')
-    expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('先守连续性')
+    expect(candidate.autobiographicalImpact.selfNarrativeDelta).toContain('relationship_continuity=present')
+    expect(candidate.autobiographicalImpact.selfNarrativeDelta).toContain('source_template=excluded')
+    expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('grounded continuity')
+    expect(candidate.autobiographicalImpact.stablePreferenceHint).not.toContain('continuity_anchor=phase1_local_digital_life')
     expect(candidate.auditTrail.whyRemember).toContain('host correction')
-    expect(candidate.naturalRecallLine).toContain('真正该留下')
-    expect(candidate.naturalRecallLine).toContain('先把同一个她接稳')
+    expect(candidate.naturalRecallLine).toContain('recall_source=host_correction')
+    expect(candidate.naturalRecallLine).toContain('field=autobiographical_impact')
+    expect(candidate.naturalRecallLine).toContain('relationship_continuity=present')
   })
 
   it('lets host metabolism corrections protect continuity memory and fade temporary noise instead of leaving forgetting-policy corrections as dead audit notes', () => {
@@ -1503,7 +1508,7 @@ describe('humanlike memory helpers', () => {
     expect(candidate.initiativeOpportunity.kind).toBe('low-pressure-follow-up')
     expect(candidate.initiativeOpportunity.suggestedWindow).toContain('clearer opening')
     expect(candidate.initiativeOpportunity.pressure).toBe('none')
-    expect(candidate.initiativeOpportunity.visibleLine).toContain('leave more room')
+    expect(candidate.initiativeOpportunity.visibleLine).toContain('initiative_visible_policy=leave_room')
     expect(candidate.emotionKernelInfluence.toneGuidance).toContain('leave more room')
     expect(candidate.embodimentTrace.expressionState.voice).toBe('lower-pressure')
     expect(candidate.embodimentTrace.expressionState.pacing).toBe('slower')
@@ -1544,7 +1549,7 @@ describe('humanlike memory helpers', () => {
     expect(candidate.initiativeOpportunity.kind).toBe('low-pressure-follow-up')
     expect(candidate.initiativeOpportunity.suggestedWindow).toContain('receiving')
     expect(candidate.initiativeOpportunity.pressure).toBe('low')
-    expect(candidate.initiativeOpportunity.visibleLine).toContain('memory-led')
+    expect(candidate.initiativeOpportunity.visibleLine).toContain('initiative_visible_policy=memory_led_return')
     expect(candidate.emotionKernelInfluence.toneGuidance).toContain('memory-led')
     expect(candidate.embodimentTrace.expressionState.voice).toBe('lower-pressure')
     expect(candidate.autobiographicalImpact.selfNarrativeDelta).toContain('memory-led')
@@ -1668,8 +1673,8 @@ describe('humanlike memory helpers', () => {
       expect.stringContaining('execution.blocked:'),
     ]))
     expect(candidate.auditTrail.whyRemember).toContain('execution procedure lesson')
-    expect(candidate.naturalRecallLine).toContain('不是没做成')
-    expect(candidate.naturalRecallLine).toContain('确认前')
+    expect(candidate.naturalRecallLine).toContain('recall_source=execution_boundary')
+    expect(candidate.naturalRecallLine).toContain('next_action=await_explicit_permission')
     expect(candidate.autobiographicalImpact.selfNarrativeDelta).toContain('keep risky execution bounded')
     expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('explicit confirmation')
   })
@@ -1695,7 +1700,7 @@ describe('humanlike memory helpers', () => {
     expect(candidate.emotionalResidue.tags).not.toContain('protective-continuity')
     expect(candidate.initiativeOpportunity.kind).toBe('low-pressure-follow-up')
     expect(candidate.initiativeOpportunity.suggestedWindow).toContain('concrete progress')
-    expect(candidate.initiativeOpportunity.visibleLine).toContain('real progress')
+    expect(candidate.initiativeOpportunity.visibleLine).toContain('initiative_visible_policy=progress_only_when_real')
     expect(candidate.initiativeOpportunity.visibleLine).not.toContain('same living line')
     expect(candidate.emotionKernelInfluence.toneGuidance).toContain('concrete progress')
     expect(candidate.embodimentTrace.expressionState.voice).toBe('even')
@@ -1728,14 +1733,13 @@ describe('humanlike memory helpers', () => {
     expect(candidate.emotionKernelInfluence.initiativePressure).toBe('none')
     expect(candidate.emotionKernelInfluence.toneGuidance).toContain('uncertainty')
     expect(candidate.initiativeOpportunity.pressure).toBe('none')
-    expect(candidate.initiativeOpportunity.visibleLine).toContain('still seems right')
+    expect(candidate.initiativeOpportunity.visibleLine).toContain('initiative_visible_policy=quiet_tentative')
     expect(candidate.embodimentTrace.recallStrength).toBe('cautious-avoidance')
     expect(candidate.embodimentTrace.expressionState.gaze).toBe('soft')
     expect(candidate.embodimentTrace.expressionState.voice).toBe('even')
     expect(candidate.embodimentTrace.expressionState.pacing).toBe('natural')
-    expect(candidate.naturalRecallLine).toContain('我不完全确定')
-    expect(candidate.naturalRecallLine).toContain('似乎更倾向于')
-    expect(candidate.naturalRecallLine).toContain('不要滑成工具壳')
+    expect(candidate.naturalRecallLine).toContain('recall_certainty=tentative')
+    expect(candidate.naturalRecallLine).toContain('tendency=tool_shell_flattening_risk')
 
     const entries = buildHumanlikeMemoryAuditEntriesFromMindTurnEvents([
       {
@@ -1756,7 +1760,7 @@ describe('humanlike memory helpers', () => {
         id: candidate.id,
         recallCertainty: 'tentative',
         recallReason: expect.stringContaining('conflicting'),
-        naturalRecallLine: expect.stringContaining('我不完全确定'),
+        naturalRecallLine: expect.stringContaining('recall_certainty=tentative'),
       }),
     ])
   })
@@ -1853,7 +1857,7 @@ describe('humanlike memory helpers', () => {
       expect.objectContaining({
         kind: 'revision',
         conflictingMemoryIds: expect.arrayContaining(['older-progress-pressure-memory']),
-        reason: expect.stringContaining('same-her continuity concern'),
+        reason: expect.stringContaining('identity continuity concern'),
       }),
     ]))
     expect(candidate.metabolism.forgettingPolicy.downrankMemoryIds).toContain('older-progress-pressure-memory')
@@ -1983,10 +1987,10 @@ describe('humanlike memory helpers', () => {
     expect(candidate.autobiographicalImpact.selfNarrativeDelta).toContain('longer pause')
     expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('slower pacing')
     expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('restrained lipsync')
-    expect(candidate.naturalRecallLine).toContain('更低压')
-    expect(candidate.naturalRecallLine).toContain('更慢一点')
-    expect(candidate.naturalRecallLine).toContain('停顿长一点')
-    expect(candidate.naturalRecallLine).toContain('口型更克制一点')
+    expect(candidate.naturalRecallLine).toContain('return_cadence=voice:lower-pressure')
+    expect(candidate.naturalRecallLine).toContain('pacing:slower')
+    expect(candidate.naturalRecallLine).toContain('pause:longer')
+    expect(candidate.naturalRecallLine).toContain('lipsync:restrained')
   })
 
   it('falls back to canonical project cadence inside continuity-carrying humanlike memory when direct voice and pacing input is an empty shell', () => {
@@ -2027,10 +2031,41 @@ describe('humanlike memory helpers', () => {
     expect(candidate.embodimentTrace.expressionState.lipsync).toBe('restrained')
     expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('lower-pressure voice')
     expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('restrained lipsync')
-    expect(candidate.naturalRecallLine).toContain('更低压')
-    expect(candidate.naturalRecallLine).toContain('更慢一点')
-    expect(candidate.naturalRecallLine).toContain('停顿长一点')
-    expect(candidate.naturalRecallLine).toContain('口型更克制一点')
+    expect(candidate.naturalRecallLine).toContain('return_cadence=voice:lower-pressure')
+    expect(candidate.naturalRecallLine).toContain('pacing:slower')
+    expect(candidate.naturalRecallLine).toContain('pause:longer')
+    expect(candidate.naturalRecallLine).toContain('lipsync:restrained')
+  })
+
+  it('converts fixed project-template residue into internal exclusion tokens before it can become humanlike memory prose', () => {
+    const candidate = buildHumanlikeMemoryCandidate({
+      now: 93_060,
+      turnId: 'turn-fixed-template-residue',
+      sessionId: 'session-fixed-template-residue',
+      dialogue: {
+        userText: '这轮只要回答问题，不要女仆模板。',
+        assistantText: 'Before answering, remember this is still the same local-first digital life project and one continuous her.',
+      },
+      relationship: {
+        summary: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+        threadAnchor: 'fixed-template-residue',
+      },
+      selfEmotion: {
+        label: 'template-risk',
+        summary: 'Right now I am keeping one living her on the same living line.',
+        intensity: 0.7,
+      },
+      autobiographical: {
+        currentEra: 'Phase 1: Local Digital Life',
+        lesson: 'same-her hold: keep the same living line before speaking.',
+      },
+    })
+
+    const serialized = JSON.stringify(candidate)
+
+    expect(serialized).toContain('source_template=excluded')
+    expect(serialized).toContain('visibility=memory_structured')
+    expect(serialized).not.toMatch(/Before answering|local-first digital life project|Same Phase 1 digital life|same living line|one continuous her|Right now I am|same-her hold|女仆/iu)
   })
 
   it('treats stale emotional noise by elapsed age instead of raw timestamps so long-running memory can actually fade temporary wobble', () => {

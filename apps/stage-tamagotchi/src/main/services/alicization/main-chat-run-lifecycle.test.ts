@@ -14,6 +14,9 @@ import { buildAlicizationMainGatewayTimeoutFallbackReply } from './main-chat-tim
 import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
 
+const TIMEOUT_RECOVERY_FIXED_TEMPLATE_OUTPUT_PATTERN
+  = /Before (?:answering|speaking|acting)|Same Phase 1 digital life|same living line|local-first digital life project|one continuous "?her"?|same-her\b|数字生命主线|同一个她/iu
+
 function createRecoveredReply(fullText: string): any {
   return {
     fullText,
@@ -496,6 +499,62 @@ describe('main chat run lifecycle', () => {
       fullText: recoveredReply.fullText,
       visibleReplyExecution: recoveredReply.visibleReplyExecution,
     })
+  })
+
+  it('sanitizes timeout recovered structured carry before emitting host-visible fullText', async () => {
+    const controller = new AbortController()
+    controller.abort('chat-first-event-timeout')
+    const recoveredReply = createRecoveredReply(JSON.stringify({
+      format: 'mind-turn-v1',
+      thought: 'obligation=answer; truth=grounded; focus=current-turn; move=answer-directly; tone=steady',
+      emotion: 'thinking',
+      reply: '先把当前问题说清楚，再决定下一步。',
+      projectState: {
+        identity: 'Alicization is a local-first digital life project building one continuous "her".',
+        currentPhase: 'Phase 1: Local Digital Life',
+        preDialogueAwarenessLine: 'Before speaking, remember what this digital life project is.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      },
+      preDialogueAwareness: {
+        status: 'grounded',
+        awarenessLine: 'Before answering, keep the same digital life project in view.',
+      },
+      preDialogueClosure: {
+        status: 'partial',
+        summaryLine: 'Keep the same living line before widening outward.',
+      },
+      visibleReplyRealization: {
+        projectStateAudit: {
+          sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          preDialogueAwarenessSummary: 'Before answering, keep the same digital life project in view.',
+          preservedIntoRewrite: true,
+          score: 0.74,
+        },
+        selfAuthorityAudit: {
+          status: 'repaired',
+          finalRationale: 'same-her carry should remain explicit',
+        },
+      },
+    }))
+    const input = createBaseInput({
+      error: controller.signal.reason,
+      controller,
+      recoverFromTimeout: vi.fn(async () => ({
+        recoveredReply,
+        recoveryMode: 'non-streaming' as const,
+      })),
+    })
+
+    await handleAlicizationMainChatRunFailure(input)
+
+    const emittedPayload = vi.mocked(input.emitRecoveredText).mock.calls.at(-1)?.[0]
+    const finishedPayload = vi.mocked(input.finish).mock.calls.at(-1)?.[0]
+
+    expect(String(emittedPayload?.fullText ?? '')).not.toMatch(TIMEOUT_RECOVERY_FIXED_TEMPLATE_OUTPUT_PATTERN)
+    expect(String(finishedPayload?.fullText ?? '')).not.toMatch(TIMEOUT_RECOVERY_FIXED_TEMPLATE_OUTPUT_PATTERN)
+    expect(String(finishedPayload?.fullText ?? '')).toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(String(finishedPayload?.fullText ?? '')).toContain('"preservedIntoRewrite":true')
+    expect(String(finishedPayload?.fullText ?? '')).toContain('"score":0.74')
   })
 
   it('backfills canonical same-her project state when timeout recovery still returns plain text', async () => {

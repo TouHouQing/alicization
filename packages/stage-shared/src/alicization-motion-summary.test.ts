@@ -18,7 +18,7 @@ describe('alicization motion summary', () => {
       confidence: 0.88,
       segmentId: 'segment-vrm-1',
     })).toBe(
-      'motion=inspect_follow | mode=attentive | tail=measured-return | blink=linger | gaze=soften | reason=Deliver the result on the same living thread, but leave room before widening closeness | idle=idle_settle | intensity=0.44 | hold=220ms | src=timeline-projection | conf=0.88 | seg=segment-vrm-1',
+      'motion=inspect_follow | mode=attentive | tail=measured-return | blink=linger | gaze=soften | reason=Deliver the result on the continuity_thread, but leave room before widening closeness | idle=idle_settle | intensity=0.44 | hold=220ms | src=timeline-projection | conf=0.88 | seg=segment-vrm-1',
     )
   })
 
@@ -46,7 +46,7 @@ describe('alicization motion summary', () => {
       preferredGazeMode: 'soften',
       reasonSummary: 'Keep the same living line inward for now, and leave room before widening outward again',
     })).toBe(
-      'motion=observe_focus | tail=measured-return | blink=linger | gaze=soften | reason=Keep the same living line inward for now, and leave room before widening outward again',
+      'motion=observe_focus | tail=measured-return | blink=linger | gaze=soften | reason=continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower',
     )
   })
 
@@ -64,7 +64,7 @@ describe('alicization motion summary', () => {
       confidence: 0.88,
       segmentId: 'segment-audible-body-motion-1',
     })).toBe(
-      'motion=observe_focus | mode=ambient-covision | tail=measured-return | timing=audible-body-carry | blink=linger | gaze=soften | reason=Keep the same living line audible while face and motion rejoin | hold=300ms | src=timeline-projection | conf=0.88 | seg=segment-audible-body-motion-1',
+      'motion=observe_focus | mode=ambient-covision | tail=measured-return | timing=audible-body-carry | blink=linger | gaze=soften | reason=continuity_hold=audible_body_carry; rejoin=face+motion | hold=300ms | src=timeline-projection | conf=0.88 | seg=segment-audible-body-motion-1',
     )
   })
 

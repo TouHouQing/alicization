@@ -169,14 +169,14 @@ function hasAutobiographicalSameHerContinuityCarry(
     return false
 
   return includesAny(continuityCue, [
-    'same-her drift risk',
+    'continuity drift risk',
     'generic assistant shell',
     'project-summary voice',
     'detached status talk',
     'continuity drift',
     'drift rather than completion',
-    'same living line',
-    'one continuous her',
+    'continuity line',
+    'continuous identity',
     'continuous her',
   ])
 }
@@ -238,9 +238,9 @@ function resolvePresenceAuthorityFromSpine(input: {
         || input.digest.architecture?.summary
         || input.digest.runtime.sceneSummary
         || previousAuthority?.currentInwardPreoccupation
-        || 'quiet same-her continuity carry',
+        || 'quiet continuity continuity carry',
         180,
-      ) || 'quiet same-her continuity carry',
+      ) || 'quiet continuity continuity carry',
     }
   }
 
@@ -407,7 +407,7 @@ function buildPrivateThoughtReasonTagsFromSpine(
       ]
   const tags = [
     'digital-life-spine',
-    sameHerContinuityCarry ? 'same-her-inward-carry' : '',
+    sameHerContinuityCarry ? 'continuity-inward-carry' : '',
     sameHerContinuityCarry ? 'quiet-companionship' : '',
     ...memoryCarryTags,
     digest.architecture?.dominantSystem ? `dominant:${digest.architecture.dominantSystem}` : '',

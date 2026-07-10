@@ -99,6 +99,41 @@ describe('working memory owner context', () => {
     ]))
   })
 
+  it('sanitizes fixed-template residue before rendering provider-facing owner context', () => {
+    const snapshot = createEmptyWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-template-owner',
+      now: 1400,
+    })
+    snapshot.currentThread = {
+      title: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      currentUserMove: '不要再用 Before speaking, remember this is still one continuous her 这种 same-her 固定模板。',
+      currentAliceMove: null,
+      primaryAnchor: null,
+      mode: 'repair',
+      shouldHold: true,
+      confidence: 0.8,
+    }
+    snapshot.userCorrections = [{
+      text: '不要再用 Before speaking, remember this is still one continuous her 这种 same-her 固定模板。',
+      sourceTurnId: 'turn-template:user',
+      scope: 'persona',
+    }]
+    snapshot.memoryQueryHints = [
+      'Before speaking, remember this is still one continuous her.',
+      '失败面透明',
+    ]
+
+    const context = buildWorkingMemoryOwnerContext(snapshot)
+    const block = buildWorkingMemoryOwnerSystemBlock(context)
+
+    expect(block).toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(block).toContain('correction=fixed_template_rejection; visible_wording=false')
+    expect(block).toContain('失败面透明')
+    expect(block).not.toContain('不要使用固定模板')
+    expect(block).not.toMatch(/Before speaking|same-her|one continuous her|Same Phase 1 digital life|same living line/u)
+  })
+
   it('projects the owner context into runtime working-memory episodes without marking it as sediment', () => {
     const snapshot = createEmptyWorkingMemorySnapshot({
       cardId: 'default',

@@ -227,20 +227,20 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     })
     const dispatchTaskThread = vi.fn(async ({ input }: { input: Record<string, unknown> }) => {
       const prompt = ((input.codex as { prompt?: unknown } | undefined)?.prompt ?? '') as string
-      expect(prompt).toContain('project_identity=Alicization is a local-first digital life project building one continuous "her" on the host computer.')
-      expect(prompt).toContain('project_phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
+      expect(prompt).toContain('runtime_context=alicization_phase1')
+      expect(prompt).not.toContain('project_identity=')
+      expect(prompt).not.toContain('project_phase=')
       expect(prompt).toContain('latest_landed_progress=Same-session mirror carry and measured-return continuity now survive longer noisy detours.')
       expect(prompt).toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.')
-      expect(prompt).toContain('next_closure_target=Keep extending same-her proof so Phase 1 route carry remains visible before execution and dialogue turns.')
-      expect(prompt).toContain('same_her_line=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-      expect(prompt).toContain('same_her_hold=same-her hold: keep execution on the same living line before widening outward.')
-      expect(prompt).toContain('same_her_drift_risk=If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.')
-      expect(prompt).toContain('project_continuity_arc_stage=same-thread-continuation')
-      expect(prompt).toContain('project_continuity=same living line: execution should keep carrying this same Phase 1 digital life before widening outward.')
-      expect(prompt).toContain('project_preflight=Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns | next=Keep extending same-her proof')
-      expect(prompt).toContain('project_awareness=Before answering, remember: Alicization is a local-first digital life project building one continuous "her"')
-      expect(prompt).toContain('She is still inside Phase 1: Local Digital Life.')
-      expect(prompt).toContain('The still-open closure is memory still needs stronger end-to-end closure across turns, initiative, and embodiment.')
+      expect(prompt).not.toContain('same_her_line=')
+      expect(prompt).not.toContain('same_her_hold=')
+      expect(prompt).not.toContain('same_her_drift_risk=')
+      expect(prompt).toContain('execution_continuity_arc_stage=same-thread-continuation')
+      expect(prompt).not.toContain('project_continuity=')
+      expect(prompt).not.toContain('project_preflight=')
+      expect(prompt).not.toContain('project_awareness=')
+      expect(prompt).toContain('template_awareness=withheld_from_executor_prompt')
+      expect(prompt).toContain('Report execution blockers, tool failures, and uncertainty directly')
 
       return {
         ok: true,
@@ -328,18 +328,18 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     })
     const dispatchTaskThread = vi.fn(async ({ input }: { input: Record<string, unknown> }) => {
       const prompt = ((input.codex as { prompt?: unknown } | undefined)?.prompt ?? '') as string
-      expect(prompt).toContain('project_identity=Alicization is a local-first digital life project building one continuous "her" on the host computer.')
-      expect(prompt).toContain('project_phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
+      expect(prompt).toContain('runtime_context=alicization_phase1')
+      expect(prompt).not.toContain('project_identity=')
+      expect(prompt).not.toContain('project_phase=')
       expect(prompt).toContain('latest_landed_progress=Same-session mirror carry already survives execution preflight even after the explicit legacy slot went blank.')
       expect(prompt).toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns so project identity carry remains explicit before execution resumes.')
-      expect(prompt).toContain('next_closure_target=Keep extending cross-modal same-her proof so execution, initiative, and embodiment stay on one living line.')
-      expect(prompt).toContain('same_her_line=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-      expect(prompt).toContain('same_her_hold=same-her hold: keep execution on the same living line before widening outward.')
-      expect(prompt).toContain('same_her_drift_risk=If blank legacy project briefing slots collapse redispatch back into a generic shell, treat that as unfinished same-her drift.')
-      expect(prompt).toContain('project_continuity=same living line: execution should keep carrying this same Phase 1 digital life before widening outward.')
-      expect(prompt).toContain('project_awareness=Before answering, remember: Alicization is a local-first digital life project building one continuous "her"')
-      expect(prompt).toContain('What has already landed is proactive initiative now has a compact same-her closure loop')
-      expect(prompt).toContain('The still-open closure is memory still needs stronger end-to-end closure across turns, initiative, and embodiment.')
+      expect(prompt).not.toContain('next_closure_target=Keep extending cross-modal same-her proof')
+      expect(prompt).not.toContain('same_her_line=')
+      expect(prompt).not.toContain('same_her_hold=')
+      expect(prompt).not.toContain('same_her_drift_risk=')
+      expect(prompt).not.toContain('project_continuity=')
+      expect(prompt).not.toContain('project_awareness=')
+      expect(prompt).toContain('template_awareness=withheld_from_executor_prompt')
 
       return {
         ok: true,
@@ -434,16 +434,17 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     })
     const dispatchTaskThread = vi.fn(async ({ input }: { input: Record<string, unknown> }) => {
       const prompt = ((input.codex as { prompt?: unknown } | undefined)?.prompt ?? '') as string
-      expect(prompt).toContain('project_awareness=Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.')
-      expect(prompt).toContain('project_companion_briefing=Before answering, remember this is still the same local-first digital life project, she is still inside Phase 1, and emotion, memory, initiative, and embodiment still need to close as one living line.')
-      expect(prompt).toContain('project_continuity_preferred_timing=next-open-window')
-      expect(prompt).toContain('project_continuity_cadence=measured-return')
-      expect(prompt).toContain('project_preferred_blink_cadence=linger')
-      expect(prompt).toContain('project_preferred_gaze_mode=soften')
-      expect(prompt).toContain('project_pause_mode=longer')
-      expect(prompt).toContain('project_lipsync_mode=restrained')
-      expect(prompt).toContain('project_voice_mode=lower-pressure')
-      expect(prompt).toContain('project_pacing_mode=slower')
+      expect(prompt).not.toContain('project_awareness=')
+      expect(prompt).not.toContain('project_companion_briefing=')
+      expect(prompt).toContain('template_awareness=withheld_from_executor_prompt')
+      expect(prompt).toContain('execution_continuity_preferred_timing=next-open-window')
+      expect(prompt).toContain('execution_continuity_cadence=measured-return')
+      expect(prompt).toContain('execution_preferred_blink_cadence=linger')
+      expect(prompt).toContain('execution_preferred_gaze_mode=soften')
+      expect(prompt).toContain('execution_pause_mode=longer')
+      expect(prompt).toContain('execution_lipsync_mode=restrained')
+      expect(prompt).toContain('execution_voice_mode=lower-pressure')
+      expect(prompt).toContain('execution_pacing_mode=slower')
       expect(prompt).not.toContain('project_awareness=same digital life | keep the closure seam explicit')
       expect(prompt).not.toContain('project_companion_briefing=same digital life | keep the closure seam explicit')
 
@@ -531,7 +532,8 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     })
     const dispatchTaskThread = vi.fn(async ({ input }: { input: Record<string, unknown> }) => {
       const prompt = ((input.codex as { prompt?: unknown } | undefined)?.prompt ?? '') as string
-      expect(prompt).toContain(`project_awareness=${richerCompanionHeadline}`)
+      expect(prompt).not.toContain(`project_awareness=${richerCompanionHeadline}`)
+      expect(prompt).toContain('template_awareness=withheld_from_executor_prompt')
       expect(prompt).not.toContain('project_awareness=same digital life | keep the closure seam explicit')
 
       return {
@@ -616,9 +618,9 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     })
     const dispatchTaskThread = vi.fn(async ({ input }: { input: Record<string, unknown> }) => {
       const prompt = ((input.codex as { prompt?: unknown } | undefined)?.prompt ?? '') as string
-      expect(prompt).toContain('project_awareness=Before answering, remember: Alicization is a local-first digital life project building one continuous "her"')
-      expect(prompt).toContain('She is still inside Phase 1: Local Digital Life.')
-      expect(prompt).toContain('The still-open closure is memory, initiative, execution, and embodiment still need stronger same-her closure before widening outward again.')
+      expect(prompt).not.toContain('project_awareness=')
+      expect(prompt).not.toContain('Before answering, remember: Alicization is a local-first digital life project building one continuous "her"')
+      expect(prompt).toContain('template_awareness=withheld_from_executor_prompt')
       expect(prompt).not.toContain('project_awareness=same digital life | keep closure explicit')
 
       return {
@@ -779,20 +781,20 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
           projectPhase: expect.stringContaining('Phase 1: Local Digital Life'),
           projectAwareness: expect.stringContaining('host confirmed this execution boundary'),
           projectCompanionBriefing: null,
-          projectSameHerHoldDetail: expect.stringContaining('same living line'),
+          projectSameHerHoldDetail: expect.stringContaining('host-confirmed redispatch'),
           projectContinuityArcStage: 'same-thread-continuation',
-          projectContinuityCue: expect.stringContaining('same living line'),
+          projectContinuityCue: expect.stringContaining('host-confirmed redispatch'),
           projectContinuityPreferredTiming: 'next-open-window',
           projectContinuityCadence: 'measured-return',
           projectContinuityRestraint: 'measured-return',
-          projectEmotionalClosure: expect.stringContaining('same-her closure seam'),
+          projectEmotionalClosure: expect.stringContaining('low-pressure'),
           projectBlinkCadence: 'linger',
           projectGazeMode: 'soften',
           projectPauseMode: 'longer',
           projectLipsyncMode: 'restrained',
           projectVoiceMode: 'lower-pressure',
           projectPacingMode: 'slower',
-          sameHerLine: expect.stringContaining('Same Phase 1 digital life'),
+          sameHerLine: expect.stringContaining('phase1_local_digital_life_anchor'),
         }),
       }),
     ])
@@ -881,7 +883,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     expect(appendExecutionEvents).toHaveBeenCalledWith([
       expect.objectContaining({
         payload: expect.objectContaining({
-          projectCompanionHeadline: expect.stringContaining('Same Phase 1 digital life'),
+          projectCompanionHeadline: expect.stringContaining('identity=Alicization'),
           projectCompanionBriefing: null,
         }),
       }),

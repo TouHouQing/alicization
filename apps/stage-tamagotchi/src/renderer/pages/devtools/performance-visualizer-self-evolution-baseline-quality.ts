@@ -74,17 +74,17 @@ function resolveSurvivingVisibleLane(
     return 'face+lipsync+voice-only'
   if (joined.includes('当前仅剩动作、口型、声音维持同一段连续性'))
     return 'motion+lipsync+voice-only'
-  if (joined.includes('当前只有 face 和 lipsync 这条 same-her 生命线'))
+  if (joined.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线'))
     return 'face+lipsync-only'
-  if (joined.includes('当前只有 motion 和 lipsync 这条 same-her 生命线'))
+  if (joined.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线'))
     return 'motion+lipsync-only'
-  if (joined.includes('当前仍只有表情、口型、声音这条 same-her 生命线'))
+  if (joined.includes('当前仍只有表情、口型、声音这条 identity-continuity 生命线'))
     return 'face+lipsync+voice-only'
-  if (joined.includes('当前仍只有动作、口型、声音这条 same-her 生命线'))
+  if (joined.includes('当前仍只有动作、口型、声音这条 identity-continuity 生命线'))
     return 'motion+lipsync+voice-only'
-  if (joined.includes('当前仍只有表情、口型这条 same-her 生命线'))
+  if (joined.includes('当前仍只有表情、口型这条 identity-continuity 生命线'))
     return 'face+lipsync-only'
-  if (joined.includes('当前仍只有动作、口型这条 same-her 生命线'))
+  if (joined.includes('当前仍只有动作、口型这条 identity-continuity 生命线'))
     return 'motion+lipsync-only'
 
   return null
@@ -112,13 +112,13 @@ function buildContinuityGovernanceBaselineLines(repairClosure: SelfEvolutionRepa
   if (repairClosure.bodyContinuityPhase === 'renderer-rejoin-without-body') {
     lines.push(
       survivingVisibleLane === 'face+lipsync+voice-only'
-        ? '显形回接失身态已经被完整记录：当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。'
+        ? '显形回接失身态已经被完整记录：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。'
         : survivingVisibleLane === 'motion+lipsync+voice-only'
-          ? '显形回接失身态已经被完整记录：当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。'
+          ? '显形回接失身态已经被完整记录：当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。'
           : survivingVisibleLane === 'face+lipsync-only'
-            ? '显形回接失身态已经被完整记录：当前只有 face 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。'
+            ? '显形回接失身态已经被完整记录：当前只有 face 和 lipsync 这条 identity-continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。'
             : survivingVisibleLane === 'motion+lipsync-only'
-              ? '显形回接失身态已经被完整记录：当前只有 motion 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。'
+              ? '显形回接失身态已经被完整记录：当前只有 motion 和 lipsync 这条 identity-continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。'
               : rendererRejoinSurface
                 ? `显形回接失身态已经被完整记录：${rendererRejoinSurface} 显形权威已经回接，但身体线没有继续托住同一段 living segment，因此这条可见恢复只能作为审计锚点，而不能被误写成可信长期基线。`
                 : '显形回接失身态已经被完整记录：显形权威已经回接，但身体线没有继续托住同一段 living segment，因此这条可见恢复只能作为审计锚点，而不能被误写成可信长期基线。',
@@ -142,8 +142,8 @@ function buildContinuityGovernanceBaselineLines(repairClosure: SelfEvolutionRepa
   }
   if (repairClosure.summaryLines.includes('项目状态连续性治理已经被新的验证快照再次确认，可进入基线判断。'))
     lines.push('项目状态连续性治理已经被新的验证快照再次确认，可作为长期基线的一部分。')
-  if (repairClosure.summaryLines.includes('same-her 连续性治理已经被新的验证快照再次确认，可进入基线判断。'))
-    lines.push('same-her 连续性治理已经被新的验证快照再次确认，可作为长期基线的一部分。')
+  if (repairClosure.summaryLines.includes('identity-continuity 连续性治理已经被新的验证快照再次确认，可进入基线判断。'))
+    lines.push('identity-continuity 连续性治理已经被新的验证快照再次确认，可作为长期基线的一部分。')
   if (repairClosure.summaryLines.includes('relationship cadence 治理已经被新的验证快照再次确认，可进入基线判断。')) {
     const relationshipCadenceInternalized = repairClosure.summaryLines.some(line =>
       line.includes('durable relationship rhythm')

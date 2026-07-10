@@ -88,7 +88,7 @@ function buildSameHerCausalityRepairPressureFromTuningAdvice(input: {
       summary: findTuningNote({
         tuningAdvice,
         pattern: /initiative\/execution|proactive opening|execution callback|learning feedback/iu,
-        fallback: 'Proactive opening, execution callback, and learning feedback still need to follow from the recalled same-her line.',
+        fallback: 'Proactive opening, execution callback, and learning feedback still need to follow from recalled identity continuity.',
       }),
     })
   }
@@ -142,7 +142,7 @@ function buildSameHerCausalityRepairPressureFromTuningAdvice(input: {
     lanes,
     memoryIdentityRequirement,
     notes: tuningAdvice.notes.slice(0, 6),
-    summary: `pending same-her causality repair: ${lanes.map(item => item.lane).join(', ')}`,
+    summary: `pending identity continuity causality repair: ${lanes.map(item => item.lane).join(', ')}`,
   }
 }
 

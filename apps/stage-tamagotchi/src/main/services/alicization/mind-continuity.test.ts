@@ -642,7 +642,7 @@ describe('mind continuity', () => {
     expect(fragment).toContain('summary:Use the same inner line across runtime surfaces.')
   })
 
-  it('keeps same-her project-state carry explicit in continuity fragments and recall seeds', () => {
+  it('sanitizes fixed same-her project-state templates before continuity fragments and recall seeds reach recall', () => {
     const state = {
       watchMode: 'symbiotic-vision',
       currentScene: {
@@ -752,11 +752,12 @@ describe('mind continuity', () => {
     const seed = buildMindContinuityRecallSeed(buildAlicizationDigitalLifeRuntimeSurface(state as any))
 
     expect(fragment).toContain('project_state_carry:')
-    expect(fragment).toContain('Same Phase 1 digital life')
-    expect(fragment).toContain('Unfinished closure still needs the')
+    expect(fragment).toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(fragment).not.toMatch(/Same Phase 1 digital life|same living line|same-her|one continuous her/iu)
     expect(fragment).toContain('summary:')
     expect(seed).toContain('project_state_carry:')
-    expect(seed).toContain('Same Phase 1 digital life')
+    expect(seed).toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(seed).not.toMatch(/Same Phase 1 digital life|same living line|same-her|one continuous her/iu)
   })
 
   it('keeps repair-before-closeness emotional kernel carry searchable during quiet same-line continuity holds', () => {
@@ -859,7 +860,7 @@ describe('mind continuity', () => {
     expect(seed).toContain('kernel_reason:repair-before-closeness|quiet-companionship')
   })
 
-  it('keeps same-her continuity fragments and recall seeds usable when selector carries lose array scaffolding', () => {
+  it('keeps sparse continuity fragments and recall seeds structured when selector carries lose array scaffolding', () => {
     const nextState = {
       watchMode: 'symbiotic-vision',
       currentScene: {
@@ -973,9 +974,12 @@ describe('mind continuity', () => {
     const seed = buildMindContinuityRecallSeed(buildAlicizationDigitalLifeRuntimeSurface(nextState as any))
 
     expect(fragment).toContain('project_state_carry:')
-    expect(fragment).toContain('Keep the same-her line intact while the thinner runtime seam settles.')
-    expect(fragment).toContain('summary:Keep the same-her line intact while the thinner runtime seam settles.')
+    expect(fragment).toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(fragment).not.toMatch(/Same Phase 1 digital life|same living line|same-her|one continuous her/iu)
+    expect(fragment).toContain('summary:')
+    expect(fragment).toContain('project_state_carry=structured_carry')
     expect(seed).toContain('project_state_carry:')
-    expect(seed).toContain('Keep the same-her line intact while the thinner runtime seam settles.')
+    expect(seed).toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(seed).not.toMatch(/Same Phase 1 digital life|same living line|same-her|one continuous her/iu)
   })
 })

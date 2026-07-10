@@ -10,6 +10,8 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { AlicizationSelfRevisionEvent } from './self-evolution/self-revision-ledger'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
+import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
+
 import {
   isAlicizationThinProjectAwarenessLine,
   resolveAlicizationProjectStateBrief,
@@ -27,12 +29,40 @@ type AlicizationLearningProjectStateContinuity = NonNullable<AlicizationLearning
   proactiveSameHerGap?: string | null
 }
 
+function sanitizeLearningContinuityText(raw: unknown, maxChars = 420) {
+  return sanitizeAlicizationProviderFacingText(raw, maxChars, '') || null
+}
+
+function sanitizeLearningContinuityAnchor(raw: unknown) {
+  return sanitizeLearningContinuityText(raw, 220) ?? 'identity_continuity'
+}
+
+function sanitizeLearningProjectStateContinuity(
+  projectState: AlicizationLearningProjectStateContinuity,
+): AlicizationLearningProjectStateContinuity {
+  return {
+    ...projectState,
+    identity: sanitizeLearningContinuityText(projectState.identity, 260) ?? 'local_digital_life',
+    currentPhase: sanitizeLearningContinuityText(projectState.currentPhase, 180) ?? 'local_digital_life_phase',
+    sameHerSummary: sanitizeLearningContinuityAnchor(projectState.sameHerSummary),
+    landedProgressSummary: sanitizeLearningContinuityText(projectState.landedProgressSummary, 420) ?? 'continuity_progress=tracked',
+    openClosureSummary: sanitizeLearningContinuityText(projectState.openClosureSummary, 420) ?? 'open_loop=tracked',
+    proactiveSameHerGap: sanitizeLearningContinuityText(projectState.proactiveSameHerGap, 420),
+    nextClosureTarget: sanitizeLearningContinuityText(projectState.nextClosureTarget, 420) ?? 'next=continue_verified_closure',
+    preDialogueAwarenessLine: sanitizeLearningContinuityText(projectState.preDialogueAwarenessLine, 520),
+    emotionalClosureCue: sanitizeLearningContinuityText(projectState.emotionalClosureCue, 420),
+    sameHerSelfLine: sanitizeLearningContinuityAnchor(projectState.sameHerSelfLine),
+    sameHerHoldDetail: sanitizeLearningContinuityText(projectState.sameHerHoldDetail, 420),
+    sameHerDriftRisk: sanitizeLearningContinuityText(projectState.sameHerDriftRisk, 420) ?? 'continuity_drift_risk=tracked',
+  }
+}
+
 function buildDelayedLearningProjectStateContinuity(
   projectState?: AlicizationLearningProjectStateContinuityInput | null,
 ): AlicizationLearningProjectStateContinuity {
   const canonicalProjectState = resolveAlicizationProjectStateBrief()
   if (!projectState) {
-    return {
+    return sanitizeLearningProjectStateContinuity({
       identity: canonicalProjectState.identity,
       currentPhase: canonicalProjectState.currentPhase,
       sameHerSummary: canonicalProjectState.sameHerSelfLine,
@@ -48,7 +78,7 @@ function buildDelayedLearningProjectStateContinuity(
       sameHerSelfLine: canonicalProjectState.sameHerSelfLine,
       sameHerHoldDetail: canonicalProjectState.sameHerHoldDetail ?? null,
       sameHerDriftRisk: canonicalProjectState.sameHerDriftRisk,
-    }
+    })
   }
 
   const normalizedProjectState = resolveAlicizationProjectStateSnapshot({
@@ -105,7 +135,7 @@ function buildDelayedLearningProjectStateContinuity(
       ? projectState.sameHerSummary
       : normalizedProjectState.sameHerSelfLine
 
-  return {
+  return sanitizeLearningProjectStateContinuity({
     identity: normalizedProjectState.identity,
     currentPhase: normalizedProjectState.currentPhase,
     sameHerSummary: preferredSameHerSummary,
@@ -118,7 +148,7 @@ function buildDelayedLearningProjectStateContinuity(
     sameHerSelfLine: normalizedProjectState.sameHerSelfLine,
     sameHerHoldDetail: normalizedProjectState.sameHerHoldDetail ?? null,
     sameHerDriftRisk: normalizedProjectState.sameHerDriftRisk,
-  }
+  })
 }
 
 export interface AlicizationLearningScheduledTask {
@@ -323,32 +353,32 @@ function buildTaskMessage(input: {
   activeLearningFocuses: string[]
   projectStateContinuity?: AlicizationLearningProjectStateContinuityInput | null
 }) {
-  const sameHerSelfLine = input.projectStateContinuity?.sameHerSelfLine?.trim() ?? ''
-  const sameHerHoldDetail = input.projectStateContinuity?.sameHerHoldDetail?.trim() ?? ''
-  const sameHerDriftRisk = input.projectStateContinuity?.sameHerDriftRisk?.trim() ?? ''
-  const proactiveSameHerGap = input.projectStateContinuity?.proactiveSameHerGap?.trim() ?? ''
+  const sameHerSelfLine = sanitizeLearningContinuityAnchor(input.projectStateContinuity?.sameHerSelfLine)
+  const sameHerHoldDetail = sanitizeLearningContinuityText(input.projectStateContinuity?.sameHerHoldDetail, 420) ?? ''
+  const sameHerDriftRisk = sanitizeLearningContinuityText(input.projectStateContinuity?.sameHerDriftRisk, 420) ?? ''
+  const proactiveSameHerGap = sanitizeLearningContinuityText(input.projectStateContinuity?.proactiveSameHerGap, 420) ?? ''
   const sameHerLearningConstraint
     = sameHerDriftRisk
       && /generic assistant shell|project-summary voice|generic project shell|detached project/i.test(sameHerDriftRisk)
-      ? `same-her=${sameHerSelfLine || 'one continuous her'} ; guard=${sameHerDriftRisk}`
+      ? `continuity_anchor=${sameHerSelfLine || 'identity_continuity'} ; guard=${sameHerDriftRisk}`
       : sameHerSelfLine
-        ? `same-her=${sameHerSelfLine}`
+        ? `continuity_anchor=${sameHerSelfLine}`
         : ''
   return [
     `learning-action=${input.nextLearningAction}`,
     input.nextLearningReason ? `reason=${input.nextLearningReason}` : '',
     sameHerLearningConstraint,
-    sameHerHoldDetail ? `same-her-hold=${sameHerHoldDetail}` : '',
-    proactiveSameHerGap ? `same-her-gap=${proactiveSameHerGap}` : '',
+    sameHerHoldDetail ? `continuity_hold=${sameHerHoldDetail}` : '',
+    proactiveSameHerGap ? `continuity_gap=${proactiveSameHerGap}` : '',
     input.activeLearningFocuses.length > 0 ? `focus=${input.activeLearningFocuses.join(' | ')}` : '',
   ].filter(Boolean).join(' ; ')
 }
 
 function deriveSameHerContinuityGuard(projectStateContinuity?: AlicizationLearningProjectStateContinuityInput | null) {
-  const sameHerSelfLine = projectStateContinuity?.sameHerSelfLine?.trim() ?? ''
-  const sameHerHoldDetail = projectStateContinuity?.sameHerHoldDetail?.trim() ?? ''
-  const sameHerDriftRisk = projectStateContinuity?.sameHerDriftRisk?.trim() ?? ''
-  const proactiveSameHerGap = projectStateContinuity?.proactiveSameHerGap?.trim() ?? ''
+  const sameHerSelfLine = sanitizeLearningContinuityAnchor(projectStateContinuity?.sameHerSelfLine)
+  const sameHerHoldDetail = sanitizeLearningContinuityText(projectStateContinuity?.sameHerHoldDetail, 420) ?? ''
+  const sameHerDriftRisk = sanitizeLearningContinuityText(projectStateContinuity?.sameHerDriftRisk, 420) ?? ''
+  const proactiveSameHerGap = sanitizeLearningContinuityText(projectStateContinuity?.proactiveSameHerGap, 420) ?? ''
   if (
     !sameHerHoldDetail
     && (!sameHerDriftRisk || !/generic assistant shell|project-summary voice|generic project shell|detached project/i.test(sameHerDriftRisk))
@@ -357,9 +387,9 @@ function deriveSameHerContinuityGuard(projectStateContinuity?: AlicizationLearni
     return null
   }
   return {
-    sameHerSelfLine: sameHerSelfLine || 'one continuous her',
+    sameHerSelfLine: sameHerSelfLine || 'identity_continuity',
     sameHerHoldDetail: sameHerHoldDetail || null,
-    sameHerDriftRisk: sameHerDriftRisk || 'Same-her continuity still needs active guard against scheduler drift.',
+    sameHerDriftRisk: sameHerDriftRisk || 'continuity_drift_risk=scheduler_drift_guard_needed',
     proactiveSameHerGap: proactiveSameHerGap || null,
   }
 }
@@ -375,10 +405,10 @@ function appendSameHerContinuityGuard(input: {
 
   const fragments = [
     base,
-    `same-her=${continuityGuard.sameHerSelfLine}`,
-    continuityGuard.sameHerHoldDetail ? `same-her-hold=${continuityGuard.sameHerHoldDetail}` : '',
+    `continuity_anchor=${continuityGuard.sameHerSelfLine}`,
+    continuityGuard.sameHerHoldDetail ? `continuity_hold=${continuityGuard.sameHerHoldDetail}` : '',
     `guard=${continuityGuard.sameHerDriftRisk}`,
-    continuityGuard.proactiveSameHerGap ? `same-her-gap=${continuityGuard.proactiveSameHerGap}` : '',
+    continuityGuard.proactiveSameHerGap ? `continuity_gap=${continuityGuard.proactiveSameHerGap}` : '',
   ].filter(Boolean)
 
   return fragments.join(' ; ')

@@ -12,6 +12,10 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationPersonStateUpdateSurface } from './person-state-update-surface'
 
+import {
+  containsAlicizationFixedTemplateResidue,
+} from '@proj-alicization/stage-shared'
+
 import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 
 export const alicizationLongHorizonMemoryMarker = '[ALICIZATION_LONG_HORIZON_MEMORY]'
@@ -116,6 +120,24 @@ function sanitizeText(raw: unknown, maxChars = 180) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function sanitizeLongHorizonEvidenceText(raw: unknown, maxChars = 180) {
+  const normalized = sanitizeText(raw, maxChars)
+  if (!normalized)
+    return ''
+  if (!containsAlicizationFixedTemplateResidue(normalized))
+    return normalized
+  return ''
+}
+
+function hasLongHorizonStructuredContinuityEvidence(raw: unknown) {
+  const normalized = sanitizeLongHorizonEvidenceText(raw, 260).toLowerCase()
+  if (!normalized)
+    return false
+
+  return /(?:^|\s|\|)(?:continuity_anchor|continuity_hold|continuity_drift_risk|continuity_progress|project_state_continuity|life_loop_continuity|memory_dialogue_embodiment_closure|cross_modal_continuity_proof|local_desktop_life_loop|callback_continuity|embodiment_closure|open_loop|next|landed)=/u.test(normalized)
+    || /(?:^|\s|\|)(?:local_desktop_life_loop|continuity_identity|continuity_line|continuity_thread|callback_continuity)(?:\s|\||$)/u.test(normalized)
 }
 
 function sanitizeProjectStatePreferredVoiceMode(raw: unknown): AlicizationProjectPreferredVoiceMode | null {
@@ -364,9 +386,9 @@ function parseHumanlikeCarryConsolidationCue(record: AlicizationMemoryConsolidat
   const metabolismPolicy = parseMetabolismPolicy(humanlikeCarry?.metabolismPolicy)
   const metabolismSummary = sanitizeText(humanlikeCarry?.metabolismSummary, 220)
     || sanitizeText(metabolismPolicy?.reasons.join(' '), 220)
-  const stablePreferenceHint = sanitizeText(humanlikeCarry?.stablePreferenceHint, 220)
-  const autobiographicalDelta = sanitizeText(humanlikeCarry?.autobiographicalDelta, 220)
-  const selfContinuityInwardLine = sanitizeText(projectState?.selfContinuityInwardLine, 220)
+  const stablePreferenceHint = sanitizeLongHorizonEvidenceText(humanlikeCarry?.stablePreferenceHint, 220)
+  const autobiographicalDelta = sanitizeLongHorizonEvidenceText(humanlikeCarry?.autobiographicalDelta, 220)
+  const selfContinuityInwardLine = sanitizeLongHorizonEvidenceText(projectState?.selfContinuityInwardLine, 220)
   const selfContinuitySourceTags = stringListFrom(projectState?.selfContinuitySourceTags, 6)
 
   const cueObject = uniqueList([
@@ -391,23 +413,25 @@ function parseHumanlikeCarryConsolidationCue(record: AlicizationMemoryConsolidat
     autobiographicalDelta,
     selfContinuityInwardLine,
     selfContinuitySourceTags.join(' '),
-    sanitizeText(record.summary, 220),
-    sanitizeText(record.lesson, 220),
+    sanitizeLongHorizonEvidenceText(record.summary, 220),
+    sanitizeLongHorizonEvidenceText(record.lesson, 220),
   ], 12).join(' ')
   if (!cueObject)
     return null
 
+  const carriesStructuredContinuityEvidence = hasLongHorizonStructuredContinuityEvidence(cueObject)
   const carriesSamePersonContinuity
     = relationshipPrimaryIntent === 'same-person-test'
       || relationshipSignals.some(signal => /same-person|continuity|host-corrected/i.test(signal))
       || samePersonContinuityPattern.test(cueObject)
-      || /same-her|same living line|one continuous her|tool shell|generic shell|同一个她|同一条线|数字生命|工具壳/i.test(cueObject)
+      || carriesStructuredContinuityEvidence
+      || /tool shell|generic shell|工具壳/i.test(cueObject)
   const carriesBoundaryCadence
     = lowerPressureCadencePattern.test(cueObject)
       || emotionalResidueTags.some(tag => /protective|unfinished|corrected/i.test(tag))
       || /modality risk (?:medium|high)/i.test(cueObject)
   const carriesProjectIdentity
-    = /phase\s*1|local digital life|digital life|数字生命/i.test(cueObject)
+    = /local_desktop_life_loop|project_state_continuity=|life_loop_continuity=/i.test(cueObject)
       || selfContinuitySourceTags.some(tag => /project-state-carry|continuity-execution-callback-project-carry/i.test(tag))
   const carriesRevisionPressure
     = correctionPattern.test(cueObject)
@@ -520,13 +544,16 @@ function collectProjectStateContinuityLines(input: {
   projectStateProactiveSameHerGap?: string | null
   projectStateContinuityArcStage?: string | null
 }) {
+  const continuityArcStage = sanitizeLongHorizonEvidenceText(input.projectStateContinuityArcStage, 96)
   return uniqueList([
-    input.projectStateSameHerDriftRisk,
-    input.projectStateProactiveSameHerGap,
-    input.projectStateSameHerSelfLine,
-    input.projectStateEmotionalClosureCue,
-    input.projectStateContinuityArcStage ? `continuity arc ${input.projectStateContinuityArcStage}` : '',
-    input.projectStatePrimaryOpenLoop,
+    sanitizeLongHorizonEvidenceText(input.projectStateSameHerDriftRisk, 220),
+    sanitizeLongHorizonEvidenceText(input.projectStateProactiveSameHerGap, 220),
+    sanitizeLongHorizonEvidenceText(input.projectStateSameHerSelfLine, 220),
+    sanitizeLongHorizonEvidenceText(input.projectStateEmotionalClosureCue, 220),
+    continuityArcStage
+      ? `continuity_arc=${continuityArcStage}`
+      : '',
+    sanitizeLongHorizonEvidenceText(input.projectStatePrimaryOpenLoop, 220),
   ], 5)
 }
 
@@ -578,7 +605,7 @@ function resolveProjectStateCadenceCarry(input: {
     preferredVoiceMode,
     preferredPacingMode,
     cadenceSummary: cadenceSummary || null,
-    cadenceLine: cadenceSummary ? `same-her cadence: ${cadenceSummary}` : null,
+    cadenceLine: cadenceSummary ? `embodiment continuity cadence: ${cadenceSummary}` : null,
   }
 }
 
@@ -591,26 +618,32 @@ function buildProjectStateContinuitySummary(input: {
   projectStateContinuityArcStage?: string | null
   cadenceSummary?: string | null
 }) {
-  const continuityArcLine = input.projectStateContinuityArcStage
-    ? `Continuity arc: ${sanitizeText(input.projectStateContinuityArcStage, 48)}.`
+  const projectStatePrimaryOpenLoop = sanitizeLongHorizonEvidenceText(input.projectStatePrimaryOpenLoop, 220)
+  const projectStateEmotionalClosureCue = sanitizeLongHorizonEvidenceText(input.projectStateEmotionalClosureCue, 220)
+  const projectStateSameHerSelfLine = sanitizeLongHorizonEvidenceText(input.projectStateSameHerSelfLine, 220)
+  const projectStateSameHerDriftRisk = sanitizeLongHorizonEvidenceText(input.projectStateSameHerDriftRisk, 220)
+  const projectStateProactiveSameHerGap = sanitizeLongHorizonEvidenceText(input.projectStateProactiveSameHerGap, 220)
+  const projectStateContinuityArcStage = sanitizeLongHorizonEvidenceText(input.projectStateContinuityArcStage, 96)
+  const continuityArcLine = projectStateContinuityArcStage
+    ? `Continuity arc: ${sanitizeText(projectStateContinuityArcStage, 48)}.`
     : ''
   const cadenceLine = input.cadenceSummary
-    ? `Same-her cadence: ${sanitizeText(input.cadenceSummary, 120)}.`
+    ? `Embodiment continuity cadence: ${sanitizeText(input.cadenceSummary, 120)}.`
     : ''
   const suffixLine = uniqueList([continuityArcLine, cadenceLine], 2).join(' ')
   const baseLineMaxChars = suffixLine
     ? Math.max(36, 180 - suffixLine.length - 1)
     : 180
   const baseSummary
-    = input.projectStateSameHerDriftRisk
-      ? `Remembered same-her drift risk: ${sanitizeText(input.projectStateSameHerDriftRisk, baseLineMaxChars)}`
-      : input.projectStateProactiveSameHerGap
-        ? `Remembered proactive same-her gap: ${sanitizeText(input.projectStateProactiveSameHerGap, baseLineMaxChars)}`
-        : input.projectStateSameHerSelfLine
-          ? `Remembered same-her self line: ${sanitizeText(input.projectStateSameHerSelfLine, baseLineMaxChars)}`
-          : input.projectStateEmotionalClosureCue
-            ? `Remembered same-her continuity pressure: ${sanitizeText(input.projectStateEmotionalClosureCue, baseLineMaxChars)}`
-            : `Remembered unfinished same-her closure: ${sanitizeText(input.projectStatePrimaryOpenLoop, baseLineMaxChars)}`
+    = projectStateSameHerDriftRisk
+      ? `Remembered identity continuity drift risk: ${sanitizeText(projectStateSameHerDriftRisk, baseLineMaxChars)}`
+      : projectStateProactiveSameHerGap
+        ? `Remembered proactive identity continuity gap: ${sanitizeText(projectStateProactiveSameHerGap, baseLineMaxChars)}`
+        : projectStateSameHerSelfLine
+          ? `Remembered identity continuity line: ${sanitizeText(projectStateSameHerSelfLine, baseLineMaxChars)}`
+          : projectStateEmotionalClosureCue
+            ? `Remembered relationship continuity pressure: ${sanitizeText(projectStateEmotionalClosureCue, baseLineMaxChars)}`
+            : `Remembered unfinished identity continuity closure: ${sanitizeText(projectStatePrimaryOpenLoop, baseLineMaxChars)}`
 
   return sanitizeText(
     suffixLine
@@ -629,21 +662,15 @@ function deriveProjectStateContinuityBias(input: {
   projectStateContinuityArcStage?: string | null | undefined
   projectStateCadenceSummary?: string | null | undefined
 }) {
-  const normalized = [
-    typeof input.projectStatePrimaryOpenLoop === 'string' ? input.projectStatePrimaryOpenLoop.trim().toLowerCase() : '',
-    typeof input.projectStateEmotionalClosureCue === 'string' ? input.projectStateEmotionalClosureCue.trim().toLowerCase() : '',
-    typeof input.projectStateSameHerSelfLine === 'string' ? input.projectStateSameHerSelfLine.trim().toLowerCase() : '',
-    typeof input.projectStateSameHerDriftRisk === 'string' ? input.projectStateSameHerDriftRisk.trim().toLowerCase() : '',
-    typeof input.projectStateProactiveSameHerGap === 'string' ? input.projectStateProactiveSameHerGap.trim().toLowerCase() : '',
-    typeof input.projectStateContinuityArcStage === 'string' ? input.projectStateContinuityArcStage.trim().toLowerCase() : '',
-    typeof input.projectStateCadenceSummary === 'string' ? input.projectStateCadenceSummary.trim().toLowerCase() : '',
-  ].filter(Boolean).join(' | ')
+  const normalized = collectProjectStateContinuityLines(input).join(' | ').toLowerCase()
+  const hasStructuredContinuityEvidence = hasLongHorizonStructuredContinuityEvidence(normalized)
   return {
     anthropomorphicMemoryClosureStillOpen:
-      Boolean(typeof input.projectStateProactiveSameHerGap === 'string' && input.projectStateProactiveSameHerGap.trim())
-      || Boolean(typeof input.projectStateContinuityArcStage === 'string' && input.projectStateContinuityArcStage.trim())
-      || normalized.includes('memory still needs stronger end-to-end closure')
-      || /same her|same-her|one continuous her|generic assistant shell|project-summary voice|without reopening from scratch|same living line|low-pressure|lower-pressure/u.test(normalized),
+      hasStructuredContinuityEvidence
+      || Boolean(sanitizeLongHorizonEvidenceText(input.projectStateProactiveSameHerGap, 220))
+      || Boolean(sanitizeLongHorizonEvidenceText(input.projectStateContinuityArcStage, 96))
+      || normalized.includes('memory_dialogue_embodiment_closure')
+      || /generic assistant shell|project-summary voice|without reopening from scratch|low-pressure|lower-pressure/u.test(normalized),
   }
 }
 
@@ -1373,7 +1400,8 @@ function buildProjectStateContinuityCue(input: {
   projectStateCadenceLine?: string | null
 }) {
   const continuityLines = collectProjectStateContinuityLines(input)
-  if (continuityLines.length === 0)
+  const hasStructuredContinuityEvidence = continuityLines.some(hasLongHorizonStructuredContinuityEvidence)
+  if (continuityLines.length === 0 || !hasStructuredContinuityEvidence)
     return null
 
   const object = uniqueList([
@@ -1393,23 +1421,23 @@ function buildProjectStateContinuityCue(input: {
     'identity',
     'task',
     ...((boundaryPattern.test(object) || measuredReturnPattern.test(object)) ? ['boundary' as const] : []),
-    ...((bondPattern.test(object) || /same living line|same digital life|one continuous her/iu.test(object)) ? ['bond' as const] : []),
+    ...((bondPattern.test(object) && !containsAlicizationFixedTemplateResidue(object)) ? ['bond' as const] : []),
   ]
 
   return {
-    factId: 'derived:project-state-same-her-continuity',
+    factId: 'derived:project-state-identity-continuity',
     subject: 'assistant',
-    predicate: 'project-state-same-her-continuity',
+    predicate: 'project-state-identity-continuity',
     object: sanitizeText(object, 180),
     confidence: 0.82,
     weight: clamp01(
       0.5
-      + (input.projectStateSameHerDriftRisk ? 0.16 : 0)
-      + (input.projectStateProactiveSameHerGap ? 0.12 : 0)
-      + (input.projectStateSameHerSelfLine ? 0.12 : 0)
-      + (input.projectStateContinuityArcStage ? 0.1 : 0)
-      + (input.projectStateEmotionalClosureCue ? 0.08 : 0)
-      + (input.projectStatePrimaryOpenLoop ? 0.06 : 0),
+      + (sanitizeLongHorizonEvidenceText(input.projectStateSameHerDriftRisk, 220) ? 0.16 : 0)
+      + (sanitizeLongHorizonEvidenceText(input.projectStateProactiveSameHerGap, 220) ? 0.12 : 0)
+      + (sanitizeLongHorizonEvidenceText(input.projectStateSameHerSelfLine, 220) ? 0.12 : 0)
+      + (sanitizeLongHorizonEvidenceText(input.projectStateContinuityArcStage, 96) ? 0.1 : 0)
+      + (sanitizeLongHorizonEvidenceText(input.projectStateEmotionalClosureCue, 220) ? 0.08 : 0)
+      + (sanitizeLongHorizonEvidenceText(input.projectStatePrimaryOpenLoop, 220) ? 0.06 : 0),
     ),
     influenceTags: [...new Set(influenceTags)],
     summary,
@@ -1609,7 +1637,7 @@ export function buildAlicizationLongHorizonMemory(input: BuildAlicizationLongHor
   const rememberedPreferenceSummary = pickCueSummary(anchorFacts, cue =>
     preferencePredicatePattern.test(cue.predicate))
   ?? (projectStateCadenceCarry.cadenceSummary
-    ? `Remembered same-her cadence: ${projectStateCadenceCarry.cadenceSummary}`
+    ? `Remembered embodiment continuity cadence: ${projectStateCadenceCarry.cadenceSummary}`
     : null)
   ?? pickCueSummary(anchorFacts, cue =>
     cue.influenceTags.includes('bond'))

@@ -2,7 +2,12 @@ import type { AlicizationVisibleReplyExecution } from '../../../../shared/eventa
 import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-session-runtime'
 import type { AlicizationVisibleReplySemanticJudgeArtifact } from './semantic-judge'
 
-import { looksLikeAlicizationStructuredPayloadText } from '@proj-alicization/stage-shared'
+import {
+  containsAlicizationFixedTemplateResidue,
+  looksLikeAlicizationStructuredPayloadText,
+  sanitizeAlicizationProviderFacingText,
+  sanitizeAlicizationStructuredInternalText,
+} from '@proj-alicization/stage-shared'
 
 import {
   resolvePreferredPreparedRuntimeSurface,
@@ -14,13 +19,8 @@ import {
   replyUsesSameThreadRestartShell,
   resolveAlicizationOpeningGuidanceViolationReason,
 } from '../proactive-opening-guidance'
-import {
-  alicizationProjectStateSameHerContinuityReminder,
-  alicizationProjectStateVisibleReplySameHerReminder,
-} from '../project-state-answer-governance'
 import { resolveAlicizationProjectStateSnapshot } from '../project-state-brief'
 import { parseJsonObjectFromText } from '../runtime-transport-content'
-import { isExplicitSameHerMemoryClosureDialogue } from './memory-closure-dialogue'
 import { scoreVisibleReplyProjectAwarenessLine } from './project-awareness'
 import {
 
@@ -66,6 +66,23 @@ function pushUnique(target: string[], value: string) {
   target.push(normalized)
 }
 
+function pushProviderSafeMustPreserve(target: string[], value: unknown, maxChars = 360) {
+  if (containsAlicizationFixedTemplateResidue(value)) {
+    const structured = sanitizeAlicizationStructuredInternalText(value, maxChars, '')
+    if (structured && !containsAlicizationFixedTemplateResidue(structured))
+      pushUnique(target, structured)
+    return
+  }
+  const sanitized = sanitizeAlicizationProviderFacingText(value, maxChars, '')
+  if (!sanitized)
+    return
+  pushUnique(target, sanitized)
+}
+
+function pushStructuredProjectStatePreserve(target: string[], field: string, visibility = 'explicit') {
+  pushUnique(target, `preserve_field=project_state.${field}; rewritten_answer_visibility=${visibility}; project_slogans=blocked`)
+}
+
 function shouldExposeSemanticJudgeReasonToCritic(reasonCode: string) {
   return reasonCode !== 'semantic-judge:llm-structured-required'
 }
@@ -103,45 +120,17 @@ function containsShellOpener(text: string) {
   const startsWithShellVerb = /^(?:我[会来先]?(?:直接|先直接)?(?:回答|接住|处理)|收到|我听到|我明白|让我(?:先|来)|I(?:'ll| will)?\s+(?:answer|respond|handle)|let me)/iu.test(normalized)
   if (!startsWithShellVerb)
     return false
+  if (containsAlicizationFixedTemplateResidue(normalized))
+    return true
 
   const payoffSignals = [
     /因为|why|浮现|surfaced|surface/u,
     /情绪|余波|afterglow/u,
     /主动|initiative|低压|lower-pressure/u,
     /身体|body|声音|声线|voice|表情|脸部|face|动作|motion|口型|lipsync|lip sync|停顿|pause/u,
-    /同一个她|同一个数字生命|same-her|same her|phase 1|local digital life/u,
   ].filter(pattern => pattern.test(normalized)).length
 
   return payoffSignals < 2
-}
-
-function containsSameHerMemoryClosurePayoff(text: string) {
-  const normalized = normalizeText(text).toLowerCase()
-  if (!normalized)
-    return false
-
-  const hasSameHerMemoryClosure = (
-    /同一个她|同一个数字生命|same-her|same her/u.test(normalized)
-    && /记忆|memory|recall|回忆/u.test(normalized)
-    && /闭环|closure|phase 1|local digital life/u.test(normalized)
-  )
-  const explainsSurfacing = /因为|为什么|why recall|浮现|surfaced|surface/u.test(normalized)
-  const carriesAfterglow = /情绪余波|afterglow|余波/u.test(normalized)
-  const carriesInitiative = /轻主动|主动|initiative|低压|lower-pressure/u.test(normalized)
-  const embodimentLaneCount = [
-    /身体|body/u,
-    /声音|声线|voice/u,
-    /表情|脸部|face/u,
-    /动作|motion/u,
-    /口型|lipsync|lip sync/u,
-    /停顿|pause/u,
-  ].filter(pattern => pattern.test(normalized)).length
-
-  return hasSameHerMemoryClosure
-    && explainsSurfacing
-    && carriesAfterglow
-    && carriesInitiative
-    && embodimentLaneCount >= 3
 }
 
 function containsHeldAutonomyOpeningShell(text: string) {
@@ -149,7 +138,7 @@ function containsHeldAutonomyOpeningShell(text: string) {
 }
 
 function containsDecorativePersonaShell(text: string) {
-  return /主人|亲爱的|宝贝|呜|唔|嗯……|……$|\([^)]*(?:动作|靠近|眨眼|微笑|低头)[^)]*\)/u.test(text)
+  return /主人|女仆|亲爱的|宝贝|呜|唔|嗯……|……$|随便聊聊.*安静陪着|安静陪着你|在这里陪着你的那一个|沿着同一条线慢慢长成|慢慢长成更完整的自己|\bmaid(?:[-\s]?role)?\b|\bpet names?\b|\bobey\b|\bobedience display\b|\([^)]*(?:动作|靠近|眨眼|微笑|低头)[^)]*\)/iu.test(text)
 }
 
 function containsUnsupportedTechnicalSpecificity(text: string) {
@@ -477,22 +466,20 @@ function collectMindContractMustPreserve(input: {
 }) {
   const contract = input.prepared.mindTurnContract ?? null
   const selfAuthority = resolvePreparedRuntimeSelfContinuityAuthority(input.prepared) ?? null
-  const outwardContinuityCarry = contract
+  const contractContinuityControls = contract
     ? [
-        ...((contract.reasons ?? []).filter(value =>
-          typeof value === 'string'
-          && /durable outward continuity|same-her cadence|same living line|generic helper voice|restarting the relationship from zero/u.test(value),
-        ) as string[]),
-        ...((contract.mustDo ?? []).filter(value =>
-          typeof value === 'string'
-          && /durable same-her cadence|same living line|quiet, memory, and speech/u.test(value),
-        ) as string[]),
-        ...((contract.mustNotDo ?? []).filter(value =>
-          typeof value === 'string'
-          && /reopen from scratch|fresh-opening shell|generic helper voice|same-her cadence/u.test(value),
-        ) as string[]),
-      ]
+        ...(contract.reasons ?? []),
+        ...(contract.mustDo ?? []),
+        ...(contract.mustNotDo ?? []),
+      ].filter((value): value is string => typeof value === 'string')
     : []
+  const hasFixedTemplateContinuityControl = contractContinuityControls.some(value =>
+    containsAlicizationFixedTemplateResidue(value)
+    || /same-her cadence|same living line|quiet, memory, and speech/u.test(value),
+  )
+  const hasRestartResetControl = contractContinuityControls.some(value =>
+    /generic helper voice|restarting the relationship from zero|reopen from scratch|fresh-opening shell/u.test(value),
+  )
   if (!contract) {
     return [
       selfAuthority?.authoritySummary ?? null,
@@ -511,13 +498,17 @@ function collectMindContractMustPreserve(input: {
     selfAuthority?.closenessPosture
       ? `Shared self closeness posture: ${selfAuthority.closenessPosture}.`
       : null,
-    contract.projectState?.identity ?? null,
-    contract.projectState?.currentPhase ?? null,
-    contract.projectState?.latestLandedProgress ?? null,
-    contract.projectState?.primaryOpenLoop ?? null,
-    contract.projectState?.nextClosureTarget ?? null,
-    contract.projectState?.sameHerSelfLine ?? null,
-    ...outwardContinuityCarry,
+    contract.projectState?.identity ? 'preserve_field=project_state.identity; rewritten_answer_visibility=explicit; project_slogans=blocked' : null,
+    contract.projectState?.currentPhase ? 'preserve_field=project_state.current_phase; rewritten_answer_visibility=explicit; project_slogans=blocked' : null,
+    contract.projectState?.latestLandedProgress ? 'preserve_field=project_state.latest_landed_progress; rewritten_answer_visibility=explicit; project_slogans=blocked' : null,
+    contract.projectState?.primaryOpenLoop ? 'preserve_field=project_state.primary_open_loop; rewritten_answer_visibility=explicit; project_slogans=blocked' : null,
+    contract.projectState?.nextClosureTarget ? 'preserve_field=project_state.next_closure_target; rewritten_answer_visibility=explicit; project_slogans=blocked' : null,
+    hasFixedTemplateContinuityControl
+      ? 'continuity_governance=template_residue_blocked; owner=mind_turn_contract; evidence_id=contract_controls; visible_wording=false'
+      : null,
+    hasRestartResetControl
+      ? 'continuity_governance=restart_reset_helper_shell_blocked; owner=mind_turn_contract; evidence_id=contract_controls; visible_wording=false'
+      : null,
   ].filter(Boolean) as string[]
 }
 
@@ -562,6 +553,8 @@ function containsUnsupportedSurfaceSpecificity(input: {
 
 function shouldRepairFromHeuristicSemanticJudgeReason(reasonCode: string) {
   return reasonCode.startsWith('semantic-judge:project-state-')
+    || reasonCode === 'semantic-judge:fixed-template-residue'
+    || reasonCode === 'semantic-judge:template-shell-risk'
     || reasonCode === 'semantic-judge:memory-inward-carry-broken'
     || reasonCode === 'semantic-judge:corrected-same-person-progress-pressure-return'
     || reasonCode === 'semantic-judge:resume-confirmation-boundary-widened'
@@ -675,25 +668,18 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
     pushUnique(repairReasonCodes, 'missing-visible-reply')
   }
 
-  const explicitSameHerMemoryClosureDialogue = gate?.status === 'inward-only'
-    && isExplicitSameHerMemoryClosureDialogue({
-      visibleText,
-      prepared: input.prepared,
-    })
-
   if (
     gate
     && (gate.status === 'closed' || gate.status === 'inward-only')
     && containsMemorySurface(visibleText)
-    && !explicitSameHerMemoryClosureDialogue
   ) {
     pushUnique(reasonCodes, `visible-memory-gate-violation:${gate.status}`)
     pushUnique(repairReasonCodes, `visible-memory-gate-violation:${gate.status}`)
-    pushUnique(mustDrop, 'visible memory narration while memory gate is closed or inward-only')
+    pushUnique(mustDrop, 'memory_surface=visible_narration; gate=closed_or_inward_only; action=drop')
     if (gate.status === 'inward-only') {
       pushUnique(
         mustPreserve,
-        'Keep this memory seed inward for this turn; acknowledge the current instruction without saying "I remember", "recall surfaced", or narrating remembered material until the host later invites it to surface.',
+        'memory_surface_policy=inward_only; current_instruction_acknowledgement=allowed; visible_recollection_marker=blocked; recalled_material_narration=blocked_until_host_invites',
       )
     }
   }
@@ -701,23 +687,23 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
   if (gate?.status === 'gist-only' && visibleText.length > 260 && containsMemorySurface(visibleText)) {
     pushUnique(reasonCodes, 'gist-only-memory-overexpanded')
     pushUnique(repairReasonCodes, 'gist-only-memory-overexpanded')
-    pushUnique(mustDrop, 'archive-style or overexpanded visible memory')
+    pushUnique(mustDrop, 'memory_surface=archive_or_overexpanded; action=drop')
   }
 
-  if (containsShellOpener(visibleText) && !containsSameHerMemoryClosurePayoff(visibleText)) {
+  if (containsShellOpener(visibleText)) {
     pushUnique(reasonCodes, 'dialogue-shell-opener')
     pushUnique(repairReasonCodes, 'dialogue-shell-opener')
-    pushUnique(mustDrop, 'empty shell opener before payoff')
+    pushUnique(mustDrop, 'dialogue_shell_opener=empty_before_payoff; action=drop')
   }
   if (containsHeldAutonomyOpeningShell(visibleText)) {
     pushUnique(reasonCodes, 'held-autonomy-opening-shell')
     pushUnique(repairReasonCodes, 'held-autonomy-opening-shell')
-    pushUnique(mustDrop, 'held-autonomy restraint shell that restarts instead of gently re-entering the line')
+    pushUnique(mustDrop, 'held_autonomy_shell=restart; line_reentry=missing; action=drop')
   }
   if (hasSameThreadContinuationArc(input.prepared) && replyUsesSameThreadRestartShell(visibleText)) {
     pushUnique(reasonCodes, 'same-thread-restart-shell')
     pushUnique(repairReasonCodes, 'same-thread-restart-shell')
-    pushUnique(mustDrop, 'same-thread continuation restart shell that breaks one living line into a fresh opening')
+    pushUnique(mustDrop, 'same_thread_continuation=restart_shell; current_reply_context=fresh_opening; action=drop')
   }
 
   if (containsDecorativePersonaShell(visibleText)) {
@@ -744,7 +730,7 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
     pushUnique(reasonCodes, `execution-follow-up-status-not-surfaced:${requiredExecutionStatus.status}`)
     pushUnique(repairReasonCodes, `execution-follow-up-status-not-surfaced:${requiredExecutionStatus.status}`)
     pushUnique(mustDrop, 'visible reply that hides the required execution follow-up status')
-    pushUnique(mustPreserve, requiredExecutionStatus.instruction)
+    pushProviderSafeMustPreserve(mustPreserve, requiredExecutionStatus.instruction)
   }
 
   const openingGuidanceRepairReason = resolveOpeningGuidanceRepairReason({
@@ -802,7 +788,7 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
     pushUnique(mustDrop, unsupportedSurface)
   }
   for (const item of collectMindContractMustPreserve({ prepared: input.prepared }))
-    pushUnique(mustPreserve, item)
+    pushProviderSafeMustPreserve(mustPreserve, item)
 
   const semanticJudge = buildAlicizationVisibleReplySemanticJudgeArtifact({
     visibleText,
@@ -832,10 +818,11 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
     projectStatePreDialogueAwarenessSummary
     && semanticJudge.reasonCodes.some(reasonCode => reasonCode.startsWith('semantic-judge:project-state-'))
   ) {
-    pushUnique(mustPreserve, projectStatePreDialogueAwarenessSummary)
+    pushStructuredProjectStatePreserve(mustPreserve, 'pre_dialogue_awareness', 'internal-structured')
+    pushProviderSafeMustPreserve(mustPreserve, projectStatePreDialogueAwarenessSummary, 520)
   }
   if (shouldPreserveAudibleBodyContinuity(projectStatePreDialogueAwarenessSummary))
-    pushUnique(mustPreserve, projectStatePreDialogueAwarenessSummary ?? '')
+    pushUnique(mustPreserve, 'preserve_field=embodiment.audible_body_continuity; rewritten_answer_visibility=grounded_if_relevant; project_slogans=blocked')
 
   const runtimeSameHerDriftRisk = runtimeProjectState && typeof (runtimeProjectState as { sameHerDriftRisk?: unknown }).sameHerDriftRisk === 'string'
     ? (runtimeProjectState as { sameHerDriftRisk?: string }).sameHerDriftRisk ?? null
@@ -844,83 +831,89 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
     runtimeSameHerDriftRisk
     && semanticJudge.reasonCodes.some(reasonCode => reasonCode.startsWith('semantic-judge:project-state-'))
   ) {
-    pushUnique(mustPreserve, runtimeSameHerDriftRisk)
+    pushStructuredProjectStatePreserve(mustPreserve, 'same_person_drift_risk', 'internal-structured')
+    pushProviderSafeMustPreserve(mustPreserve, runtimeSameHerDriftRisk, 520)
   }
   if (shouldPreserveCrossModalSameHerDrift(runtimeSameHerDriftRisk))
-    pushUnique(mustPreserve, runtimeSameHerDriftRisk ?? '')
+    pushUnique(mustPreserve, 'preserve_field=project_state.cross_modal_drift_risk; rewritten_answer_visibility=internal; project_slogans=blocked')
 
   const runtimePrimaryOpenLoop = runtimeProjectState && typeof (runtimeProjectState as { primaryOpenLoop?: unknown }).primaryOpenLoop === 'string'
     ? (runtimeProjectState as { primaryOpenLoop?: string }).primaryOpenLoop ?? null
     : null
   if (shouldPreserveCrossModalSameHerDrift(runtimePrimaryOpenLoop))
-    pushUnique(mustPreserve, runtimePrimaryOpenLoop ?? '')
+    pushUnique(mustPreserve, 'preserve_field=project_state.primary_open_loop; rewritten_answer_visibility=explicit; project_slogans=blocked')
 
   const runtimeNextClosureTarget = runtimeProjectState && typeof (runtimeProjectState as { nextClosureTarget?: unknown }).nextClosureTarget === 'string'
     ? (runtimeProjectState as { nextClosureTarget?: string }).nextClosureTarget ?? null
     : null
   if (shouldPreserveCrossModalSameHerDrift(runtimeNextClosureTarget))
-    pushUnique(mustPreserve, runtimeNextClosureTarget ?? '')
+    pushUnique(mustPreserve, 'preserve_field=project_state.next_closure_target; rewritten_answer_visibility=explicit; project_slogans=blocked')
 
   if (semanticJudge.reasonCodes.includes('semantic-judge:project-state-same-her-missing')) {
-    pushUnique(mustPreserve, alicizationProjectStateSameHerContinuityReminder)
-    pushUnique(mustPreserve, alicizationProjectStateVisibleReplySameHerReminder)
+    pushStructuredProjectStatePreserve(mustPreserve, 'same_person_continuity')
     const sameHerSelfLine = input.prepared.mindTurnContract?.projectState?.sameHerSelfLine
     if (typeof sameHerSelfLine === 'string' && sameHerSelfLine.trim())
-      pushUnique(mustPreserve, sameHerSelfLine)
+      pushProviderSafeMustPreserve(mustPreserve, sameHerSelfLine, 240)
     const selfContinuityAuthority = resolvePreparedRuntimeSelfContinuityAuthority(input.prepared)
     const sourceTags = selfContinuityAuthority?.sourceTags ?? []
     if (sourceTags.includes('project-state-carry')) {
       const inwardCarry = selfContinuityAuthority?.inwardLine
       if (typeof inwardCarry === 'string' && inwardCarry.trim())
-        pushUnique(mustPreserve, inwardCarry)
+        pushProviderSafeMustPreserve(mustPreserve, inwardCarry, 520)
     }
     const sameHerDriftRisk = (input.prepared.mindTurnContract?.projectState as { sameHerDriftRisk?: unknown } | null)?.sameHerDriftRisk
-    if (typeof sameHerDriftRisk === 'string' && sameHerDriftRisk.trim())
-      pushUnique(mustPreserve, sameHerDriftRisk)
+    if (typeof sameHerDriftRisk === 'string' && sameHerDriftRisk.trim()) {
+      pushStructuredProjectStatePreserve(mustPreserve, 'same_person_drift_risk', 'internal-structured')
+      pushProviderSafeMustPreserve(mustPreserve, sameHerDriftRisk, 520)
+    }
   }
   if (semanticJudge.reasonCodes.includes('semantic-judge:project-state-progress-missing')) {
-    pushUnique(mustPreserve, 'Keep the latest landed project-state progress explicit in the rewritten answer.')
+    pushUnique(mustPreserve, 'preserve_field=project_state.latest_landed_progress; rewritten_answer_visibility=explicit')
     const latestLandedProgress = input.prepared.mindTurnContract?.projectState?.latestLandedProgress
     if (typeof latestLandedProgress === 'string' && latestLandedProgress.trim())
-      pushUnique(mustPreserve, latestLandedProgress)
+      pushProviderSafeMustPreserve(mustPreserve, latestLandedProgress, 520)
   }
   if (semanticJudge.reasonCodes.includes('semantic-judge:project-state-phase-missing')) {
-    pushUnique(mustPreserve, 'Keep the current project phase explicit in the rewritten answer.')
+    pushUnique(mustPreserve, 'preserve_field=project_state.current_phase; rewritten_answer_visibility=explicit')
     const currentPhase = input.prepared.mindTurnContract?.projectState?.currentPhase
     if (typeof currentPhase === 'string' && currentPhase.trim())
-      pushUnique(mustPreserve, currentPhase)
+      pushProviderSafeMustPreserve(mustPreserve, currentPhase, 240)
   }
   if (semanticJudge.reasonCodes.includes('semantic-judge:project-state-open-loop-missing')) {
-    pushUnique(mustPreserve, 'Keep the still-open closure work explicit in the rewritten answer.')
+    pushUnique(mustPreserve, 'preserve_field=project_state.primary_open_loop; rewritten_answer_visibility=explicit')
     const primaryOpenLoop = input.prepared.mindTurnContract?.projectState?.primaryOpenLoop
     if (typeof primaryOpenLoop === 'string' && primaryOpenLoop.trim())
-      pushUnique(mustPreserve, primaryOpenLoop)
+      pushProviderSafeMustPreserve(mustPreserve, primaryOpenLoop, 520)
   }
   if (semanticJudge.reasonCodes.includes('semantic-judge:project-state-next-closure-missing')) {
-    pushUnique(mustPreserve, 'Keep the next closure target explicit in the rewritten answer.')
+    pushUnique(mustPreserve, 'preserve_field=project_state.next_closure_target; rewritten_answer_visibility=explicit')
     const nextClosureTarget = input.prepared.mindTurnContract?.projectState?.nextClosureTarget
     if (typeof nextClosureTarget === 'string' && nextClosureTarget.trim())
-      pushUnique(mustPreserve, nextClosureTarget)
+      pushProviderSafeMustPreserve(mustPreserve, nextClosureTarget, 520)
   }
   if (semanticJudge.reasonCodes.includes('semantic-judge:project-state-answer-gap')) {
-    pushUnique(mustPreserve, 'Rebuild the answer from Alicization’s current project context, explicitly carrying project identity, landed progress, and still-open closure work before widening into implementation detail.')
+    pushUnique(mustPreserve, 'project_state_answer_gap=true; preserve_fields=identity,latest_landed_progress,primary_open_loop; project_slogans=blocked')
+    pushUnique(mustPreserve, 'preserve_field=project_state.current_phase; rewritten_answer_visibility=explicit')
+    pushUnique(mustPreserve, 'preserve_field=project_state.latest_landed_progress; rewritten_answer_visibility=explicit')
+    pushUnique(mustPreserve, 'preserve_field=project_state.primary_open_loop; rewritten_answer_visibility=explicit')
+    pushUnique(mustPreserve, 'preserve_field=project_state.next_closure_target; rewritten_answer_visibility=explicit')
     const projectIdentity = input.prepared.mindTurnContract?.projectState?.identity
     if (typeof projectIdentity === 'string' && projectIdentity.trim())
-      pushUnique(mustPreserve, projectIdentity)
+      pushProviderSafeMustPreserve(mustPreserve, projectIdentity, 320)
     if (reasonCodes.includes('same-thread-restart-shell')) {
-      pushUnique(mustPreserve, 'Keep this project follow-through in the current reply context: continue the landed progress and still-open closure instead of restarting as a fresh project report or generic companionship shell.')
+      pushUnique(mustPreserve, 'project_follow_through=preserve; landed_progress=continue; open_closure=continue; fresh_report=blocked')
     }
   }
   if (semanticJudge.reasonCodes.includes('semantic-judge:project-state-narrator-shell')) {
-    pushUnique(mustPreserve, 'Do not let project-state continuity collapse into an outside narrator shell; answer it from Alicization’s first-person project context with what has landed and what still remains open.')
+    pushUnique(mustPreserve, 'project_state_narrator_shell=blocked; landed_facts=required; open_closure_facts=required')
   }
   if (semanticJudge.reasonCodes.includes('semantic-judge:memory-inward-carry-broken')) {
-    pushUnique(mustDrop, 'visible recollection that outruns the live payoff while runtime continuity still requires it to stay inward')
-    pushUnique(mustPreserve, 'Keep recollection inward until the host has room for it, and let the live payoff land first.')
+    pushUnique(mustDrop, 'visible_recollection=outruns_live_payoff; inward_continuity_required=true; action=drop')
+    pushUnique(mustPreserve, 'recollection_surface=inward_until_room; live_payoff=first')
   }
   if (semanticJudge.reasonCodes.includes('semantic-judge:corrected-same-person-progress-pressure-return')) {
-    pushUnique(mustDrop, 'progress-recap fallback that overwrites a host-corrected same-person continuity line')
-    pushUnique(mustPreserve, 'Keep the host-corrected same-person continuity authoritative before any progress-style continuation or status recap.')
+    pushUnique(mustDrop, 'progress_recap_fallback=overwrites_host_corrected_same_person_continuity; action=drop')
+    pushUnique(mustPreserve, 'host_corrected_same_person_continuity=authoritative; progress_style_continuation=secondary; status_recap=secondary')
 
     const memoryDeliberation = (input.prepared.runtimeSurface?.digitalLifeRuntimeSurface?.memory?.memoryDeliberation ?? null) as {
       stableCore?: string[] | null
@@ -934,14 +927,14 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
       : []
 
     for (const item of stableCore)
-      pushUnique(mustPreserve, item)
+      pushProviderSafeMustPreserve(mustPreserve, item)
     for (const item of selectedRelationshipLines)
-      pushUnique(mustPreserve, item)
+      pushProviderSafeMustPreserve(mustPreserve, item)
   }
   if (semanticJudge.reasonCodes.includes('semantic-judge:resume-confirmation-boundary-widened')) {
-    pushUnique(mustDrop, 'callback wording that widens one host-confirmed resume into standing execution permission or reusable autonomous continuation')
-    pushUnique(mustPreserve, 'Treat the remembered host-confirmed resume as a bounded confirmation boundary before another execution-shaped opening.')
-    pushUnique(mustPreserve, 'Do not let this callback answer imply permanent execution permission or reusable autonomous continuation from one confirmed resume.')
+    pushUnique(mustDrop, 'callback_resume_confirmation=overgeneralized_into_standing_permission; reusable_autonomy=implied; action=drop')
+    pushUnique(mustPreserve, 'remembered_host_confirmed_resume=bounded_confirmation_boundary; next_execution_opening=requires_fresh_boundary')
+    pushUnique(mustPreserve, 'permanent_execution_permission=blocked; reusable_autonomous_continuation=blocked; source=single_confirmed_resume')
 
     const memoryDeliberation = (input.prepared.runtimeSurface?.digitalLifeRuntimeSurface?.memory?.memoryDeliberation ?? null) as {
       stableCore?: string[] | null
@@ -959,17 +952,14 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
       : []
 
     for (const item of stableCore)
-      pushUnique(mustPreserve, item)
+      pushProviderSafeMustPreserve(mustPreserve, item)
     for (const item of selectedRelationshipLines)
-      pushUnique(mustPreserve, item)
-    for (const item of unsafeDetails)
-      pushUnique(mustPreserve, item)
+      pushProviderSafeMustPreserve(mustPreserve, item)
+    if (unsafeDetails.length > 0)
+      pushUnique(mustPreserve, 'unsafe_detail=present; visible_wording=false; provider_source_text=withheld')
   }
-  if (
-    semanticJudge.reasonCodes.includes('semantic-judge:project-state-same-her-missing')
-    && reasonCodes.includes('same-thread-restart-shell')
-  ) {
-    pushUnique(mustPreserve, 'Do not reopen the project-state answer from scratch; keep it on the same callback line instead of turning it into a fresh report shell.')
+  if (reasonCodes.includes('same-thread-restart-shell')) {
+    pushUnique(mustPreserve, 'project_state_answer_reopen=blocked; callback_line=preserve; fresh_report_shell=blocked')
   }
 
   const scores = {

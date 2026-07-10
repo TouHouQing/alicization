@@ -20,7 +20,7 @@ describe('alicization face summary', () => {
       confidence: 0.94,
       segmentId: 'segment-1',
     })).toBe(
-      'emotion=thinking | cue=focused | expression=hold | intensity=0.46 | hold=420ms | pre=steady-inhale | post=eyes-soften | mode=measured-return | blink=linger | gaze=soften | reason=Deliver the result on the same living thread, but leave room before widening closeness | src=prosody-authority | conf=0.94 | seg=segment-1',
+      'emotion=thinking | cue=focused | expression=hold | intensity=0.46 | hold=420ms | pre=steady-inhale | post=eyes-soften | mode=measured-return | blink=linger | gaze=soften | reason=Deliver the result on the continuity_thread, but leave room before widening closeness | src=prosody-authority | conf=0.94 | seg=segment-1',
     )
   })
 
@@ -49,7 +49,7 @@ describe('alicization face summary', () => {
       preferredGazeMode: 'soften',
       reasonSummary: 'Keep the same living line inward for now, and leave room before widening outward again',
     })).toBe(
-      'emotion=thinking | cue=soft-gaze | mode=measured-return | blink=linger | gaze=soften | reason=Keep the same living line inward for now, and leave room before widening outward again',
+      'emotion=thinking | cue=soft-gaze | mode=measured-return | blink=linger | gaze=soften | reason=continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower',
     )
   })
 
@@ -68,7 +68,7 @@ describe('alicization face summary', () => {
       confidence: 0.9,
       segmentId: 'segment-audible-body-face-1',
     })).toBe(
-      'emotion=thinking | cue=soft-gaze | expression=hold | hold=360ms | mode=measured-return | timing=audible-body-carry | blink=linger | gaze=soften | reason=Keep the same living line audible while face and motion rejoin | src=timeline-projection | conf=0.90 | seg=segment-audible-body-face-1',
+      'emotion=thinking | cue=soft-gaze | expression=hold | hold=360ms | mode=measured-return | timing=audible-body-carry | blink=linger | gaze=soften | reason=continuity_hold=audible_body_carry; rejoin=face+motion | src=timeline-projection | conf=0.90 | seg=segment-audible-body-face-1',
     )
   })
 })

@@ -834,10 +834,10 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
           continuityMode: 'quiet-accompaniment',
           quietLineMs: input.sustainedFocusMs,
           currentInwardPreoccupation: personaKernelSummary
-            ? `host sustained focus with persona kernel ${personaKernelSummary}`
+            ? `body_preoccupation=sustained_focus; source=persona_kernel; detail=${personaKernelSummary}`
             : personaAuthoritySummary
-              ? `host sustained focus with ${personaAuthoritySummary}`
-              : 'host sustained focus',
+              ? `body_preoccupation=sustained_focus; source=persona_authority; detail=${personaAuthoritySummary}`
+              : 'body_preoccupation=sustained_focus; visibility=internal-structured',
           updatedAt: now(),
         }
       }
@@ -848,10 +848,10 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
           continuityMode: 'protective-watch',
           quietLineMs: Math.max(0, input.sustainedFocusMs),
           currentInwardPreoccupation: personaKernelSummary
-            ? `quiet recovery under watch with persona kernel ${personaKernelSummary}`
+            ? `body_preoccupation=quiet_recovery; source=persona_kernel; detail=${personaKernelSummary}`
             : personaAuthoritySummary
-              ? `quiet recovery under watch with ${personaAuthoritySummary}`
-              : 'quiet recovery under watch',
+              ? `body_preoccupation=quiet_recovery; source=persona_authority; detail=${personaAuthoritySummary}`
+              : 'body_preoccupation=quiet_recovery; visibility=internal-structured',
           updatedAt: now(),
         }
       }
@@ -927,10 +927,10 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
             continuityMode: 'protective-watch' as const,
             quietLineMs: Math.max(authority.quietLineMs, 180_000),
             currentInwardPreoccupation: input.candidateState.currentInwardPreoccupation
-              ?? projectStateClosureCarry
-              ?? preferredEmotionalOrProjectCarry
-              ?? authority.currentInwardPreoccupation
-              ?? 'let repair settle before widening warmth',
+              || projectStateClosureCarry
+              || preferredEmotionalOrProjectCarry
+              || authority.currentInwardPreoccupation
+              || 'body_preoccupation=repair_settle; closeness=widening_blocked; visibility=internal-structured',
           }
         : restProtectiveCompanionshipAuthority
           ? {
@@ -938,10 +938,10 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
               continuityMode: 'protective-watch' as const,
               quietLineMs: Math.max(authority.quietLineMs, 240_000),
               currentInwardPreoccupation: input.candidateState.currentInwardPreoccupation
-                ?? projectStateClosureCarry
-                ?? preferredEmotionalOrProjectCarry
-                ?? authority.currentInwardPreoccupation
-                ?? 'stay inward, keep caring, and let rest protection hold the line',
+                || projectStateClosureCarry
+                || preferredEmotionalOrProjectCarry
+                || authority.currentInwardPreoccupation
+                || 'body_preoccupation=rest_protection; direction=inward; visibility=internal-structured',
             }
           : guardedCareConfirmationBoundaryAuthority
             ? {
@@ -949,10 +949,10 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
                 continuityMode: 'protective-watch' as const,
                 quietLineMs: Math.max(authority.quietLineMs, 180_000),
                 currentInwardPreoccupation: input.candidateState.currentInwardPreoccupation
-                  ?? projectStateClosureCarry
-                  ?? preferredEmotionalOrProjectCarry
-                  ?? authority.currentInwardPreoccupation
-                  ?? 'wait for confirmation before widening into action',
+                  || projectStateClosureCarry
+                  || preferredEmotionalOrProjectCarry
+                  || authority.currentInwardPreoccupation
+                  || 'body_preoccupation=confirmation_boundary; action=wait; visibility=internal-structured',
               }
             : durableSelfCoreProjectionEmbodimentAuthority
               ? {
@@ -960,9 +960,9 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
                   continuityMode: 'quiet-accompaniment' as const,
                   quietLineMs: Math.max(authority.quietLineMs, 180_000),
                   currentInwardPreoccupation: input.candidateState.currentInwardPreoccupation
-                    ?? durableSelfCoreProjectionCarry
-                    ?? authority.currentInwardPreoccupation
-                    ?? 'stay on the same line lower-pressure without reopening from scratch',
+                    || durableSelfCoreProjectionCarry
+                    || authority.currentInwardPreoccupation
+                    || 'posture=lower_pressure; restart_policy=context_preserving; visibility=internal-structured',
                 }
               : measuredReturnContinuityAuthority
                 ? {
@@ -973,9 +973,9 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
                       broaderSameHerPhaseOneEmbodimentAuthority ? 240_000 : 180_000,
                     ),
                     currentInwardPreoccupation: input.candidateState.currentInwardPreoccupation
-                      ?? preferredEmotionalOrProjectCarry
-                      ?? authority.currentInwardPreoccupation
-                      ?? 'stay on the same lower-pressure line nearby',
+                      || preferredEmotionalOrProjectCarry
+                      || authority.currentInwardPreoccupation
+                      || 'posture=nearby_lower_pressure; visibility=internal-structured',
                   }
                 : null
 

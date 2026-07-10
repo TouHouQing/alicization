@@ -1,3 +1,4 @@
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -361,9 +362,10 @@ describe('digital life architecture', () => {
     expect(architecture?.systems.dialogue.summary).toContain('subject=task-knot')
     expect(architecture?.systems.control.summary).toContain('action=speak')
     expect(architecture?.systems.memory.summary).toContain('goal=unify the runtime spine')
-    expect(architecture?.closureAudit?.currentPhase).toContain('Phase 1')
-    expect(architecture?.closureAudit?.primaryOpenLoop).toContain('Memory still needs stronger end-to-end closure')
+    expect(architecture?.closureAudit?.currentPhase).toContain('local_desktop_life_loop')
+    expect(architecture?.closureAudit?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(architecture?.closureAudit?.selfAuthoritySummary).toContain('living thread')
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(architecture?.closureAudit ?? ''))).toBe(false)
     expect(architecture?.closureAudit?.activeClosurePressures).toEqual(expect.arrayContaining([
       'ecology:surface-care',
       'private-thought:observe',
@@ -425,7 +427,8 @@ describe('digital life architecture', () => {
       dominantSystem: expect.any(String),
       operatingMode: expect.any(String),
     }))
-    expect(architecture?.closureAudit?.currentPhase).toContain('Phase 1')
-    expect(String(architecture?.closureAudit?.selfAuthoritySummary ?? '')).toContain('Same Phase 1 digital life')
+    expect(architecture?.closureAudit?.currentPhase).toContain('local_desktop_life_loop')
+    expect(String(architecture?.closureAudit?.selfAuthoritySummary ?? '')).toContain('unresolved_closure=continuity_line')
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(architecture?.closureAudit ?? ''))).toBe(false)
   })
 })

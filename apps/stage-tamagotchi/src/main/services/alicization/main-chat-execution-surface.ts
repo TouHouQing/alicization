@@ -37,8 +37,10 @@ import { createHash } from 'node:crypto'
 import * as nodePath from 'node:path'
 
 import {
+  alicizationFixedTemplateReplacement,
   detectAlicizationExecutionRoutingIntent,
   isAlicizationThinProjectAwarenessLine,
+  sanitizeAlicizationProviderFacingText,
   scoreAlicizationProjectAwarenessLine,
 } from '@proj-alicization/stage-shared'
 import { tool } from '@xsai/tool'
@@ -836,6 +838,12 @@ export function buildExecutionCapabilitySystemBlocks(
   executionCapabilityChannels: readonly AlicizationExecutionCapabilityChannel[],
   options?: BuildExecutionCapabilitySystemBlocksOptions,
 ) {
+  const cleanProjectBriefingValue = (value: unknown, maxChars = 420) =>
+    sanitizeAlicizationProviderFacingText(value, maxChars)
+  const cleanProjectBriefingFact = (value: unknown, maxChars = 420) => {
+    const normalized = cleanProjectBriefingValue(value, maxChars)
+    return normalized === alicizationFixedTemplateReplacement ? '' : normalized
+  }
   const capabilityMap = new Map(capabilities.map(item => [item.channel, item]))
   const inquiryChannels = Array.isArray(options?.inquiry?.mentionedChannels)
     ? options.inquiry.mentionedChannels
@@ -875,78 +883,57 @@ export function buildExecutionCapabilitySystemBlocks(
 
   const projectBriefingBlock = options?.runtimeContext?.projectBriefing
     ? [
-        '[ALICIZATION_PROJECT_BRIEFING]',
-        'Before answering execution capability or routing questions, keep this project-state briefing explicit.',
-        options.runtimeContext.projectBriefing.identity
-          ? `project_identity=${options.runtimeContext.projectBriefing.identity}`
-          : '',
-        options.runtimeContext.projectBriefing.currentPhase
-          ? `project_phase=${options.runtimeContext.projectBriefing.currentPhase}`
-          : '',
+        '[ALICIZATION_EXECUTION_BRIEFING]',
+        'briefing_scope=execution_capability | visibility=internal-structured | owner=execution-runtime-context',
+        'runtime_context=alicization_phase1',
         options.runtimeContext.projectBriefing.latestLandedProgress
-          ? `latest_landed_progress=${options.runtimeContext.projectBriefing.latestLandedProgress}`
+          ? `latest_landed_progress=${cleanProjectBriefingFact(options.runtimeContext.projectBriefing.latestLandedProgress)}`
           : '',
         options.runtimeContext.projectBriefing.primaryOpenLoop
-          ? `primary_open_loop=${options.runtimeContext.projectBriefing.primaryOpenLoop}`
+          ? `primary_open_loop=${cleanProjectBriefingFact(options.runtimeContext.projectBriefing.primaryOpenLoop)}`
           : '',
         options.runtimeContext.projectBriefing.nextClosureTarget
-          ? `next_closure_target=${options.runtimeContext.projectBriefing.nextClosureTarget}`
-          : '',
-        options.runtimeContext.projectBriefing.sameHerSelfLine
-          ? `same_her_line=${options.runtimeContext.projectBriefing.sameHerSelfLine}`
-          : '',
-        options.runtimeContext.projectBriefing.sameHerHoldDetail
-          ? `same_her_hold=${options.runtimeContext.projectBriefing.sameHerHoldDetail}`
-          : '',
-        options.runtimeContext.projectBriefing.sameHerDriftRisk
-          ? `same_her_drift_risk=${options.runtimeContext.projectBriefing.sameHerDriftRisk}`
+          ? `next_closure_target=${cleanProjectBriefingFact(options.runtimeContext.projectBriefing.nextClosureTarget)}`
           : '',
         options.runtimeContext.projectBriefing.continuityArcStage
-          ? `project_continuity_arc_stage=${options.runtimeContext.projectBriefing.continuityArcStage}`
+          ? `execution_continuity_arc_stage=${options.runtimeContext.projectBriefing.continuityArcStage}`
           : '',
         options.runtimeContext.projectBriefing.continuityCue
-          ? `project_continuity=${options.runtimeContext.projectBriefing.continuityCue}`
+          ? `execution_continuity=${cleanProjectBriefingFact(options.runtimeContext.projectBriefing.continuityCue)}`
           : '',
         options.runtimeContext.projectBriefing.companionBriefingLine
-          ? `project_companion_briefing=${options.runtimeContext.projectBriefing.companionBriefingLine}`
+          ? `execution_companion_briefing=${cleanProjectBriefingFact(options.runtimeContext.projectBriefing.companionBriefingLine)}`
           : '',
         options.runtimeContext.projectBriefing.emotionalClosureSummary
-          ? `project_emotional_closure=${options.runtimeContext.projectBriefing.emotionalClosureSummary}`
+          ? `execution_emotional_context=${cleanProjectBriefingFact(options.runtimeContext.projectBriefing.emotionalClosureSummary)}`
           : '',
         options.runtimeContext.projectBriefing.continuityPreferredTiming
-          ? `project_continuity_preferred_timing=${options.runtimeContext.projectBriefing.continuityPreferredTiming}`
+          ? `execution_continuity_preferred_timing=${options.runtimeContext.projectBriefing.continuityPreferredTiming}`
           : '',
         options.runtimeContext.projectBriefing.continuityCadence
-          ? `project_continuity_cadence=${options.runtimeContext.projectBriefing.continuityCadence}`
+          ? `execution_continuity_cadence=${options.runtimeContext.projectBriefing.continuityCadence}`
           : '',
         options.runtimeContext.projectBriefing.preferredBlinkCadence
-          ? `project_preferred_blink_cadence=${options.runtimeContext.projectBriefing.preferredBlinkCadence}`
+          ? `execution_preferred_blink_cadence=${options.runtimeContext.projectBriefing.preferredBlinkCadence}`
           : '',
         options.runtimeContext.projectBriefing.preferredGazeMode
-          ? `project_preferred_gaze_mode=${options.runtimeContext.projectBriefing.preferredGazeMode}`
+          ? `execution_preferred_gaze_mode=${options.runtimeContext.projectBriefing.preferredGazeMode}`
           : '',
         options.runtimeContext.projectBriefing.preferredPauseMode
-          ? `project_pause_mode=${options.runtimeContext.projectBriefing.preferredPauseMode}`
+          ? `execution_pause_mode=${options.runtimeContext.projectBriefing.preferredPauseMode}`
           : '',
         options.runtimeContext.projectBriefing.preferredLipsyncMode
-          ? `project_lipsync_mode=${options.runtimeContext.projectBriefing.preferredLipsyncMode}`
+          ? `execution_lipsync_mode=${options.runtimeContext.projectBriefing.preferredLipsyncMode}`
           : '',
         options.runtimeContext.projectBriefing.preferredVoiceMode
-          ? `project_voice_mode=${options.runtimeContext.projectBriefing.preferredVoiceMode}`
+          ? `execution_voice_mode=${options.runtimeContext.projectBriefing.preferredVoiceMode}`
           : '',
         options.runtimeContext.projectBriefing.preferredPacingMode
-          ? `project_pacing_mode=${options.runtimeContext.projectBriefing.preferredPacingMode}`
+          ? `execution_pacing_mode=${options.runtimeContext.projectBriefing.preferredPacingMode}`
           : '',
-        projectPreflightLine
-          ? `project_preflight=${projectPreflightLine}`
+        projectPreflightLine || projectAwarenessLine || options.runtimeContext.projectBriefing.preDialogueAwarenessSummary
+          ? 'template_awareness=withheld_from_execution_capability_answer'
           : '',
-        projectAwarenessLine
-          ? `project_awareness=${projectAwarenessLine}`
-          : '',
-        options.runtimeContext.projectBriefing.preDialogueAwarenessSummary
-          ? `project_awareness_summary=${options.runtimeContext.projectBriefing.preDialogueAwarenessSummary}`
-          : '',
-        'Execution guidance must stay inside the same digital life project, the same Phase 1 proving ground, and the same still-open closure work.',
       ].filter(Boolean).join('\n')
     : ''
 

@@ -44,17 +44,17 @@ function resolveSurvivingVisibleLane(
     return 'face+lipsync+voice-only'
   if (joined.includes('当前仅剩动作、口型、声音维持同一段连续性'))
     return 'motion+lipsync+voice-only'
-  if (joined.includes('当前只有 face 和 lipsync 这条 same-her 生命线'))
+  if (joined.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线'))
     return 'face+lipsync-only'
-  if (joined.includes('当前只有 motion 和 lipsync 这条 same-her 生命线'))
+  if (joined.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线'))
     return 'motion+lipsync-only'
-  if (joined.includes('当前仍只有表情、口型、声音这条 same-her 生命线'))
+  if (joined.includes('当前仍只有表情、口型、声音这条 identity-continuity 生命线'))
     return 'face+lipsync+voice-only'
-  if (joined.includes('当前仍只有动作、口型、声音这条 same-her 生命线'))
+  if (joined.includes('当前仍只有动作、口型、声音这条 identity-continuity 生命线'))
     return 'motion+lipsync+voice-only'
-  if (joined.includes('当前仍只有表情、口型这条 same-her 生命线'))
+  if (joined.includes('当前仍只有表情、口型这条 identity-continuity 生命线'))
     return 'face+lipsync-only'
-  if (joined.includes('当前仍只有动作、口型这条 same-her 生命线'))
+  if (joined.includes('当前仍只有动作、口型这条 identity-continuity 生命线'))
     return 'motion+lipsync-only'
 
   return null
@@ -145,13 +145,13 @@ export function buildSelfEvolutionRepairClosure(input: {
             : '身体连续性已经被新的验证快照再次确认，并明确处于跨模态重锁态，身体线与显形权威仍稳定锁在同一段 living segment 上，可进入基线判断。'
           : rendererRejoinWithoutBody
             ? survivingVisibleLane === 'face+lipsync+voice-only'
-              ? '身体连续性已经被新的验证快照再次确认，但当前仍只有表情、口型、声音这条 same-her 生命线与同一段 living segment 对齐，body、motion 还没有重新接回这条表情口型声音线，不应把这次 quieter carry 直接采纳为长期基线。'
+              ? '身体连续性已经被新的验证快照再次确认，但当前仍只有表情、口型、声音这条 identity-continuity 生命线与同一段 living segment 对齐，body、motion 还没有重新接回这条表情口型声音线，不应把这次 quieter carry 直接采纳为长期基线。'
               : survivingVisibleLane === 'motion+lipsync+voice-only'
-                ? '身体连续性已经被新的验证快照再次确认，但当前仍只有动作、口型、声音这条 same-her 生命线与同一段 living segment 对齐，body、face 还没有重新接回这条动作口型声音线，不应把这次 quieter carry 直接采纳为长期基线。'
+                ? '身体连续性已经被新的验证快照再次确认，但当前仍只有动作、口型、声音这条 identity-continuity 生命线与同一段 living segment 对齐，body、face 还没有重新接回这条动作口型声音线，不应把这次 quieter carry 直接采纳为长期基线。'
                 : survivingVisibleLane === 'face+lipsync-only'
-                  ? '身体连续性已经被新的验证快照再次确认，但当前仍只有表情、口型这条 same-her 生命线与同一段 living segment 对齐，body、motion、voice 还没有重新接回这条表情口型线，不应把这次 quieter carry 直接采纳为长期基线。'
+                  ? '身体连续性已经被新的验证快照再次确认，但当前仍只有表情、口型这条 identity-continuity 生命线与同一段 living segment 对齐，body、motion、voice 还没有重新接回这条表情口型线，不应把这次 quieter carry 直接采纳为长期基线。'
                   : survivingVisibleLane === 'motion+lipsync-only'
-                    ? '身体连续性已经被新的验证快照再次确认，但当前仍只有动作、口型这条 same-her 生命线与同一段 living segment 对齐，body、face、voice 还没有重新接回这条动作口型线，不应把这次 quieter carry 直接采纳为长期基线。'
+                    ? '身体连续性已经被新的验证快照再次确认，但当前仍只有动作、口型这条 identity-continuity 生命线与同一段 living segment 对齐，body、face、voice 还没有重新接回这条动作口型线，不应把这次 quieter carry 直接采纳为长期基线。'
                     : rendererRejoinSurface
                       ? `身体连续性已经被新的验证快照再次确认，但当前仍处于显形回接失身态（${rendererRejoinSurface} authority rejoin without same-segment body carry），不应把这条可见回接直接采纳为长期基线。`
                       : '身体连续性已经被新的验证快照再次确认，但当前仍处于显形回接失身态（authority rejoin without same-segment body carry），不应把这条可见回接直接采纳为长期基线。'
@@ -163,7 +163,7 @@ export function buildSelfEvolutionRepairClosure(input: {
     )
   }
   else if (continuityGovernanceRelevant && sessionCovered && hasFreshValidationSnapshot && !samePatternStillPresent) {
-    summaryLines.push('same-her 连续性治理已经被新的验证快照再次确认，可进入基线判断。')
+    summaryLines.push('identity-continuity 连续性治理已经被新的验证快照再次确认，可进入基线判断。')
   }
 
   const relationshipCadenceGovernanceRelevant = input.repairSession.summaryLines.some(line =>

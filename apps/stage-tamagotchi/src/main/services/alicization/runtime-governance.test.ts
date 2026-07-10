@@ -3088,7 +3088,7 @@ describe('runtime-governance', () => {
     expect(String((governed.governance as any)?.decisionTraceId ?? '')).toMatch(/^mind:/u)
   })
 
-  it('records same-her opening drift as explicit must-drop material in governed rewrite requests', () => {
+  it('records continuity opening drift as explicit must-drop material in governed rewrite requests', () => {
     const input: AlicizationConversationTurnInput = {
       turnId: 'turn-same-her-opening-drift-1',
       sessionId: 'session-1',
@@ -3139,7 +3139,8 @@ describe('runtime-governance', () => {
       authority: 'llm-second-pass-rewrite',
       reasonCodes: expect.arrayContaining(['opening-guidance-lower-pressure']),
     }))
-    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toContain('same-her opening drift')
+    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toContain('continuity opening drift')
+    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).not.toContain('same-her opening drift')
   })
 
   it('records even-and-natural same-her reopening drift with explicit cadence hold detail in governed rewrite requests', () => {
@@ -3195,7 +3196,8 @@ describe('runtime-governance', () => {
       openingGuidanceHoldDetail: 'even-natural-cadence',
       companionshipHoldMode: 'measured-return',
     }))
-    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toContain('same-her opening drift')
+    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toContain('continuity opening drift')
+    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).not.toContain('same-her opening drift')
   })
 
   it('records Chinese same-thread room-making drift as lower-pressure opening guidance in governed rewrite requests', () => {
@@ -3249,10 +3251,11 @@ describe('runtime-governance', () => {
       authority: 'llm-second-pass-rewrite',
       reasonCodes: expect.arrayContaining(['same-thread-restart-shell']),
     }))
-    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toContain('same-her opening drift')
+    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toContain('continuity opening drift')
+    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).not.toContain('same-her opening drift')
   })
 
-  it('records memory-led familiarity drift as same-her opening drift in governed rewrite requests', () => {
+  it('records memory-led familiarity drift as continuity opening drift in governed rewrite requests', () => {
     const input: AlicizationConversationTurnInput = {
       turnId: 'turn-memory-led-familiarity-drift-1',
       sessionId: 'session-1',
@@ -3345,7 +3348,8 @@ describe('runtime-governance', () => {
         latestInflection: expect.stringContaining('Embodiment execution kept voice, face, motion, and lipsync on the same repair-before-closeness body line'),
       }),
     }))
-    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toContain('same-her opening drift')
+    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toContain('continuity opening drift')
+    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).not.toContain('same-her opening drift')
   })
 
   it('records measured-return embodiment execution as latest outcome inflection on the digital-life spine feedback path', () => {
@@ -3974,6 +3978,9 @@ describe('runtime-governance', () => {
       reasonCodes: expect.arrayContaining(['same-thread-restart-shell']),
     }))
     expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toContain(
+      'same-thread continuation restart shell that reopens the current reply context as a fresh opening',
+    )
+    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).not.toContain(
       'same-thread continuation restart shell that breaks one living line into a fresh opening',
     )
   })
@@ -5607,6 +5614,9 @@ describe('runtime-governance', () => {
       }),
       embodimentContinuityLedger: expect.objectContaining({
         carryingLanes: expect.arrayContaining(['body', 'voice', 'face', 'motion', 'lipsync']),
+        lanes: expect.objectContaining({
+          body: expect.objectContaining({ status: 'carrying-continuity' }),
+        }),
       }),
     }))
     expect(dialogueEventPayload?.memoryStageReplay).toEqual(expect.objectContaining({

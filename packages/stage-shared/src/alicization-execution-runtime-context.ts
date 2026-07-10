@@ -7,9 +7,15 @@ import type {
 } from './alicization-transport-contracts'
 
 import {
+  alicizationFixedTemplateReplacement,
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationProviderFacingText,
+} from './alicization-fixed-template-sanitizer'
+import {
   isAlicizationThinProjectAwarenessLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
 } from './alicization-project-awareness'
+import { formatAlicizationProjectStateAwarenessFields } from './alicization-project-state-awareness-format'
 import { normalizeAlicizationDerivedMindStateBundle } from './alicization-transport-contracts'
 
 function sanitizeText(raw: unknown, maxChars = 200) {
@@ -26,14 +32,92 @@ const EXECUTION_PROJECT_BRIEFING_PLACEHOLDER_VALUES = new Set([
   'na',
 ])
 
-function sanitizeExecutionProjectBriefingText(raw: unknown, maxChars = 200) {
-  const normalized = sanitizeText(raw, maxChars)
-  if (!normalized)
+type ExecutionProjectBriefingField
+  = | 'identity'
+    | 'phase'
+    | 'landed'
+    | 'open'
+    | 'next'
+    | 'continuity_anchor'
+    | 'continuity_hold'
+    | 'continuity_drift_risk'
+    | 'proactive_gap'
+    | 'emotional_closure'
+    | 'awareness'
+    | 'generic'
+
+function extractStructuredProjectBriefingFieldValue(structured: string, key: string) {
+  return structured
+    .split('|')
+    .map(part => part.trim())
+    .find(part => part.startsWith(`${key}=`))
+    ?.replace(new RegExp(`^${key}=`, 'u'), '')
+    .trim()
+    || ''
+}
+
+function sanitizeExecutionProjectBriefingText(
+  raw: unknown,
+  maxChars = 200,
+  field: ExecutionProjectBriefingField = 'generic',
+) {
+  const text = sanitizeText(raw, maxChars)
+  if (!text)
     return ''
 
-  return EXECUTION_PROJECT_BRIEFING_PLACEHOLDER_VALUES.has(normalized.toLowerCase())
-    ? ''
-    : normalized
+  if (EXECUTION_PROJECT_BRIEFING_PLACEHOLDER_VALUES.has(text.toLowerCase()))
+    return ''
+
+  if (!containsAlicizationFixedTemplateResidue(text)) {
+    const normalized = sanitizeAlicizationProviderFacingText(text, maxChars)
+    return normalized === alicizationFixedTemplateReplacement ? '' : normalized
+  }
+
+  const formatField = (key: string, input: Parameters<typeof formatAlicizationProjectStateAwarenessFields>[0]) =>
+    extractStructuredProjectBriefingFieldValue(formatAlicizationProjectStateAwarenessFields({
+      ...input,
+      maxChars,
+    }), key)
+
+  if (field === 'identity' || field === 'phase')
+    return ''
+  if (field === 'awareness') {
+    return formatAlicizationProjectStateAwarenessFields({
+      identity: text,
+      currentPhase: text,
+      latestLandedProgress: text,
+      primaryOpenLoop: text,
+      nextClosureTarget: text,
+      sameHerSelfLine: text,
+      sameHerHoldDetail: text,
+      sameHerDriftRisk: text,
+      emotionalClosureCue: text,
+      maxChars,
+    })
+  }
+  if (field === 'landed')
+    return formatField('landed', { latestLandedProgress: text })
+  if (field === 'open')
+    return formatField('open', { primaryOpenLoop: text })
+  if (field === 'next')
+    return formatField('next', { nextClosureTarget: text })
+  if (field === 'continuity_anchor')
+    return formatField('continuity_anchor', { sameHerSelfLine: text })
+  if (field === 'continuity_hold')
+    return formatField('continuity_hold', { sameHerHoldDetail: text })
+  if (field === 'continuity_drift_risk')
+    return formatField('continuity_drift_risk', { sameHerDriftRisk: text })
+  if (field === 'proactive_gap')
+    return formatField('proactive_gap', { proactiveSameHerGap: text })
+  if (field === 'emotional_closure')
+    return formatField('emotional_closure', { emotionalClosureCue: text })
+
+  const normalized = sanitizeAlicizationProviderFacingText(text, maxChars)
+  if (!normalized)
+    return ''
+  if (normalized === alicizationFixedTemplateReplacement)
+    return ''
+  return normalized
 }
 
 function normalizeTimestamp(raw: unknown) {
@@ -181,27 +265,27 @@ function normalizeMemoryClosureExecution(raw: unknown): AlicizationExecutionRunt
 }
 
 function resolveProjectBriefingLatestLandedProgress(value: Record<string, unknown>) {
-  return sanitizeExecutionProjectBriefingText(value.latestLandedProgress, 320)
-    || sanitizeExecutionProjectBriefingText(value.latestProgress, 320)
-    || sanitizeExecutionProjectBriefingText(value.landedProgressSummary, 320)
+  return sanitizeExecutionProjectBriefingText(value.latestLandedProgress, 320, 'landed')
+    || sanitizeExecutionProjectBriefingText(value.latestProgress, 320, 'landed')
+    || sanitizeExecutionProjectBriefingText(value.landedProgressSummary, 320, 'landed')
     || null
 }
 
 function resolveProjectBriefingPrimaryOpenLoop(value: Record<string, unknown>) {
-  return sanitizeExecutionProjectBriefingText(value.primaryOpenLoop, 320)
-    || sanitizeExecutionProjectBriefingText(value.openClosureSummary, 320)
+  return sanitizeExecutionProjectBriefingText(value.primaryOpenLoop, 320, 'open')
+    || sanitizeExecutionProjectBriefingText(value.openClosureSummary, 320, 'open')
     || null
 }
 
 function resolveProjectBriefingNextClosureTarget(value: Record<string, unknown>) {
-  return sanitizeExecutionProjectBriefingText(value.nextClosureTarget, 320)
-    || sanitizeExecutionProjectBriefingText(value.nextClosureTargetSummary, 320)
+  return sanitizeExecutionProjectBriefingText(value.nextClosureTarget, 320, 'next')
+    || sanitizeExecutionProjectBriefingText(value.nextClosureTargetSummary, 320, 'next')
     || null
 }
 
 function resolveProjectBriefingSameHerDriftRisk(value: Record<string, unknown>) {
-  return sanitizeExecutionProjectBriefingText(value.sameHerDriftRisk, 320)
-    || sanitizeExecutionProjectBriefingText(value.sameHerDriftRiskSummary, 320)
+  return sanitizeExecutionProjectBriefingText(value.sameHerDriftRisk, 320, 'continuity_drift_risk')
+    || sanitizeExecutionProjectBriefingText(value.sameHerDriftRiskSummary, 320, 'continuity_drift_risk')
     || null
 }
 
@@ -281,19 +365,19 @@ function normalizeProjectBriefing(raw: unknown): NonNullable<AlicizationExecutio
     return null
 
   const value = raw as Record<string, unknown>
-  const identity = sanitizeExecutionProjectBriefingText(value.identity, 220) || null
-  const currentPhase = sanitizeExecutionProjectBriefingText(value.currentPhase, 220) || null
+  const identity = sanitizeExecutionProjectBriefingText(value.identity, 220, 'identity') || null
+  const currentPhase = sanitizeExecutionProjectBriefingText(value.currentPhase, 220, 'phase') || null
   const latestLandedProgress = resolveProjectBriefingLatestLandedProgress(value)
   const primaryOpenLoop = resolveProjectBriefingPrimaryOpenLoop(value)
   const nextClosureTarget = resolveProjectBriefingNextClosureTarget(value)
-  const sameHerSelfLine = sanitizeExecutionProjectBriefingText(value.sameHerSelfLine, 220) || null
-  const sameHerHoldDetail = sanitizeExecutionProjectBriefingText(value.sameHerHoldDetail, 220) || null
+  const sameHerSelfLine = sanitizeExecutionProjectBriefingText(value.sameHerSelfLine, 220, 'continuity_anchor') || null
+  const sameHerHoldDetail = sanitizeExecutionProjectBriefingText(value.sameHerHoldDetail, 220, 'continuity_hold') || null
   const sameHerDriftRisk = resolveProjectBriefingSameHerDriftRisk(value)
-  const proactiveSameHerGap = sanitizeExecutionProjectBriefingText(value.proactiveSameHerGap, 320) || null
-  const companionBriefingLine = sanitizeExecutionProjectBriefingText(value.companionBriefingLine, 320) || null
-  const emotionalClosureSummary = sanitizeExecutionProjectBriefingText(value.emotionalClosureSummary, 240) || null
+  const proactiveSameHerGap = sanitizeExecutionProjectBriefingText(value.proactiveSameHerGap, 320, 'proactive_gap') || null
+  const companionBriefingLine = sanitizeExecutionProjectBriefingText(value.companionBriefingLine, 320, 'awareness') || null
+  const emotionalClosureSummary = sanitizeExecutionProjectBriefingText(value.emotionalClosureSummary, 240, 'emotional_closure') || null
   const continuityRestraint = normalizeProjectBriefingContinuityRestraint(value.continuityRestraint)
-  const continuityCue = sanitizeExecutionProjectBriefingText(value.continuityCue, 220) || null
+  const continuityCue = sanitizeExecutionProjectBriefingText(value.continuityCue, 220, 'continuity_hold') || null
   const continuityPreferredTiming = normalizeProjectBriefingContinuityPreferredTiming(value.continuityPreferredTiming)
   const continuityCadence = sanitizeExecutionProjectBriefingText(value.continuityCadence, 120) || null
   const preferredBlinkCadence = normalizeProjectBriefingBlinkCadence(value.preferredBlinkCadence)
@@ -302,9 +386,9 @@ function normalizeProjectBriefing(raw: unknown): NonNullable<AlicizationExecutio
   const preferredLipsyncMode = normalizeProjectBriefingLipsyncMode(value.preferredLipsyncMode)
   const preferredVoiceMode = normalizeProjectBriefingVoiceMode(value.preferredVoiceMode)
   const preferredPacingMode = normalizeProjectBriefingPacingMode(value.preferredPacingMode)
-  const preflightSummary = sanitizeExecutionProjectBriefingText(value.preflightSummary, 320) || null
-  const explicitPreDialogueAwarenessLine = sanitizeExecutionProjectBriefingText(value.preDialogueAwarenessLine, 320) || null
-  const preDialogueAwarenessSummary = sanitizeExecutionProjectBriefingText(value.preDialogueAwarenessSummary, 320) || null
+  const preflightSummary = sanitizeExecutionProjectBriefingText(value.preflightSummary, 320, 'awareness') || null
+  const explicitPreDialogueAwarenessLine = sanitizeExecutionProjectBriefingText(value.preDialogueAwarenessLine, 320, 'awareness') || null
+  const preDialogueAwarenessSummary = sanitizeExecutionProjectBriefingText(value.preDialogueAwarenessSummary, 320, 'awareness') || null
   const resolvedPreDialogueAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
     runtimeProjectState: {
       identity,
@@ -499,29 +583,27 @@ export function buildAlicizationExecutionRuntimeContextBlock(raw: unknown) {
     context.memoryClosureExecution?.reasonTags.length
       ? `memory_closure_reason_tags=${context.memoryClosureExecution.reasonTags.join(' | ')}`
       : '',
-    context.projectBriefing?.identity ? `project_identity=${context.projectBriefing.identity}` : '',
-    context.projectBriefing?.currentPhase ? `project_phase=${context.projectBriefing.currentPhase}` : '',
-    context.projectBriefing?.latestLandedProgress ? `project_landed_progress=${context.projectBriefing.latestLandedProgress}` : '',
-    context.projectBriefing?.primaryOpenLoop ? `project_open_loop=${context.projectBriefing.primaryOpenLoop}` : '',
-    context.projectBriefing?.nextClosureTarget ? `project_next_closure=${context.projectBriefing.nextClosureTarget}` : '',
-    context.projectBriefing?.sameHerSelfLine ? `project_same_her=${context.projectBriefing.sameHerSelfLine}` : '',
-    context.projectBriefing?.sameHerHoldDetail ? `project_same_her_hold=${context.projectBriefing.sameHerHoldDetail}` : '',
-    context.projectBriefing?.sameHerDriftRisk ? `project_same_her_drift_risk=${context.projectBriefing.sameHerDriftRisk}` : '',
-    context.projectBriefing?.proactiveSameHerGap ? `project_proactive_same_her_gap=${context.projectBriefing.proactiveSameHerGap}` : '',
-    context.projectBriefing?.companionBriefingLine ? `project_companion_briefing=${context.projectBriefing.companionBriefingLine}` : '',
-    context.projectBriefing?.emotionalClosureSummary ? `project_emotional_closure=${context.projectBriefing.emotionalClosureSummary}` : '',
-    context.projectBriefing?.continuityRestraint ? `project_continuity_restraint=${context.projectBriefing.continuityRestraint}` : '',
-    context.projectBriefing?.continuityCue ? `project_continuity=${context.projectBriefing.continuityCue}` : '',
-    context.projectBriefing?.preflightSummary ? `project_preflight=${context.projectBriefing.preflightSummary}` : '',
-    context.projectBriefing?.preDialogueAwarenessLine ? `project_awareness=${context.projectBriefing.preDialogueAwarenessLine}` : '',
-    context.projectBriefing?.continuityPreferredTiming ? `project_continuity_preferred_timing=${context.projectBriefing.continuityPreferredTiming}` : '',
-    context.projectBriefing?.continuityCadence ? `project_continuity_cadence=${context.projectBriefing.continuityCadence}` : '',
-    context.projectBriefing?.preferredBlinkCadence ? `project_preferred_blink_cadence=${context.projectBriefing.preferredBlinkCadence}` : '',
-    context.projectBriefing?.preferredGazeMode ? `project_preferred_gaze_mode=${context.projectBriefing.preferredGazeMode}` : '',
-    context.projectBriefing?.preferredPauseMode ? `project_preferred_pause_mode=${context.projectBriefing.preferredPauseMode}` : '',
-    context.projectBriefing?.preferredLipsyncMode ? `project_preferred_lipsync_mode=${context.projectBriefing.preferredLipsyncMode}` : '',
-    context.projectBriefing?.preferredVoiceMode ? `project_preferred_voice_mode=${context.projectBriefing.preferredVoiceMode}` : '',
-    context.projectBriefing?.preferredPacingMode ? `project_preferred_pacing_mode=${context.projectBriefing.preferredPacingMode}` : '',
+    context.projectBriefing?.identity ? `runtime_identity=${context.projectBriefing.identity}` : '',
+    context.projectBriefing?.currentPhase ? `runtime_phase=${context.projectBriefing.currentPhase}` : '',
+    context.projectBriefing?.latestLandedProgress ? `runtime_landed_progress=${context.projectBriefing.latestLandedProgress}` : '',
+    context.projectBriefing?.primaryOpenLoop ? `runtime_open_loop=${context.projectBriefing.primaryOpenLoop}` : '',
+    context.projectBriefing?.nextClosureTarget ? `runtime_next_closure=${context.projectBriefing.nextClosureTarget}` : '',
+    context.projectBriefing?.proactiveSameHerGap ? `execution_proactive_continuity_gap=${context.projectBriefing.proactiveSameHerGap}` : '',
+    context.projectBriefing?.companionBriefingLine ? `execution_companion_briefing=${context.projectBriefing.companionBriefingLine}` : '',
+    context.projectBriefing?.emotionalClosureSummary ? `execution_emotional_context=${context.projectBriefing.emotionalClosureSummary}` : '',
+    context.projectBriefing?.continuityRestraint ? `execution_continuity_restraint=${context.projectBriefing.continuityRestraint}` : '',
+    context.projectBriefing?.continuityCue ? `execution_continuity=${context.projectBriefing.continuityCue}` : '',
+    context.projectBriefing?.preflightSummary || context.projectBriefing?.preDialogueAwarenessLine
+      ? 'template_awareness=withheld_from_execution_runtime_context'
+      : '',
+    context.projectBriefing?.continuityPreferredTiming ? `execution_continuity_preferred_timing=${context.projectBriefing.continuityPreferredTiming}` : '',
+    context.projectBriefing?.continuityCadence ? `execution_continuity_cadence=${context.projectBriefing.continuityCadence}` : '',
+    context.projectBriefing?.preferredBlinkCadence ? `execution_preferred_blink_cadence=${context.projectBriefing.preferredBlinkCadence}` : '',
+    context.projectBriefing?.preferredGazeMode ? `execution_preferred_gaze_mode=${context.projectBriefing.preferredGazeMode}` : '',
+    context.projectBriefing?.preferredPauseMode ? `execution_preferred_pause_mode=${context.projectBriefing.preferredPauseMode}` : '',
+    context.projectBriefing?.preferredLipsyncMode ? `execution_preferred_lipsync_mode=${context.projectBriefing.preferredLipsyncMode}` : '',
+    context.projectBriefing?.preferredVoiceMode ? `execution_preferred_voice_mode=${context.projectBriefing.preferredVoiceMode}` : '',
+    context.projectBriefing?.preferredPacingMode ? `execution_preferred_pacing_mode=${context.projectBriefing.preferredPacingMode}` : '',
     `recent_runtime_actions=${formatRecentActions(context.recentActions)}`,
     `sensory_running=${context.sensory.running ? 'true' : 'false'}`,
     `sensory_stale=${context.sensory.stale ? 'true' : 'false'}`,

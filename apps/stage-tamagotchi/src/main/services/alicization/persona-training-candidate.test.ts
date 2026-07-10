@@ -40,6 +40,10 @@ describe('persona training candidate bridge', () => {
     }))
     expect(candidates[0]?.behaviorLesson).toContain('直接说明问题')
     expect(candidates[0]?.positiveExample).not.toContain('用户喜欢某个私人事实')
+    expect(candidates[0]?.positiveExample).toContain('behavior_policy=')
+    expect(candidates[0]?.positiveExample).toContain('visibility=internal-structured')
+    expect(candidates[0]?.positiveExample).not.toMatch(/我会|你说得对|先.*接住/u)
+    expect(candidates[0]?.negativeExample).toContain('avoidance_policy=')
   })
 
   it('does not build candidates from raw queues facts private or tombstoned sources', () => {
@@ -76,6 +80,108 @@ describe('persona training candidate bridge', () => {
     })
 
     expect(candidates).toEqual([])
+  })
+
+  it('does not build candidates from pending or unconfirmed reflections even when confidence is high', () => {
+    const candidates = buildPersonaTrainingCandidatesFromLongTermMemory({
+      reflections: [
+        {
+          id: 'reflection-pending-high-confidence',
+          summary: '待审核反思不该进入人格候选。',
+          lesson: '即使置信度很高，pending 也不能训练人格。',
+          confidence: 0.98,
+          sensitivity: 'personal',
+          status: 'pending',
+        },
+        {
+          id: 'reflection-missing-status',
+          summary: '缺少确认状态的反思不该进入人格候选。',
+          lesson: '缺少 confirmed 状态就不能训练人格。',
+          confidence: 0.98,
+          sensitivity: 'personal',
+        },
+        {
+          id: 'reflection-denied',
+          summary: '拒绝的反思不该进入人格候选。',
+          lesson: 'denied 不能训练人格。',
+          confidence: 0.98,
+          sensitivity: 'personal',
+          status: 'denied',
+        },
+        {
+          id: 'reflection-confirmed',
+          summary: '确认后的清洗反思可以进入人格候选。',
+          lesson: '失败时先透明说明，再继续回答。',
+          confidence: 0.82,
+          sensitivity: 'personal',
+          status: 'confirmed',
+        },
+      ],
+      reinforcements: [],
+      memoryFacts: [],
+      rawQueueItems: [{
+        id: 'raw-queue-item',
+        summary: 'raw queue 内容不能漏进候选。',
+      }],
+      tombstonedSourceIds: [],
+    })
+
+    expect(candidates).toHaveLength(1)
+    expect(candidates[0]?.id).toBe('persona-candidate:reflection-confirmed')
+    expect(candidates[0]?.behaviorLesson).not.toContain('raw queue')
+  })
+
+  it('drops fixed-template reflections and fixed-template reinforcements before building persona candidates', () => {
+    const candidates = buildPersonaTrainingCandidatesFromLongTermMemory({
+      reflections: [
+        {
+          id: 'reflection-fixed-template',
+          summary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          lesson: 'Before answering, remember this is still the same local-first digital life project.',
+          confidence: 0.99,
+          sensitivity: 'personal',
+          status: 'confirmed',
+        },
+        {
+          id: 'reflection-cleaned',
+          summary: '用户明确要求 provider failure 不要被包装成陪伴。',
+          lesson: '失败时先透明说明 provider failure，再继续当前问题。',
+          confidence: 0.86,
+          sensitivity: 'personal',
+          status: 'confirmed',
+        },
+      ],
+      reinforcements: [
+        {
+          id: 'reinforcement-fixed-template',
+          dimension: 'same-her closure',
+          summary: 'same-her closure: keep one continuous her on the same living line.',
+          valence: 'reinforce',
+          delta: 0.4,
+        },
+        {
+          id: 'reinforcement-cleaned',
+          dimension: 'truthful-grounding',
+          summary: '失败面应该透明，不要用安抚句覆盖。',
+          valence: 'reinforce',
+          delta: 0.2,
+        },
+      ],
+      memoryFacts: [],
+      rawQueueItems: [],
+      tombstonedSourceIds: [],
+    })
+
+    expect(candidates).toHaveLength(1)
+    expect(candidates[0]).toEqual(expect.objectContaining({
+      id: 'persona-candidate:reflection-cleaned',
+      sourceMemoryIds: ['reflection-cleaned', 'reinforcement-cleaned'],
+    }))
+    expect(JSON.stringify(candidates)).not.toContain('Same Phase 1 digital life')
+    expect(JSON.stringify(candidates)).not.toContain('Before answering')
+    expect(JSON.stringify(candidates)).not.toContain('same-her closure')
+    expect(JSON.stringify(candidates)).not.toContain('same living line')
+    expect(JSON.stringify(candidates)).not.toContain('one continuous her')
   })
 
   it('keeps candidates rollbackable through explicit status updates', () => {

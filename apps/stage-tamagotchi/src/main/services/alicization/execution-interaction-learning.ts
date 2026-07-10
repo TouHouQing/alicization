@@ -66,35 +66,47 @@ function hasExecutionCallbackAfterglowHold(input: {
 }) {
   const surface = input.digitalLifeSpine?.runtimeSurface ?? null
   const bundleProjection = toRecord(surface?.memory?.derivedMindStateBundle?.personStateProjection)
+  const runtimeProjection = toRecord(surface?.memory?.personStateProjection)
   const projection = resolvePreferredPersonStateProjection({
     bundleProjection: bundleProjection as Record<string, any> | null | undefined,
-    runtimeProjection: toRecord(surface?.memory?.personStateProjection) as Record<string, any> | null | undefined,
+    runtimeProjection: runtimeProjection as Record<string, any> | null | undefined,
   }) as Record<string, any> | null | undefined
-  const continuityState = projection?.personalityContinuityState as Record<string, any> | null | undefined
-  const rhythmState = continuityState?.rhythmState as Record<string, any> | null | undefined
+  const projectionCandidates = [projection, bundleProjection, runtimeProjection]
+    .filter((candidate): candidate is Record<string, any> => Boolean(candidate))
+  const continuityStates = projectionCandidates
+    .map(candidate => candidate.personalityContinuityState)
+    .filter((candidate): candidate is Record<string, any> => Boolean(candidate && typeof candidate === 'object' && !Array.isArray(candidate)))
+  const rhythmStates = continuityStates
+    .map(candidate => candidate.rhythmState)
+    .filter((candidate): candidate is Record<string, any> => Boolean(candidate && typeof candidate === 'object' && !Array.isArray(candidate)))
   const consciousFrameReasonTags = Array.isArray(surface?.dialogue?.currentConsciousFrame?.reasonTags)
     ? surface?.dialogue?.currentConsciousFrame?.reasonTags
         .map(tag => sanitizeText(tag, 120).toLowerCase())
         .filter(Boolean)
     : []
-  const openingGuidance = sanitizeText(
-    projection?.openingGuidance
-    ?? surface?.dialogue?.currentConsciousFrame?.speakingIntention
-    ?? '',
-    220,
-  ).toLowerCase()
-  const manifestationCadenceSummary = sanitizeText(
-    projection?.manifestationCadenceSummary
-    ?? surface?.dialogue?.currentConsciousFrame?.consciousNeed
-    ?? '',
-    220,
-  ).toLowerCase()
-  const trustRationale = sanitizeText(projection?.trustRationale, 220).toLowerCase()
+  const openingGuidance = [
+    ...projectionCandidates.map(candidate => candidate.openingGuidance),
+    surface?.dialogue?.currentConsciousFrame?.speakingIntention,
+  ]
+    .map(value => sanitizeText(value, 220).toLowerCase())
+    .filter(Boolean)
+    .join(' ')
+  const manifestationCadenceSummary = [
+    ...projectionCandidates.map(candidate => candidate.manifestationCadenceSummary),
+    surface?.dialogue?.currentConsciousFrame?.consciousNeed,
+  ]
+    .map(value => sanitizeText(value, 220).toLowerCase())
+    .filter(Boolean)
+    .join(' ')
+  const trustRationale = projectionCandidates
+    .map(candidate => sanitizeText(candidate.trustRationale, 220).toLowerCase())
+    .filter(Boolean)
+    .join(' ')
   const combined = `${openingGuidance} ${manifestationCadenceSummary} ${trustRationale}`
-  const executionCallbackContext = projection?.activeClosenessContext === 'execution-callback'
-    || continuityState?.currentRegime === 'execution-callback'
+  const executionCallbackContext = projectionCandidates.some(candidate => candidate.activeClosenessContext === 'execution-callback')
+    || continuityStates.some(candidate => candidate.currentRegime === 'execution-callback')
     || consciousFrameReasonTags.some(tag => tag.includes('continuity-regime:execution-callback') || tag.includes('execution-callback-doctrine:'))
-  const holdForOpeningActive = rhythmState?.cadenceMode === 'cooldown'
+  const holdForOpeningActive = rhythmStates.some(candidate => candidate.cadenceMode === 'cooldown')
     || consciousFrameReasonTags.includes('continuity-arc:hold-for-opening')
 
   return executionCallbackContext
@@ -207,10 +219,10 @@ function readExecutionResultFeedbackSignal(input: {
   ).toLowerCase()
 
   return {
-    valued: /有用|接得住|信任|不是机械|useful|trust|grounded|helpful/.test(hostAttitude),
-    doubted: /怀疑|核实|说得太满|别太确定|doubt|verify|too certain|proof/.test(hostAttitude),
-    intrusive: /太紧|太近|侵入|打扰|留空间|lighter|space|pressure|intrusive/.test(hostAttitude),
-    interrupted: /放开|先停|更新鲜的开口|等一下|turn away|leave it|later/.test(hostAttitude),
+    valued: /execution_feedback=valued|有用|接得住|信任|不是机械|useful|trust|grounded|helpful/.test(hostAttitude),
+    doubted: /execution_feedback=doubted|verify_required|avoid_overclaim|怀疑|核实|说得太满|别太确定|doubt|verify|too certain|proof/.test(hostAttitude),
+    intrusive: /execution_feedback=intrusive|more_space|lower_pressure|太紧|太近|侵入|打扰|留空间|lighter|space|pressure|intrusive/.test(hostAttitude),
+    interrupted: /execution_feedback=interrupted|wait_for_new_user_opening|distance_delta=paused|放开|先停|等一下|turn away|leave it|later/.test(hostAttitude),
   }
 }
 
@@ -534,24 +546,24 @@ export function deriveExecutionInteractionLearningProfile(input: {
     = (capsuleExecutionSignal.lowerPressure && capsuleExecutionSignal.sameHerCarry && resultCheckInBias >= 0.48)
       ? 'quiet-presence'
       : (projectPreflightSignal.measuredReturnPressure || projectPreflightSignal.driftRiskPressure || projectClosureMemorySignal.sameHerDriftRiskMemory) && resultCheckInBias >= 0.48
-      ? 'quiet-presence'
-      : executionFeedbackSignal.valued && !executionFeedbackSignal.intrusive && !executionFeedbackSignal.interrupted
-        ? 'close-carry'
-        : payoffWarmth >= 0.62 && resultCheckInBias >= 0.48
-          ? 'close-carry'
-          : directness >= 0.6 && resultCheckInBias < 0.46
-            ? 'steady-handoff'
-            : 'quiet-presence'
+          ? 'quiet-presence'
+          : executionFeedbackSignal.valued && !executionFeedbackSignal.intrusive && !executionFeedbackSignal.interrupted
+            ? 'close-carry'
+            : payoffWarmth >= 0.62 && resultCheckInBias >= 0.48
+              ? 'close-carry'
+              : directness >= 0.6 && resultCheckInBias < 0.46
+                ? 'steady-handoff'
+                : 'quiet-presence'
   const resultLeadStyle
     = capsuleExecutionSignal.availabilityFirst || capsuleExecutionSignal.genericResultRisk
       ? 'availability-first'
       : executionFeedbackSignal.intrusive || executionFeedbackSignal.interrupted || executionFeedbackSignal.doubted || projectPreflightSignal.driftRiskPressure || projectClosureMemorySignal.sameHerDriftRiskMemory
-      ? 'availability-first'
-      : resultCheckInBias >= 0.58
         ? 'availability-first'
-        : companionshipFraming === 'close-carry' && payoffWarmth >= 0.62
-          ? 'soft-handoff'
-          : 'result-first'
+        : resultCheckInBias >= 0.58
+          ? 'availability-first'
+          : companionshipFraming === 'close-carry' && payoffWarmth >= 0.62
+            ? 'soft-handoff'
+            : 'result-first'
 
   const proposalTone: AlicizationExecutionInteractionTone
     = openingPatience >= 0.62 || autonomyRespect >= directness + 0.12
@@ -628,7 +640,7 @@ export function deriveExecutionResultDeliveryPolicy(input: {
       `host:${sanitizeText(hostAvailability, 32) || 'unknown'}`,
       `check-in:${profile.resultCheckInBias.toFixed(2)}`,
       ...(projectPreflightSignal.hasOpenClosurePressure ? ['project-open-closure'] : []),
-      ...(projectPreflightSignal.sameHerPressure ? ['project-same-her-pressure'] : []),
+      ...(projectPreflightSignal.sameHerPressure ? ['project-continuity-pressure'] : []),
       ...(projectPreflightSignal.driftRiskPressure ? ['project-same-her-drift-risk-pressure'] : []),
       ...(projectPreflightSignal.measuredReturnPressure ? ['project-measured-return-pressure'] : []),
       ...(projectPreflightSignal.nextClosurePressure ? ['project-next-closure-pressure'] : []),

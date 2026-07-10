@@ -362,8 +362,8 @@ const selfEvolutionEvidencePanels = computed(() => buildSelfEvolutionEvidencePan
           ...(preDialogueClosureSnapshot.value.briefingLines ?? []),
           ...((preDialogueClosureSnapshot.value.reasons ?? []).filter(reason =>
             reason.includes('Pre-dialogue self briefing currently reads')
-            || reason.includes('Project same-her self line currently reads')
-            || reason.includes('Same-her self authority currently reads')
+            || reason.includes('Project continuity self line currently reads')
+            || reason.includes('continuity self authority currently reads')
             || reason.includes('Latest landed progress still holds')
             || reason.includes('Primary open life loop still centers on')
             || reason.includes('Next closure target is still'),
@@ -395,8 +395,8 @@ const selfEvolutionDiagnosticSummaryEntries = computed(() => buildSelfEvolutionD
           ...(preDialogueClosureSnapshot.value.briefingLines ?? []),
           ...((preDialogueClosureSnapshot.value.reasons ?? []).filter(reason =>
             reason.includes('Pre-dialogue self briefing currently reads')
-            || reason.includes('Project same-her self line currently reads')
-            || reason.includes('Same-her self authority currently reads')
+            || reason.includes('Project continuity self line currently reads')
+            || reason.includes('continuity self authority currently reads')
             || reason.includes('Latest landed progress still holds')
             || reason.includes('Primary open life loop still centers on')
             || reason.includes('Next closure target is still'),
@@ -451,7 +451,7 @@ const projectSelfBriefLines = computed(() => {
       || normalizedLine.includes('next closure')
       || normalizedLine.includes('embodiment closure')
       || normalizedLine.includes('body line')
-      || normalizedLine.includes('same-her')
+      || normalizedLine.includes('continuity')
   })
 })
 const selfEvolutionTriageView = computed(() => buildSelfEvolutionTriageView(
@@ -1623,19 +1623,19 @@ function openMemoryWorkbench() {
               <div :class="['mb-3 rounded-lg border border-emerald-600/30 bg-emerald-900/20 p-3']">
                 <div :class="['mb-2 flex flex-wrap items-center justify-between gap-2']">
                   <div :class="['text-[11px] text-emerald-100/70 uppercase tracking-wide']">
-                    runtime same-her desktop proof
+                    runtime continuity desktop proof
                   </div>
                   <ButtonBar
-                    data-testid="runtime-same-her-proof:run-button"
+                    data-testid="runtime-continuity-proof:run-button"
                     icon="i-solar:play-circle-bold-duotone"
-                    :text="benchmarkSupported ? 'Run sampled runtime same-her proof' : 'Runtime replay benchmark bridge is unavailable'"
+                    :text="benchmarkSupported ? 'Run sampled runtime continuity proof' : 'Runtime replay benchmark bridge is unavailable'"
                     @click="runRuntimeSameHerSessionProof"
                   >
                     {{ benchmarkLoading ? 'running proof' : benchmarkSupported ? 'run proof' : 'unsupported' }}
                   </ButtonBar>
                 </div>
                 <div
-                  data-testid="runtime-same-her-proof:status"
+                  data-testid="runtime-continuity-proof:status"
                   :class="['mb-1 text-xs text-emerald-50/88']"
                 >
                   status: {{ benchmarkRuntimeSameHerProofSummary?.status ?? (benchmarkSupported ? 'not-run' : 'unsupported') }}
@@ -1647,16 +1647,16 @@ function openMemoryWorkbench() {
                   {{ benchmarkRuntimeSameHerProofSummary.headline }}
                 </div>
                 <div
-                  data-testid="runtime-same-her-proof:detail"
+                  data-testid="runtime-continuity-proof:detail"
                   :class="['mb-1 text-xs text-emerald-100/72']"
                 >
                   detail: {{ benchmarkRuntimeSameHerProofSummary?.detail ?? 'Run a sampled proof to load runtime decision-trace closure evidence.' }}
                 </div>
                 <div
-                  data-testid="runtime-same-her-proof:next-repair-target"
+                  data-testid="runtime-continuity-proof:next-repair-target"
                   :class="['text-xs text-emerald-100/72']"
                 >
-                  next repair target: {{ benchmarkRuntimeSameHerProofSummary?.nextRepairTarget ?? 'Collect real desktop turns before treating same-her closure as closed.' }}
+                  next repair target: {{ benchmarkRuntimeSameHerProofSummary?.nextRepairTarget ?? 'Collect real desktop turns before treating continuity closure as closed.' }}
                 </div>
                 <div
                   v-if="replayLastError"
@@ -3074,9 +3074,9 @@ function openMemoryWorkbench() {
             {{ formatSpeechDisplayText('live2d-authority-comparison') }}
           </div>
           <div>{{ formatSpeechDisplayText('cue-id') }}: {{ live2dAuthorityComparisonView.cueId }}</div>
-          <div>{{ formatSpeechDisplayText('same-her-execution-summary') }}: {{ formatMaybeText(live2dAuthorityComparisonView.sameHerExecutionSummary) }}</div>
-          <div>{{ formatSpeechDisplayText('same-her-execution-aligned') }}: {{ live2dAuthorityComparisonView.sameHerExecutionAligned ?? 'n/a' }}</div>
-          <div>{{ formatSpeechDisplayText('same-her-execution-mismatch-drivers') }}: {{ formatList(live2dAuthorityComparisonView.sameHerExecutionMismatchDrivers ?? []) }}</div>
+          <div>{{ formatSpeechDisplayText('continuity-execution-summary') }}: {{ formatMaybeText(live2dAuthorityComparisonView.sameHerExecutionSummary) }}</div>
+          <div>{{ formatSpeechDisplayText('continuity-execution-aligned') }}: {{ live2dAuthorityComparisonView.sameHerExecutionAligned ?? 'n/a' }}</div>
+          <div>{{ formatSpeechDisplayText('continuity-execution-mismatch-drivers') }}: {{ formatList(live2dAuthorityComparisonView.sameHerExecutionMismatchDrivers ?? []) }}</div>
           <div>{{ formatSpeechDisplayText('planned-expression-aliases') }}: {{ formatList(live2dAuthorityComparisonView.plannedExpressionAliases) }}</div>
           <div>{{ formatSpeechDisplayText('consumed-expression-name') }}: {{ formatMaybeText(live2dAuthorityComparisonView.consumedExpressionName) }}</div>
           <div>{{ formatSpeechDisplayText('expression-aligned') }}: {{ live2dAuthorityComparisonView.expressionAligned ?? 'n/a' }}</div>
@@ -3115,9 +3115,9 @@ function openMemoryWorkbench() {
             {{ formatSpeechDisplayText('vrm-authority-comparison') }}
           </div>
           <div>{{ formatSpeechDisplayText('cue-id') }}: {{ vrmAuthorityComparisonView.cueId }}</div>
-          <div>{{ formatSpeechDisplayText('same-her-frame-summary') }}: {{ formatMaybeText(vrmAuthorityComparisonView.sameHerFrameSummary) }}</div>
-          <div>{{ formatSpeechDisplayText('same-her-frame-aligned') }}: {{ vrmAuthorityComparisonView.sameHerFrameAligned ?? 'n/a' }}</div>
-          <div>{{ formatSpeechDisplayText('same-her-frame-mismatch-drivers') }}: {{ formatList(vrmAuthorityComparisonView.sameHerFrameMismatchDrivers ?? []) }}</div>
+          <div>{{ formatSpeechDisplayText('continuity-frame-summary') }}: {{ formatMaybeText(vrmAuthorityComparisonView.sameHerFrameSummary) }}</div>
+          <div>{{ formatSpeechDisplayText('continuity-frame-aligned') }}: {{ vrmAuthorityComparisonView.sameHerFrameAligned ?? 'n/a' }}</div>
+          <div>{{ formatSpeechDisplayText('continuity-frame-mismatch-drivers') }}: {{ formatList(vrmAuthorityComparisonView.sameHerFrameMismatchDrivers ?? []) }}</div>
           <div>{{ formatSpeechDisplayText('planned-expression-aliases') }}: {{ formatList(vrmAuthorityComparisonView.plannedExpressionAliases) }}</div>
           <div>{{ formatSpeechDisplayText('consumed-expression-aliases') }}: {{ formatList(vrmAuthorityComparisonView.consumedExpressionAliases) }}</div>
           <div>{{ formatSpeechDisplayText('expression-aligned') }}: {{ vrmAuthorityComparisonView.expressionAligned ?? 'n/a' }}</div>
@@ -3240,7 +3240,7 @@ function openMemoryWorkbench() {
           {{ formatSpeechDisplayText('vrm-update-frame') }}
         </div>
         <div :class="['grid gap-1 text-sm text-neutral-100']">
-          <div>{{ formatSpeechDisplayText('same-her-frame-summary') }}: {{ vrmUpdate.sameHerFrameSummary ?? 'n/a' }}</div>
+          <div>{{ formatSpeechDisplayText('continuity-frame-summary') }}: {{ vrmUpdate.sameHerFrameSummary ?? 'n/a' }}</div>
           <div>{{ formatSpeechDisplayText('last-consumed-expression-aliases') }}: {{ formatList(vrmUpdate.lastConsumedExpressionAliases) }}</div>
           <div>{{ formatSpeechDisplayText('last-consumed-motion-aliases') }}: {{ formatList(vrmUpdate.lastConsumedMotionAliases) }}</div>
           <div>{{ formatSpeechDisplayText('last-consumed-vrm-action-fade-ms') }}: {{ vrmUpdate.lastConsumedVrmActionFadeMs ?? 'n/a' }}</div>

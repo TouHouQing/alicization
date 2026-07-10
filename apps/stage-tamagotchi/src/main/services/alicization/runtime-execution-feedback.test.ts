@@ -1,4 +1,7 @@
-import { normalizeAlicizationExecutionRuntimeContext } from '@proj-alicization/stage-shared'
+import {
+  containsAlicizationFixedTemplateResidue,
+  normalizeAlicizationExecutionRuntimeContext,
+} from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -503,7 +506,7 @@ describe('runtime execution feedback', () => {
       }),
     }))
     expect(appendRelationshipDynamics).toHaveBeenCalledWith(expect.objectContaining({
-      hostAttitude: expect.stringContaining('开始更相信 Alicization 的执行回报是有用且接得住当下需要的'),
+      hostAttitude: 'execution_feedback=valued; trust_delta=positive; reply_policy=continue_with_evidence; visibility=structured',
       previousHostAttitude: '之前还在观察她到底是不是只会机械报结果。',
       source: 'execution-result-feedback:valued',
       createdAt: 10,
@@ -1980,6 +1983,95 @@ describe('runtime execution feedback', () => {
     const upsertedThread = (upsertTaskThread.mock.calls as unknown as Array<[any]>)[0]?.[0]
     const runtimeContext = normalizeAlicizationExecutionRuntimeContext(upsertedThread?.metadata?.execution?.runtimeContext)
     expect(runtimeContext?.memoryClosureExecution).toEqual(memoryClosureExecution)
+  })
+
+  it('sanitizes fixed project briefing templates before result feedback reconsolidation and metadata writeback', async () => {
+    const upsertTaskThread = vi.fn(async () => ({}))
+    const buildExecutionResultFeedbackOutcomeClosure = vi.fn(input => input as any)
+    const reconsolidateExecutionResultFeedbackMemoryTrace = vi.fn(async () => {})
+    const runtime = createAlicizationRuntimeExecutionFeedback({
+      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
+      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+      readLatestUserMessageText: () => '这个结果接得住',
+      readLatestAssistantMessageText: () => '结果已经回来',
+      ensureActiveOrLatestSessionId: async () => 'session-1',
+      withCardScope: async (_cardId, task) => await task(),
+      readTaskThreadActivityAt: thread => Number(thread.updatedAt ?? thread.createdAt ?? 0),
+      attachSynthesizedReflections: input => input,
+      buildExecutionProposalFeedbackOutcomeClosure: input => input as any,
+      buildExecutionResultFeedbackOutcomeClosure,
+      deriveExecutionProposalFeedbackKind: () => null,
+      deriveExecutionResultFeedbackKind: () => 'valued',
+      persistOutcomeClosure: vi.fn(async () => {}),
+      appendAuditLog: vi.fn(async () => {}),
+      memoryReconsolidationRuntime: {
+        reconsolidateExecutionResultFeedbackMemoryTrace,
+      },
+      alicizationDb: {
+        listTaskThreads: async () => [{
+          id: 'thread-polluted-project-briefing',
+          decisionTraceId: 'trace-polluted-project-briefing',
+          turnId: 'turn-polluted-project-briefing',
+          sessionId: 'session-1',
+          origin: 'subconscious-proactive',
+          goal: 'keep callback continuity alive',
+          kind: 'task',
+          status: 'completed',
+          selectedChannel: 'codex',
+          proposedChannel: 'codex',
+          summary: 'done',
+          metadata: withProactiveTaskOwnershipMetadata({
+            execution: {
+              runtimeContext: {
+                projectBriefing: {
+                  identity: 'Alicization is a local-first digital life project building one continuous her on the host computer.',
+                  currentPhase: 'Phase 1: Local Digital Life',
+                  latestLandedProgress: 'Execution result feedback already carries project-state continuity.',
+                  primaryOpenLoop: 'Memory, initiative, and embodiment still need to close on one same living line.',
+                  nextClosureTarget: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
+                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                  sameHerDriftRisk: 'If the same-her line drops, callback feedback flattens into generic productivity reporting.',
+                  preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
+                  preDialogueAwarenessLine: 'Before answering, remember this execution callback is part of the same local-first digital life project.',
+                },
+              },
+            },
+          }),
+          createdAt: 1,
+          updatedAt: 2,
+          lastEventAt: 2,
+          completedAt: 2,
+        } as any],
+        getLatestRelationshipDynamics: async () => null,
+        appendRelationshipDynamics: vi.fn(async () => {}),
+        upsertTaskThread,
+      },
+    })
+
+    await runtime.settleRecentExecutionResultFeedbackFromUserTurn({
+      cardId: 'card-1',
+      turnId: 'turn-user',
+      providerId: 'openai',
+      model: 'gpt-test',
+      providerConfig: {},
+      messages: [],
+    } as any, 10, 'test')
+
+    const reconsolidationBriefing = (reconsolidateExecutionResultFeedbackMemoryTrace.mock.calls[0]?.[0] as any)?.projectBriefing
+    const closureBriefing = (buildExecutionResultFeedbackOutcomeClosure.mock.calls[0]?.[0] as any)?.thread?.projectBriefing
+    const upsertedThread = (upsertTaskThread.mock.calls as unknown as Array<[any]>)[0]?.[0]
+    const persistedBriefing = upsertedThread?.metadata?.execution?.runtimeContext?.projectBriefing
+
+    for (const briefing of [reconsolidationBriefing, closureBriefing, persistedBriefing]) {
+      expect(briefing).toBeTruthy()
+      expect(containsAlicizationFixedTemplateResidue(JSON.stringify(briefing))).toBe(false)
+      expect(JSON.stringify(briefing)).not.toMatch(/Before answering|same-her|same living line|local-first digital life project|Phase 1: Local Digital Life|one continuous her/iu)
+    }
+    expect(reconsolidationBriefing.identity).toBe('local_desktop_life_loop')
+    expect(reconsolidationBriefing.currentPhase).toContain('local_desktop_life_loop')
+    expect(reconsolidationBriefing.sameHerSelfLine).toBe('local_desktop_life_loop')
+    expect(reconsolidationBriefing.primaryOpenLoop).toMatch(/^open_loop=/u)
+    expect(reconsolidationBriefing.nextClosureTarget).toMatch(/^(life_loop_continuity|callback_continuity|cross_modal_continuity_proof)=/u)
   })
 
   it('upgrades older stored three-part same-life seam carry when execution-result feedback falls back to thread project briefing', async () => {

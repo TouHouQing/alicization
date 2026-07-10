@@ -520,6 +520,7 @@ function parseHumanlikeMemoryRecallCarry(recallSeed: string) {
     'initiative_pressure',
     'initiative_anti_spam',
     'initiative_visible',
+    'initiative_visible_policy',
     'initiative_outcome',
     'initiative_reaction',
     'initiative_strategy',
@@ -586,7 +587,7 @@ function parseHumanlikeMemoryRecallCarry(recallSeed: string) {
   const initiativeWindow = fields.get('initiative_window') ?? ''
   const initiativePressure = fields.get('initiative_pressure') ?? ''
   const initiativeAntiSpam = fields.get('initiative_anti_spam') ?? ''
-  const initiativeVisible = fields.get('initiative_visible') ?? ''
+  const initiativeVisible = fields.get('initiative_visible_policy') ?? fields.get('initiative_visible') ?? ''
   const initiativeOutcome = fields.get('initiative_outcome') ?? ''
   const initiativeReaction = fields.get('initiative_reaction') ?? ''
   const initiativeStrategy = fields.get('initiative_strategy') ?? ''
@@ -1000,7 +1001,7 @@ function deriveHeldAutonomyTriggeredIntent(input: {
         {
           facet: 'relationship-era',
           weight: 0.34,
-          rationale: 'The held line also protects same-her continuity, so relationship carry remains a secondary anchor.',
+          rationale: 'The held line also protects identity continuity, so relationship carry remains a secondary anchor.',
         },
       ],
       candidateProcedureLines,
@@ -1077,7 +1078,7 @@ function deriveProjectStateTriggeredIntent(input: {
     searchProceduralExperience: true,
     queryHints,
     rationale: sanitizePromptText(
-      'Project-state continuity suggests that the next recollection should reopen the unfinished same-her closure line instead of collapsing it into generic project history.',
+      'Project-state continuity suggests that the next recollection should reopen the unfinished identity continuity closure line instead of collapsing it into generic project history.',
       220,
     ),
     confidence: clamp01(
@@ -1113,7 +1114,7 @@ function deriveProjectStateTriggeredIntent(input: {
         {
           facet: 'relationship-era',
           weight: 0.37,
-          rationale: 'Same-her continuity remains a secondary anchor because the project line still belongs to one living her.',
+          rationale: 'Relationship continuity remains a secondary anchor because the project line still belongs to the current continuity route.',
         },
       ],
       candidateProcedureLines,
@@ -1285,7 +1286,7 @@ function deriveAfterglowTriggeredIntent(input: {
     searchProceduralExperience: true,
     queryHints,
     rationale: sanitizePromptText(
-      'Callback afterglow continuity suggests that the next recollection should reopen the same carried line before it gets flattened into generic background history.',
+      'callback_afterglow_recall=procedure_carry; flattening_risk=generic_background_history; visibility=provider_intent_metadata',
       220,
     ),
     confidence: clamp01(
@@ -1295,7 +1296,7 @@ function deriveAfterglowTriggeredIntent(input: {
       + (continuity.carryMode === 'lower-pressure' ? 0.04 : 0),
     ),
     recollectionAgenda: {
-      whyRecallNow: 'The current turn is reopening callback afterglow continuity, so remembered procedure carry should return before the same line restarts from scratch.',
+      whyRecallNow: 'callback_afterglow_recall_now=procedure_carry_before_generic_history; restart_risk=unstructured_context_reset',
       goalSimilarity: clamp01(0.79 + (continuity.carry || continuity.continuity ? 0.09 : 0)),
       relationshipNeed: clamp01(0.18 + (/same-her|room|lower-pressure|living line/u.test(afterglowText) ? 0.08 : 0)),
       affectivePull: clamp01(0.2 + (/afterglow|same-her|room|lower-pressure/u.test(afterglowText) ? 0.08 : 0)),
@@ -1304,24 +1305,24 @@ function deriveAfterglowTriggeredIntent(input: {
         {
           scope: 'experience-matched',
           weight: 0.92,
-          rationale: 'The callback afterglow should reopen by matching the same carried seam rather than by exact date.',
+          rationale: 'time_scope=experience_matched; anchor=callback_afterglow_procedure; date_match=not_required',
         },
         {
           scope: 'recent-or-mid',
           weight: 0.41,
-          rationale: 'Recent carry still helps if the afterglow line needs a narrower remembered period.',
+          rationale: 'time_scope=recent_or_mid; anchor=bounded_afterglow_window',
         },
       ],
       candidateEraFacets: [
         {
           facet: 'task-era',
           weight: 0.89,
-          rationale: 'The callback afterglow points back to an unfinished working seam that still needs the same line reopened.',
+          rationale: 'era_facet=task; anchor=callback_afterglow_procedure; closure_state=unfinished',
         },
         {
           facet: 'relationship-era',
           weight: 0.41,
-          rationale: 'Same-her afterglow continuity still carries bond pressure as a secondary anchor.',
+          rationale: 'era_facet=relationship; anchor=afterglow_pressure; role=secondary',
         },
       ],
       candidateProcedureLines,
@@ -1401,7 +1402,7 @@ function deriveHumanlikeMemoryRecallTriggeredIntent(input: {
     continuity.initiativeWindow ? `initiative_window=${continuity.initiativeWindow}` : null,
     continuity.initiativePressure ? `initiative_pressure=${continuity.initiativePressure}` : null,
     continuity.initiativeAntiSpam ? `initiative_anti_spam=${continuity.initiativeAntiSpam}` : null,
-    continuity.initiativeVisible ? `initiative_visible=${continuity.initiativeVisible}` : null,
+    continuity.initiativeVisible ? `initiative_visible_policy=${continuity.initiativeVisible}` : null,
     continuity.initiativeOutcome ? `initiative_outcome=${continuity.initiativeOutcome}` : null,
     continuity.initiativeReaction ? `initiative_reaction=${continuity.initiativeReaction}` : null,
     continuity.initiativeStrategy ? `initiative_strategy=${continuity.initiativeStrategy}` : null,
@@ -1618,7 +1619,7 @@ function deriveRecollectionAfterthoughtTriggeredIntent(input: {
         {
           facet: 'relationship-era',
           weight: 0.4,
-          rationale: 'A same-her callback line also carries relationship continuity as a secondary anchor.',
+          rationale: 'An execution callback continuity line also carries relationship continuity as a secondary anchor.',
         },
       ],
       candidateProcedureLines,

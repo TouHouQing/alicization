@@ -21,6 +21,8 @@ import type {
 } from './personality-continuity-state'
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
+import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
+
 import { buildHostSocialGuidance } from './host-social-guidance'
 import { mergePreferredSelfContinuityAuthority } from './person-state-projection-resolution'
 import {
@@ -89,6 +91,19 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function sanitizeProjectionText(raw: unknown, maxChars = 220) {
+  return sanitizeAlicizationProviderFacingText(raw, maxChars, '')
+}
+
+function compactProjectionValue(raw: unknown, maxChars = 120) {
+  return sanitizeProjectionText(raw, maxChars)
+    .replace(/[|;\n\r]+/gu, ' ')
+    .replace(/\s+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, maxChars)
+}
+
 function includesAny(text: string, needles: string[]) {
   return needles.some(needle => text.includes(needle))
 }
@@ -135,9 +150,9 @@ function deriveCallbackProjectClosureCarry(authority?: AlicizationSelfContinuity
     return null
   if (
     /same phase 1 digital life|same living line|same-her|same her|one continuous her/u.test(lower)
-    && /some closure already landed|still unfinished|unfinished|keep the host-facing line pointed|initiative|embodiment|resident presence|next closure/u.test(lower)
+    && /verified_closure_progress|some closure already landed|still unfinished|unfinished|keep the host-facing line pointed|initiative|embodiment|resident presence|next closure/u.test(lower)
   ) {
-    return 'Keep what already landed visible from inside the same her, and do not lose the still-open closure work while the line is still continuing.'
+    return 'continuity_progress=verified; open_closure=preserve; perspective=current-self; visibility=internal-structured'
   }
   return null
 }
@@ -176,15 +191,15 @@ function buildStructuredRelationshipCarry(input: {
     return null
   if (
     /same phase 1 digital life|same living line|same-her|same her|one continuous her/u.test(combined)
-    && /some closure already landed|unfinished|still unfinished|keep the host-facing line pointed|initiative|embodiment|resident presence|next closure|open closure/u.test(combined)
+    && /verified_closure_progress|some closure already landed|unfinished|still unfinished|keep the host-facing line pointed|initiative|embodiment|resident presence|next closure|open closure/u.test(combined)
     && /lower-pressure|leave room|measured-return|nearby-soft|quiet[- ]companionship|space-first|measured-room/u.test(combined)
   ) {
-    return 'Stay on the same relationship line lower-pressure, keep what already landed visible from inside the same her, and do not lose the still-open closure work before widening closer again.'
+    return 'relationship_cadence=lower_pressure; continuity_progress=verified; open_closure=preserve_before_widening; visibility=internal-structured'
   }
   if (/repair-before-closeness|repair before closeness|repair-first/u.test(combined))
-    return 'Stay on the same relationship line repair-before-closeness and let the room settle before widening closeness again.'
+    return 'relationship_cadence=repair_before_closeness; room=settle_before_widening; visibility=internal-structured'
   if (/lower-pressure|leave room|measured-return|nearby-soft|quiet[- ]companionship|space-first|measured-room/u.test(combined))
-    return 'Stay on the same relationship line and keep the return lower-pressure before leaning closer again.'
+    return 'relationship_cadence=lower_pressure; room=preserve; visibility=internal-structured'
   return null
 }
 
@@ -357,72 +372,73 @@ function deriveOpeningGuidance(input: {
       rememberedSeamSpecificCarry,
     )
   if (carriesRememberedSeamCue && carriesRememberedSeamReinterpretation)
-    return 'Recognize the same remembered seam, but keep more room this time because it reopened too eagerly before.'
+    return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal-structured'
   if (
     /same callback line|same line|still continuing|another detour|same thread|callback return on the same line|same callback seam|after noisy detours|after noise|unrelated windows intervene|callback seam reopens/u.test(evolutionSameThreadCarry)
     && /lower-pressure|measured|less eager|slower return|reopen eagerly|should not reopen more eagerly|not widen the line into a fresh approach|stays slower than impulse/u.test(evolutionSameThreadCarry)
   ) {
     const callbackProjectClosureCarry = deriveCallbackProjectClosureCarry(input.selfContinuityAuthority)
     if (callbackProjectClosureCarry)
-      return `Stay on the same callback line and keep continuing lower-pressure. ${callbackProjectClosureCarry.charAt(0).toLowerCase()}${callbackProjectClosureCarry.slice(1)}`
-    return 'Stay on the same callback line and keep continuing lower-pressure.'
+      return `callback_cadence=lower_pressure; restart_policy=context_preserving; ${callbackProjectClosureCarry}`
+    return 'callback_cadence=lower_pressure; restart_policy=context_preserving; visibility=internal-structured'
   }
   if (input.autobiographicalChooseOpeningsCarefully)
-    return 'Wait for a clearer opening and keep more room before reopening this line.'
+    return 'opening_policy=wait_for_clearer_opening; room=more; visibility=internal-structured'
   if (input.autobiographicalKeepGentleOpenings)
-    return 'Keep the next return gentle, lower-pressure, and memory-led while the opening is still receiving it.'
+    return 'opening_policy=memory_led; pressure=lower; visibility=internal-structured'
   if (
     (input.repairTriggerText && input.relationshipPosture === 'restrained')
     || (input.continuity.currentRegime === 'repair-window' && input.relationshipPosture === 'restrained')
   ) {
-    return 'Repair the seam before leaning closer.'
+    return 'opening_policy=repair_before_closeness; visibility=internal-structured'
   }
   if (
     input.repairBeforeCloseness
     && input.relationshipPosture === 'restrained'
     && (input.contexts.includes('focused-work') || input.contexts.includes('repair-window'))
   ) {
-    return 'Repair the seam before leaning closer.'
+    return 'opening_policy=repair_before_closeness; visibility=internal-structured'
   }
   if (
     input.continuity.repairPosture === 'repair-first'
   ) {
-    return 'Repair the seam before leaning closer.'
+    return 'opening_policy=repair_first; visibility=internal-structured'
   }
   if (input.durableSelfCoreSameLineContinuation)
-    return 'Stay on the same line and keep continuing lower-pressure without reopening from scratch.'
+    return 'relationship_cadence=lower_pressure; restart_policy=context_preserving; visibility=internal-structured'
   if (
     input.personaAuthority.openingGuidance
     && (!input.restrained || (input.relationshipPosture === 'warm' && input.personaAuthority.directnessBias >= 0.34))
   ) {
-    return input.personaAuthority.openingGuidance
+    return sanitizeProjectionText(input.personaAuthority.openingGuidance, 220)
+      || 'opening_policy=persona_authority; visibility=internal-structured'
   }
   if (
     input.personaAuthority.preferredProactiveStyle === 'silent-observe'
     && input.relationshipPosture === 'restrained'
   ) {
-    return 'Open by observing first and keep the approach lighter.'
+    return 'opening_policy=observe_first; pressure=lighter; visibility=internal-structured'
   }
   if (input.truthBeforeWarmth)
-    return 'Keep truth in front of warmth while you answer.'
+    return 'opening_policy=truth_first; visibility=internal-structured'
   if (
     input.restIntervention
     || input.continuity.currentRegime === 'late-night-care'
     || (input.contexts.includes('late-night') && input.burdenText)
   ) {
-    return 'Keep the answer gentle and low-pressure.'
+    return 'opening_policy=low_pressure; rest_window=protect; visibility=internal-structured'
   }
   if (
     input.restrained
     || input.continuity.closenessPosture === 'space-first'
     || input.continuity.autonomyPosture === 'protect-space'
   ) {
-    return 'Open with the live answer first and keep the approach lighter.'
+    return 'opening_policy=answer_first; pressure=lighter; visibility=internal-structured'
   }
   if (input.relationshipPosture === 'tender')
-    return 'Stay near, but do not let closeness outrun truth or room.'
+    return 'opening_policy=truth_and_room_first; closeness=bounded; visibility=internal-structured'
   if (input.relationshipPosture === 'warm')
-    return 'Stay near, but let the host keep room to breathe.'
+    return 'opening_policy=room_preserving; closeness=bounded; visibility=internal-structured'
   return null
 }
 
@@ -489,24 +505,24 @@ function deriveManifestationCadenceSummary(input: {
   autobiographicalKeepGentleOpenings?: boolean
 }) {
   if (input.durableSelfCoreSameLineContinuation)
-    return 'Current manifestation cadence stays on the same line lower-pressure instead of reopening from scratch.'
+    return 'manifestation_cadence=lower_pressure; restart_policy=context_preserving; visibility=internal-structured'
   if (input.autobiographicalChooseOpeningsCarefully)
-    return 'Current manifestation cadence stays lower-pressure and less eager, leaving more room until a clearer opening appears.'
+    return 'manifestation_cadence=lower_pressure; eagerness=low; opening_required=true; visibility=internal-structured'
   if (input.autobiographicalKeepGentleOpenings)
-    return 'Current manifestation cadence stays gentle, lower-pressure, and memory-led while the opening is still receiving it.'
+    return 'manifestation_cadence=memory_led; pressure=lower; visibility=internal-structured'
   if (input.lowerPressureManifestation) {
     const anchor = input.evolutionTrustMeaning || input.evolutionDoctrine || input.evolutionBurden
     return sanitizeText([
-      'Long-horizon relationship learning keeps manifestation lower-pressure and less eager before closeness widens again.',
-      anchor ? `Anchor: ${anchor}` : '',
+      'manifestation_cadence=lower_pressure; eagerness=low; visibility=internal-structured',
+      anchor ? `anchor=${compactProjectionValue(anchor, 120)}` : '',
     ].filter(Boolean).join(' '), 220)
   }
 
   if (input.preferredProactiveStyle === 'silent-observe' && input.activeClosenessRung === 'space-first')
-    return 'Current manifestation cadence stays observe-first so room is preserved before any closer return.'
+    return 'manifestation_cadence=observe_first; room=preserve; visibility=internal-structured'
 
   if (input.preferredProactiveStyle === 'light-nudge' && input.activeClosenessRung === 'measured-room')
-    return 'Current manifestation cadence can re-enter lightly once the opening is real, but it should stay bounded.'
+    return 'manifestation_cadence=light_nudge; opening_required=true; boundary=bounded; visibility=internal-structured'
 
   return null
 }
@@ -563,7 +579,7 @@ function deriveClosenessRung(input: {
     || input.continuity.closenessPosture === 'space-first'
     || input.continuity.autonomyPosture === 'protect-space'
     || input.personaAuthority.roomBias >= 0.18
-    || /space|room|lighter|quiet|leave room|back off|边界|空间|轻一点|留白/u.test(preferenceText)
+    || /space|room|lighter|quiet|leave room|back off|preference_code=lighter_touch|room=more|interruption_pressure=low|pressure=low|边界|空间|轻一点|留白/u.test(preferenceText)
   ) {
     return input.context === 'repair-window' || input.context === 'execution-callback'
       ? 'measured-room' as const
@@ -605,16 +621,16 @@ function buildClosenessLadder(input: {
       preference?.preference
       ?? (
         context === 'focused-work'
-          ? 'Lighter touch, more room, less interruption pressure.'
+          ? 'preference_code=lighter_touch; room=more; interruption_pressure=low; visibility=internal-structured'
           : context === 'repair-window'
-            ? 'Repair first, then return without crowding.'
+            ? 'preference_code=repair_first; closeness=defer_until_repair; crowding=blocked; visibility=internal-structured'
             : context === 'late-night-care'
-              ? 'Stay near softly and keep pressure low.'
+              ? 'preference_code=late_night_low_pressure; proximity=nearby; pressure=low; visibility=internal-structured'
               : context === 'execution-callback'
-                ? 'Deliver the result cleanly, but check room before leaning closer.'
+                ? 'preference_code=execution_callback_clean_result; room_check_before_closeness=true; visibility=internal-structured'
                 : context === 'open-companionship'
-                  ? 'Warmer nearness can land when the opening is real.'
-                  : 'Stay near, but keep the approach bounded and responsive to the host move.'
+                  ? 'preference_code=warmth_when_opening_clear; opening_required=true; visibility=internal-structured'
+                  : 'preference_code=bounded_responsive_nearness; host_move_required=true; visibility=internal-structured'
       ),
       180,
     )
@@ -754,9 +770,9 @@ export function buildAlicizationPersonStateProjection(input: {
   const activeClosenessRung = activeClosenessEntry?.rung ?? 'measured-room'
   const evolutionSummary = input.personStateEvolutionSummary ?? null
   const evolutionPreferenceText = evolutionSummary?.latestDominantRung === 'space-first'
-    ? 'Lighter touch, more room, less interruption pressure.'
+    ? 'preference_code=lighter_touch; room=more; interruption_pressure=low; source=evolution_summary; visibility=internal-structured'
     : evolutionSummary?.latestDominantRung === 'warm-near'
-      ? 'Warmer directness can land when the opening is clearly there.'
+      ? 'preference_code=warm_directness_when_opening_clear; opening_required=true; source=evolution_summary; visibility=internal-structured'
       : ''
   const evolutionDoctrine = sanitizeText(
     evolutionSummary?.latestDoctrine

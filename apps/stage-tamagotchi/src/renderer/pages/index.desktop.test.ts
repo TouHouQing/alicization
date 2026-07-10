@@ -18,6 +18,8 @@ function createMockChatProvider(): ChatProvider {
   }
 }
 
+const EXCLUDED_CONTINUITY_RESIDUE = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+
 describe('stage desktop page helpers', () => {
   describe('resolveDesktopMouseCaptureState', () => {
     it('forces mouse capture during active stage interactions even on blank pixels', () => {
@@ -281,16 +283,22 @@ describe('stage desktop page helpers', () => {
         ingest,
       })
 
-      expect(ingest).toHaveBeenCalledWith('继续沿着这条数字生命主线推进', {
+      expect(ingest).toHaveBeenCalledWith('继续沿着这条数字生命主线推进', expect.objectContaining({
         providerId: 'mock-provider',
         model: 'mock-model',
         chatProvider: expect.objectContaining({
           chat: expect.any(Function),
         }),
         providerConfig: { apiKey: 'test-key' },
-        preDialogueSendIdentity,
         origin: 'ui-user',
-      })
+      }))
+      const forwardedIdentity = ingest.mock.calls[0]?.[1]?.preDialogueSendIdentity
+      expect(forwardedIdentity).toEqual(expect.objectContaining({
+        companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
+        companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
+        awarenessLine: EXCLUDED_CONTINUITY_RESIDUE,
+      }))
+      expect(JSON.stringify(forwardedIdentity)).not.toMatch(/Before speaking|same-her|local-first digital life project|one continuous/u)
     })
   })
 })

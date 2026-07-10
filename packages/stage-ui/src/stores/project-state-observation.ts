@@ -8,6 +8,7 @@ import {
   isAlicizationThinProjectAwarenessLine,
   isAlicizationThinSamePhaseCarryLine as isThinSamePhaseCarryLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
+  sanitizeAlicizationProviderFacingText,
   scoreAlicizationProjectAwarenessLine,
 } from '@proj-alicization/stage-shared'
 
@@ -33,10 +34,11 @@ type ConversationTurnProjectStateRecord = Pick<
   structured?: Record<string, unknown> | null
 }
 
+const fixedTemplateWithheldObservationLine
+  = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+
 function sanitizeProjectStateObservationText(raw: unknown, maxLength: number) {
-  if (typeof raw !== 'string')
-    return ''
-  return raw.trim().replace(/\s+/g, ' ').slice(0, maxLength)
+  return sanitizeAlicizationProviderFacingText(raw, maxLength, fixedTemplateWithheldObservationLine)
 }
 
 function looksLikeThinContinuityReminder(value: string | null | undefined) {
@@ -111,7 +113,11 @@ function isSameHerInwardLowPressureHeadline(value: string | null | undefined) {
   if (!normalized)
     return false
 
-  return normalized.includes('holding together mainly through')
+  return (
+    normalized.includes('continuity=embodiment')
+    && normalized.includes('low-pressure-inward-carry')
+  ) || (
+    normalized.includes('holding together mainly through')
     && normalized.includes('low-pressure')
     && (
       normalized.includes('same line inward')
@@ -119,10 +125,11 @@ function isSameHerInwardLowPressureHeadline(value: string | null | undefined) {
       || normalized.includes('same-her-inward-carry')
       || normalized.includes('quiet-companionship')
     )
+  )
 }
 
-function buildCompactSameHerInwardLowPressureAwarenessLine(companionBriefingLine: string) {
-  return `${companionBriefingLine} Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.`
+function buildCompactSameHerInwardLowPressureAwarenessLine() {
+  return 'continuity_context=phase1_carry; source=companion_briefing; continuity=embodiment; status=pending-rejoin; pending_rejoin=lipsync+voice; evidence=low-pressure-inward-carry; visibility=internal-structured'
 }
 
 function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undefined) {
@@ -131,12 +138,12 @@ function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undef
     return false
 
   return normalized.includes('anthropomorphic emotional closure')
-    && normalized.includes('same-her inward-carry observability')
+    && (normalized.includes('same-her inward-carry observability') || normalized.includes('continuity inward-carry observability'))
     && normalized.includes('measured-return')
 }
 
-function buildCompactAnthropomorphicHostFacingAwarenessLine(companionBriefingLine: string) {
-  return `${companionBriefingLine} Right now this one living her still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line before anything reopens outward.`
+function buildCompactAnthropomorphicHostFacingAwarenessLine() {
+  return 'continuity_context=phase1_carry; source=companion_briefing; affective_closure=anthropomorphic-emotional-closure; observability=continuity-inward-carry; timing=measured-return; visibility=internal-structured'
 }
 
 function needsProjectStateObservationPreDialogueAwarenessUpgrade(
@@ -415,13 +422,13 @@ export function readConversationTurnProjectStateObservation(
     && normalizedCompanionBriefingLine
     && isThinSamePhaseCarryLine(normalizedCompanionBriefingLine)
     && isSameHerInwardLowPressureHeadline(strongerCompanionHeadlineLine)
-    ? buildCompactSameHerInwardLowPressureAwarenessLine(normalizedCompanionBriefingLine)
+    ? buildCompactSameHerInwardLowPressureAwarenessLine()
     : null
   const mergedAnthropomorphicHostFacingAwarenessLine = awarenessOnlyRepeatsHeadline
     && normalizedCompanionBriefingLine
     && isThinSamePhaseCarryLine(normalizedCompanionBriefingLine)
     && isAnthropomorphicHostFacingSameHerHeadline(strongerCompanionHeadlineLine)
-    ? buildCompactAnthropomorphicHostFacingAwarenessLine(normalizedCompanionBriefingLine)
+    ? buildCompactAnthropomorphicHostFacingAwarenessLine()
     : null
   const resolvedAwarenessLineInput = shouldPreferRicherSameHerAwarenessLine
     ? richerSameHerAwarenessLine

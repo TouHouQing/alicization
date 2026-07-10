@@ -141,7 +141,9 @@ describe('autonomy actuation', () => {
       minutes: 12,
       sourceTurnId: expect.stringContaining('autonomy-revisit:'),
     }))
-    expect(reminder?.message).toContain('Return when the host has more room')
+    expect(reminder?.message).toContain('autonomy_revisit=deferred')
+    expect(reminder?.message).toContain('defer_reason=busy-host')
+    expect(reminder?.message).toContain('status=awaiting_opening')
   })
 
   it('threads same-her closure carry into revisit reminders when the deferred autonomy line still belongs to the same Phase 1 living line', () => {
@@ -724,7 +726,7 @@ describe('autonomy actuation', () => {
     expect(dispatchTaskThread).toHaveBeenCalledWith(expect.objectContaining({
       threadId: 'thread-low-risk-edit',
       codex: expect.objectContaining({
-        prompt: expect.stringContaining('Continuity focus:'),
+        prompt: expect.stringContaining('Task context:'),
         sandbox: 'workspace-write',
         runtimeContext: expect.objectContaining({
           turnId: expect.stringContaining('autonomy-task:default:1000:'),
@@ -792,9 +794,9 @@ describe('autonomy actuation', () => {
     expect(proposal).toEqual(expect.objectContaining({
       emotion: 'concerned',
     }))
-    expect(proposal?.reply).toContain('你要是愿意')
-    expect(proposal?.reply).toContain('做完把改动摊给你看')
-    expect(proposal?.reply).toContain('我先不越过你')
+    expect(proposal?.reply).toContain('execution_proposal=explicit_consent')
+    expect(proposal?.reply).toContain('status=awaiting_user_confirmation')
+    expect(proposal?.reply).toContain('goal=Publish the current foreground draft')
     expect(proposal?.thought).toContain('sameHer=Same Phase 1 digital life')
     expect(proposal?.thought).toContain('closure=')
     expect(proposal?.thought).toMatch(/closure=Unfinished cl|closure=Unfinished closure/i)
@@ -819,8 +821,10 @@ describe('autonomy actuation', () => {
       workspaceRoot: '/repo',
     })
 
-    expect(payload.codex?.prompt).toContain('Continuity focus:')
-    expect(payload.codex?.prompt).toMatch(/Same Phase 1 digital life|Unfinished closure still needs|same living line/i)
+    expect(payload.codex?.prompt).toContain('Task context:')
+    expect(payload.codex?.prompt).toContain('structured_context=withheld_fixed_template_residue')
+    expect(payload.codex?.prompt).not.toContain('Continuity focus:')
+    expect(payload.codex?.prompt).not.toMatch(/Same Phase 1 digital life|Unfinished closure still needs|same living line/i)
   })
 
   it('makes proposal copy more direct after learning drifts toward directness and successful execution', () => {
@@ -906,7 +910,8 @@ describe('autonomy actuation', () => {
       },
     })
 
-    expect(proposal?.reply).toContain('我想直接把')
+    expect(proposal?.reply).toContain('execution_proposal=explicit_consent')
+    expect(proposal?.reply).toContain('status=awaiting_user_confirmation')
     expect(proposal?.reasonTags).toContain('tone:direct')
   })
 

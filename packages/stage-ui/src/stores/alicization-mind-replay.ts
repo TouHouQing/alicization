@@ -136,7 +136,7 @@ function buildMindReplayDiagnosisSummary(input: {
     && (!selfAuthoritySummary.preservedIntoRewrite || !selfAuthoritySummary.rewriteClosureApplied)
     && (selfAuthoritySummary.authoritySummary || selfAuthoritySummary.closenessPosture)
   ) {
-    const authorityLine = selfAuthoritySummary.authoritySummary?.trim() || 'same-her self authority present'
+    const authorityLine = selfAuthoritySummary.authoritySummary?.trim() || 'continuity self authority present'
     const postureLine = selfAuthoritySummary.closenessPosture?.trim()
     const missingSteps = [
       selfAuthoritySummary.preservedIntoRewrite ? null : 'preserve it into rewrite',
@@ -720,7 +720,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
       {
         key: 'project_state_compared_turn_count',
         value: comparedTurnCount,
-        detail: `${comparedTurnCount} replay turn(s) carried project-state continuity cues that should keep project identity, Phase 1 route, and unresolved open loops on the same living thread.`,
+        detail: `${comparedTurnCount} replay turn(s) carried project-state continuity cues that should keep project identity, Phase 1 route, and unresolved open loops on the continuity thread.`,
       },
       {
         key: 'project_state_identity_hit_rate',
@@ -740,19 +740,19 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
       {
         key: 'project_state_same_her_hit_rate',
         value: sameHerHitRate,
-        detail: `sameHer=${sameHerHitRate ?? 'n/a'} (${projectState.sameHerHitCount}/${comparedTurnCount}) | checks whether the same-her self line is still explicit before the turn widens outward.`,
+        detail: `sameHer=${sameHerHitRate ?? 'n/a'} (${projectState.sameHerHitCount}/${comparedTurnCount}) | checks whether the continuity self line is still explicit before the turn widens outward.`,
       },
       ...(hasProactiveSameHerGapHitCount
         ? [{
             key: 'project_state_proactive_same_her_gap_hit_rate',
             value: proactiveSameHerGapHitRate,
-            detail: `proactiveSameHerGap=${proactiveSameHerGapHitRate ?? 'n/a'} (${projectState.proactiveSameHerGapHitCount ?? 0}/${comparedTurnCount}) | checks whether visible proactive hold, subconscious carry, and next-session feedback still stay on one same-her follow-through line.`,
+            detail: `proactiveSameHerGap=${proactiveSameHerGapHitRate ?? 'n/a'} (${projectState.proactiveSameHerGapHitCount ?? 0}/${comparedTurnCount}) | checks whether visible proactive hold, subconscious carry, and next-session feedback still stay on one continuity follow-through line.`,
           }]
         : []),
       {
         key: 'project_state_continuity_hit_rate',
         value: continuityHitRate,
-        detail: `continuity=${continuityHitRate ?? 'n/a'} (${projectState.continuityHitCount}/${comparedTurnCount}) | checks whether identity, phase, open loops, and the same-her self line still arrive together as one same-her brief.`,
+        detail: `continuity=${continuityHitRate ?? 'n/a'} (${projectState.continuityHitCount}/${comparedTurnCount}) | checks whether identity, phase, open loops, and the continuity self line still arrive together as one continuity brief.`,
       },
     ]
   })
@@ -772,7 +772,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
       {
         key: 'emotional_closure_compared_turn_count',
         value: comparedTurnCount,
-        detail: `${comparedTurnCount} replay turn(s) carried same-her emotional closure audit.`,
+        detail: `${comparedTurnCount} replay turn(s) carried continuity emotional closure audit.`,
       },
       {
         key: 'emotional_closure_active_cue_rate',
@@ -797,12 +797,12 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
       {
         key: 'emotional_closure_low_pressure_required_rate',
         value: lowPressureRequiredRate,
-        detail: `lowPressureRequired=${lowPressureRequiredRate ?? 'n/a'} (${summary.lowPressureRequiredTurnCount}/${comparedTurnCount}) | checks whether the same-her return still needs a lower-pressure landing instead of widening too fast.`,
+        detail: `lowPressureRequired=${lowPressureRequiredRate ?? 'n/a'} (${summary.lowPressureRequiredTurnCount}/${comparedTurnCount}) | checks whether the continuity return still needs a lower-pressure landing instead of widening too fast.`,
       },
       {
         key: 'emotional_closure_anti_restart_required_rate',
         value: antiRestartRequiredRate,
-        detail: `antiRestartRequired=${antiRestartRequiredRate ?? 'n/a'} (${summary.antiRestartRequiredTurnCount}/${comparedTurnCount}) | checks whether the same-her return still must avoid reopening from scratch.`,
+        detail: `antiRestartRequired=${antiRestartRequiredRate ?? 'n/a'} (${summary.antiRestartRequiredTurnCount}/${comparedTurnCount}) | checks whether the continuity return still must avoid reopening from scratch.`,
       },
     ]
   })
@@ -814,7 +814,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
       {
         key: 'same_her_session_compared_count',
         value: summary.comparedSessionCount,
-        detail: `${summary.comparedSessionCount} real sampled session(s) had enough long-run same-her evidence to compare.`,
+        detail: `${summary.comparedSessionCount} real sampled session(s) had enough long-run continuity evidence to compare.`,
       },
       {
         key: 'same_her_session_closure_rate',
@@ -898,19 +898,19 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     const firstRepairTarget = evidence.repairTargets?.[0] ?? null
     const firstNextRunEvidenceChecklist = evidence.nextRunEvidenceChecklist?.[0] ?? null
     const nextRepairTarget = !sourceIsRuntime
-      ? 'Run a sampled proof from real runtime turns with decision-trace provenance before treating the long-run same-her loop as closed.'
+      ? 'Run a sampled proof from real runtime turns with decision-trace provenance before treating the long-run continuity loop as closed.'
       : closed
-        ? 'Real desktop same-her proof is closed; keep collecting noisy-session samples so future drift is caught before it becomes personality drift.'
+        ? 'Real desktop continuity proof is closed; keep collecting noisy-session samples so future drift is caught before it becomes personality drift.'
         : firstNextRunEvidenceChecklist
           ? `Next real desktop run must capture ${runtimeSamplingNextRunEvidenceChecklistActionText(firstNextRunEvidenceChecklist)}`
           : firstRepairTarget
-            ? `${sameHerLaneGapFirstCheck(firstRepairTarget.lane)} Latest runtime repair reason: ${firstRepairTarget.reasons[0] ?? 'runtime same-her proof is still open.'}`
+            ? `${sameHerLaneGapFirstCheck(firstRepairTarget.lane)} Latest runtime repair reason: ${firstRepairTarget.reasons[0] ?? 'runtime continuity proof is still open.'}`
             : 'Collect at least one real noisy desktop session with memory recall, proactive opening, execution callback, emotional afterglow, and embodiment expression all tied to decision-trace provenance.'
     const headline = !sourceIsRuntime
-      ? 'Dataset/static same-her closure is not enough for the real desktop proof.'
+      ? 'Dataset/static continuity closure is not enough for the real desktop proof.'
       : closed
-        ? 'Real desktop same-her closure is closed by runtime decision-trace evidence.'
-        : 'Real desktop same-her closure is still open.'
+        ? 'Real desktop continuity closure is closed by runtime decision-trace evidence.'
+        : 'Real desktop continuity closure is still open.'
     const detail = [
       `source=${evidence.source}`,
       `runtimeClosureRate=${runtimeClosureRate}`,
@@ -1168,7 +1168,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
       {
         key: 'self_authority_compared_turn_count',
         value: comparedTurnCount,
-        detail: `${comparedTurnCount} replay turn(s) carried same-her self authority audit.`,
+        detail: `${comparedTurnCount} replay turn(s) carried continuity self authority audit.`,
       },
       {
         key: 'self_authority_summary_rate',
@@ -1193,7 +1193,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
       {
         key: 'self_authority_fully_carried_rate',
         value: fullyCarriedRate,
-        detail: `${drifted ? 'drift=selfAuthorityDrift | ' : ''}fullyCarried=${fullyCarriedRate ?? 'n/a'} (${summary.fullyCarriedTurnCount}/${comparedTurnCount}) | checks whether the same-her self line stayed explicit, preserved, and rewrite-applied together.`,
+        detail: `${drifted ? 'drift=selfAuthorityDrift | ' : ''}fullyCarried=${fullyCarriedRate ?? 'n/a'} (${summary.fullyCarriedTurnCount}/${comparedTurnCount}) | checks whether the continuity self line stayed explicit, preserved, and rewrite-applied together.`,
       },
     ]
   })
@@ -1224,12 +1224,12 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
       {
         key: 'project_state_audit_compared_turn_count',
         value: comparedTurnCount,
-        detail: `${comparedTurnCount} replay turn(s) carried same-her project-state audit.`,
+        detail: `${comparedTurnCount} replay turn(s) carried continuity project-state audit.`,
       },
       {
         key: 'project_state_audit_same_her_summary_rate',
         value: sameHerSummaryRate,
-        detail: `sameHerSummary=${sameHerSummaryRate ?? 'n/a'} (${summary.sameHerSummaryTurnCount}/${comparedTurnCount}) | checks whether project-state answers stay inside one same-her continuity.`,
+        detail: `sameHerSummary=${sameHerSummaryRate ?? 'n/a'} (${summary.sameHerSummaryTurnCount}/${comparedTurnCount}) | checks whether project-state answers stay inside one continuity continuity.`,
       },
       {
         key: 'project_state_audit_landed_progress_rate',
@@ -1249,14 +1249,14 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
       {
         key: 'project_state_audit_continuity_summary_rate',
         value: continuitySummaryRate,
-        detail: `continuitySummary=${continuitySummaryRate ?? 'n/a'} (${summary.continuitySummaryTurnCount}/${comparedTurnCount}) | checks whether same-her line, landed progress, open closure, and the same-her drift boundary arrived together as one project continuity brief.`,
+        detail: `continuitySummary=${continuitySummaryRate ?? 'n/a'} (${summary.continuitySummaryTurnCount}/${comparedTurnCount}) | checks whether continuity line, landed progress, open closure, and the continuity drift boundary arrived together as one project continuity brief.`,
       },
       ...(hasExplicitContinuityAnchors
         ? [
           {
             key: 'project_state_audit_same_her_hold_detail_rate',
             value: sameHerHoldDetailRate,
-            detail: `sameHerHoldDetail=${sameHerHoldDetailRate ?? 'n/a'} (${sameHerHoldDetailCount}/${comparedTurnCount}) | checks whether replay kept the concrete same-her hold detail instead of flattening her into generic continuity.`,
+            detail: `sameHerHoldDetail=${sameHerHoldDetailRate ?? 'n/a'} (${sameHerHoldDetailCount}/${comparedTurnCount}) | checks whether replay kept the concrete continuity hold detail instead of flattening her into generic continuity.`,
           },
           {
             key: 'project_state_audit_continuity_arc_stage_rate',
@@ -1266,7 +1266,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
           {
             key: 'project_state_audit_continuity_cue_rate',
             value: continuityCueRate,
-            detail: `continuityCue=${continuityCueRate ?? 'n/a'} (${continuityCueCount}/${comparedTurnCount}) | checks whether replay kept the concrete continuity cue that tells the next turn how to stay with the same her.`,
+            detail: `continuityCue=${continuityCueRate ?? 'n/a'} (${continuityCueCount}/${comparedTurnCount}) | checks whether replay kept the concrete continuity cue that tells the next turn how to stay with the continuity identity.`,
           },
         ] satisfies AlicizationMindReplayMetricRow[]
         : []),
@@ -1283,7 +1283,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
       {
         key: 'project_state_audit_fully_carried_rate',
         value: fullyCarriedRate,
-        detail: `${drifted ? 'drift=projectStateAuditDrift | ' : ''}fullyCarried=${fullyCarriedRate ?? 'n/a'} (${summary.fullyCarriedTurnCount}/${comparedTurnCount}) | checks whether project identity, Phase 1 route, and still-open closure work stayed inside one same digital life.`,
+        detail: `${drifted ? 'drift=projectStateAuditDrift | ' : ''}fullyCarried=${fullyCarriedRate ?? 'n/a'} (${summary.fullyCarriedTurnCount}/${comparedTurnCount}) | checks whether project identity, Phase 1 route, and still-open closure work stayed inside one current continuity.`,
       },
     ]
   })
@@ -1346,13 +1346,13 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
 
   function sameHerLaneGapFirstCheck(lane: AlicizationMindReplaySameHerRepairTargetRow['lane']) {
     if (lane === 'memory') {
-      return 'Check memory retrieval and resolution first: verify recalled events, relationship continuity, and memory decision traces are carrying the same-her line before downstream initiative or embodiment tries to use it.'
+      return 'Check memory retrieval and resolution first: verify recalled events, relationship continuity, and memory decision traces are carrying the continuity line before downstream initiative or embodiment tries to use it.'
     }
     if (lane === 'initiativeOrExecution') {
-      return 'Check initiative and execution callback carry first: verify proactive cadence, execution feedback, and callback realization still continue the remembered same-her line instead of restarting as a detached task update.'
+      return 'Check initiative and execution callback carry first: verify proactive cadence, execution feedback, and callback realization still continue the remembered continuity line instead of restarting as a detached task update.'
     }
     if (lane === 'emotion') {
-      return 'Check emotional closure carry first: verify affective residue, emotional closure audit, and rewrite preservation still keep the remembered same-her line active before the next turn widens outward.'
+      return 'Check emotional closure carry first: verify affective residue, emotional closure audit, and rewrite preservation still keep the remembered continuity line active before the next turn widens outward.'
     }
     return 'Check embodiment projection first: verify voice, facial state, lipsync, motion, and body continuity still derive from the same internal emotional/memory state rather than drifting into a detached performance layer.'
   }
@@ -1410,13 +1410,13 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
 
   function sameHerTransitionGapFirstCheck(lane: AlicizationMindReplaySameHerRepairTargetRow['lane']) {
     if (lane === 'memory') {
-      return 'Check memory transition carry first: verify recalled events, relationship continuity, and the next-turn handoff still keep the same-her memory line active before downstream initiative or embodiment tries to use it.'
+      return 'Check memory transition carry first: verify recalled events, relationship continuity, and the next-turn handoff still keep the continuity memory line active before downstream initiative or embodiment tries to use it.'
     }
     if (lane === 'initiativeOrExecution') {
-      return 'Check initiative and execution callback transition carry first: verify proactive cadence, execution feedback, callback realization, and the next-turn handoff still continue the remembered same-her line instead of restarting as a detached task update.'
+      return 'Check initiative and execution callback transition carry first: verify proactive cadence, execution feedback, callback realization, and the next-turn handoff still continue the remembered continuity line instead of restarting as a detached task update.'
     }
     if (lane === 'emotion') {
-      return 'Check emotional transition carry first: verify affective residue, emotional closure audit, rewrite preservation, and the next-turn handoff still keep the remembered same-her line active before the next turn widens outward.'
+      return 'Check emotional transition carry first: verify affective residue, emotional closure audit, rewrite preservation, and the next-turn handoff still keep the remembered continuity line active before the next turn widens outward.'
     }
     return 'Check embodiment transition carry first: verify voice, facial state, lipsync, motion, body continuity, and the next-turn handoff still derive from the same internal emotional/memory state rather than drifting into a detached performance layer.'
   }
@@ -1606,7 +1606,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
         'projectStateAuditDrift',
       ].includes(dimension)) {
         owner = 'runtime continuity'
-        firstCheck = 'Check the pre-dialogue project-awareness chain first: verify project identity, Phase 1 route, landed progress, open loop, next closure, and the same-her drift boundary are still being carried before visible reply shaping begins.'
+        firstCheck = 'Check the pre-dialogue project-awareness chain first: verify project identity, Phase 1 route, landed progress, open loop, next closure, and the continuity drift boundary are still being carried before visible reply shaping begins.'
       }
       else if (dimension === 'replyMemoryCoherence') {
         owner = 'proactive parity'

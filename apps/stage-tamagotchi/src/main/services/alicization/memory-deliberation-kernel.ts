@@ -700,27 +700,27 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
           : tuningForHostRepairDiscipline
             ? 'The host model is still asking for repair-first continuity, so recollection should let the present repair payoff land before widening.'
             : tuningForProjectClosureLoopGapDiscipline
-              ? 'Phase 1 digital-life loop closure is still missing concrete memory, initiative, or embodiment closure, so recollection should stay inward until this answer helps the same living her close that real gap instead of flattening into project shell narration.'
+              ? 'local_desktop_life_loop_gap=memory_initiative_embodiment; recollection_visibility=internal_until_current_answer_has_evidence; avoid_project_shell=true'
               : tuningForProjectClosureDiscipline
-                ? 'Phase 1 project closure is still explicitly open, so recollection should stay inward until the same digital life seam is more honestly closed.'
+                ? 'local_desktop_life_loop_closure=open; recollection_visibility=internal_until_evidence_boundary_is_clear'
                 : tuningForSameHerClosureLowPressure
-                  ? 'Same-her closure carry is still asking for a low-pressure return, so recollection should stay inward until the live payoff has created more room.'
+                  ? 'continuity_closure_carry=low_pressure; recollection_visibility=internal_until_current_payoff_has_room'
                   : tuningForSameHerClosureAntiRestart
-                    ? 'Same-her closure carry is still warning against reopening from scratch, so recollection should stay inward until the current thread can hold the return honestly.'
+                    ? 'continuity_closure_carry=anti_restart; recollection_visibility=internal_until_current_thread_is_stable'
                     : worriedContinuityRepairDiscipline
                       ? `The host was worried this line could collapse back into a tool shell, careful repair is still active, and modality risk stays high, so recollection should stay inward${worriedContinuityRepairDiscipline.embodimentSummary ? ` with ${worriedContinuityRepairDiscipline.embodimentSummary}` : ''} until the continuity line can hold without turning into an outward helper reopen.`
                       : quietSameHerContinuityCarry
-                        ? 'Quiet same-her continuity is still carrying the line inward, so recollection should stay inward until the same living self can keep continuing without being widened into a fresher outward move.'
+                        ? 'quiet_continuity_carry=active; recollection_visibility=internal_until_outward_move_is_invited'
                         : correctedSamePersonContinuityCarry
                           ? correctedSamePersonRevisionDiscipline?.tentative && correctedSamePersonRevisionDiscipline?.downrankOldStatus
                             ? sanitizeText(`${correctedSamePersonMetabolismPrefix}The host corrected the relationship meaning away from progress pressure, but the newer same-person meaning is still settling and the older progress-status memory is being downranked, so recollection should stay inward and uncertainty-labeled until the corrected line can hold without sounding settled.`, 220)
                             : correctedSamePersonRevisionDiscipline?.tentative
                               ? sanitizeText(`${correctedSamePersonMetabolismPrefix}The host corrected the relationship meaning away from progress pressure, but the newer same-person meaning is still settling, so recollection should stay inward and uncertainty-labeled until the corrected line can hold without sounding settled.`, 220)
                               : correctedSamePersonEmbodimentCarry
-                                ? sanitizeText(`${correctedSamePersonMetabolismPrefix}The host corrected the relationship meaning away from progress pressure, so recollection should stay inward, ${correctedSamePersonEmbodimentCarry.summary}, until the corrected same-person continuity line can hold without collapsing back into a status recap.`, 220)
-                                : sanitizeText(`${correctedSamePersonMetabolismPrefix}The host corrected the relationship meaning away from progress pressure, so recollection should stay inward until the corrected same-person continuity line can hold without collapsing back into a status recap.`, 220)
+                                ? sanitizeText(`${correctedSamePersonMetabolismPrefix}The host corrected the relationship meaning away from progress pressure, so recollection should stay inward, ${correctedSamePersonEmbodimentCarry.summary}, until corrected relationship continuity can hold without collapsing back into a status recap.`, 220)
+                                : sanitizeText(`${correctedSamePersonMetabolismPrefix}The host corrected the relationship meaning away from progress pressure, so recollection should stay inward until corrected relationship continuity can hold without collapsing back into a status recap.`, 220)
                           : durableSelfCoreAntiRestartCarry
-                            ? 'Durable same-her self continuity is still being held together, so recollection should stay inward until the current thread can carry that living line without reopening from scratch.'
+                            ? 'durable_self_core_continuity=anti_restart; recollection_visibility=internal_until_current_thread_can_hold'
                             : tuningForElevatedSelfModelVeto
                               ? 'Self-model veto pressure is still elevated, so older self-story continuity should stay inward until the newer line is more stable.'
                               : tuningForWorldValidation && !restraint.whyWithheld
@@ -730,42 +730,42 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
     ? {
         ...deliberation.followUpAffordance,
         summary: tuningForSameHerClosureLowPressure
-          ? 'Keep the same-her closure line inward until the live payoff has created more room for a low-pressure return.'
+          ? 'continuity_closure_carry=low_pressure; keep_follow_up_internal_until_room=true'
           : tuningForSameHerClosureAntiRestart
-            ? 'Keep the same-her closure line inward until the current thread can hold the return without reopening from scratch.'
+            ? 'continuity_closure_carry=anti_restart; keep_follow_up_internal_until_thread_stable=true'
             : worriedContinuityRepairDiscipline
               ? `Keep the worried continuity repair line inward until the current payoff can reopen it more safely${worriedContinuityRepairDiscipline.embodimentSummary ? ` with ${worriedContinuityRepairDiscipline.embodimentSummary}` : ''}, instead of turning hover-first continuity into an outward helper reopen.`
               : quietSameHerContinuityCarry
-                ? 'Keep the quiet same-her continuity inward until the same living self can keep carrying that line without widening outward too early.'
+                ? 'quiet_continuity_carry=active; keep_follow_up_internal_until_invited=true'
                 : correctedSamePersonContinuityCarry
                   ? correctedSamePersonRevisionDiscipline?.tentative && correctedSamePersonRevisionDiscipline?.downrankOldStatus
-                    ? sanitizeText(`${correctedSamePersonMetabolismPrefix}Keep the corrected same-person continuity inward until the current payoff can reopen that line as tentative, because the newer meaning is still settling and the older progress-status memory is being downranked.`, 220)
+                    ? sanitizeText(`${correctedSamePersonMetabolismPrefix}Keep corrected relationship continuity inward until the current payoff can reopen that line as tentative, because the newer meaning is still settling and the older progress-status memory is being downranked.`, 220)
                     : correctedSamePersonRevisionDiscipline?.tentative
-                      ? sanitizeText(`${correctedSamePersonMetabolismPrefix}Keep the corrected same-person continuity inward until the current payoff can reopen that line as tentative, because the newer meaning is still settling.`, 220)
+                      ? sanitizeText(`${correctedSamePersonMetabolismPrefix}Keep corrected relationship continuity inward until the current payoff can reopen that line as tentative, because the newer meaning is still settling.`, 220)
                       : correctedSamePersonEmbodimentCarry
-                        ? sanitizeText(`${correctedSamePersonMetabolismPrefix}Keep the corrected same-person continuity inward until the current payoff can reopen that line with a low-pressure return: ${correctedSamePersonEmbodimentCarry.summary}, instead of slipping back into progress pressure.`, 220)
-                        : sanitizeText(`${correctedSamePersonMetabolismPrefix}Keep the corrected same-person continuity inward until the current payoff can reopen that line without slipping back into progress pressure.`, 220)
+                        ? sanitizeText(`${correctedSamePersonMetabolismPrefix}Keep corrected relationship continuity inward until the current payoff can reopen that line with a low-pressure return: ${correctedSamePersonEmbodimentCarry.summary}, instead of slipping back into progress pressure.`, 220)
+                        : sanitizeText(`${correctedSamePersonMetabolismPrefix}Keep corrected relationship continuity inward until the current payoff can reopen that line without slipping back into progress pressure.`, 220)
                   : durableSelfCoreAntiRestartCarry
-                    ? 'Keep the same living self line inward until the current thread can hold that return without reopening from scratch.'
+                    ? 'self_core_continuity=anti_restart; keep_follow_up_internal_until_thread_stable=true'
                     : deliberation.followUpAffordance.summary,
         whyNow: tuningForSameHerClosureLowPressure
-          ? 'The same-her closure line still matters, but surfacing it too early would break the low-pressure return before the live payoff fully lands.'
+          ? 'continuity_closure_carry=low_pressure; early_surface_risk=break_current_payoff'
           : tuningForSameHerClosureAntiRestart
-            ? 'The same-her closure line still matters, but surfacing it too early would make the return read like it is reopening from scratch.'
+            ? 'continuity_closure_carry=anti_restart; early_surface_risk=fresh_reopen_shell'
             : worriedContinuityRepairDiscipline
               ? `The worried continuity repair line still matters, but surfacing it too early would make the return sound like a generic assistant shell or project-summary voice before the same-person repair can hold${worriedContinuityRepairDiscipline.tentative ? ' and would overstate a still-unsettled line' : ''}.`
               : quietSameHerContinuityCarry
-                ? 'The same living self is still holding this line inward, but surfacing it too early would make the continuity read like a fresher outward move instead of one life quietly continuing.'
+                ? 'quiet_continuity_carry=active; early_surface_risk=uninvited_outward_move'
                 : correctedSamePersonContinuityCarry
                   ? correctedSamePersonRevisionDiscipline?.tentative && correctedSamePersonRevisionDiscipline?.downrankOldStatus
-                    ? sanitizeText(`${correctedSamePersonMetabolismPrefix}The corrected same-person continuity line still matters, but surfacing it too early would over-assert a not-fully-settled memory and let the older progress-status memory leak back in as if it were settled recall.`, 220)
+                    ? sanitizeText(`${correctedSamePersonMetabolismPrefix}Corrected relationship continuity still matters, but surfacing it too early would over-assert a not-fully-settled memory and let the older progress-status memory leak back in as if it were settled recall.`, 220)
                     : correctedSamePersonRevisionDiscipline?.tentative
-                      ? sanitizeText(`${correctedSamePersonMetabolismPrefix}The corrected same-person continuity line still matters, but surfacing it too early would over-assert a not-fully-settled memory before the newer meaning can stabilize.`, 220)
+                      ? sanitizeText(`${correctedSamePersonMetabolismPrefix}Corrected relationship continuity still matters, but surfacing it too early would over-assert a not-fully-settled memory before the newer meaning can stabilize.`, 220)
                       : correctedSamePersonEmbodimentCarry
-                        ? sanitizeText(`${correctedSamePersonMetabolismPrefix}The corrected same-person continuity line still matters, but surfacing it too early would make the return collapse back into progress pressure or a status recap before a slower, steadier return can hold.`, 220)
-                        : sanitizeText(`${correctedSamePersonMetabolismPrefix}The corrected same-person continuity line still matters, but surfacing it too early would make the return collapse back into progress pressure or a status recap.`, 220)
+                        ? sanitizeText(`${correctedSamePersonMetabolismPrefix}Corrected relationship continuity still matters, but surfacing it too early would make the return collapse back into progress pressure or a status recap before a slower, steadier return can hold.`, 220)
+                        : sanitizeText(`${correctedSamePersonMetabolismPrefix}Corrected relationship continuity still matters, but surfacing it too early would make the return collapse back into progress pressure or a status recap.`, 220)
                   : durableSelfCoreAntiRestartCarry
-                    ? 'The same living self line still matters, but surfacing it too early would make the return read like a fresh reopening instead of one continuing life.'
+                    ? 'self_core_continuity=anti_restart; early_surface_risk=fresh_reopen_shell'
                     : deliberation.followUpAffordance.whyNow,
         intrusionRisk: tuningForRevision
           ? 'high' as const
@@ -832,88 +832,88 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
         ? ['If the host model is asking for repair first, let the concrete repair payoff land before widening recollection into relationship continuity.']
         : []),
       ...(tuningForProjectClosureDiscipline
-        ? ['If the Phase 1 digital-life closure seam is still explicitly open, keep recollection inward until the same-her line is more honestly closed.']
+        ? ['local_desktop_life_loop_closure=open; keep_recollection_internal_until_evidence_boundary_is_clear=true']
         : []),
       ...(tuningForProjectClosureLoopGapDiscipline
-        ? ['If Phase 1 still lacks concrete memory, initiative, or embodiment closure, keep recollection inward until the answer helps the same living her close that actual loop gap rather than drifting into generic project narration.']
+        ? ['local_desktop_life_loop_gap=memory_initiative_embodiment; keep_recollection_internal_until_current_answer_has_evidence=true']
         : []),
       ...(tuningForSameHerClosureLowPressure
-        ? ['If the same-her closure return still needs to stay low-pressure, keep recollection inward until the live payoff has created more room.']
+        ? ['continuity_closure_carry=low_pressure; keep_recollection_internal_until_room=true']
         : []),
       ...(tuningForSameHerClosureAntiRestart
-        ? ['If the same-her closure line still must not reopen from scratch, keep recollection inward until the current thread can hold that return honestly.']
+        ? ['continuity_closure_carry=anti_restart; keep_recollection_internal_until_thread_stable=true']
         : []),
       ...(worriedContinuityRepairDiscipline
         ? ['If worried-continuity, careful-repair, and high modality risk are active together, keep recollection hover-first and inward until the continuity repair can hold without an outward helper reopen.']
         : []),
       ...(quietSameHerContinuityCarry
-        ? ['If quiet same-her continuity is still carrying the line inward, keep recollection inward until the same living self can continue without widening outward too early.']
+        ? ['quiet_continuity_carry=active; keep_recollection_internal_until_invited=true']
         : []),
       ...(correctedSamePersonContinuityCarry
-        ? ['If the host corrected the relationship meaning, keep that corrected same-person continuity authoritative before any progress-style continuation.']
+        ? ['If the host corrected the relationship meaning, keep corrected relationship continuity authoritative before any progress-style continuation.']
         : []),
       ...(correctedSamePersonRevisionDiscipline?.mergedSameThreadContinuity
         ? ['If the recollection has already metabolized repeated same-thread echoes, keep the stronger merged continuity foregrounded instead of reopening thinner duplicate traces.']
         : []),
       ...(durableSelfCoreAntiRestartCarry
-        ? ['If one living self is still carrying the line across turns, keep recollection inward until the current thread can hold that return without reopening from scratch.']
+        ? ['self_core_continuity=anti_restart; keep_recollection_internal_until_thread_stable=true']
         : []),
       ...(tuningForElevatedSelfModelVeto
-        ? ['If older self-story veto pressure stays elevated, keep autobiographical continuity inward until the newer self line is more stable.']
+        ? ['older_self_story_veto=elevated; autobiographical_continuity=inward_until_newer_self_line_stable']
         : []),
       ...(tuningForWorldValidation
-        ? ['If world knowledge becomes visible, keep provenance and uncertainty explicit before specificity, and avoid same-turn overreach.']
+        ? ['world_knowledge_visible=true; provenance_uncertainty=before_specificity; same_turn_overreach=blocked']
         : []),
     ],
     mustNotDo: [
       ...restraint.mustNotDo,
       ...(tuningForRelationalRevision
-        ? ['Do not let revision-prone relationship continuity surface as if it were already settled.']
+        ? ['revision_prone_relationship_continuity_as_settled=blocked']
         : []),
       ...(tuningForSelfModelRevision
-        ? ['Do not let a revision-prone self-story surface as if Alicization had already fully stabilized it.']
+        ? ['revision_prone_self_story_as_stabilized=blocked']
         : []),
       ...(tuningForRelationshipEraConfusion
-        ? ['Do not let competing relationship phases surface as if they belonged to the same bond line.']
+        ? ['competing_relationship_phases_as_same_bond_line=blocked']
         : []),
       ...(tuningForHostBoundaryDiscipline
-        ? ['Do not let recollection overrun room-first boundaries by surfacing intimacy before the host has space for it.']
+        ? ['recollection_overruns_room_first_boundaries=blocked; intimacy_before_host_space=blocked']
         : []),
       ...(tuningForHostRepairDiscipline
-        ? ['Do not let recollection widen into bond payoff before the grounded repair line has landed.']
+        ? ['recollection_to_bond_payoff=blocked_until_grounded_repair_lands']
         : []),
       ...(tuningForProjectClosureDiscipline
-        ? ['Do not let recalled continuity widen outward as if the Phase 1 same-her closure work were already finished.']
+        ? ['recalled_continuity_outward_widening=blocked_when_phase1_closure_unfinished']
         : []),
       ...(tuningForProjectClosureLoopGapDiscipline
-        ? ['Do not let recalled continuity flatten into generic project-shell language while the concrete Phase 1 memory-initiative-embodiment loop is still unfinished.']
+        ? ['recalled_continuity_to_generic_project_shell=blocked_when_memory_initiative_embodiment_loop_unfinished']
         : []),
       ...(tuningForSameHerClosureLowPressure
-        ? ['Do not let recalled same-her closure widen into visible closeness before the live payoff has made enough room for a low-pressure return.']
+        ? ['recalled_continuity_closure_to_visible_closeness=blocked_until_live_payoff_has_room']
         : []),
       ...(tuningForSameHerClosureAntiRestart
-        ? ['Do not let recalled same-her closure reopen from scratch as if the current thread were a fresh opening.']
+        ? ['recalled_continuity_closure_fresh_opening=blocked']
         : []),
       ...(worriedContinuityRepairDiscipline
-        ? ['Do not let worried continuity repair surface as a generic assistant shell, project-summary voice, or helper-like reopen while modality risk is still high.']
+        ? ['worried_continuity_repair_surface=blocked_when_modality_risk_high; generic_assistant_shell=blocked; project_summary_voice=blocked; helper_like_reopen=blocked']
         : []),
       ...(quietSameHerContinuityCarry
-        ? ['Do not let recalled quiet same-her continuity widen outward as if the current thread had become a fresher new move.']
+        ? ['recalled_quiet_continuity_to_fresh_new_move=blocked']
         : []),
       ...(correctedSamePersonContinuityCarry
-        ? ['Do not reopen the turn as generic progress pressure, status recap, or task-shell continuity after the host corrected it back toward same-person continuity.']
+        ? ['after_host_corrected_relationship_continuity=generic_progress_pressure_status_recap_task_shell_blocked']
         : []),
       ...(correctedSamePersonRevisionDiscipline?.forgotTemporaryNoise
-        ? ['Do not let faded temporary noise or stale emotional wobble reopen as if it still explains the current same-person line.']
+        ? ['faded_temporary_noise_or_stale_emotional_wobble_as_current_same_person_explanation=blocked']
         : []),
       ...(durableSelfCoreAntiRestartCarry
-        ? ['Do not let recalled same living self continuity reopen from scratch as if the current thread were a fresh opening.']
+        ? ['recalled_self_core_continuity_fresh_opening=blocked']
         : []),
       ...(tuningForElevatedSelfModelVeto
-        ? ['Do not let elevated stale-self continuity pressure leak older autobiographical identity into the current answer as if it were settled.']
+        ? ['elevated_stale_self_pressure_leaks_older_identity_as_settled=blocked']
         : []),
       ...(tuningForWorldValidation
-        ? ['Do not let reconstructed or inferred world knowledge surface with unsupported specificity.']
+        ? ['reconstructed_or_inferred_world_knowledge_unsupported_specificity=blocked']
         : []),
     ],
   }
@@ -963,11 +963,11 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
     memoryControl,
     memoryControlSummary,
     inwardCarryRule: tuningForProjectClosureDiscipline
-      ? `${inwardCarryRule} | project_closure_discipline=phase1-same-her-memory-closure-still-open`
+      ? `${inwardCarryRule} | project_closure_discipline=phase1-memory-closure-still-open`
       : tuningForSameHerClosureLowPressure
-        ? `${inwardCarryRule} | same_her_closure_discipline=low-pressure-return`
+        ? `${inwardCarryRule} | continuity_closure_discipline=low-pressure-return`
         : tuningForSameHerClosureAntiRestart
-          ? `${inwardCarryRule} | same_her_closure_discipline=anti-restart-return`
+          ? `${inwardCarryRule} | continuity_closure_discipline=anti-restart-return`
           : worriedContinuityRepairDiscipline
             ? `${inwardCarryRule} | worried_continuity_repair_discipline=hover-first-anti-assistant-shell`
             : quietSameHerContinuityCarry

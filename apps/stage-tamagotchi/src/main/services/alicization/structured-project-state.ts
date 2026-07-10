@@ -328,8 +328,8 @@ function resolvePreferredStructuredProjectAwarenessLine(input: {
     nextClosureTarget: input.nextClosureTarget ?? null,
   })
     ? buildStructuredAwarenessFromClosureFields({
-        identity: sanitizeText(input.identity ?? '', '') || 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
-        currentPhase: sanitizeText(input.currentPhase ?? '', '') || 'Phase 1: Local Digital Life',
+        identity: sanitizeText(input.identity ?? '', '') || 'local_desktop_life_loop',
+        currentPhase: sanitizeText(input.currentPhase ?? '', '') || 'local_desktop_life_loop',
         latestLandedProgress: sanitizeText(input.latestLandedProgress ?? '', '') || '',
         primaryOpenLoop: sanitizeText(input.primaryOpenLoop ?? '', '') || '',
         nextClosureTarget: sanitizeText(input.nextClosureTarget ?? '', '') || '',

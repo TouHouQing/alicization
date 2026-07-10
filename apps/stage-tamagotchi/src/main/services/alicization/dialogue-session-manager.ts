@@ -5,6 +5,12 @@ import type { AlicizationDigitalLifeSpineSnapshot } from './digital-life-spine'
 import type { AlicizationMainChatRuntimeSurface } from './main-chat-runtime-surface'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
+import {
+  alicizationFixedTemplateReplacement,
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+
 import { deriveAlicizationRuntimeSnapshot } from './alicization-runtime-architecture'
 import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-governor'
 import {
@@ -95,6 +101,115 @@ function sanitizeText(raw: unknown, maxChars = 160) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function uniqueMirrorSegments(values: Array<string | null | undefined>) {
+  const result: string[] = []
+  for (const value of values) {
+    const normalized = sanitizeText(value, continuityArcSummaryValueMaxChars)
+    if (!normalized || result.includes(normalized))
+      continue
+    result.push(normalized)
+  }
+  return result
+}
+
+function fixedMirrorTemplateStructuredFact(raw: unknown, maxChars = 320) {
+  const normalized = sanitizeText(raw, maxChars)
+  if (!normalized || !containsAlicizationFixedTemplateResidue(normalized))
+    return ''
+
+  const lowered = normalized.toLowerCase()
+  const segments = uniqueMirrorSegments([
+    /phase\s*1|local-first|digital life|数字生命|alicization/u.test(lowered)
+      ? `local_desktop_life_loop${/apps\/stage-tamagotchi|proving ground/u.test(lowered) ? '; proving_ground=apps/stage-tamagotchi' : ''}`
+      : null,
+    /landed|already|progress|survive|落地|已/u.test(lowered)
+      ? 'continuity_progress=partial; visibility=internal-structured'
+      : null,
+    /memory|initiative|embodiment|dialogue|open loop|still need|unresolved|closure|记忆|主动|具身|闭环/u.test(lowered)
+      ? 'unresolved_closure=memory_dialogue_embodiment; visibility=internal-structured'
+      : null,
+    /cross[-_ ]modal|voice|face|motion|lipsync|resident|next|proof|表情|动作|口型|声音/u.test(lowered)
+      ? 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs; visibility=internal-structured'
+      : null,
+    /right now|holding together|body|face|motion|lipsync|voice|embodiment|具身/u.test(lowered)
+      ? 'continuity=embodiment; lane=unknown; status=pending-rejoin; pending_rejoin=body+face+motion+lipsync+voice; closure=full-cross-modal-open; visibility=renderer-internal'
+      : null,
+    /same phase 1|same digital life|same[- ]her|same living|one continuous|one living|同一个/u.test(lowered)
+      ? 'continuity_anchor=local_desktop_life_loop; landed_closure=partial; unresolved_closure=memory_dialogue_embodiment; owner=project_state_governance'
+      : null,
+    /generic guidance|generic project|thin project|detached|drift|漂|模板/u.test(lowered)
+      ? 'generic_guidance_without_first_person_continuity; closure_status=unfinished; visibility=internal-structured'
+      : null,
+    /repair-before-closeness|repair first|repair settles|修复/u.test(lowered)
+      ? 'continuity_hold=repair_before_closeness; timing=before_closeness_widens; visibility=internal-structured'
+      : null,
+    /measured-return|lower-pressure|low-pressure|leave room|留白|放轻/u.test(lowered)
+      ? 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred; visibility=internal-structured'
+      : null,
+  ])
+
+  return segments.join('; ') || alicizationFixedTemplateReplacement
+}
+
+function sanitizeMirrorProviderFacingText(raw: unknown, maxChars = 320) {
+  const normalized = sanitizeText(raw, maxChars)
+  if (!normalized)
+    return ''
+
+  const providerSafe = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
+  return providerSafe || fixedMirrorTemplateStructuredFact(normalized, maxChars)
+}
+
+function sanitizeMirrorProviderFacingSummary(raw: unknown, maxChars = continuityArcSummaryMaxChars) {
+  const normalized = sanitizeText(raw, maxChars)
+  if (!normalized)
+    return ''
+
+  const providerSafe = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
+  if (providerSafe)
+    return providerSafe
+
+  const segments = normalized.split(/\s*\|\s*/u).map((part) => {
+    const normalizedPart = sanitizeText(part, continuityArcSummaryValueMaxChars)
+    if (!normalizedPart)
+      return ''
+
+    const separatorIndex = normalizedPart.indexOf('=')
+    if (separatorIndex <= 0)
+      return sanitizeMirrorProviderFacingText(normalizedPart, continuityArcSummaryValueMaxChars)
+
+    const rawKey = sanitizeText(normalizedPart.slice(0, separatorIndex), 64)
+    const key = rawKey === 'same_her' ? 'continuity_anchor' : rawKey
+    const value = sanitizeMirrorProviderFacingText(
+      normalizedPart.slice(separatorIndex + 1),
+      Math.max(80, continuityArcSummaryValueMaxChars - key.length - 1),
+    )
+    return key && value ? `${key}=${value}` : ''
+  }).filter(Boolean)
+
+  return uniqueMirrorSegments(segments).join(' | ')
+}
+
+function sanitizeMirrorContinuityLabel(raw: unknown) {
+  const normalized = sanitizeText(raw, 80)
+  if (!normalized)
+    return ''
+  if (!containsAlicizationFixedTemplateResidue(normalized))
+    return normalized
+
+  return normalized
+    .replace(/same[-_ ]her/giu, 'continuity-anchor')
+    .replace(/same[-_ ]line/giu, 'continuity-line')
+    .replace(/same[-_ ]living/giu, 'continuity')
+    .replace(/one[-_ ]living/giu, 'continuity')
+    .replace(/one[-_ ]continuous/giu, 'continuity')
+    .replace(/local[-_ ]first[-_ ]digital[-_ ]life/giu, 'phase1-local-digital-life')
+}
+
+function sanitizeProjectStateContinuityAnchor(raw: unknown, maxChars = 220) {
+  return sanitizeMirrorProviderFacingText(raw, maxChars)
 }
 
 function sanitizeProjectStatePreferredVoiceMode(raw: unknown) {
@@ -265,22 +380,31 @@ function resolveMirrorProjectStateFromPreparedRuntimeSurface(
     },
   })
 
-  const phase = sanitizeText(snapshot.currentPhase ?? brief.currentPhase, 160)
-  const latestLandedProgress = sanitizeText(
+  const phase = sanitizeMirrorProviderFacingText(snapshot.currentPhase ?? brief.currentPhase, 160)
+  const latestLandedProgress = sanitizeMirrorProviderFacingText(
     snapshot.latestLandedProgress ?? snapshot.latestProgress ?? brief.continuityProgressSummary ?? brief.latestProgress,
     220,
   )
-  const primaryOpenLoop = sanitizeText(snapshot.primaryOpenLoop ?? brief.openLoops[0] ?? '', 220)
-  const nextClosureTarget = sanitizeText(snapshot.nextClosureTarget ?? brief.nextClosureTarget, 220)
-  const sameHerSelfLine = sanitizeText(snapshot.sameHerSelfLine ?? brief.sameHerSelfLine, 220)
-  const companionHeadlineLine = sanitizeText(
+  const primaryOpenLoop = sanitizeMirrorProviderFacingText(snapshot.primaryOpenLoop ?? brief.openLoops[0] ?? '', 220)
+  const nextClosureTarget = sanitizeMirrorProviderFacingText(snapshot.nextClosureTarget ?? brief.nextClosureTarget, 220)
+  const sameHerSelfLine = sanitizeProjectStateContinuityAnchor(snapshot.sameHerSelfLine ?? brief.sameHerSelfLine, 220)
+  const rebuiltAwarenessLine = sanitizeMirrorProviderFacingSummary(buildAlicizationProjectPreDialogueAwarenessLine({
+    identity: snapshot.identity ?? brief.identity,
+    currentPhase: phase || brief.currentPhase,
+    latestLandedProgress,
+    latestProgress: snapshot.latestProgress ?? brief.latestProgress,
+    primaryOpenLoop,
+    nextClosureTarget,
+    sameHerSelfLine,
+  }) ?? '', projectAwarenessLineMaxChars)
+  const companionHeadlineLine = sanitizeMirrorProviderFacingSummary(
     snapshot.companionHeadlineLine
     ?? runtimeProjectState?.companionHeadlineLine
     ?? runtimeProjectState?.companionBriefingLine
     ?? '',
     projectAwarenessLineMaxChars,
   )
-  const preDialogueAwarenessLine = sanitizeText(
+  const rawPreDialogueAwarenessLine = sanitizeText(
     companionHeadlineLine
     || (
       snapshot.preDialogueAwarenessLine
@@ -303,13 +427,16 @@ function resolveMirrorProjectStateFromPreparedRuntimeSurface(
     snapshot.preflightSummary ?? runtimeProjectState?.preflightSummary ?? brief.preflightSummary ?? '',
     projectAwarenessLineMaxChars,
   )
+  const preDialogueAwarenessLine = looksLikeFixedContinuityProjectAwarenessTemplate(rawPreDialogueAwarenessLine)
+    ? sanitizeText(rebuiltAwarenessLine, projectAwarenessLineMaxChars)
+    : rawPreDialogueAwarenessLine
   return {
     landed: latestLandedProgress || '',
     next: nextClosureTarget || '',
     project: 'phase1-digital-life',
     unresolved: primaryOpenLoop || '',
     phase,
-    preDialogueAwarenessLine: preDialogueAwarenessLine || '',
+    preDialogueAwarenessLine: sanitizeMirrorProviderFacingSummary(preDialogueAwarenessLine, projectAwarenessLineMaxChars) || '',
     sameHerSelfLine: sameHerSelfLine || '',
   }
 }
@@ -324,8 +451,8 @@ function summarizeContinuityProjectFromPreparedRuntimeSurface(
     projectState.landed ? `landed=${projectState.landed}` : '',
     projectState.unresolved ? `unresolved=${projectState.unresolved}` : '',
     projectState.next ? `next=${projectState.next}` : '',
-    projectState.sameHerSelfLine ? `same_her=${projectState.sameHerSelfLine}` : '',
-    projectState.preDialogueAwarenessLine ? `preflight=${projectState.preDialogueAwarenessLine}` : '',
+    projectState.sameHerSelfLine ? `continuity_anchor=${projectState.sameHerSelfLine}` : '',
+    projectState.preDialogueAwarenessLine ? `awareness_summary=${projectState.preDialogueAwarenessLine}` : '',
   ].filter(Boolean).join(' | ')
 }
 
@@ -358,12 +485,20 @@ function looksLikeThinContinuityProjectPreflightSummary(raw: unknown) {
     || text.startsWith('same digital life')
 }
 
+function looksLikeFixedContinuityProjectAwarenessTemplate(raw: unknown) {
+  const text = sanitizeText(raw, projectAwarenessLineMaxChars).toLowerCase()
+  if (!text)
+    return false
+
+  return /\bbefore answering\b|same phase 1 digital life|same living line|same digital life project/u.test(text)
+}
+
 function looksLikeNarrowSameHerContinuityProjectLine(raw: unknown) {
   const text = sanitizeText(raw, projectAwarenessLineMaxChars).toLowerCase()
   if (!text)
     return false
 
-  return /same phase 1 digital life|same living line|same her|same-her|one continuous her/u.test(text)
+  return /phase1_local_digital_life_anchor|same phase 1 digital life|same living line|same her|same-her|one continuous her/u.test(text)
     && !text.includes('alicization is a local-first digital life project')
     && !text.includes('before answering, remember:')
 }
@@ -385,7 +520,7 @@ function looksLikeRichContinuityProjectClosureSnapshot(input: {
       || /project identity|cross-modal same-her proof|next closure|项目身份|同一个她|同一条线|下一步|living line/u.test(nextClosureTarget)
     )
     && /memory|initiative|embodiment|closure|主动性|具身|闭环|未闭环|same living line/u.test(primaryOpenLoop)
-    && /same phase 1 digital life|same living line|unfinished closure|same her|same-her|同一个她|同一条线/u.test(sameHerSelfLine)
+    && /phase1_local_digital_life_anchor|same phase 1 digital life|same living line|unfinished closure|same her|same-her|同一个她|同一条线/u.test(sameHerSelfLine)
   )
 }
 
@@ -412,28 +547,28 @@ function summarizeContinuityProjectFromSignals(
     return ''
 
   const metadata = asRecord(latestExecutionLikeSignal.metadata)
-  const explicitAwarenessLine = sanitizeText(
+  const explicitAwarenessLine = sanitizeMirrorProviderFacingSummary(
     metadata?.projectStatePreDialogueAwarenessSummary
     ?? metadata?.projectStatePreDialogueAwarenessLine,
     projectAwarenessLineMaxChars,
   )
-  const explicitCompanionHeadlineLine = sanitizeText(
+  const explicitCompanionHeadlineLine = sanitizeMirrorProviderFacingSummary(
     metadata?.projectStateCompanionHeadlineLine,
     projectAwarenessLineMaxChars,
   )
-  const explicitPreflightSummary = sanitizeText(
+  const explicitPreflightSummary = sanitizeMirrorProviderFacingSummary(
     metadata?.projectStatePreflightSummary,
     projectAwarenessLineMaxChars,
   )
-  const latestLandedProgress = sanitizeText(metadata?.projectLatestLandedProgress, 220)
-    || sanitizeText(metadata?.projectLatestProgress, 220)
-    || sanitizeText(metadata?.projectStateLandedProgressSummary, 220)
-  const primaryOpenLoop = sanitizeText(metadata?.projectPrimaryOpenLoop, 220)
-    || sanitizeText(metadata?.projectStateOpenClosureSummary, 220)
-  const nextClosureTarget = sanitizeText(metadata?.projectNextClosureTarget, 220)
-    || sanitizeText(metadata?.projectStateNextClosureTargetSummary, 220)
-  const sameHerDriftRisk = sanitizeText(metadata?.projectStateSameHerDriftRisk, 220)
-    || sanitizeText(metadata?.projectStateSameHerDriftRiskSummary, 220)
+  const latestLandedProgress = sanitizeMirrorProviderFacingText(metadata?.projectLatestLandedProgress, 220)
+    || sanitizeMirrorProviderFacingText(metadata?.projectLatestProgress, 220)
+    || sanitizeMirrorProviderFacingText(metadata?.projectStateLandedProgressSummary, 220)
+  const primaryOpenLoop = sanitizeMirrorProviderFacingText(metadata?.projectPrimaryOpenLoop, 220)
+    || sanitizeMirrorProviderFacingText(metadata?.projectStateOpenClosureSummary, 220)
+  const nextClosureTarget = sanitizeMirrorProviderFacingText(metadata?.projectNextClosureTarget, 220)
+    || sanitizeMirrorProviderFacingText(metadata?.projectStateNextClosureTargetSummary, 220)
+  const sameHerDriftRisk = sanitizeMirrorProviderFacingText(metadata?.projectStateSameHerDriftRisk, 220)
+    || sanitizeMirrorProviderFacingText(metadata?.projectStateSameHerDriftRiskSummary, 220)
   const projectState = resolveAlicizationProjectStateSnapshot({
     runtimeProjectState: {
       identity: metadata?.projectIdentity,
@@ -461,7 +596,7 @@ function summarizeContinuityProjectFromSignals(
       sameHerHoldDetail: metadata?.projectStateSameHerHoldDetail,
     },
   })
-  const rebuiltAwarenessLine = buildAlicizationProjectPreDialogueAwarenessLine({
+  const rebuiltAwarenessLine = sanitizeMirrorProviderFacingSummary(buildAlicizationProjectPreDialogueAwarenessLine({
     identity: projectState.identity,
     currentPhase: projectState.currentPhase,
     latestLandedProgress: projectState.latestLandedProgress,
@@ -469,7 +604,7 @@ function summarizeContinuityProjectFromSignals(
     primaryOpenLoop: projectState.primaryOpenLoop,
     nextClosureTarget: projectState.nextClosureTarget,
     sameHerSelfLine: projectState.sameHerSelfLine,
-  }) ?? ''
+  }) ?? '', projectAwarenessLineMaxChars)
   const resolvedExplicitAwarenessLine = sanitizeText(
     resolveAlicizationProjectPreDialogueAwarenessLine({
       runtimeProjectState: {
@@ -518,23 +653,23 @@ function summarizeContinuityProjectFromSignals(
         sameHerSelfLine: projectState.sameHerSelfLine,
       })
     )
-  const preDialogueAwarenessLine = sanitizeText(
+  const preDialogueAwarenessLine = sanitizeMirrorProviderFacingSummary(
     shouldPreferStructuredAwarenessRebuild
       ? rebuiltAwarenessLine
       : looksLikeMirrorProjectReanchor(explicitAwarenessLine)
         ? resolvedExplicitAwarenessLine || explicitAwarenessLine || rebuiltAwarenessLine
         : resolvedExplicitAwarenessLine || explicitAwarenessLine || rebuiltAwarenessLine,
     projectAwarenessLineMaxChars,
-  ) || sanitizeText(projectState.preflightSummary ?? '', projectAwarenessLineMaxChars)
+  ) || sanitizeMirrorProviderFacingSummary(projectState.preflightSummary ?? '', projectAwarenessLineMaxChars)
 
   return [
     'project=phase1-digital-life',
-    projectState.currentPhase ? `phase=${sanitizeText(projectState.currentPhase, 160)}` : '',
-    projectState.latestLandedProgress ? `landed=${sanitizeText(projectState.latestLandedProgress, 220)}` : '',
-    projectState.primaryOpenLoop ? `unresolved=${sanitizeText(projectState.primaryOpenLoop, 220)}` : '',
-    projectState.nextClosureTarget ? `next=${sanitizeText(projectState.nextClosureTarget, 220)}` : '',
-    projectState.sameHerSelfLine ? `same_her=${sanitizeText(projectState.sameHerSelfLine, 220)}` : '',
-    preDialogueAwarenessLine ? `preflight=${preDialogueAwarenessLine}` : '',
+    projectState.currentPhase ? `phase=${sanitizeMirrorProviderFacingText(projectState.currentPhase, 160)}` : '',
+    projectState.latestLandedProgress ? `landed=${sanitizeMirrorProviderFacingText(projectState.latestLandedProgress, 220)}` : '',
+    projectState.primaryOpenLoop ? `unresolved=${sanitizeMirrorProviderFacingText(projectState.primaryOpenLoop, 220)}` : '',
+    projectState.nextClosureTarget ? `next=${sanitizeMirrorProviderFacingText(projectState.nextClosureTarget, 220)}` : '',
+    projectState.sameHerSelfLine ? `continuity_anchor=${sanitizeProjectStateContinuityAnchor(projectState.sameHerSelfLine, 220)}` : '',
+    preDialogueAwarenessLine ? `awareness_summary=${preDialogueAwarenessLine}` : '',
   ].filter(Boolean).join(' | ')
 }
 
@@ -543,10 +678,11 @@ function summarizeContinuityProjectForMirror(input: {
   runtimeSurface: AlicizationMainChatRuntimeSurface | AlicizationDigitalLifeRuntimeSurface | null | undefined
 }) {
   const preparedSummary = summarizeContinuityProjectFromPreparedRuntimeSurface(input.runtimeSurface)
-  if (readPreparedRuntimeProjectState(input.runtimeSurface))
+  const signalSummary = summarizeContinuityProjectFromSignals(input.continuitySignals)
+  if (readPreparedRuntimeProjectState(input.runtimeSurface) && !looksLikeThinContinuityProjectPreflightSummary(preparedSummary))
     return preparedSummary
 
-  return summarizeContinuityProjectFromSignals(input.continuitySignals) || preparedSummary
+  return signalSummary || preparedSummary
 }
 
 function cloneMirror(mirror: AlicizationDialogueSessionMirror): AlicizationDialogueSessionMirror {
@@ -1029,15 +1165,15 @@ function deriveExecutionLikeSameHerHoldDetail(input: {
   const genericRepairMenu = /measured-return\s*\/\s*repair-before-closeness|one measured-return,\s*repair-before-closeness,\s*or rest-protective|measured-return,\s*repair-before-closeness,\s*or rest-protective/u.test(combined)
 
   if (explicitRepairAuthority && !genericRepairMenu) {
-    return 'repair-before-closeness is still owning this callback line before closeness widens again.'
+    return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens; visibility=internal-structured'
   }
 
   if (/reopened too eagerly|too eagerly|more room this time|keep more room this time|leave more room|do not reopen it with the same eagerness|不要重开得太快|这次更要留白|这次要更慢一点|上次太急/u.test(combined)) {
-    return 'Recognize the remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
+    return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; visibility=internal-structured'
   }
 
   if (/measured-return|lower-pressure|one step more reversible|still settling|leave room|留白|放轻|别立刻把温度放大/u.test(combined)) {
-    return 'measured-return is still keeping this callback line lower-pressure before it widens again.'
+    return 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred; visibility=internal-structured'
   }
 
   return ''
@@ -1105,9 +1241,9 @@ function summarizeContinuityArcFromSignals(
     const deferReason = sanitizeText(metadata?.deferReason, 96)
       || (/defer=([^\s|]+)/.exec(summary)?.[1] ?? '')
     const whyNow = sanitizeText(metadata?.whyNow, 180)
-    const projectStateSameHerSelfLine = sanitizeText(metadata?.projectStateSameHerSelfLine, 360)
-    const projectStateCompanionHeadlineLine = sanitizeText(metadata?.projectStateCompanionHeadlineLine, 360)
-    const projectPreflight = sanitizeText(
+    const projectStateSameHerSelfLine = sanitizeProjectStateContinuityAnchor(metadata?.projectStateSameHerSelfLine, 360)
+    const projectStateCompanionHeadlineLine = sanitizeMirrorProviderFacingSummary(metadata?.projectStateCompanionHeadlineLine, 360)
+    const projectPreflight = sanitizeMirrorProviderFacingSummary(
       resolveAlicizationProjectPreDialogueAwarenessLine({
         runtimeProjectState: {
           preDialogueAwarenessLine: projectStateSameHerSelfLine
@@ -1118,16 +1254,16 @@ function summarizeContinuityArcFromSignals(
         },
       }) ?? '',
       360,
-    ) || sanitizeText(metadata?.projectStatePreflightSummary, 360)
-    const projectStateEmotionalClosureCue = sanitizeText(metadata?.projectStateEmotionalClosureCue, 360)
-    const projectStateEmotionalClosureSummary = sanitizeText(metadata?.projectStateEmotionalClosureSummary, 360)
-    const projectStateSameHerDriftRisk = sanitizeText(metadata?.projectStateSameHerDriftRisk, 360)
-      || sanitizeText(metadata?.projectStateSameHerDriftRiskSummary, 360)
-    const projectNextClosureTarget = sanitizeText(metadata?.projectNextClosureTarget, 420)
-      || sanitizeText(metadata?.projectStateNextClosureTargetSummary, 420)
+    ) || sanitizeMirrorProviderFacingSummary(metadata?.projectStatePreflightSummary, 360)
+    const projectStateEmotionalClosureCue = sanitizeMirrorProviderFacingText(metadata?.projectStateEmotionalClosureCue, 360)
+    const projectStateEmotionalClosureSummary = sanitizeMirrorProviderFacingText(metadata?.projectStateEmotionalClosureSummary, 360)
+    const projectStateSameHerDriftRisk = sanitizeMirrorProviderFacingText(metadata?.projectStateSameHerDriftRisk, 360)
+      || sanitizeMirrorProviderFacingText(metadata?.projectStateSameHerDriftRiskSummary, 360)
+    const projectNextClosureTarget = sanitizeMirrorProviderFacingText(metadata?.projectNextClosureTarget, 420)
+      || sanitizeMirrorProviderFacingText(metadata?.projectStateNextClosureTargetSummary, 420)
     const projectStateSameHerHoldDetail = deriveExecutionLikeSameHerHoldDetail({
       executionLike: true,
-      projectStateSameHerHoldDetail: sanitizeText(metadata?.projectStateSameHerHoldDetail, 360),
+      projectStateSameHerHoldDetail: sanitizeMirrorProviderFacingText(metadata?.projectStateSameHerHoldDetail, 360),
       projectStateSameHerSelfLine,
       projectStateEmotionalClosureCue,
       projectStateEmotionalClosureSummary,
@@ -1168,7 +1304,7 @@ function summarizeContinuityArcFromSignals(
     )
     const continuityArcStage = sanitizeText(metadata?.continuityArcStage, 48)
     const continuityRestraint = sanitizeText(metadata?.continuityRestraint, 64)
-    const continuityCue = sanitizeText(metadata?.continuityCue, 360)
+    const continuityCue = sanitizeMirrorProviderFacingText(metadata?.continuityCue, 360)
 
     return [
       continuityArcStage ? `stage=${continuityArcStage}` : '',
@@ -1188,11 +1324,11 @@ function summarizeContinuityArcFromSignals(
       preferredPacingMode ? `pacing=${preferredPacingMode}` : '',
       deferReason ? `defer=${deferReason}` : '',
       whyNow ? `why_now=${whyNow}` : '',
-      projectPreflight ? `project_preflight=${projectPreflight}` : '',
+      projectPreflight ? `preflight_summary=${projectPreflight}` : '',
       projectStateSameHerHoldDetail ? `hold=${projectStateSameHerHoldDetail}` : '',
       projectNextClosureTarget ? `next=${projectNextClosureTarget}` : '',
-      projectStateSameHerSelfLine ? `same_her=${projectStateSameHerSelfLine}` : '',
-      projectStateSameHerDriftRisk ? `drift_risk=${projectStateSameHerDriftRisk}` : '',
+      projectStateSameHerSelfLine ? `continuity_anchor=${projectStateSameHerSelfLine}` : '',
+      projectStateSameHerDriftRisk ? `continuity_drift_risk=${projectStateSameHerDriftRisk}` : '',
     ].filter(Boolean).join(' | ')
   }
 
@@ -1644,7 +1780,7 @@ function summarizeContinuityArcFromPreparedRuntimeSurface(surface: AlicizationMa
       : currentConsciousFrame?.reasonTags?.includes('continuity-arc:gentle-reopen')
         ? 'gentle-reopen'
         : ''
-  const projectPreflight = sanitizeText(
+  const projectPreflight = sanitizeMirrorProviderFacingSummary(
     resolveAlicizationProjectPreDialogueAwarenessLine({
       runtimeProjectState: {
         preDialogueAwarenessLine: projectState?.preDialogueAwarenessSummary
@@ -1656,25 +1792,25 @@ function summarizeContinuityArcFromPreparedRuntimeSurface(surface: AlicizationMa
       },
     }) ?? '',
     260,
-  ) || sanitizeText(projectState?.preflightSummary ?? '', 260)
-  const projectStateSameHerSelfLine = sanitizeText(projectState?.sameHerSelfLine ?? '', 220)
-  const projectStateLandedProgress = sanitizeText(
+  ) || sanitizeMirrorProviderFacingSummary(projectState?.preflightSummary ?? '', 260)
+  const projectStateSameHerSelfLine = sanitizeProjectStateContinuityAnchor(projectState?.sameHerSelfLine ?? '', 220)
+  const projectStateLandedProgress = sanitizeMirrorProviderFacingText(
     projectState?.latestLandedProgress
     ?? projectState?.latestProgress
     ?? '',
     220,
   )
-  const projectStatePrimaryOpenLoop = sanitizeText(projectState?.primaryOpenLoop ?? '', 180)
+  const projectStatePrimaryOpenLoop = sanitizeMirrorProviderFacingText(projectState?.primaryOpenLoop ?? '', 180)
   const projectStateOpenFocusSummary = sanitizeText(
     deriveCompactProjectStateOpenFocusSummary(projectState?.primaryOpenLoop ?? ''),
     160,
   )
-  const projectStateNextClosureTarget = sanitizeText(projectState?.nextClosureTarget ?? '', 200)
+  const projectStateNextClosureTarget = sanitizeMirrorProviderFacingText(projectState?.nextClosureTarget ?? '', 200)
   const projectStateNextFocusSummary = sanitizeText(
     deriveCompactProjectStateNextFocusSummary(projectState?.nextClosureTarget ?? ''),
     160,
   )
-  const projectStateSameHerDriftRisk = sanitizeText(projectState?.sameHerDriftRisk ?? '', 180)
+  const projectStateSameHerDriftRisk = sanitizeMirrorProviderFacingText(projectState?.sameHerDriftRisk ?? '', 180)
   const carriesProjectStateClosureArc = Boolean(
     projectStateSameHerSelfLine
     && (
@@ -1694,14 +1830,14 @@ function summarizeContinuityArcFromPreparedRuntimeSurface(surface: AlicizationMa
 
   return [
     continuityStage ? `stage=${continuityStage}` : '',
-    carriesProjectStateClosureArc && projectPreflight ? `project_preflight=${projectPreflight}` : '',
-    carriesProjectStateClosureArc && projectStateSameHerSelfLine ? `same_her=${projectStateSameHerSelfLine}` : '',
+    carriesProjectStateClosureArc && projectPreflight ? `preflight_summary=${projectPreflight}` : '',
+    carriesProjectStateClosureArc && projectStateSameHerSelfLine ? `continuity_anchor=${projectStateSameHerSelfLine}` : '',
     carriesProjectStateClosureArc && projectStateLandedProgress ? `landed=${projectStateLandedProgress}` : '',
     carriesProjectStateClosureArc && projectStatePrimaryOpenLoop ? `open=${projectStatePrimaryOpenLoop}` : '',
     carriesProjectStateClosureArc && projectStateOpenFocusSummary ? `open-focus=${projectStateOpenFocusSummary}` : '',
     carriesProjectStateClosureArc && projectStateNextFocusSummary ? `next-focus=${projectStateNextFocusSummary}` : '',
     carriesProjectStateClosureArc && projectStateNextClosureTarget ? `next=${projectStateNextClosureTarget}` : '',
-    carriesProjectStateClosureArc && projectStateSameHerDriftRisk ? `drift_risk=${projectStateSameHerDriftRisk}` : '',
+    carriesProjectStateClosureArc && projectStateSameHerDriftRisk ? `continuity_drift_risk=${projectStateSameHerDriftRisk}` : '',
     speakingFrom ? `voice=${speakingFrom}` : '',
     answerIntent ? `answer=${answerIntent}` : '',
     inwardNeed ? `need=${inwardNeed}` : '',
@@ -1740,12 +1876,12 @@ function summarizeExecutionFromAgentSession(agentSession: AlicizationAgentSessio
     32,
   ) || sanitizeText(latestTask?.status, 24) || 'unknown'
   const latestStatus = normalizeExecutionMirrorStatus(latestThreadStatus)
-  const latestGoal = sanitizeText(latestMetadata?.goal, 160)
+  const latestGoal = sanitizeMirrorProviderFacingText(latestMetadata?.goal, 160)
   const latestChannel = sanitizeText(
     latestMetadata?.selectedChannel ?? latestMetadata?.proposedChannel,
     48,
   )
-  const latestSummary = sanitizeText(latestTask?.summary ?? '', 160)
+  const latestSummary = sanitizeMirrorProviderFacingText(latestTask?.summary ?? '', 160)
   const latestAffirmationReasonCodes = asStringArray(latestMetadata?.affirmationReasonCodes)
   const humanSummary = (() => {
     if (latestThreadStatus === 'running' && latestGoal) {
@@ -1757,8 +1893,8 @@ function summarizeExecutionFromAgentSession(agentSession: AlicizationAgentSessio
       return latestSummary
     if (latestThreadStatus === 'needs-affirmation' && latestGoal) {
       return latestChannel
-        ? `waiting-confirmation before ${latestChannel} can act on ${latestGoal}`
-        : `waiting-confirmation before acting on ${latestGoal}`
+        ? `execution_confirmation=pending; channel=${latestChannel}; action=${latestGoal}`
+        : `execution_confirmation=pending; action=${latestGoal}`
     }
     if (latestThreadStatus === 'planned' && latestGoal) {
       return latestChannel
@@ -1773,11 +1909,11 @@ function summarizeExecutionFromAgentSession(agentSession: AlicizationAgentSessio
     latestStatus ? `status=${latestStatus}` : '',
     latestGoal ? `goal=${latestGoal}` : '',
     latestChannel ? `channel=${latestChannel}` : '',
-    humanSummary ? `summary=${humanSummary}` : '',
+    humanSummary ? `summary=${sanitizeMirrorProviderFacingText(humanSummary, 180)}` : '',
     latestAffirmationReasonCodes.length > 0
       ? `affirmation=${latestAffirmationReasonCodes.join(',')}`
       : '',
-  ].filter(Boolean).join(' ')
+  ].filter(Boolean).join(' | ')
 }
 
 export function createAlicizationDialogueSessionManager(
@@ -1865,14 +2001,14 @@ export function createAlicizationDialogueSessionManager(
         ? resolveDigitalLifeSpineUpdatedAt(digitalLifeSpine)
         : getNow(),
       decisionTraceId: sanitizeText(input.runtimeSurface.trace.decisionTraceId, 200) || null,
-      continuityArcSummary: compactContinuityArcSummary(
+      continuityArcSummary: sanitizeMirrorProviderFacingSummary(compactContinuityArcSummary(
         mergeContinuityArcSummaries(
           summarizeContinuityArcFromSpine(digitalLifeSpine),
           summarizeContinuityArcFromPreparedRuntimeSurface(input.runtimeSurface),
           summarizeContinuityArcFromSignals(input.agentSession.continuitySignals),
         ),
-      ) || previousMirror?.continuityArcSummary || null,
-      continuityProjectSummary: sanitizeText(
+      ), continuityArcSummaryMaxChars) || previousMirror?.continuityArcSummary || null,
+      continuityProjectSummary: sanitizeMirrorProviderFacingSummary(
         summarizeContinuityProjectForMirror({
           continuitySignals: input.agentSession.continuitySignals,
           runtimeSurface: preferredRuntimeSurface,
@@ -1882,7 +2018,8 @@ export function createAlicizationDialogueSessionManager(
       continuityLabels: takeTailUnique(
         input.agentSession.continuitySignals
           .filter(signal => signal.kind !== 'execution-callback')
-          .map(signal => signal.label),
+          .map(signal => sanitizeMirrorContinuityLabel(signal.label))
+          .filter(Boolean),
         maxContinuityLabels,
         80,
       ),
@@ -1896,42 +2033,42 @@ export function createAlicizationDialogueSessionManager(
         surface: input.runtimeSurface,
       }),
       captureSummary: summarizeCapture(input.runtimeSurface),
-      digitalLifeArchitectureSummary: sanitizeText(
+      digitalLifeArchitectureSummary: sanitizeMirrorProviderFacingSummary(
         digitalLifeSpine?.architecture?.summary ?? input.runtimeSurface.digitalLifeArchitecture?.summary ?? '',
         220,
       ) || previousMirror?.digitalLifeArchitectureSummary || null,
-      digitalLifeRuntimeSummary: sanitizeText(digitalLifeSpine?.continuitySignal?.summary ?? '', 220) || previousMirror?.digitalLifeRuntimeSummary || null,
-      runtimeChannelSummary: sanitizeText(
+      digitalLifeRuntimeSummary: sanitizeMirrorProviderFacingSummary(digitalLifeSpine?.continuitySignal?.summary ?? '', 220) || previousMirror?.digitalLifeRuntimeSummary || null,
+      runtimeChannelSummary: sanitizeMirrorProviderFacingSummary(
         summarizeRuntimeChannelFromSpine(digitalLifeSpine),
         220,
       ) || previousMirror?.runtimeChannelSummary || null,
-      runtimeTransitionSummary: sanitizeText(
+      runtimeTransitionSummary: sanitizeMirrorProviderFacingSummary(
         summarizeRuntimeTransitionFromSpine(digitalLifeSpine),
         220,
       ) || previousMirror?.runtimeTransitionSummary || null,
-      mindSummary: sanitizeText(
+      mindSummary: sanitizeMirrorProviderFacingSummary(
         summarizeMindFromSpine(digitalLifeSpine),
         220,
       ) || previousMirror?.mindSummary || null,
-      memoryCarrySummary: sanitizeText(
+      memoryCarrySummary: sanitizeMirrorProviderFacingSummary(
         deriveAlicizationDialogueMemoryCarryPolicy({
           now: getNow(),
           spine: digitalLifeSpine,
         }).summary,
         220,
       ) || previousMirror?.memoryCarrySummary || null,
-      memorySummary: sanitizeText(
+      memorySummary: sanitizeMirrorProviderFacingSummary(
         [
           summarizeMemoryFromSpine(digitalLifeSpine),
           recollectionForeground?.summary ? `recollection=${sanitizeText(recollectionForeground.summary, 120)}` : '',
         ].filter(Boolean).join(' | '),
         220,
       ) || previousMirror?.memorySummary || null,
-      recollectionSummary: sanitizeText(
+      recollectionSummary: sanitizeMirrorProviderFacingSummary(
         recollectionForeground?.summary,
         220,
       ) || previousMirror?.recollectionSummary || null,
-      recollectionSurfaceSummary: sanitizeText(
+      recollectionSurfaceSummary: sanitizeMirrorProviderFacingSummary(
         recollectionForeground?.surfaceSummary,
         220,
       ) || previousMirror?.recollectionSurfaceSummary || null,
@@ -1940,7 +2077,7 @@ export function createAlicizationDialogueSessionManager(
         summarizePerceptionFromSpine(digitalLifeSpine),
         220,
       ) || previousMirror?.perceptionSummary || null,
-      agencySummary: sanitizeText(
+      agencySummary: sanitizeMirrorProviderFacingSummary(
         [
           summarizeAgencyFromSpine(digitalLifeSpine),
           summarizeExecutionAfterglowFromSpine(digitalLifeSpine),
@@ -1948,11 +2085,11 @@ export function createAlicizationDialogueSessionManager(
         ].filter(Boolean).join(' | '),
         220,
       ) || previousMirror?.agencySummary || null,
-      executionSummary: sanitizeText(
+      executionSummary: sanitizeMirrorProviderFacingSummary(
         summarizeExecutionFromAgentSession(input.agentSession),
         220,
       ) || previousMirror?.executionSummary || null,
-      dialogueSummary: sanitizeText(summarizeDialogue(input.runtimeSurface), 220) || previousMirror?.dialogueSummary || null,
+      dialogueSummary: sanitizeMirrorProviderFacingSummary(summarizeDialogue(input.runtimeSurface), 220) || previousMirror?.dialogueSummary || null,
     }
 
     mirrors.set(buildMirrorKey(normalizedCardId, normalizedSessionId), mirror)
@@ -1993,13 +2130,13 @@ export function createAlicizationDialogueSessionManager(
           ? Number(input.agentSession.lastActiveAt)
           : getNow(),
       decisionTraceId: sanitizeText(input.decisionTraceId, 200) || previousMirror?.decisionTraceId || null,
-      continuityArcSummary: compactContinuityArcSummary(
+      continuityArcSummary: sanitizeMirrorProviderFacingSummary(compactContinuityArcSummary(
         mergeContinuityArcSummaries(
           summarizeContinuityArcFromSpine(digitalLifeSpine),
           summarizeContinuityArcFromSignals(input.agentSession.continuitySignals),
         ),
-      ) || previousMirror?.continuityArcSummary || null,
-      continuityProjectSummary: sanitizeText(
+      ), continuityArcSummaryMaxChars) || previousMirror?.continuityArcSummary || null,
+      continuityProjectSummary: sanitizeMirrorProviderFacingSummary(
         summarizeContinuityProjectForMirror({
           continuitySignals: input.agentSession.continuitySignals,
           runtimeSurface: resolveUsableRuntimeSurfaceFromSpine(digitalLifeSpine),
@@ -2009,7 +2146,8 @@ export function createAlicizationDialogueSessionManager(
       continuityLabels: takeTailUnique(
         input.agentSession.continuitySignals
           .filter(signal => signal.kind !== 'execution-callback')
-          .map(signal => signal.label),
+          .map(signal => sanitizeMirrorContinuityLabel(signal.label))
+          .filter(Boolean),
         maxContinuityLabels,
         80,
       ),
@@ -2026,11 +2164,11 @@ export function createAlicizationDialogueSessionManager(
         source: effectiveSource,
       }),
       captureSummary: summarizeCaptureFromAgentSession(input.agentSession.lastSensorySnapshot),
-      digitalLifeArchitectureSummary: sanitizeText(
+      digitalLifeArchitectureSummary: sanitizeMirrorProviderFacingSummary(
         digitalLifeSpine?.architecture?.summary ?? input.agentSession.digitalLifeArchitecture?.summary ?? '',
         220,
       ) || previousMirror?.digitalLifeArchitectureSummary || null,
-      digitalLifeRuntimeSummary: sanitizeText(
+      digitalLifeRuntimeSummary: sanitizeMirrorProviderFacingSummary(
         [
           sanitizeText(digitalLifeSpine?.continuitySignal?.summary ?? '', 220),
           summarizeExecutionAfterglowFromSpine(digitalLifeSpine),
@@ -2038,26 +2176,26 @@ export function createAlicizationDialogueSessionManager(
         ].filter(Boolean).join(' | '),
         220,
       ) || previousMirror?.digitalLifeRuntimeSummary || null,
-      runtimeChannelSummary: sanitizeText(
+      runtimeChannelSummary: sanitizeMirrorProviderFacingSummary(
         summarizeRuntimeChannelFromSpine(digitalLifeSpine),
         220,
       ) || previousMirror?.runtimeChannelSummary || null,
-      runtimeTransitionSummary: sanitizeText(
+      runtimeTransitionSummary: sanitizeMirrorProviderFacingSummary(
         summarizeRuntimeTransitionFromSpine(digitalLifeSpine),
         220,
       ) || previousMirror?.runtimeTransitionSummary || null,
-      mindSummary: sanitizeText(
+      mindSummary: sanitizeMirrorProviderFacingSummary(
         summarizeMindFromSpine(digitalLifeSpine),
         220,
       ) || previousMirror?.mindSummary || null,
-      memoryCarrySummary: sanitizeText(
+      memoryCarrySummary: sanitizeMirrorProviderFacingSummary(
         deriveAlicizationDialogueMemoryCarryPolicy({
           now: getNow(),
           spine: digitalLifeSpine,
         }).summary,
         220,
       ) || previousMirror?.memoryCarrySummary || null,
-      memorySummary: sanitizeText(
+      memorySummary: sanitizeMirrorProviderFacingSummary(
         summarizeMemoryFromSpine(digitalLifeSpine),
         220,
       ) || previousMirror?.memorySummary || null,
@@ -2068,7 +2206,7 @@ export function createAlicizationDialogueSessionManager(
         summarizePerceptionFromSpine(digitalLifeSpine),
         220,
       ) || previousMirror?.perceptionSummary || null,
-      agencySummary: sanitizeText(
+      agencySummary: sanitizeMirrorProviderFacingSummary(
         [
           summarizeAgencyFromSpine(digitalLifeSpine),
           summarizeExecutionAfterglowFromSpine(digitalLifeSpine),
@@ -2076,11 +2214,11 @@ export function createAlicizationDialogueSessionManager(
         ].filter(Boolean).join(' | '),
         220,
       ) || previousMirror?.agencySummary || null,
-      executionSummary: sanitizeText(
+      executionSummary: sanitizeMirrorProviderFacingSummary(
         summarizeExecutionFromAgentSession(input.agentSession),
         220,
       ) || previousMirror?.executionSummary || null,
-      dialogueSummary: sanitizeText(summarizeDialogueFromSpine({
+      dialogueSummary: sanitizeMirrorProviderFacingSummary(summarizeDialogueFromSpine({
         decisionTraceId: input.decisionTraceId,
         source: effectiveSource,
         spine: digitalLifeSpine,
@@ -2141,9 +2279,10 @@ export function createAlicizationDialogueSessionManager(
       `agency=${mirror.agencySummary ?? 'none'}`,
       `execution=${mirror.executionSummary ?? 'none'}`,
       `dialogue=${mirror.dialogueSummary ?? 'none'}`,
-      'Treat this as the latest settled mirror from the same conversation session, not as a fresh perception sample.',
-      'Use it to preserve continuity when no newer grounded signal supersedes it this turn.',
-      'Do not restate mirrored scene, tool, or capture state as if it was re-observed right now.',
+      'session_mirror.role=latest_settled_session_mirror',
+      'session_mirror.fresh_perception=false',
+      'session_mirror.continuity_fallback=allowed_when_no_newer_grounded_signal',
+      'session_mirror.restate_as_current_observation=blocked',
     ].filter(Boolean).join('\n')
   }
 

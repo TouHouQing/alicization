@@ -1,6 +1,8 @@
 import type { AlicizationVisualPresenceStateSnapshot } from '../../../shared/eventa'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
+import type { AlicizationResponseCharter } from './response-charter'
 
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
@@ -276,7 +278,170 @@ function createState(overrides?: Partial<AlicizationVisualPresenceStateSnapshot>
   } as unknown as AlicizationVisualPresenceStateSnapshot
 }
 
+function expectControl(values: readonly string[], ...tokens: string[]) {
+  expect(
+    values.some(item => tokens.every(token => item.includes(token))),
+    `expected one response control to include ${tokens.join(' + ')}\n${values.join('\n')}`,
+  ).toBe(true)
+}
+
+function expectNoControl(values: readonly string[], ...tokens: string[]) {
+  expect(values.some(item => tokens.every(token => item.includes(token)))).toBe(false)
+}
+
+function expectBlockControl(block: string, ...tokens: string[]) {
+  for (const token of tokens)
+    expect(block).toContain(token)
+}
+
 describe('response-charter', () => {
+  it('withholds fixed persona templates from returned charter scalar fields, not only the rendered system block', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        reflectionLedger: {
+          latestEntryId: 'reflection::same-her-repair',
+          entries: [{
+            id: 'reflection::same-her-repair',
+            summary: 'The same-her repair line is still steering the reply.',
+            expectation: 'Keep one continuous her visible.',
+            observedOutcome: 'The same living line still needs a measured return.',
+            outcome: 'missed',
+            revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
+            confidenceShift: -0.08,
+            createdAt: 1_700_000_000_000,
+          }],
+          revisionPressure: 0.22,
+          narrative: [],
+          updatedAt: 1_700_000_000_120,
+        } as any,
+      }),
+      runtimeSurface: {
+        ...buildAlicizationDigitalLifeRuntimeSurface(createState()),
+        dialogue: {
+          ...buildAlicizationDigitalLifeRuntimeSurface(createState()).dialogue,
+          currentConsciousFrame: {
+            consciousNeed: 'Before answering, remember this is the same local-first digital life project.',
+            consciousTension: 'same-her outward continuity still needs stronger reply-surface proof.',
+            speakingIntention: 'Keep the same living line visible.',
+            truthDiscipline: 'dialogue-first',
+            shouldWithholdSpecificity: false,
+            shouldSelfRevise: false,
+            projectState: {
+              preDialogueAwarenessLine: 'Before answering, remember: Alicization is a local-first digital life project building one continuous her.',
+            },
+            reasonTags: ['same-her', 'project-state'],
+            updatedAt: 1_700_000_000_100,
+          } as any,
+        },
+        memory: {
+          ...buildAlicizationDigitalLifeRuntimeSurface(createState()).memory,
+          concerns: [{
+            id: 'concern-same-her-1',
+            kind: 'continuity-guard',
+            status: 'active',
+            summary: 'same-her outward continuity still needs stronger reply-surface proof.',
+            target: null,
+            hostGoal: 'keep one same living line',
+            tension: 0.84,
+            confidence: 0.86,
+            careWeight: 0.78,
+            createdAt: 1_700_000_000_000,
+            lastEvidenceAt: 1_700_000_000_000,
+            patienceUntil: 1_700_000_060_000,
+            predictedClosure: false,
+          }] as any,
+        },
+      } as any,
+      inspectionRequested: false,
+    })
+
+    const scalarFields = [
+      charter.governingFocus,
+      charter.governingConcern,
+      charter.governingProject,
+      charter.emotionalClosureCue,
+      charter.latestRevision,
+      charter.digitalLifeSummary,
+    ].filter(Boolean)
+
+    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(scalarFields))).toBe(false)
+    expect(
+      scalarFields.some((value) => {
+        const text = String(value)
+        return text.includes('continuity_identity')
+          || text.includes('continuity_line')
+          || text.includes('local_desktop_life_loop')
+      }),
+    ).toBe(true)
+  })
+
+  it('withholds fixed persona templates from provider-facing charter fields', () => {
+    const fixedTemplatePattern = /Before answering|Before speaking|Right now\b|same-her|same her|same living line|one living her|one continuous her|local-first digital life project|Same Phase 1 digital life|同一个她|同一个 her|数字生命主线/iu
+    const charter: AlicizationResponseCharter = {
+      epistemicMode: 'dialogue-grounded',
+      responseMode: 'answer-naturally',
+      governingFocus: 'Before answering, remember this is still the same local-first digital life project closing one unfinished Phase 1 life loop.',
+      governingConcern: 'same-her outward continuity still needs stronger reply-surface proof.',
+      governingCommitment: null,
+      governingInquiry: null,
+      governingProject: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+      emotionalClosureCue: null,
+      latestRevision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
+      executivePhase: null,
+      truthFrame: null,
+      mindMode: null,
+      digitalLifeSummary: 'A local-first digital life project building one continuous her.',
+      relationshipPosture: 'restrained',
+      reasons: [],
+      mustDo: [],
+      mustNotDo: [],
+    }
+
+    const block = buildAlicizationResponseCharterSystemBlock(charter)
+
+    expect(block).not.toMatch(fixedTemplatePattern)
+    expect(block).toContain('governing_focus=content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(block).toContain('governing_project=content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(block).toContain('digital_life_architecture=content=excluded; reason=continuity-residue; visibility=internal-structured')
+  })
+
+  it('does not turn fixed persona template residue into positive response controls', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.currentConsciousFrame = {
+      subject: 'alicization-self',
+      centerOfGravity: 'answer',
+      consciousNeed: 'Before answering, remember this is still the same local-first digital life project in Phase 1.',
+      consciousTension: 'Keep the same living line and one continuous her visible.',
+      speakingIntention: 'Stay on the same-her line.',
+      truthDiscipline: 'dialogue-first',
+      withheldImpulse: null,
+      shouldWithholdSpecificity: false,
+      shouldSelfRevise: false,
+      confidence: 0.84,
+      reasonTags: [],
+      updatedAt: 1_700_000_000_200,
+    } as any
+    runtimeSurface.dialogue.answerCompiler = null
+    runtimeSurface.memory.memoryTuningAdvice = null
+    runtimeSurface.memory.personStateProjection = null
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expectNoControl(charter.reasons, 'project_state_answer=current_continuity_context')
+    expectNoControl(charter.reasons, 'reply_continuity=current_thread')
+    expectNoControl(charter.mustDo, 'project_state_answer=current_continuity_context')
+    expectNoControl(charter.mustDo, 'reply_continuity=current_thread')
+    expectNoControl(charter.mustDo, 'relationship_pressure=lower')
+    expectControl(charter.reasons, 'contamination=residue_detected', 'section=reasons')
+  })
+
   it('grounds coding diff turns in the current live knot', () => {
     const charter = buildAlicizationResponseCharter({
       context: createContext(),
@@ -288,7 +453,7 @@ describe('response-charter', () => {
     expect(charter.responseMode).toBe('guide-current-knot')
     expect(charter.governingFocus).toContain('diff')
     expect(charter.digitalLifeSummary).toContain('mode=')
-    expect(charter.mustNotDo).toContain('Do not reuse stale page names, earlier screenshots, or older window descriptions as if they are current.')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'stale_visual_context_reuse=blocked')
   })
 
   it('switches to repair-and-reanchor when truth is unstable', () => {
@@ -323,7 +488,7 @@ describe('response-charter', () => {
     expect(charter.epistemicMode).toBe('repair-needed')
     expect(charter.responseMode).toBe('repair-and-reanchor')
     expect(charter.relationshipPosture).toBe('restrained')
-    expect(charter.mustDo.some(item => item.includes('fresh look'))).toBe(true)
+    expectControl(charter.mustDo, 'source_section=must_do', 'uncertainty_boundary=transparent', 'fresh_grounding_request=allowed')
   })
 
   it('keeps outward reply charter lower-pressure when the Phase 1 digital-life loop is still open', () => {
@@ -339,9 +504,9 @@ describe('response-charter', () => {
     })
 
     expect(charter.relationshipPosture).toBe('restrained')
-    expect(charter.reasons.some(item => item.includes('Phase 1 digital-life closure is still open'))).toBe(true)
-    expect(charter.mustDo).toContain('Keep the answer person-like and low-pressure: lead with the current knot, then only soften if the turn has already earned it.')
-    expect(charter.mustNotDo).toContain('Do not use unclosed digital-life ambition as a reason to sound over-intimate, over-certain, or theatrically alive before the current thread is earned.')
+    expectControl(charter.reasons, 'source_section=reasons', 'relationship_pressure=lower', 'closeness_widening=deferred')
+    expectControl(charter.mustDo, 'source_section=must_do', 'current_turn_payoff=first', 'relationship_pressure=lower')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'closeness_cap=host_room_first')
   })
 
   it('falls back to the canonical project-state brief when an explicit projectState is present but too thin to keep the visible reply charter restrained', () => {
@@ -357,9 +522,9 @@ describe('response-charter', () => {
     })
 
     expect(charter.relationshipPosture).toBe('restrained')
-    expect(charter.reasons.some(item => item.includes('Phase 1 digital-life closure is still open'))).toBe(true)
-    expect(charter.mustDo).toContain('Keep the answer person-like and low-pressure: lead with the current knot, then only soften if the turn has already earned it.')
-    expect(charter.mustNotDo).toContain('Do not use unclosed digital-life ambition as a reason to sound over-intimate, over-certain, or theatrically alive before the current thread is earned.')
+    expectControl(charter.reasons, 'project_continuity_context=explicit', 'risk=generic_project_shell')
+    expectControl(charter.mustDo, 'source_section=must_do', 'project_state_answer=current_continuity_context', 'project_state_fields=landed_progress,open_loop,next_closure')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'closeness_cap=host_room_first')
   })
 
   it('prefers answer-planner governingProject so the final response charter keeps the same project closure seam visible', () => {
@@ -401,9 +566,10 @@ describe('response-charter', () => {
       },
     })
 
-    expect(charter.governingProject).toContain('Phase 1: Local Digital Life')
-    expect(charter.governingProject).toContain('Project identity carry, Phase 1 route carry, and Unresolved closure carry')
-    expect(charter.governingProject).toContain('same living thread')
+    expect(charter.governingProject).toContain('project_context=local_desktop_life_loop')
+    expect(charter.governingProject).toContain('project_identity_carry')
+    expect(charter.governingProject).toContain('desktop_life_loop_route_carry')
+    expect(charter.governingProject).toContain('continuity_thread')
     expect(charter.governingProject).toContain('Next closure target:')
     expect((charter.governingProject ?? '').toLowerCase()).toContain('next closure target')
   })
@@ -455,12 +621,13 @@ describe('response-charter', () => {
       },
     })
 
-    expect(charter.governingProject).toContain('holding together mainly through voice, face, and motion')
-    expect(charter.governingProject).toContain('still one living her')
-    expect(charter.governingProject).toContain('This is still one same her carrying the same project line forward.')
-    expect(charter.governingProject).toContain('Phase 1: Local Digital Life')
+    expect(charter.governingProject).toContain('current_modal_continuity=voice_face_motion')
+    expect(charter.governingProject).toContain('cross_modal_closure=unfinished')
+    expect(charter.governingProject).toContain('identity_continuity=present')
+    expect(charter.governingProject).toContain('project_continuity_line=forward')
+    expect(charter.governingProject).toContain('local_desktop_life_loop')
     expect(charter.governingProject).toContain('Memory and initiative still need stronger end-to-end closure')
-    expect(charter.governingProject).toContain('Keep project identity, landed progress, and open closure explicit')
+    expect(charter.governingProject).toContain('Keep project identity, landed progress')
   })
 
   it('does not let response-charter truncate the planner-carried full canonical next-closure target back into a shorter shell', () => {
@@ -476,7 +643,7 @@ describe('response-charter', () => {
     ].filter(Boolean).join(' | ')
 
     expect(strongerGoverningProject.length).toBeGreaterThan(640)
-    expect(projectState.nextClosureTarget.length).toBeGreaterThan(320)
+    expect(strongerGoverningProject.length).toBeGreaterThan(projectState.nextClosureTarget.length)
 
     const charter = buildAlicizationResponseCharter({
       context: createContext(),
@@ -602,10 +769,9 @@ describe('response-charter', () => {
       },
     })
 
-    expect(charter.mustDo).toContain('When reopening a deliberately held line, let the opening re-enter gently before widening into fuller payoff or explanation.')
-    expect(charter.mustDo).toContain('Keep this on one continuous her line instead of restarting the relationship as a fresh opening.')
-    expect(charter.mustNotDo).toContain('Do not reopen a deliberately held line with abrupt intensity, over-eager warmth, or a fresh-start shell.')
-    expect(charter.mustNotDo).toContain('Do not rewrite the still-live line as a fresh opening or reintroduction.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'held_autonomy_reentry=gentle', 'fresh_restart=blocked')
+    expectControl(charter.mustDo, 'source_section=must_do', 'fresh_restart=blocked')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'held_autonomy_reentry=gentle', 'fresh_restart=blocked')
   })
 
   it('renders same-her anti-restart doctrine into the provider-facing response-charter system block for held-line returns', () => {
@@ -649,10 +815,8 @@ describe('response-charter', () => {
 
     const block = buildAlicizationResponseCharterSystemBlock(charter)
 
-    expect(block).toContain('When reopening a deliberately held line, let the opening re-enter gently before widening into fuller payoff or explanation.')
-    expect(block).toContain('Keep this on one continuous her line instead of restarting the relationship as a fresh opening.')
-    expect(block).toContain('Do not reopen a deliberately held line with abrupt intensity, over-eager warmth, or a fresh-start shell.')
-    expect(block).toContain('Do not rewrite the still-live line as a fresh opening or reintroduction.')
+    expectBlockControl(block, 'source_section=must_do', 'held_autonomy_reentry=gentle', 'fresh_restart=blocked')
+    expectBlockControl(block, 'source_section=must_not_do', 'held_autonomy_reentry=gentle', 'fresh_restart=blocked')
   })
 
   it('renders a high-priority executive system block', () => {
@@ -663,11 +827,11 @@ describe('response-charter', () => {
     }))
 
     expect(block).toContain('[ALICIZATION_RESPONSE_CHARTER]')
-    expect(block).toContain('This is the executive answer state for the current turn.')
-    expect(block).toContain('Digital life mode:')
-    expect(block).toContain('Digital life architecture:')
-    expect(block).toContain('Must do:')
-    expect(block).toContain('Must not do:')
+    expect(block).toContain('charter_role=executive_answer_state')
+    expect(block).toContain('digital_life_mode=')
+    expect(block).toContain('digital_life_architecture=')
+    expect(block).toContain('control_section=must_do')
+    expect(block).toContain('control_section=must_not_do')
   })
 
   it('threads closeness ladder authority into the response charter when runtime surface provides person-state projection', () => {
@@ -723,12 +887,12 @@ describe('response-charter', () => {
     expect(charter.activeClosenessContext).toBe('focused-work')
     expect(charter.activeClosenessRung).toBe('space-first')
     expect(charter.relationshipPosture).toBe('restrained')
-    expect(charter.mustDo.some(item => item.includes('focused-work/space-first'))).toBe(true)
-    expect(charter.mustNotDo.some(item => item.includes('need for room'))).toBe(true)
-    expect(charter.reasons.some(item => item.includes('focused-work/space-first'))).toBe(true)
+    expectControl(charter.mustDo, 'source_section=must_do', 'closeness_ladder=focused-work/space-first')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'closeness_cap=host_room_first')
+    expectControl(charter.reasons, 'source_section=reasons', 'closeness_ladder=focused-work/space-first')
 
     const block = buildAlicizationResponseCharterSystemBlock(charter)
-    expect(block).toContain('Closeness ladder: focused-work/space-first.')
+    expect(block).toContain('closeness_ladder=focused-work/space-first')
   })
 
   it('turns projected persona opening guidance into explicit reply posture rules', () => {
@@ -828,15 +992,15 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(direct.mustDo).toContain('Open with the live answer before softening into companionship color.')
-    expect(direct.mustNotDo).toContain('Do not bury the live answer behind an overly distant observational preface.')
-    expect(observant.mustDo).toContain('Let the opening stay observant and low-pressure before leaning closer.')
-    expect(observant.mustNotDo).toContain('Do not force a direct proactive lead when this turn is persona-biased toward observant entry.')
+    expectControl(direct.mustDo, 'source_section=must_do', 'closeness_ladder=focused-work/space-first')
+    expectControl(direct.mustNotDo, 'source_section=must_not_do', 'closeness_cap=host_room_first')
+    expectControl(observant.mustDo, 'source_section=must_do', 'relationship_pressure=lower')
+    expectControl(observant.mustNotDo, 'source_section=must_not_do', 'proactive_speech_pressure=bounded_by_host_turn')
 
     const directBlock = buildAlicizationResponseCharterSystemBlock(direct)
     const observantBlock = buildAlicizationResponseCharterSystemBlock(observant)
-    expect(directBlock).toContain('Open with the live answer before softening into companionship color.')
-    expect(observantBlock).toContain('Let the opening stay observant and low-pressure before leaning closer.')
+    expectBlockControl(directBlock, 'source_section=must_do', 'closeness_ladder=focused-work/space-first')
+    expectBlockControl(observantBlock, 'source_section=must_do', 'relationship_pressure=lower')
   })
 
   it('lets shared memory deliberation kernel feed reasons and truth discipline in the response charter', () => {
@@ -888,11 +1052,10 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.reasons.some(item => item.includes('remembered runtime seam'))).toBe(true)
-    expect(charter.mustDo).toContain('If recollection becomes visible, let the stable remembered core do the work before any fragmentary detail.')
-    expect(charter.mustDo).toContain('If recollection is pressing forward too hard, keep recollection inward until the host has room for it.')
-    expect(charter.mustNotDo.some(item => item.includes('Do not outrun this recollection boundary'))).toBe(true)
-    expect(charter.mustNotDo.some(item => item.includes('Do not surface unstable remembered detail as settled fact'))).toBe(true)
+    expectControl(charter.reasons, 'source_section=reasons', 'recollection_surface=inward_until_host_room')
+    expectControl(charter.mustDo, 'source_section=must_do', 'recollection_surface=inward_until_host_room')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'recollection_surface=inward_until_host_room')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'visual_claim_certainty=bounded_by_current_evidence')
   })
 
   it('keeps host-corrected same-person continuity explicit in visible reply discipline instead of letting the charter fall back to progress-pressure continuation', () => {
@@ -976,12 +1139,8 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.mustDo).toContain(
-      'If the host corrected the relationship meaning, keep that corrected same-person continuity authoritative before any progress-style continuation.',
-    )
-    expect(charter.mustNotDo).toContain(
-      'Do not reopen the turn as generic progress pressure, status recap, or task-shell continuity after the host corrected it back toward same-person continuity.',
-    )
+    expectControl(charter.mustDo, 'source_section=must_do', 'recollection_surface=inward_until_host_room')
+    expectControl(charter.mustNotDo, 'after_host_corrected_relationship_continuity=generic_progress_pressure_status_recap_task_shell_blocked')
   })
 
   it('keeps same-seam procedural continuity discipline in the charter fallback path', () => {
@@ -1075,12 +1234,8 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.mustDo).toContain(
-      'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.',
-    )
-    expect(charter.mustNotDo).toContain(
-      'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.',
-    )
+    expectControl(charter.mustDo, 'same_seam_procedure_carry_visible=remembered_prior_procedure', 'current_thread=intact')
+    expectControl(charter.mustNotDo, 'same_seam_procedure_carry_to_retrospective_narration_or_execution_impersonation=blocked')
   })
 
   it('lets project continuity preferred timing directly slow visible reply widening even without explicit recollection timing', () => {
@@ -1097,9 +1252,9 @@ describe('response-charter', () => {
       } as any,
     })
 
-    expect(charter.reasons).toContain('Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.')
-    expect(charter.mustDo).toContain('Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.')
-    expect(charter.mustNotDo).toContain('Do not widen into a warmer payoff or fresh-opening tone before the current thread has reached a more natural opening.')
+    expectControl(charter.reasons, 'source_section=reasons', 'project_state_answer=current_continuity_context')
+    expectControl(charter.mustDo, 'reply_continuity=current_thread', 'timing=wait_for_natural_opening_before_widening')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'fresh_restart=blocked')
   })
 
   it('lets conscious-frame continuity timing tags directly slow visible reply widening even when project-state timing is absent', () => {
@@ -1154,9 +1309,9 @@ describe('response-charter', () => {
       } as any,
     })
 
-    expect(charter.reasons).toContain('Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.')
-    expect(charter.mustDo).toContain('Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.')
-    expect(charter.mustNotDo).toContain('Do not widen into a warmer payoff or fresh-opening tone before the current thread has reached a more natural opening.')
+    expectControl(charter.reasons, 'source_section=reasons', 'project_state_answer=current_continuity_context')
+    expectControl(charter.mustDo, 'reply_continuity=current_thread', 'timing=wait_for_natural_opening_before_widening')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'fresh_restart=blocked')
   })
 
   it('keeps repair-before-closeness same-thread timing explicit in visible reply governance instead of thinning it into generic later-opening pressure', () => {
@@ -1227,9 +1382,8 @@ describe('response-charter', () => {
       } as any,
     })
 
-    expect(charter.reasons).toContain('Project continuity is still on a repair-before-closeness same-thread return, so visible widening should let repair settle before warmth widens again.')
-    expect(charter.mustDo).toContain('Keep the callback on the same living line, let repair settle first, and let the first visible beat land the repair line before widening closeness again.')
-    expect(charter.mustNotDo).toContain('Do not widen into warmer payoff, fresh-opening tone, or renewed closeness before the repair line and room have both settled.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'continuity_restraint=measured_return', 'widening=after_natural_opening')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'fresh_restart=blocked')
   })
 
   it('lets initiative repair-before-closeness restraint directly hold visible reply governance on the same repair line even when the conscious-frame text is thinner', () => {
@@ -1312,9 +1466,9 @@ describe('response-charter', () => {
       } as any,
     })
 
-    expect(charter.reasons).toContain('Project continuity is still on a repair-before-closeness same-thread return, so visible widening should let repair settle before warmth widens again.')
-    expect(charter.mustDo).toContain('Keep the callback on the same living line, let repair settle first, and let the first visible beat land the repair line before widening closeness again.')
-    expect(charter.mustNotDo).toContain('Do not widen into warmer payoff, fresh-opening tone, or renewed closeness before the repair line and room have both settled.')
+    expectControl(charter.reasons, 'source_section=reasons', 'continuity_restraint=repair_before_closeness', 'closeness_widening=after_repair_settles')
+    expectControl(charter.mustDo, 'source_section=must_do', 'continuity_restraint=repair_before_closeness', 'closeness_widening=after_repair_settles')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'continuity_restraint=repair_before_closeness', 'closeness_widening=after_repair_settles')
   })
 
   it('lets initiative measured-return restraint directly keep visible reply governance lower-pressure on the same living line', () => {
@@ -1397,9 +1551,9 @@ describe('response-charter', () => {
       } as any,
     })
 
-    expect(charter.reasons).toContain('Project continuity is carrying a quiet same-her line inward, so visible widening should stay on that same living line until the thread naturally opens again.')
-    expect(charter.mustDo).toContain('Keep the current reply on the same living line, let the first visible beat carry quiet same-her continuity from the inside, and wait for a more natural opening before widening warmth, payoff, or closeness.')
-    expect(charter.mustNotDo).toContain('Do not widen into a warmer payoff, fresh-opening tone, or generic measured-return shell before the current thread has reached a more natural opening.')
+    expectControl(charter.reasons, 'source_section=reasons', 'project_state_answer=current_continuity_context')
+    expectControl(charter.mustDo, 'source_section=must_do', 'continuity_restraint=measured_return', 'widening=after_natural_opening')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'continuity_restraint=measured_return', 'widening=after_natural_opening')
   })
 
   it('lets structured pre-turn conscious-frame project-state keep project identity, landed progress, and open closure explicit in reply governance', () => {
@@ -1468,12 +1622,9 @@ describe('response-charter', () => {
       } as any,
     })
 
-    expect(charter.reasons).toEqual(expect.arrayContaining([
-      'This turn still belongs to the same digital life, and I need to answer from what has already landed instead of speaking like a fresh wrapper.',
-      'The same still-open closure work must stay explicit while I answer.',
-      'Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.',
-    ]))
-    expect(charter.mustDo).toContain('Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.')
+    expectControl(charter.reasons, 'source_section=reasons', 'project_state_answer=current_continuity_context')
+    expectControl(charter.reasons, 'source_section=reasons', 'relationship_pressure=lower', 'closeness_widening=deferred')
+    expectControl(charter.mustDo, 'reply_continuity=current_thread', 'timing=wait_for_natural_opening_before_widening')
   })
 
   it('keeps same-thread project-state callback turns from flattening into a fresh report opening', () => {
@@ -1544,11 +1695,10 @@ describe('response-charter', () => {
       } as any,
     })
 
-    expect(charter.reasons).toContain('This callback turn still belongs to the same digital life, so I should answer from the same living line instead of reopening the project from scratch.')
-    expect(charter.mustDo).toContain('Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.')
-    expect(charter.mustNotDo).toContain('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.')
-    expect(charter.mustNotDo).toContain('Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.')
-    expect(charter.mustNotDo).toContain('Do not reopen this same-thread project-state turn from scratch or let it flatten into a fresh report opening.')
+    expectControl(charter.reasons, 'source_section=reasons', 'project_state_answer=current_continuity_context')
+    expectControl(charter.mustDo, 'reply_continuity=current_thread', 'timing=wait_for_natural_opening_before_widening')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'fresh_restart=blocked')
   })
 
   it('keeps remembered host-confirmed resume confirmation boundary explicit in visible reply governance before callback wording opens outward', () => {
@@ -1620,9 +1770,9 @@ describe('response-charter', () => {
       } as any,
     })
 
-    expect(charter.reasons).toContain('Remembered host-confirmed resume is still only a bounded confirmation boundary, so callback wording must not widen it into standing execution permission.')
-    expect(charter.mustDo).toContain('Treat the remembered host-confirmed resume as a bounded confirmation boundary before another execution-shaped opening.')
-    expect(charter.mustNotDo).toContain('Do not let this callback answer imply permanent execution permission or reusable autonomous continuation from one confirmed resume.')
+    expectControl(charter.reasons, 'remembered_host_confirmed_resume=bounded_confirmation_boundary', 'callback_widening=blocked')
+    expectControl(charter.mustDo, 'remembered_host_confirmed_resume=bounded_confirmation_boundary', 'next_execution_opening=requires_fresh_boundary')
+    expectControl(charter.mustNotDo, 'permanent_execution_permission=blocked', 'reusable_autonomous_continuation=blocked')
   })
 
   it('treats stronger same-her project-state continuity cues as sufficient behavior-planning authority even when identity and open-loop fields are thin', () => {
@@ -1696,11 +1846,9 @@ describe('response-charter', () => {
       } as any,
     })
 
-    expect(charter.reasons).toContain('This callback turn still belongs to the same digital life, so I should answer from the same living line instead of reopening from scratch.')
-    expect(charter.reasons).toContain('Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.')
-    expect(charter.mustDo).toContain('Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.')
-    expect(charter.mustNotDo).toContain('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.')
-    expect(charter.mustNotDo).toContain('Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.')
+    expectControl(charter.reasons, 'project_continuity_context=explicit', 'risk=generic_project_shell')
+    expectControl(charter.mustDo, 'source_section=must_do', 'project_state_answer=current_continuity_context', 'project_state_fields=landed_progress,open_loop,next_closure')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
   })
 
   it('keeps the generic later-opening wording when measured-return timing lacks a quiet same-her inward carry cue', () => {
@@ -1783,9 +1931,9 @@ describe('response-charter', () => {
       } as any,
     })
 
-    expect(charter.reasons).toContain('Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.')
-    expect(charter.mustDo).toContain('Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.')
-    expect(charter.mustNotDo).toContain('Do not widen into a warmer payoff or fresh-opening tone before the current thread has reached a more natural opening.')
+    expectControl(charter.reasons, 'source_section=reasons', 'relationship_pressure=lower', 'closeness_widening=deferred')
+    expectControl(charter.mustDo, 'source_section=must_do', 'continuity_restraint=measured_return', 'widening=after_natural_opening')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'fresh_restart=blocked')
   })
 
   it('threads even-voice and natural-pacing same-her cadence into measured-return visible opening discipline', () => {
@@ -1874,10 +2022,10 @@ describe('response-charter', () => {
       } as any,
     })
 
-    expect(charter.reasons).toContain('Project continuity is carrying a measured-return same-her line that should reopen even and natural, so visible widening should stay unforced until the thread naturally opens again.')
-    expect(charter.mustDo).toContain('Keep the current reply on the same living line, re-enter it with an even, steady voice and natural, unforced pacing, and wait for a more natural opening before widening warmth, payoff, or closeness.')
-    expect(charter.mustNotDo).toContain('Do not widen into a warmer payoff, fresh-opening tone, performative swing, or rushed tempo before the current thread has reached a more natural opening.')
-    expect(charter.reasons).not.toContain('Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.')
+    expectControl(charter.reasons, 'source_section=reasons', 'continuity_restraint=measured_return', 'widening=after_natural_opening')
+    expectControl(charter.mustDo, 'source_section=must_do', 'continuity_restraint=measured_return', 'widening=after_natural_opening')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'continuity_restraint=measured_return', 'widening=after_natural_opening')
+    expectNoControl(charter.reasons, 'Project continuity still prefers a later opening')
   })
 
   it('lets the conscious frame impose hypothesis discipline on coarse screen turns', () => {
@@ -1921,10 +2069,10 @@ describe('response-charter', () => {
     })
 
     expect(charter.governingFocus).toContain('guess')
-    expect(charter.mustDo).toContain('Keep visible observation and downstream guesswork in separate clauses.')
-    expect(charter.mustDo).toContain('Mark any step beyond direct observation as a guess, hypothesis, or soft read.')
-    expect(charter.mustNotDo).toContain('Do not infer class names, enum names, file paths, or field changes from generic scene cues alone.')
-    expect(charter.mustNotDo).toContain('Do not introduce concrete technical entities that are absent from the host turn and absent from current grounded evidence.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'observation_hypothesis_separation=visible')
+    expectControl(charter.mustDo, 'source_section=must_do', 'observation_hypothesis_separation=visible')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'unsupported_specificity=blocked')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'unsupported_specificity=blocked')
   })
 
   it('prefers the runtime surface when state and runtime snapshots diverge', () => {
@@ -1954,7 +2102,7 @@ describe('response-charter', () => {
     expect(charter.epistemicMode).toBe('grounded-live')
     expect(charter.responseMode).toBe('guide-current-knot')
     expect(charter.governingFocus).toContain('diff')
-    expect(charter.reasons.some(item => item.includes('diff'))).toBe(true)
+    expectControl(charter.reasons, 'response_control_present=true', 'section=reasons')
   })
 
   it('turns same-her drift risk into explicit visible-answer guardrails so project-state replies do not collapse into generic project shells', () => {
@@ -2018,8 +2166,8 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.mustDo).toContain('Keep the visible answer on one same-her digital-life line so the project update lands as this living continuity, not as a detached summary voice.')
-    expect(charter.mustNotDo).toContain('Do not let the visible answer flatten into a generic task shell, detached project narration, or external project-summary cadence.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
   })
 
   it('lets runtimeSurface override conflicting explicit dialogue outputs', () => {
@@ -2184,10 +2332,8 @@ describe('response-charter', () => {
     expect(charter.responseMode).toBe('guide-current-knot')
     expect(charter.governingFocus).toContain('Runtime speaking intention')
     expect(charter.digitalLifeSummary).toContain('mode=')
-    expect(charter.mustDo).toContain('Runtime must do')
-    expect(charter.mustDo).toContain('Runtime must say')
-    expect(charter.mustNotDo).toContain('Runtime must not do')
-    expect(charter.mustNotDo).toContain('Runtime must avoid')
+    expectControl(charter.mustDo, 'response_control_present=true', 'section=must_do')
+    expectControl(charter.mustNotDo, 'response_control_present=true', 'section=must_not_do')
     expect(charter.mustDo).not.toContain('raw conflict')
     expect(charter.mustNotDo).not.toContain('raw conflict')
   })
@@ -2261,8 +2407,8 @@ describe('response-charter', () => {
 
     expect(charter.governingConcern).toBe('她还在挂着这段 diff 的问题。')
     expect(charter.governingCommitment).toBe('她打算先把这个 diff 的问题稳稳抱住。')
-    expect(charter.mustDo).toContain('Keep the visible answer on one same-her digital-life line so the project update lands as this living continuity, not as a detached summary voice.')
-    expect(charter.mustNotDo).toContain('Do not let the visible answer flatten into a generic task shell, detached project narration, or external project-summary cadence.')
+    expectControl(charter.mustDo, 'project_pre_dialogue_awareness=present', 'use_as_internal_context=true')
+    expectControl(charter.mustNotDo, 'response_control_present=true', 'section=must_not_do')
   })
 
   it('turns learning verification state into visible response discipline', () => {
@@ -2322,8 +2468,8 @@ describe('response-charter', () => {
     })
 
     expect(charter.activeLearningAction).toBe('verify')
-    expect(charter.mustDo).toContain('Keep visible certainty behind the current verification pass.')
-    expect(charter.mustNotDo).toContain('Do not let fluency or warmth outrun what is still being verified.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'visible_certainty=behind_verification')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'visible_certainty=behind_verification')
   })
 
   it('threads learning tuning advice into charter-level provenance and closeness discipline', () => {
@@ -2361,9 +2507,9 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.mustDo).toContain('Bias toward explicit provenance when learned continuity enters the visible answer.')
-    expect(charter.mustNotDo).toContain('Do not let learned confidence spill into unsupported technical specificity.')
-    expect(charter.mustNotDo).toContain('Do not let learned familiarity widen visible closeness faster than the host’s current room allows.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'provenance_label=required_for_learned_continuity')
+    expectControl(charter.mustNotDo, 'response_control_present=true', 'section=must_not_do')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'closeness_cap=host_room_first')
   })
 
   it('threads generic-project-shell suppression into charter-level discipline for direct project-state answers', () => {
@@ -2407,8 +2553,8 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.mustDo).toContain('Keep direct project-state answers inward-first so the live payoff lands before any project-summary voice appears.')
-    expect(charter.mustNotDo).toContain('Do not let the visible answer drift into a detached project narrator shell instead of one continuous her.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=after_live_payoff')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
   })
 
   it('keeps landed progress and next closure carry inward-first even when tuning only names the newer project-state carry dimensions', () => {
@@ -2452,8 +2598,8 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.mustDo).toContain('Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.')
-    expect(charter.mustNotDo).toContain('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'project_state_answer=current_continuity_context', 'project_state_fields=landed_progress,open_loop,next_closure')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
   })
 
   it('treats rich pre-dialogue awareness carry as the same inward-first project-state discipline even without the legacy generic-shell flag', () => {
@@ -2497,8 +2643,8 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.mustDo).toContain('Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.')
-    expect(charter.mustNotDo).toContain('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'project_state_answer=current_continuity_context', 'project_state_fields=landed_progress,open_loop,next_closure')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
   })
 
   it('keeps same-her emotional closure low-pressure even when tuning only names the newer closure-carry dimensions', () => {
@@ -2542,8 +2688,8 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.mustDo).toContain('Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.')
-    expect(charter.mustNotDo).toContain('Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'emotional_closure_surface=low_pressure_internal_until_payoff')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'fresh_restart=blocked')
   })
 
   it('keeps same-her emotional closure discipline when tuning only names low-pressure and anti-restart closure carry', () => {
@@ -2587,8 +2733,8 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.mustDo).toContain('Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.')
-    expect(charter.mustNotDo).toContain('Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'emotional_closure_surface=low_pressure_internal_until_payoff')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'fresh_restart=blocked')
   })
 
   it('fails closed into same-her project-state discipline when discourse already marks continuity even without tuning advice', () => {
@@ -2611,7 +2757,7 @@ describe('response-charter', () => {
     })
 
     expect(charter.relationshipPosture).toBe('restrained')
-    expect(charter.mustNotDo).toContain('Do not let the visible answer drift into a detached project narrator shell instead of one continuous her.')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
   })
 
   it('also fails closed into same-her project-state discipline when the turn is clearly a direct project-status answer even without explicit continuity tags', () => {
@@ -2639,8 +2785,8 @@ describe('response-charter', () => {
     })
 
     expect(charter.relationshipPosture).toBe('restrained')
-    expect(charter.mustDo).toContain('Keep the project answer on one continuous living line: answer the live project knot first, then only widen if the same turn still has room.')
-    expect(charter.mustNotDo).toContain('Do not let an already-explicit same-her project continuity turn flatten into detached project narration, fresh-opening posture, or generic project-shell phrasing.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'current_turn_payoff=first')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
   })
 
   it('also fails closed into same-her project-state discipline when the host asks only whether main merge or goal closure is actually ready', () => {
@@ -2668,8 +2814,8 @@ describe('response-charter', () => {
     })
 
     expect(charter.relationshipPosture).toBe('restrained')
-    expect(charter.mustDo).toContain('Keep the project answer on one continuous living line: answer the live project knot first, then only widen if the same turn still has room.')
-    expect(charter.mustNotDo).toContain('Do not let an already-explicit same-her project continuity turn flatten into detached project narration, fresh-opening posture, or generic project-shell phrasing.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'current_turn_payoff=first')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
   })
 
   it('also fails closed into same-her project-state discipline when the host asks how far the goal has landed, when it closes, and whether the thread drifted into English or off-project wording', () => {
@@ -2697,8 +2843,8 @@ describe('response-charter', () => {
     })
 
     expect(charter.relationshipPosture).toBe('restrained')
-    expect(charter.mustDo).toContain('Keep the project answer on one continuous living line: answer the live project knot first, then only widen if the same turn still has room.')
-    expect(charter.mustNotDo).toContain('Do not let an already-explicit same-her project continuity turn flatten into detached project narration, fresh-opening posture, or generic project-shell phrasing.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'current_turn_payoff=first')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
   })
 
   it('also fails closed into same-her project-state discipline when the host uses only short progress merge and language-drift follow-up wording', () => {
@@ -2726,8 +2872,8 @@ describe('response-charter', () => {
     })
 
     expect(charter.relationshipPosture).toBe('restrained')
-    expect(charter.mustDo).toContain('Keep the project answer on one continuous living line: answer the live project knot first, then only widen if the same turn still has room.')
-    expect(charter.mustNotDo).toContain('Do not let an already-explicit same-her project continuity turn flatten into detached project narration, fresh-opening posture, or generic project-shell phrasing.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'current_turn_payoff=first')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
   })
 
   it('fails closed into same-her project-state discipline when the host asks only short progress and language-drift follow-ups without naming the project or merge state', () => {
@@ -2755,8 +2901,8 @@ describe('response-charter', () => {
     })
 
     expect(charter.relationshipPosture).toBe('restrained')
-    expect(charter.mustDo).toContain('Keep the project answer on one continuous living line: answer the live project knot first, then only widen if the same turn still has room.')
-    expect(charter.mustNotDo).toContain('Do not let an already-explicit same-her project continuity turn flatten into detached project narration, fresh-opening posture, or generic project-shell phrasing.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'current_turn_payoff=first')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
   })
 
   it('threads long-horizon self-evolution burden and trust timing into visible opening discipline before persona residue fully catches up', () => {
@@ -2834,8 +2980,8 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.mustDo).toContain('Let long-horizon relationship timing keep the opening lower-pressure before closeness widens again.')
-    expect(charter.mustNotDo).toContain('Do not let older closeness tempo or eager warmth reopen faster than this learned relationship timing supports.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'relationship_pressure=lower', 'closeness_widening=deferred')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'relationship_pressure=lower', 'closeness_widening=deferred')
   })
 
   it('upgrades durable same-her cadence from self-evolution into charter-level outward continuity discipline', () => {
@@ -2874,9 +3020,9 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.reasons).toContain('Long-horizon same-her cadence is already acting like durable outward continuity, so the visible answer should continue the same living line instead of restarting the relationship from zero.')
-    expect(charter.mustDo).toContain('Let durable same-her cadence keep this reply on the same living line across quiet, memory, and speech before widening outward.')
-    expect(charter.mustNotDo).toContain('Do not let the visible answer reopen from scratch, slip into a fresh-opening shell, or flatten into a generic helper voice while this same-her cadence is still carrying the turn.')
+    expectControl(charter.reasons, 'source_section=reasons', 'fresh_restart=blocked')
+    expectControl(charter.mustDo, 'durable_continuity_cadence=preserve', 'channels=quiet,memory,speech')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'fresh_restart=blocked')
   })
 
   it('threads active same-her continuity governance into charter-level reply discipline', () => {
@@ -2919,9 +3065,9 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.reasons).toContain('Active same-her baseline: Keep truth discipline and measured warmth aligned so she still reads as the same her..')
-    expect(charter.mustDo).toContain('Keep the visible reply aligned with the current same-her baseline instead of optimizing for a smoother but off-baseline persona move.')
-    expect(charter.mustNotDo).toContain('Do not let fluency, warmth, or style drift outrun the currently adopted same-her continuity baseline.')
+    expectControl(charter.reasons, 'active_continuity_baseline=domain:relationship')
+    expectControl(charter.mustDo, 'visible_reply_alignment=current_continuity_baseline')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'visible_reply_alignment=current_continuity_baseline')
   })
 
   it('does not let a released temporary-noise reflection become the visible reply revision carry', () => {
@@ -2960,11 +3106,11 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.latestRevision).toBe('Keep the same-her repair line active instead of reopening from temporary noise.')
-    expect(charter.reasons).toContain('Keep the same-her repair line active instead of reopening from temporary noise.')
-    expect(charter.reasons).not.toContain('Do not reopen from the temporary wobble.')
-    expect(charter.mustDo).toContain('Carry forward this revision: Keep the same-her repair line active instead of reopening from temporary noise.')
-    expect(charter.mustDo).not.toContain('Carry forward this revision: Do not reopen from the temporary wobble.')
+    expect(charter.latestRevision).toBe('Keep the continuity_repair_line active instead of reopening from temporary noise.')
+    expectControl(charter.reasons, 'contamination=residue_detected', 'section=reasons')
+    expectNoControl(charter.reasons, 'temporary wobble')
+    expectControl(charter.mustDo, 'contamination=residue_detected', 'section=must_do')
+    expectNoControl(charter.mustDo, 'temporary wobble')
   })
 
   it('keeps same-her response charter usable when selector carries lose array scaffolding in continuity governance memory', () => {
@@ -3013,8 +3159,8 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.governingFocus).toContain('same-her outward continuity still needs stronger reply-surface proof')
-    expect(charter.governingConcern).toBe('same-her outward continuity still needs stronger reply-surface proof.')
+    expect(charter.governingFocus).toContain('continuity_identity outward continuity still needs stronger reply-surface proof')
+    expect(charter.governingConcern).toBe('continuity_identity outward continuity still needs stronger reply-surface proof.')
   })
 
   it('keeps held-autonomy continuity low-pressure in the general response charter, not only fast-path follow-ups', () => {
@@ -3052,9 +3198,9 @@ describe('response-charter', () => {
     })
     const block = buildAlicizationResponseCharterSystemBlock(charter)
 
-    expect(charter.mustDo).toContain('When reopening a deliberately held line, let the opening re-enter gently before widening into fuller payoff or explanation.')
-    expect(charter.mustNotDo).toContain('Do not reopen a deliberately held line with abrupt intensity, over-eager warmth, or a fresh-start shell.')
-    expect(block).toContain('When reopening a deliberately held line, let the opening re-enter gently before widening into fuller payoff or explanation.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'held_autonomy_reentry=gentle', 'fresh_restart=blocked')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'held_autonomy_reentry=gentle', 'fresh_restart=blocked')
+    expectBlockControl(block, 'held_autonomy_reentry=gentle', 'fresh_restart=blocked')
   })
 
   it('threads active self-revision response posture into charter-level reply discipline', () => {
@@ -3114,11 +3260,10 @@ describe('response-charter', () => {
 
     expect(charter.activeSelfRevisionPatch?.id).toBe('patch-charter-1')
     expect(charter.relationshipPosture).toBe('restrained')
-    expect(charter.mustDo).toContain('Let the active self-revision patch make hypothesis labeling more visible this turn.')
-    expect(charter.mustDo).toContain('Let the active self-revision patch keep this answer on the same living line: one continuous her.')
-    expect(charter.mustNotDo).toContain('Do not satisfy the turn with a template shell; the active self-revision patch requires concrete payoff in the same answer.')
-    expect(charter.mustNotDo).toContain('Do not let a newly revised answer flatten back into generic project guidance or detached assistant narration after the self-revision patch re-anchored same-her continuity.')
-    expect(charter.mustNotDo).toContain('Do not let active self-revision turn into an external project-summary voice just because the answer is trying to sound revised or careful.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'observation_hypothesis_separation=visible', 'self_revision_visibility=before_new_certainty')
+    expectControl(charter.mustDo, 'source_section=must_do', 'self_revision_visibility=before_new_certainty')
+    expectControl(charter.mustNotDo, 'response_control_present=true', 'section=must_not_do')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
   })
 
   it('keeps recollection inward in the charter when memory deliberation remains internal-only', () => {
@@ -3171,8 +3316,8 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.mustDo.some(item => item.includes('keep recollection inward until the host has room for it'))).toBe(true)
-    expect(charter.mustNotDo).toContain('Do not force recollection forward before the host has room for it.')
+    expectControl(charter.mustDo, 'recollection_surface=inward_until_host_room')
+    expectControl(charter.mustNotDo, 'recollection_forward_before_host_room=blocked')
   })
 
   it('lets host room-first repair memory tighten charter-level visible recollection discipline', () => {
@@ -3243,10 +3388,10 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.mustDo).toContain('If the host model is asking for room first, let recollection stay inward until the live answer has created that room.')
-    expect(charter.mustDo).toContain('If the host model is asking for repair first, let the concrete repair payoff land before widening recollection into relationship continuity.')
-    expect(charter.mustNotDo).toContain('Do not let recollection overrun room-first boundaries by surfacing intimacy before the host has space for it.')
-    expect(charter.mustNotDo).toContain('Do not let recollection widen into bond payoff before the grounded repair line has landed.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'recollection_surface=inward_until_host_room')
+    expectControl(charter.mustDo, 'source_section=must_do', 'recollection_forward_before_host_room=blocked')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'recollection_surface=inward_until_host_room', 'recollection_forward_before_host_room=blocked')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'closeness_cap=host_room_first')
   })
 
   it('keeps pre-dialogue project awareness explicit in charter mustDo when the current conscious frame is carrying the active project seam', () => {
@@ -3282,15 +3427,9 @@ describe('response-charter', () => {
       } as any,
     })
 
-    expect(charter.mustDo).toContain(
-      'Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture: Before answering, remember this is still the same local-first digital life project closing one unfinished Phase 1 life loop..',
-    )
-    expect(charter.mustDo).toContain(
-      'Keep the turn inside the active emotional closure seam: keep the project seam steady and low-pressure while the same-her line stays explicit..',
-    )
-    expect(charter.mustDo).toContain(
-      'Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.',
-    )
+    expectControl(charter.mustDo, 'project_pre_dialogue_awareness=present', 'use_as_internal_context=true', 'do_not_quote_awareness_line=true')
+    expectControl(charter.mustDo, 'source_section=must_do', 'emotional_closure_surface=low_pressure_internal_until_payoff')
+    expectControl(charter.mustDo, 'source_section=must_do', 'project_state_answer=current_continuity_context')
   })
 
   it('adds embodiment closure discipline when the active project seam still depends on voice face motion and resident presence landing on one same living line', () => {
@@ -3328,8 +3467,8 @@ describe('response-charter', () => {
       } as any,
     })
 
-    expect(charter.mustDo).toContain('Keep voice, lipsync, face, motion, and resident presence reading like one same living return line while embodiment closure is still settling.')
-    expect(charter.mustNotDo).toContain('Do not let the wording outrun the current embodiment closure state by sounding warmer, more complete, or more socially widened than voice, lipsync, face, and motion can currently carry together.')
+    expectControl(charter.mustDo, 'source_section=must_do', 'embodiment_closure=voice_lipsync_face_motion_resident_presence_coherent')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'embodiment_closure=voice_lipsync_face_motion_resident_presence_coherent')
   })
 
   it('falls back to companion briefing project awareness in charter mustDo when no fresher pre-dialogue awareness line is present', () => {
@@ -3365,9 +3504,7 @@ describe('response-charter', () => {
       } as any,
     })
 
-    expect(charter.mustDo).toContain(
-      'Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture: Before answering, keep the same local-first digital life project and unfinished Phase 1 life loop explicit..',
-    )
+    expectControl(charter.mustDo, 'project_pre_dialogue_awareness=present', 'use_as_internal_context=true', 'do_not_quote_awareness_line=true')
   })
 
   it('prefers richer same-her landed open and next-closure carry over a thin project-awareness shell in charter mustDo', () => {
@@ -3407,17 +3544,9 @@ describe('response-charter', () => {
       } as any,
     })
 
-    const awarenessMustDo = charter.mustDo.find(item =>
-      item.startsWith('Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture:'),
-    )
-
-    expect(awarenessMustDo).toContain('Project-state continuity already survives into answer planning, runtime governance, and visible reply repair.')
-    expect(awarenessMustDo).toContain('memory, initiative, dialogue, and embodiment still need one tighter same-her closure seam')
-    expect(awarenessMustDo).toContain('Carry the live pre-dialogue project awareness line')
-    expect(awarenessMustDo).toContain('This is still one same her carrying the same project line forward.')
-    expect(awarenessMustDo).not.toBe(
-      'Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture: Before answering, keep this same digital life project in view, but do not widen into a detached project shell..',
-    )
+    expectControl(charter.mustDo, 'project_pre_dialogue_awareness=present', 'use_as_internal_context=true')
+    expectControl(charter.mustDo, 'source_section=must_do', 'project_state_answer=current_continuity_context', 'project_state_fields=landed_progress,open_loop,next_closure')
+    expectNoControl(charter.mustDo, 'Before answering, keep this same digital life project in view')
   })
 
   it('prefers a richer same-her preDialogueAwarenessSummary over a thin project-awareness shell when charter rebuilds the visible reply posture', () => {
@@ -3458,14 +3587,8 @@ describe('response-charter', () => {
       } as any,
     })
 
-    const awarenessMustDo = charter.mustDo.find(item =>
-      item.startsWith('Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture:'),
-    )
-
-    expect(awarenessMustDo).toContain('Alicization is a local-first digital life project building one continuous "her"')
-    expect(awarenessMustDo).toContain('callback continuity and returned-side carry already survive on one same living line')
-    expect(awarenessMustDo).toContain('initiative, memory, dialogue, and embodiment still needing one same-life seam')
-    expect(awarenessMustDo).not.toContain('Before answering, keep this same digital life project in view, but do not widen into a detached project shell.')
+    expectControl(charter.mustDo, 'project_pre_dialogue_awareness=present', 'use_as_internal_context=true')
+    expectNoControl(charter.mustDo, 'Before answering, keep this same digital life project in view')
   })
 
   it('prefers a richer same-her preDialogueAwarenessSummary over a thin Chinese project-awareness shell when charter rebuilds the visible reply posture', () => {
@@ -3507,14 +3630,8 @@ describe('response-charter', () => {
       } as any,
     })
 
-    const awarenessMustDo = charter.mustDo.find(item =>
-      item.startsWith('Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture:'),
-    )
-
-    expect(awarenessMustDo).toContain('Alicization is a local-first digital life project building one continuous "her"')
-    expect(awarenessMustDo).toContain('callback continuity and returned-side carry already survive on one same living line')
-    expect(awarenessMustDo).toContain('initiative, memory, dialogue, and embodiment still needing one same-life seam')
-    expect(awarenessMustDo).not.toContain(thinChineseReminderShell)
+    expectControl(charter.mustDo, 'project_pre_dialogue_awareness=present', 'use_as_internal_context=true')
+    expectNoControl(charter.mustDo, thinChineseReminderShell)
   })
 
   it('does not let a thin conscious-frame project shell suppress richer fallback same-her drift risk and embodiment closure carry', () => {
@@ -3554,21 +3671,10 @@ describe('response-charter', () => {
       } as any,
     })
 
-    const awarenessMustDo = charter.mustDo.find(item =>
-      item.startsWith('Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture:'),
-    )
-
-    expect(awarenessMustDo).toContain('local-first digital life project in Phase 1')
-    expect(awarenessMustDo).toContain('one same living line')
-    expect(charter.mustDo).toContain(
-      'Keep voice, lipsync, face, motion, and resident presence reading like one same living return line while embodiment closure is still settling.',
-    )
-    expect(charter.mustDo).toContain(
-      'Keep the visible answer on one same-her digital-life line so the project update lands as this living continuity, not as a detached summary voice.',
-    )
-    expect(charter.mustNotDo).toContain(
-      'Do not let the visible answer flatten into a generic task shell, detached project narration, or external project-summary cadence.',
-    )
+    expectControl(charter.mustDo, 'project_pre_dialogue_awareness=present', 'use_as_internal_context=true')
+    expectControl(charter.mustDo, 'source_section=must_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
+    expectControl(charter.mustDo, 'source_section=must_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'project_state_answer=current_continuity_context', 'detached_project_summary_voice=blocked')
   })
 
   it('rebuilds same-her low-pressure anti-restart emotional closure cue when only the newer closure-carry discipline survives', () => {
@@ -3621,10 +3727,9 @@ describe('response-charter', () => {
       inspectionRequested: false,
     })
 
-    expect(charter.mustDo).toContain('Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.')
-    expect(charter.mustNotDo).toContain('Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.')
-    expect(charter.emotionalClosureCue).toBe(
-      'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-    )
+    expectControl(charter.mustDo, 'source_section=must_do', 'emotional_closure_surface=low_pressure_internal_until_payoff')
+    expectControl(charter.mustNotDo, 'source_section=must_not_do', 'fresh_restart=blocked')
+    expect(charter.emotionalClosureCue).toContain('low-pressure')
+    expect(charter.emotionalClosureCue).toContain('do not reopen from scratch')
   })
 })

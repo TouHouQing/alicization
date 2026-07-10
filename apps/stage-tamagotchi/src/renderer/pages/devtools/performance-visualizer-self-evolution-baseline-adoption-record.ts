@@ -67,7 +67,7 @@ export function buildSelfEvolutionBaselineAdoptionRecord(input: {
     ?? input.baselineAdoption.supportingLines.find(line => line.includes('韵律权威链'))
     ?? null
   const continuityGovernanceNote = input.baselineAdoption.supportingLines.find(line =>
-    line.includes('same-her 连续性治理已经再次确认'),
+    line.includes('identity-continuity 连续性治理已经再次确认'),
   ) ?? null
   const projectStateContinuityGovernanceNote = input.baselineAdoption.supportingLines.find(line =>
     line.includes('项目状态连续性治理已经再次确认'),

@@ -12,7 +12,6 @@ import {
   sanitizeExecutionLedgerText,
   uniqueExecutionLedgerValues,
 } from './execution-ledger-shared'
-import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 
 export interface AlicizationExecutionLedgerContext {
   entries: AlicizationExecutionLedgerDigest[]
@@ -45,27 +44,7 @@ interface AlicizationExecutionLedgerRuntimeOptions {
 const executionCuePattern = /刚才|刚刚|结果|进展|状态|成功了吗|失败了吗|跑完|完成了没|继续|接着|那个命令|那个任务|执行|工具|cli|codex|claude|openclaw|command|task|tool|result|status|通过原因|排查建议|风险|did it|what happened|how did it go|why did it pass|next steps|risk/i
 const executionMentionPattern = /执行|命令|任务|工具|cli|codex|claude|openclaw|command|task|tool|run|patch|fix/i
 const ledgerMaxThreadAgeMs = 15 * 60_000
-const executionLedgerSameHerProjectLine = 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.'
-const executionLedgerProjectBoundary = 'This recalled execution history still belongs to the same local-first digital life project and one living her, not a detached task shell.'
-
-function readExecutionLedgerProjectBrief() {
-  const projectBrief = resolveAlicizationProjectStateBrief()
-
-  return {
-    projectIdentity: sanitizeExecutionLedgerText(projectBrief.identity, 220),
-    projectPhase: sanitizeExecutionLedgerText(projectBrief.currentPhase, 160),
-    latestLandedProgress: sanitizeExecutionLedgerText(
-      projectBrief.continuityProgressSummary ?? projectBrief.latestProgress,
-      320,
-    ),
-    primaryOpenLoop: sanitizeExecutionLedgerText(projectBrief.primaryOpenLoop, 320),
-    nextClosureTarget: sanitizeExecutionLedgerText(projectBrief.nextClosureTarget, 320),
-    sameHerLine: sanitizeExecutionLedgerText(projectBrief.sameHerSelfLine, 220) || executionLedgerSameHerProjectLine,
-    sameHerHold: sanitizeExecutionLedgerText(projectBrief.sameHerHoldDetail, 240),
-    sameHerDriftRisk: sanitizeExecutionLedgerText(projectBrief.sameHerDriftRisk, 320),
-    projectContinuity: sanitizeExecutionLedgerText(projectBrief.continuityCue, 240),
-  }
-}
+const executionLedgerBoundary = 'owner=ExecutionLedger; confirmed_entries_only=true; detached_task_shell=false.'
 
 function shouldRecallExecutionLedger(input: {
   recentThreads: AlicizationTaskThreadRecord[]
@@ -125,15 +104,9 @@ function buildExecutionLedgerItem(input: {
 }
 
 function buildExecutionLedgerRecallText(items: AlicizationExecutionLedgerDigest[]) {
-  const projectBrief = readExecutionLedgerProjectBrief()
-
   return [
-    projectBrief.projectIdentity ? `execution_project_identity:${projectBrief.projectIdentity}` : '',
-    projectBrief.projectPhase ? `execution_project_phase:${projectBrief.projectPhase}` : '',
-    `execution_same_her_line:${projectBrief.sameHerLine}`,
-    projectBrief.sameHerHold ? `execution_same_her_hold:${projectBrief.sameHerHold}` : '',
-    projectBrief.projectContinuity ? `execution_project_continuity:${projectBrief.projectContinuity}` : '',
-    `execution_project_boundary:${executionLedgerProjectBoundary}`,
+    'execution_history_scope:alicization-local-life-loop',
+    `execution_boundary:${executionLedgerBoundary}`,
     ...items.map(item => [
       `execution_channel:${item.channel}`,
       `execution_status:${item.status}`,
@@ -149,22 +122,14 @@ function buildExecutionLedgerSystemBlock(items: AlicizationExecutionLedgerDigest
   if (items.length === 0)
     return ''
 
-  const projectBrief = readExecutionLedgerProjectBrief()
-
   return [
     '[ALICIZATION_EXECUTION_LEDGER]',
     'Recent structured executor history for the current session.',
-    'This recalled execution history still belongs to the same local-first digital life project and one living her.',
-    projectBrief.projectIdentity ? `project_identity=${projectBrief.projectIdentity}` : '',
-    projectBrief.projectPhase ? `project_phase=${projectBrief.projectPhase}` : '',
-    projectBrief.latestLandedProgress ? `latest_landed_progress=${projectBrief.latestLandedProgress}` : '',
-    projectBrief.primaryOpenLoop ? `primary_open_loop=${projectBrief.primaryOpenLoop}` : '',
-    projectBrief.nextClosureTarget ? `next_closure_target=${projectBrief.nextClosureTarget}` : '',
-    `same_her_line=${projectBrief.sameHerLine}`,
-    projectBrief.sameHerHold ? `same_her_hold=${projectBrief.sameHerHold}` : '',
-    projectBrief.sameHerDriftRisk ? `same_her_drift_risk=${projectBrief.sameHerDriftRisk}` : '',
-    projectBrief.projectContinuity ? `project_continuity=${projectBrief.projectContinuity}` : '',
-    `project_boundary=${executionLedgerProjectBoundary}`,
+    'execution_history_scope=alicization-local-life-loop; owner=ExecutionLedger; detached_task_shell=false.',
+    'short_term_owner=WorkingMemory',
+    'long_term_recall_owner=LongTermMemoryRecall',
+    'failure_surface=report_provider_tool_and_execution_failures_directly',
+    'execution_boundary=confirmed_entries_only; review_queue_candidates_are_not_confirmed_memory.',
     'Treat only these entries as actually executed. Do not invent missing actions or results.',
     ...items.map(item => [
       `- channel=${item.channel}`,

@@ -1,6 +1,9 @@
 import type { AlicizationEmbodimentScriptV1 } from '../../../shared/eventa'
 
-import { createIdleStageEmbodimentMotorState } from '@proj-alicization/stage-shared'
+import {
+  containsAlicizationFixedTemplateResidue,
+  createIdleStageEmbodimentMotorState,
+} from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import { resolveAlicizationMainChatStartResult } from './main-chat-start-result'
@@ -13,6 +16,10 @@ function deferred<T>() {
     reject = nextReject
   })
   return { promise, resolve, reject }
+}
+
+function expectNoFixedTemplateResidue(value: unknown) {
+  expect(containsAlicizationFixedTemplateResidue(JSON.stringify(value ?? ''))).toBe(false)
 }
 
 function createInput(overrides?: Partial<Parameters<typeof resolveAlicizationMainChatStartResult>[0]>) {
@@ -355,25 +362,26 @@ describe('main chat start result', () => {
     const result = await resolveAlicizationMainChatStartResult(input)
 
     expect((result as any).projectState).toEqual(expect.objectContaining({
-      identity: expect.stringContaining('local-first digital life project'),
-      currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-      primaryOpenLoop: expect.stringContaining('same-her closure seam'),
-      nextClosureTarget: expect.stringContaining('same living line'),
+      identity: expect.stringContaining('local_desktop_life_loop'),
+      currentPhase: expect.stringContaining('local_desktop_life_loop'),
+      primaryOpenLoop: expect.stringContaining('continuity_closure'),
+      nextClosureTarget: expect.stringContaining('continuity_line'),
     }))
     expect((result as any).preDialogueAwareness).toEqual(expect.objectContaining({
       status: 'grounded',
-      summaryLine: expect.stringContaining('Phase 1 local digital life closure'),
-      companionBriefingLine: expect.stringContaining('what this digital life project is'),
-      companionNextClosureLine: expect.stringContaining('same living line'),
-      awarenessLine: expect.stringContaining('digital life project'),
+      summaryLine: expect.stringContaining('local_desktop_life_loop'),
+      companionNextClosureLine: expect.stringContaining('continuity_line'),
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
     }))
     expect((result as any).runtimeDigest).toEqual(expect.objectContaining({
       projectState: expect.objectContaining({
-        sameHerSelfLine: expect.stringContaining('Same Phase 1 digital life'),
-        preDialogueAwarenessLine: expect.stringContaining('local-first digital life project'),
+        sameHerSelfLine: expect.stringContaining('local_desktop_life_loop'),
+        preDialogueAwarenessLine: expect.stringContaining('local_desktop_life_loop'),
       }),
-      summary: expect.stringContaining('same-her project awareness'),
     }))
+    expectNoFixedTemplateResidue((result as any).projectState)
+    expectNoFixedTemplateResidue((result as any).preDialogueAwareness)
+    expectNoFixedTemplateResidue((result as any).runtimeDigest?.projectState)
   })
 
   it('keeps embodimentScript authority in accepted start results when top-level digitalLife is still absent', async () => {
@@ -825,27 +833,23 @@ describe('main chat start result', () => {
       decisionTraceId: 'prepared-thin-reopen-trace',
     })
     expect((result as any).projectState).toEqual(expect.objectContaining({
-      sameHerHoldDetail: richerPreludeHoldDetail,
       continuityArcStage: 'same-thread-continuation',
-      continuityCue: 'the reopen is still continuing on one same-her line',
       preferredVoiceMode: 'lower-pressure',
       preferredPacingMode: 'slower',
-      preDialogueAwarenessLine: expect.stringContaining('should not start from scratch'),
-      preDialogueAwarenessSummary: expect.stringContaining('should not start from scratch'),
+      preDialogueAwarenessLine: expect.stringContaining('visibility=internal-structured'),
     }))
     expect((result as any).runtimeDigest).toEqual(expect.objectContaining({
       projectState: expect.objectContaining({
-        sameHerHoldDetail: richerPreludeHoldDetail,
         continuityArcStage: 'same-thread-continuation',
-        continuityCue: 'the reopen is still continuing on one same-her line',
         preferredVoiceMode: 'lower-pressure',
         preferredPacingMode: 'slower',
-        preDialogueAwarenessSummary: expect.stringContaining('should not start from scratch'),
       }),
       currentConsciousFrame: expect.objectContaining({
         continuityArcStage: 'same-thread-continuation',
       }),
     }))
+    expectNoFixedTemplateResidue((result as any).projectState)
+    expectNoFixedTemplateResidue((result as any).runtimeDigest?.projectState)
   })
 
   it('returns null governance when neither preparation nor prelude settle within budget', async () => {

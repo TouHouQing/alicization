@@ -9,6 +9,12 @@ import type { AlicizationProactiveLayeredContext } from '../proactive-layered-co
 import type { AlicizationResponseCharter } from '../response-charter'
 import type { AlicizationSelfRevisionStatePatch } from '../self-evolution/state-revision-bus'
 
+import {
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationProviderFacingText,
+  sanitizeAlicizationStructuredInternalText,
+} from '@proj-alicization/stage-shared'
+
 import { buildAlicizationAnswerPlannerSystemBlock } from '../answer-planner'
 import { preferStrongerContinuityClosureAuthority } from '../continuity-closure-authority'
 import { buildAlicizationExecutiveAnswerBrief } from '../executive-answer-brief'
@@ -127,9 +133,13 @@ export interface AlicizationVisibleReplySurfacePlan {
 }
 
 function sanitizeProjectStateText(value: unknown, maxChars = 220) {
+  return sanitizeAlicizationProviderFacingText(value, maxChars)
+}
+
+function sanitizeVisibleReplyInternalProjectText(value: unknown, maxChars = 320) {
   if (typeof value !== 'string')
     return ''
-  return value.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  return sanitizeAlicizationStructuredInternalText(value, maxChars, '') || ''
 }
 
 function preferVisibleReplyProjectStateAuditText(input: {
@@ -174,12 +184,14 @@ function looksLikeThinVisibleReplyProjectAwarenessLine(raw: unknown) {
 }
 
 function looksLikeSameHerVisibleReplyProjectContinuityLine(raw: unknown) {
-  const normalized = sanitizeProjectStateText(raw, 320).toLowerCase()
+  const normalized = sanitizeVisibleReplyInternalProjectText(raw, 320).toLowerCase()
   if (!normalized)
     return false
+  if (containsAlicizationFixedTemplateResidue(raw))
+    return false
 
-  const carriesSameHer = /same phase 1 digital life|same living line|same her|same-her|one continuous her|one same her|one living her|current thread continuity/u.test(normalized)
-  const carriesClosureContext = /callback|returned result|execution|project|closure|phase 1|open closure|next closure|generic callback shell|detached utility notice/u.test(normalized)
+  const carriesSameHer = /continuity_anchor=|continuity_(?:identity|line|thread)|project_state_continuity|local_desktop_life_loop|current thread continuity/u.test(normalized)
+  const carriesClosureContext = /callback|returned result|execution|project|closure|open closure|next closure|generic callback shell|detached utility notice|open_loop=|memory_dialogue_embodiment/u.test(normalized)
 
   return carriesSameHer && carriesClosureContext
 }
@@ -206,14 +218,14 @@ function readVisibleReplyProjectContinuityFromAnswerCompiler(
   }
 
   const sameHerSelfLine = looksLikeSameHerVisibleReplyProjectContinuityLine(answerCompiler?.openingClaim)
-    ? sanitizeProjectStateText(answerCompiler?.openingClaim, 320)
+    ? sanitizeVisibleReplyInternalProjectText(answerCompiler?.openingClaim, 320)
     : null
   const sameHerDriftRisk = (answerCompiler?.mustNotDo ?? [])
-    .map(item => sanitizeProjectStateText(item, 320))
+    .map(item => sanitizeVisibleReplyInternalProjectText(item, 320))
     .find(item =>
       Boolean(item)
       && /generic assistant shell|generic task shell|detached project narration|project-summary voice|generic callback shell|detached utility notice/u.test(String(item))
-      && /same-her|same her|same living line|current thread continuity|one continuous her/u.test(String(item).toLowerCase()),
+      && /continuity_(?:identity|line|thread)|current thread continuity|project_state_continuity/u.test(String(item).toLowerCase()),
     ) ?? null
 
   return {
@@ -396,6 +408,7 @@ export function buildAlicizationVisibleReplySurfacePlan(input: {
   answerCompiler?: AlicizationDigitalLifeRuntimeSurface['dialogue']['answerCompiler']
   claimEvidenceLedger?: AlicizationDigitalLifeRuntimeSurface['dialogue']['claimEvidenceLedger']
   currentConsciousFrame?: AlicizationDigitalLifeRuntimeSurface['dialogue']['currentConsciousFrame']
+  includeProjectStateFacts?: boolean
   recollectionSpeechPlan?: Parameters<typeof buildAlicizationResponseSurfaceContract>[0]['recollectionSpeechPlan']
   selfRevisionPatch?: AlicizationSelfRevisionStatePatch | null
 }) {
@@ -476,7 +489,9 @@ export function buildAlicizationVisibleReplySurfacePlan(input: {
         ? buildAlicizationAnswerPlannerSystemBlock(input.runtimeSurface.dialogue.answerPlanner)
         : '',
       responseSurfaceContract: responseSurfaceContract.systemBlock,
-      mindTurnContract: buildAlicizationMindTurnContractSystemBlock(mindTurnContract),
+      mindTurnContract: buildAlicizationMindTurnContractSystemBlock(mindTurnContract, {
+        includeProjectStateFacts: input.includeProjectStateFacts,
+      }),
       responseCharter: buildAlicizationResponseCharterSystemBlock(responseCharter),
     },
   } satisfies AlicizationVisibleReplySurfacePlan

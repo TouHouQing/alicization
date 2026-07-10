@@ -3123,6 +3123,72 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it('keeps needs-review relationship candidates out of recall and persona reinforcement until approval', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+
+    await db.enqueueWorkingMemoryLongTermQueueItems({
+      cardId: 'default',
+      sessionId: 'session-review-relationship',
+      items: [{
+        id: 'queue-private-relationship',
+        source: 'working-memory-owner',
+        kind: 'relationship',
+        summary: '用户希望某个私人关系边界只在内在记忆治理中使用。',
+        reason: 'private relationship boundary',
+        sourceTurnIds: ['turn-private-relationship:user'],
+        evidenceSnippets: ['这个私人边界不要直接拿来对话复述。'],
+        salience: 0.9,
+        confidence: 0.88,
+        sensitivity: 'private',
+        allowTraining: false,
+        status: 'pending-cleaning',
+        rejectionReasons: [],
+        contaminationFlags: [],
+        createdAt: 2_600,
+      }],
+    })
+
+    expect(await db.drainWorkingMemoryLongTermQueue(4)).toEqual(expect.objectContaining({
+      review: 1,
+      applied: 0,
+    }))
+
+    const beforeApproval = await db.retrieveLongTermMemoryEvidence({
+      cardId: 'default',
+      currentUserText: '你还记得那个私人关系边界吗？',
+      limit: 8,
+    })
+    expect(beforeApproval.evidence.map(item => item.candidate.summary).join('\n')).not.toContain('私人关系边界')
+    expect(await db.listPersonaReinforcementEvents({ cardId: 'default', limit: 8 })).toEqual([])
+
+    const reviewItems = await db.listLongTermMemoryReviewItems({ cardId: 'default', limit: 4 })
+    await expect(db.applyLongTermMemoryReviewDecision({
+      cardId: 'default',
+      reviewItemId: reviewItems[0]!.id,
+      decision: 'approve',
+    })).resolves.toEqual(expect.objectContaining({
+      status: 'approved',
+    }))
+
+    expect(await db.drainWorkingMemoryLongTermQueue(4)).toEqual(expect.objectContaining({
+      admitted: 1,
+      applied: 1,
+      review: 0,
+    }))
+    expect(await db.listMemoryReflections({ cardId: 'default', limit: 8 })).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        summary: '用户希望某个私人关系边界只在内在记忆治理中使用。',
+      }),
+    ]))
+    expect(await db.listPersonaReinforcementEvents({ cardId: 'default', limit: 8 })).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        summary: '用户希望某个私人关系边界只在内在记忆治理中使用。',
+      }),
+    ]))
+
+    await db.close()
+  })
+
   it('retrieves unified long-term memory evidence across facts reflections and episodes', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
 
@@ -4244,16 +4310,19 @@ describe('alicization sqlite dao', () => {
     expect(claimed).toHaveLength(1)
     expect(claimed[0]?.status).toBe('claimed')
     expect(claimed[0]?.payload.projectStateContinuity).toEqual(expect.objectContaining({
-      identity: expect.stringContaining('local-first digital life project'),
-      currentPhase: expect.stringContaining('Phase 1'),
+      identity: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      currentPhase: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
       landedProgressSummary: expect.stringContaining('runtime preparation'),
       proactiveSameHerGap: expect.stringContaining('visible proactive hold'),
-      preDialogueAwarenessLine: expect.stringContaining('Before answering, remember'),
-      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-      sameHerSelfLine: expect.stringContaining('Same Phase 1 digital life'),
-      sameHerHoldDetail: 'same-her hold: keep this delayed learning carry on the same living line before later retries widen into generic verification bookkeeping.',
-      sameHerDriftRisk: expect.stringContaining('unfinished closure drift'),
+      preDialogueAwarenessLine: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      emotionalClosureCue: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      sameHerSelfLine: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      sameHerHoldDetail: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      sameHerDriftRisk: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
     }))
+    expect(JSON.stringify(claimed[0]?.payload.projectStateContinuity)).not.toMatch(/Before answering|local-first digital life project|Phase 1: Local Digital Life|Same Phase 1 digital life|same living line|same-her hold|one living her/iu)
+    expect(JSON.stringify(claimed[0]?.payload.projectStateContinuity)).toContain('content=excluded')
+    expect(JSON.stringify(claimed[0]?.payload.projectStateContinuity)).toContain('visibility=internal-structured')
 
     await db.startLearningTask('learning-task-1', nowMs)
     await db.completeLearningTask('learning-task-1', {

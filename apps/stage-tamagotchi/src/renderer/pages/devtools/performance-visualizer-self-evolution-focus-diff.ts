@@ -81,7 +81,7 @@ export function buildSelfEvolutionFocusDiffSummary(input: {
   )
 
   if (sameHerContinuityProgression) {
-    lines.push('连续性说明：这不是普通聚焦漂移，而是 same-her continuity governance 从审视阶段推进到确认阶段。')
+    lines.push('连续性说明：这不是普通聚焦漂移，而是 identity-continuity continuity governance 从审视阶段推进到确认阶段。')
   }
 
   return lines

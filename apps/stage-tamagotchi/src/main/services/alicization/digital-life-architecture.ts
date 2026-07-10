@@ -1,5 +1,10 @@
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
+import {
+  alicizationFixedTemplateReplacement,
+  sanitizeAlicizationStructuredInternalText,
+} from '@proj-alicization/stage-shared'
+
 import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 
 export type AlicizationDigitalLifeSubsystemId
@@ -49,7 +54,17 @@ function clamp01(value: number | null | undefined) {
 function sanitizeText(raw: unknown, maxChars = 160) {
   if (typeof raw !== 'string')
     return ''
-  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  const sanitized = sanitizeAlicizationStructuredInternalText(
+    normalized,
+    maxChars,
+    alicizationFixedTemplateReplacement,
+  )
+  if (!sanitized)
+    return ''
+  return sanitized === alicizationFixedTemplateReplacement
+    ? 'relationship_continuity=present; source_template=excluded; visibility=internal-structured'
+    : sanitized
 }
 
 function summarizeMs(raw: number | null | undefined) {
@@ -578,7 +593,7 @@ function deriveClosureAudit(surface: AlicizationDigitalLifeRuntimeSurface) {
     summary: [
       currentPhase ? `phase=${currentPhase}` : '',
       primaryOpenLoop ? `open-loop=${sanitizeText(primaryOpenLoop, 96)}` : '',
-      selfAuthoritySummary ? `same-her=${sanitizeText(selfAuthoritySummary, 96)}` : '',
+      selfAuthoritySummary ? `continuity_anchor=${sanitizeText(selfAuthoritySummary, 96)}` : '',
       activeClosurePressures.length > 0 ? `shaping=${activeClosurePressures.join(',')}` : '',
     ].filter(Boolean).join(' | '),
   }
@@ -669,7 +684,8 @@ export function buildAlicizationDigitalLifeArchitectureSystemBlock(
       system.summary ? ` :: ${sanitizeText(system.summary, 220)}` : '',
       system.reasons.length > 0 ? ` :: ${system.reasons.join(', ')}` : '',
     ].join('')),
-    'Treat this as Alicization\'s live architecture spine for the current session.',
-    'Keep perception, dialogue, proactive behavior, control, mind, and memory on this same line instead of drifting into parallel stories.',
+    'architecture_spine.role=live_session',
+    'architecture_spine.identity_scope=single_runtime',
+    'architecture_spine.parallel_story_drift=blocked',
   ].join('\n')
 }

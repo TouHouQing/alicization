@@ -149,8 +149,8 @@ function formatContinuityDisplayValue(value: string) {
     .replace(/\bbounded-growth\b/, '有界成长')
     .replace(/\bboundary-violation\b/, '边界越线')
     .replace(/\bremembered-familiarity-memory-first\b/, '熟悉感记忆先行')
-    .replace(/\bproject-state-same-her-continuity-required\b/, '项目状态必须继续守住同一个 her')
-    .replace(/\bsemantic-judge:project-state-same-her-missing\b/, '项目状态回答一度丢失同一个 her 的明线')
+    .replace(/\bproject-state-identity-continuity-continuity-required\b/, '项目状态必须继续守住身份连续性')
+    .replace(/\bsemantic-judge:project-state-identity-continuity-missing\b/, '项目状态回答一度丢失身份连续性明线')
     .replace(/\blane=face-only\b/, '当前仅剩表情维持同一段连续性')
     .replace(/\blane=body-only\b/, '当前仅剩身体维持同一段连续性')
     .replace(/\blane=motion-only\b/, '当前仅剩动作维持同一段连续性')
@@ -243,10 +243,10 @@ function hasProjectStateContinuityDrift(input: SelfEvolutionEvidencePanelInput) 
     ...(input.preDialogueBriefingSummary?.lines ?? []),
   ].some(line =>
     line.includes('project-state continuity')
-    || line.includes('Project same-her self line currently reads')
+    || line.includes('Project identity-continuity self line currently reads')
     || line.includes('sameHer=')
-    || line.includes('project-state-same-her-continuity-required')
-    || line.includes('semantic-judge:project-state-same-her-missing')
+    || line.includes('project-state-identity-continuity-continuity-required')
+    || line.includes('semantic-judge:project-state-identity-continuity-missing')
     || line.includes('pre-dialogue briefing drift')
     || line.includes('briefing drift')
     || line.includes('preDialogueBriefingDrift'),
@@ -256,10 +256,10 @@ function hasProjectStateContinuityDrift(input: SelfEvolutionEvidencePanelInput) 
 function resolveProjectStateSameHerRepairEvidence(input: SelfEvolutionEvidencePanelInput) {
   const lines = input.preDialogueBriefingSummary?.lines ?? []
   const repairs: string[] = []
-  if (lines.some(line => line.includes('project-state-same-her-continuity-required')))
-    repairs.push('project-state-same-her-continuity-required')
-  if (lines.some(line => line.includes('semantic-judge:project-state-same-her-missing')))
-    repairs.push('semantic-judge:project-state-same-her-missing')
+  if (lines.some(line => line.includes('project-state-identity-continuity-continuity-required')))
+    repairs.push('project-state-identity-continuity-continuity-required')
+  if (lines.some(line => line.includes('semantic-judge:project-state-identity-continuity-missing')))
+    repairs.push('semantic-judge:project-state-identity-continuity-missing')
   return repairs
 }
 
@@ -414,16 +414,16 @@ function summarizeRuntimeContinuityLaneTruth(
 
   const hasThinMeasuredReturnContinuity = reasons.some(reason =>
     reason.includes('only runtime digest plus spine still expose the noisy-detour continuity line')
-    || reason.includes('thinner measured-return same-her line visible')
-    || reason.includes('thinner measured-return same-her line')
-    || reason.includes('thin measured-return same-her line')
+    || reason.includes('thinner measured-return identity-continuity line visible')
+    || reason.includes('thinner measured-return identity-continuity line')
+    || reason.includes('thin measured-return identity-continuity line')
     || reason.includes('较薄证据维持')
     || reason.includes('thinner continuity evidence'),
   )
 
   const hasBodyLedContinuity = bodyContinuityPhase === 'body-carried-to-renderer-rejoin'
     || reasons.some(reason =>
-      reason.includes('body-led same-her continuity')
+      reason.includes('body-led identity-continuity continuity')
       || reason.includes('body-led partial recovery')
       || reason.includes('身体线先托住')
       || reason.includes('body still carries the living segment')
@@ -434,7 +434,7 @@ function summarizeRuntimeContinuityLaneTruth(
       reason.includes('身体独撑态')
       || reason.includes('独自托住同一段 living segment')
       || reason.includes('only lane carrying this same living segment')
-      || reason.includes('one continuous her being held inward'),
+      || reason.includes('identity continuity being held inward'),
     )
   const hasCrossModalLockContinuity = bodyContinuityPhase === 'full-cross-modal-lock'
     || reasons.some(reason =>
@@ -529,19 +529,19 @@ function summarizeRuntimeContinuityLaneTruth(
   }
 
   if (!hasVoiceDrift && matchedSignals.includes('lane=face+lipsync-only')) {
-    return '当前只有 face 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线'
+    return '当前只有 face 和 lipsync 这条 identity-continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线'
   }
 
   if (!hasVoiceDrift && matchedSignals.includes('lane=motion+lipsync-only')) {
-    return '当前只有 motion 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线'
+    return '当前只有 motion 和 lipsync 这条 identity-continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线'
   }
 
   if (!hasVoiceDrift && matchedSignals.includes('lane=face+lipsync+voice-only')) {
-    return '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线'
+    return '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线'
   }
 
   if (!hasVoiceDrift && matchedSignals.includes('lane=motion+lipsync+voice-only')) {
-    return '当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线'
+    return '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线'
   }
 
   const laneOnlySignal = matchedSignals.find(signal =>

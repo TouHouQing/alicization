@@ -21,7 +21,11 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
-import { buildAlicizationScreenSurfaceCue } from '@proj-alicization/stage-shared'
+import {
+  alicizationFixedTemplateReplacement,
+  buildAlicizationScreenSurfaceCue,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
 
 import { anchorsMateriallyAlign, anchorsMateriallyConflict, resolveDialogueAnchorCoherence } from './dialogue-anchor-coherence'
 import { isDialogueFirstSubject, sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
@@ -36,6 +40,21 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function looksProviderFacingStructuredControl(value: string) {
+  const normalized = value.trim().replace(/[.。]+$/u, '')
+  return /^[\w.:-]+=[^!?。！？]*?(?:[;|,]\s*[\w.:-]+=[^!?。！？]*?)*$/iu.test(normalized)
+    || /^[\w.:-]+$/iu.test(normalized)
+}
+
+function formatProviderFacingControl(value: unknown) {
+  const normalized = sanitizeAlicizationProviderFacingText(value, 360, '')
+  if (!normalized || normalized === alicizationFixedTemplateReplacement)
+    return 'provider_instruction_status=withheld; reason=non_structured_source_text; visibility=internal-structured'
+  if (looksProviderFacingStructuredControl(normalized))
+    return normalized
+  return 'provider_instruction_status=withheld; reason=non_structured_source_text; visibility=internal-structured'
 }
 
 function sanitizeKernelAnchor(raw: unknown, maxChars = 220) {
@@ -678,27 +697,27 @@ export function buildDialogueActKernelSystemBlock(kernel: AlicizationDialogueAct
 
   return [
     '[ALICIZATION_DIALOGUE_ACT_KERNEL]',
-    'This block is the sovereign turn authority. Do not invent a different subject, truth posture, or reply motive.',
-    'You are allowed to phrase the answer naturally, but the answer must stay faithful to this kernel.',
-    `Subject: ${kernel.subject}.`,
-    `Host goal: ${kernel.hostGoal}.`,
-    `Relation need: ${kernel.relationNeed}.`,
-    `Active project: ${kernel.activeProject ?? 'none'}.`,
-    `Truth mode: ${kernel.truthMode}.`,
-    `Speech act: ${kernel.speechAct}.`,
-    `Turn mode: ${kernel.turnMode}.`,
-    `Screen reference mode: ${kernel.screenReferenceMode}.`,
-    `Speaking from: ${kernel.speakingFrom}.`,
-    `Opening claim: ${kernel.openingClaim}.`,
-    `Opening move: ${kernel.openingMove}.`,
-    `Why now: ${kernel.whyNow}.`,
-    'Selected evidence:',
+    'block_role=dialogue_act_kernel; owner=dialogue; wording_authority=false',
+    'subject_authority=governed; truth_posture_authority=governed; motive_authority=governed',
+    `subject=${kernel.subject}`,
+    `host_goal=${kernel.hostGoal}`,
+    `relation_need=${kernel.relationNeed}`,
+    `active_project=${kernel.activeProject ?? 'none'}`,
+    `truth_mode=${kernel.truthMode}`,
+    `speech_act=${kernel.speechAct}`,
+    `turn_mode=${kernel.turnMode}`,
+    `screen_reference_mode=${kernel.screenReferenceMode}`,
+    `speaking_from=${kernel.speakingFrom}`,
+    `opening_claim=${formatProviderFacingControl(kernel.openingClaim)}`,
+    `opening_move=${formatProviderFacingControl(kernel.openingMove)}`,
+    `why_now=${formatProviderFacingControl(kernel.whyNow)}`,
+    'selected_evidence=',
     ...(kernel.selectedEvidence.length > 0
-      ? kernel.selectedEvidence.map(item => `- [${item.source}/${item.kind}] ${item.summary}`)
+      ? kernel.selectedEvidence.map(item => `- [${item.source}/${item.kind}] ${formatProviderFacingControl(item.summary)}`)
       : ['- none']),
-    'Must say:',
-    ...(kernel.mustSay.length > 0 ? kernel.mustSay.map(item => `- ${item}`) : ['- none']),
-    'Must avoid:',
-    ...(kernel.mustAvoid.length > 0 ? kernel.mustAvoid.map(item => `- ${item}`) : ['- none']),
+    'required_signals=',
+    ...(kernel.mustSay.length > 0 ? kernel.mustSay.map(item => `- ${formatProviderFacingControl(item)}`) : ['- none']),
+    'avoid_signals=',
+    ...(kernel.mustAvoid.length > 0 ? kernel.mustAvoid.map(item => `- ${formatProviderFacingControl(item)}`) : ['- none']),
   ].join('\n')
 }

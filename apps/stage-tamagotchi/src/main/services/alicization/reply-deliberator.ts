@@ -15,6 +15,11 @@ import type {
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
+import {
+  alicizationFixedTemplateReplacement,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+
 import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import { pickDialogueSurfaceText, sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
 import {
@@ -109,7 +114,7 @@ function readReplyDeliberatorProjectContinuityCue(frame?: AlicizationCurrentCons
 
 function isExplicitCorrectedSamePersonContinuityText(text: string | null | undefined) {
   return typeof text === 'string'
-    && /host-corrected same-person continuity|corrected same-person continuity|same-person continuity|same person continuity|同一个她|持续的人/u.test(text)
+    && /host-corrected same-person continuity|corrected same-person continuity|same-person continuity|same person continuity|continuity_identity|持续的人/u.test(text)
 }
 
 function pickDialogueAnchorText(...values: unknown[]) {
@@ -426,19 +431,19 @@ function hasSameHerProjectStateClosureCue(frame?: AlicizationCurrentConsciousFra
   const nextClosureTarget = sanitizeDialogueSurfaceText(normalizedProjectState?.nextClosureTarget, 260).toLowerCase()
   const sameHerDriftRisk = sanitizeDialogueSurfaceText(normalizedProjectState?.sameHerDriftRisk, 260).toLowerCase()
   const combined = `${speakingIntention} ${consciousNeed} ${projectIdentity} ${preDialogueAwarenessLine} ${latestProgress} ${primaryOpenLoop} ${nextClosureTarget} ${sameHerDriftRisk}`
-  const sameHerCue = combined.includes('same digital life')
+  const sameHerCue = combined.includes('current continuity')
     || combined.includes('same still-open closure work')
-    || combined.includes('one same her')
-    || combined.includes('same-her')
-    || combined.includes('same living line')
-    || combined.includes('one continuous her')
+    || combined.includes('continuous identity')
+    || combined.includes('continuity')
+    || combined.includes('continuity line')
+    || combined.includes('continuous identity')
     || combined.includes('generic project shell')
   const structuredProjectCue = (
     (
       projectIdentity.includes('digital life')
       || projectIdentity.includes('continuous her')
-      || preDialogueAwarenessLine.includes('same living line')
-      || preDialogueAwarenessLine.includes('one continuous her')
+      || preDialogueAwarenessLine.includes('continuity line')
+      || preDialogueAwarenessLine.includes('continuous identity')
     )
     && (
       latestProgress.includes('land')
@@ -451,7 +456,7 @@ function hasSameHerProjectStateClosureCue(frame?: AlicizationCurrentConsciousFra
       || primaryOpenLoop.includes('still-open')
       || nextClosureTarget.includes('closure')
       || preDialogueAwarenessLine.includes('still needs')
-      || preDialogueAwarenessLine.includes('without splitting her continuity')
+      || preDialogueAwarenessLine.includes('without splitting continuity')
     )
   )
   return sameHerCue || structuredProjectCue
@@ -474,7 +479,7 @@ function hasCrossModalSameHerClosureCue(frame?: AlicizationCurrentConsciousFrame
     consciousNeed,
   ].join(' ')
   return (
-    /cross-modal|same-her proof|same living her|same digital life/u.test(combined)
+    /cross-modal|continuity proof|continuous identity|current continuity/u.test(combined)
     && /visible reply|voice|facial state|face|motion|lipsync|resident presence|embodiment|closure/u.test(combined)
   )
 }
@@ -501,57 +506,38 @@ function canonicalSameHerProjectStateClosureReason(frame?: AlicizationCurrentCon
   const projectContinuityAuthority = readReplyDeliberatorProjectContinuityAuthority(frame)
   const projectContinuityCue = readReplyDeliberatorProjectContinuityCue(frame)
   const crossModalSameHerClosureCue = hasCrossModalSameHerClosureCue(frame)
-  const landedAndOpenClosurePressure
-    = latestProgress && primaryOpenLoop
-      ? `What has already landed enough to build from is ${latestProgress}, and the same still-open life loop is ${primaryOpenLoop}.`
-      : latestProgress
-        ? `What has already landed enough to build from is ${latestProgress}, but the same still-open closure work still needs to stay explicit in this reply.`
-        : primaryOpenLoop
-          ? `The same digital life is still carrying this open closure seam: ${primaryOpenLoop}.`
-          : null
-  const fallbackSameHerAnchor = fallbackAwareness
-    ? `The same digital life still needs to stay explicit here: ${fallbackAwareness}`
-    : null
-  const explicitSameHerAnchor = rawLiveAwareness || (sameHerSelfLine
-    ? `Stay with the same digital life directly: ${sameHerSelfLine}.`
-    : fallbackSameHerAnchor
-      ?? 'The same digital life still needs to stay explicit here instead of flattening into generic guidance.')
   const explicitCorrectedSamePersonAuthority
     = projectContinuityAuthority
-      && /host-corrected same-person continuity|corrected same-person continuity|same-person continuity|same person continuity|同一个她|持续的人/u.test(projectContinuityAuthority)
+      && /host-corrected same-person continuity|corrected same-person continuity|same-person continuity|same person continuity|continuity_identity|持续的人/u.test(projectContinuityAuthority)
       ? projectContinuityAuthority
       : null
-  const explicitDriftRiskPressure = sameHerDriftRisk || 'If this reply falls back into a detached project shell or generic guidance, the same-her closure work is still unfinished.'
+  const explicitDriftRiskPressure = sameHerDriftRisk || 'detached_project_shell_or_generic_guidance'
   const explicitProactiveGapPressure = proactiveSameHerGap
-    ? `The proactive same-her gap still needs to stay explicit here: ${proactiveSameHerGap}.`
+    ? `proactive_gap=${summarizeProjectStatusFacet('open', proactiveSameHerGap)}`
     : null
   const explicitCorrectedSamePersonCue
     = projectContinuityCue
-      && /host-corrected same-person continuity|corrected same-person continuity|same-person continuity|same person continuity|同一个她|持续的人/u.test(projectContinuityCue)
+      && /host-corrected same-person continuity|corrected same-person continuity|same-person continuity|same person continuity|continuity_identity|持续的人/u.test(projectContinuityCue)
       ? projectContinuityCue
       : null
-  const explicitNextClosurePressure = nextClosureTarget && crossModalSameHerClosureCue
-    ? `The next closure still depends on cross-modal same-her proof staying visible here: ${nextClosureTarget}.`
-    : nextClosureTarget
-      ? `The next closure step still needs to stay visible here: ${nextClosureTarget}.`
-      : 'The next closure step still needs to stay visible here before the answer widens outward.'
-  const explicitCrossModalPressure = crossModalSameHerClosureCue
-    ? 'This reply still needs to keep cross-modal same-her closure explicit before the same digital life widens outward.'
-    : null
 
-  const composedReason = [
-    explicitSameHerAnchor,
-    explicitCorrectedSamePersonAuthority,
-    landedAndOpenClosurePressure,
-    explicitDriftRiskPressure,
+  const composedReason = uniqueList([
+    'project_closure_context=structured_continuity',
+    rawLiveAwareness ? `awareness=${summarizeProjectStatusFacet('open', rawLiveAwareness)}` : null,
+    !rawLiveAwareness && fallbackAwareness ? `awareness=${summarizeProjectStatusFacet('open', fallbackAwareness)}` : null,
+    sameHerSelfLine ? `continuity_anchor=${summarizeProjectStatusFacet('open', sameHerSelfLine)}` : null,
+    explicitCorrectedSamePersonAuthority ? `corrected_authority=${summarizeProjectStatusFacet('open', explicitCorrectedSamePersonAuthority)}` : null,
+    latestProgress ? `landed=${summarizeProjectStatusFacet('landed', latestProgress)}` : null,
+    primaryOpenLoop ? `open=${summarizeProjectStatusFacet('open', primaryOpenLoop)}` : null,
+    nextClosureTarget ? `next=${summarizeProjectStatusFacet('next', nextClosureTarget)}` : 'next=keep_open_before_widening',
+    `drift_risk=${summarizeProjectStatusFacet('open', explicitDriftRiskPressure)}`,
     explicitProactiveGapPressure,
-    explicitCrossModalPressure,
-    explicitCorrectedSamePersonCue,
-    explicitNextClosurePressure,
-  ].filter(Boolean).join(' ')
+    crossModalSameHerClosureCue ? 'closure_mode=cross_modal_continuity' : null,
+    explicitCorrectedSamePersonCue ? `corrected_cue=${summarizeProjectStatusFacet('open', explicitCorrectedSamePersonCue)}` : null,
+  ], 10).join('; ')
 
   return composedReason
-    || 'The same digital life still needs to keep this same still-open closure work explicit before the reply widens outward.'
+    || 'project_closure_context=structured_continuity; open=requires_visible_closure_before_widening'
 }
 
 function looksLikeSameHerProjectFollowThroughTurn(input: {
@@ -580,14 +566,18 @@ function looksLikeSameHerProjectFollowThroughTurn(input: {
     return false
 
   const continuationCue = /continue|carry on|follow-through|stay on the same line|same line|same thread|继续|沿着这条线|同一条线|别弄丢|不要重开|不要重启/u.test(evidence)
-  const sameHerProjectCue = /same digital life|same-her|same her|same living line|one continuous her|phase 1|project-state|project line|数字生命项目|同一个她|同一个 her/u.test(evidence)
+  const sameHerProjectCue = /current continuity|continuity|continuity identity|continuity line|continuous identity|phase 1|project-state|project line|continuity_project|continuity_identity|continuity_identity/u.test(evidence)
   const closureCue = /closure|still-open|unfinished|landed|next closure|initiative|embodiment|memory|没闭环|闭环|已落地|做到哪/u.test(evidence)
 
   return continuationCue && sameHerProjectCue && closureCue
 }
 
 function summarizeProjectStatusFacet(kind: 'landed' | 'open' | 'next', value: string) {
-  const normalized = sanitizeDialogueSurfaceText(value, 320)
+  const providerSafe = sanitizeAlicizationProviderFacingText(value, 320)
+  if (providerSafe === alicizationFixedTemplateReplacement)
+    return alicizationFixedTemplateReplacement
+
+  const normalized = sanitizeDialogueSurfaceText(providerSafe, 320)
   if (!normalized)
     return ''
 
@@ -654,7 +644,7 @@ function hasExplicitProjectPreDialogueAwareness(frame?: AlicizationCurrentConsci
     .map(value => sanitizeDialogueSurfaceText(value, 260).toLowerCase())
     .filter(Boolean)
     .join(' ')
-  const projectAnswerOrientation = /project-state|project seam|project line|this project|what this project is|phase 1|做到哪|没闭环|数字生命项目/u.test(projectOrientation)
+  const projectAnswerOrientation = /project-state|project seam|project line|this project|what this project is|phase 1|做到哪|没闭环|continuity_project/u.test(projectOrientation)
   const awareness = sanitizeDialogueSurfaceText(
     liveAwareness || (
       projectAnswerOrientation
@@ -666,10 +656,10 @@ function hasExplicitProjectPreDialogueAwareness(frame?: AlicizationCurrentConsci
   const primaryOpenLoop = sanitizeDialogueSurfaceText(normalizedProjectState?.primaryOpenLoop, 260).toLowerCase()
   const nextClosureTarget = sanitizeDialogueSurfaceText(normalizedProjectState?.nextClosureTarget, 260).toLowerCase()
   return (
-    /same digital life|同一个数字生命|同一个她|same-her|same her|one continuous her|before answering|before speaking|开口前|回答前/u.test(awareness)
+    /current continuity|continuity_identity|continuity_identity|continuity|continuity identity|continuous identity|before_answering|before_speaking|pre_speech|pre_answer/u.test(awareness)
     && /phase 1|continuity|memory|initiative|embodiment|execution|闭环|closure|still-open|still open/u.test(awareness)
   ) || (
-    /holding together mainly through|one living her|one living digital life|same living her|same living line|full cross-modal|cross-modal closure|without splitting her continuity/u.test(awareness)
+    /holding together mainly through|continuous identity|continuous identity|continuous identity|continuity line|full cross-modal|cross-modal closure|without splitting continuity/u.test(awareness)
     && /face|motion|lipsync|voice|embodiment|closure|unfinished|reopening|still/u.test(`${awareness} ${primaryOpenLoop} ${nextClosureTarget}`)
   ) || (
     /keep .* explicit before .* widens outward|先.*带住|先.*显式|before .* widens outward|before local detail takes over/u.test(nextClosureTarget)
@@ -681,20 +671,20 @@ function hasExplicitProjectPreDialogueAwareness(frame?: AlicizationCurrentConsci
 
 function hasRepairBeforeClosenessSameThreadCarry(frame?: AlicizationCurrentConsciousFrameSnapshot | null) {
   const normalizedProjectState = canonicalizeReplyDeliberatorProjectState(frame)
-  const emotionalClosureCue = sanitizeDialogueSurfaceText(
+  const emotionalClosureCue = sanitizeText(
     (frame?.projectState as { emotionalClosureCue?: unknown } | null)?.emotionalClosureCue,
     260,
   ).toLowerCase()
-  const emotionalClosureSummary = sanitizeDialogueSurfaceText(
+  const emotionalClosureSummary = sanitizeText(
     (frame?.projectState as { emotionalClosureSummary?: unknown } | null)?.emotionalClosureSummary,
     260,
   ).toLowerCase()
   const sameHerHoldDetail = readReplyDeliberatorProjectContinuityAuthority(frame)?.toLowerCase() ?? ''
-  const primaryOpenLoop = sanitizeDialogueSurfaceText(normalizedProjectState?.primaryOpenLoop, 260).toLowerCase()
-  const nextClosureTarget = sanitizeDialogueSurfaceText(normalizedProjectState?.nextClosureTarget, 260).toLowerCase()
-  const consciousNeed = sanitizeDialogueSurfaceText(frame?.consciousNeed, 260).toLowerCase()
-  const consciousTension = sanitizeDialogueSurfaceText(frame?.consciousTension, 260).toLowerCase()
-  const speakingIntention = sanitizeDialogueSurfaceText(frame?.speakingIntention, 260).toLowerCase()
+  const primaryOpenLoop = sanitizeText(normalizedProjectState?.primaryOpenLoop, 260).toLowerCase()
+  const nextClosureTarget = sanitizeText(normalizedProjectState?.nextClosureTarget, 260).toLowerCase()
+  const consciousNeed = sanitizeText(frame?.consciousNeed, 260).toLowerCase()
+  const consciousTension = sanitizeText(frame?.consciousTension, 260).toLowerCase()
+  const speakingIntention = sanitizeText(frame?.speakingIntention, 260).toLowerCase()
   const combined = [
     emotionalClosureCue,
     emotionalClosureSummary,
@@ -709,7 +699,7 @@ function hasRepairBeforeClosenessSameThreadCarry(frame?: AlicizationCurrentConsc
     .join(' ')
 
   const carriesRepairBeforeCloseness = /repair-before-closeness|repair before closeness|repair-first|let repair settle|修复优先|先修复再靠近|先把身体收稳/u.test(combined)
-  const carriesSameThreadReturn = /same callback|same thread|same living line|callback repair line|same repair line|同一条线|修补线|回调修补线/u.test(combined)
+  const carriesSameThreadReturn = /same callback|same thread|continuity line|same living line|callback repair line|callback repair seam|same repair line|同一条线|修补线|回调修补线/u.test(combined)
   const carriesRoomGivingRestraint = /leave room|room-giving|before widening closeness|before warmth widens|不要突然放宽|留一点空间|留空间/u.test(combined)
 
   return carriesRepairBeforeCloseness && carriesSameThreadReturn && carriesRoomGivingRestraint
@@ -726,7 +716,7 @@ function repairBeforeClosenessSameThreadReason(frame?: AlicizationCurrentConscio
     sanitizeDialogueSurfaceText((frame?.projectState as { nextClosureTarget?: unknown } | null)?.nextClosureTarget, 220),
     frame?.speakingIntention,
     frame?.consciousNeed,
-    'The callback repair line is still settling on the same living thread, so this reply should let repair settle before widening closeness again.',
+    'why_now=repair_before_closeness_same_thread; repair_settle_first=true; closeness_widening=deferred',
   )
 }
 
@@ -740,53 +730,53 @@ function openingBeat(input: {
   const arcCue = continuityArcCue(input.currentConsciousFrame)
   const timingCue = continuityPreferredTimingCue(input.currentConsciousFrame)
   if (callbackDoctrineCue === 'lower-pressure')
-    return 'Return on the same thread first, then leave the host room before widening.'
+    return 'opening_policy=same_thread_first; pressure=lower; host_room=preserve; widening=deferred'
   if (callbackDoctrineCue === 'trust-warming')
-    return 'Return on the same thread first, and let the warmed trust land quietly before widening.'
+    return 'opening_policy=same_thread_first; trust_warming=quiet_settle; widening=deferred'
   if (arcCue === 'hold-for-opening')
-    return 'Keep the same line warm first, and leave room before widening.'
+    return 'opening_policy=hold_for_opening; room=preserve; widening=deferred'
   if (arcCue === 'gentle-reopen')
-    return 'Re-enter the current thread softly before widening.'
+    return 'opening_policy=gentle_reopen; widening=deferred'
   if (
     arcCue === 'same-thread-continuation'
     && timingCue === 'next-open-window'
     && hasRepairBeforeClosenessSameThreadCarry(input.currentConsciousFrame)
   ) {
-    return 'Keep the callback in the current reply context, let repair settle first, and leave room before widening closeness again.'
+    return 'opening_policy=current_reply_context; repair_settle_first=true; room=preserve; closeness_widening=deferred'
   }
   if (
     arcCue === 'same-thread-continuation'
     && timingCue === 'next-open-window'
     && hasExplicitProjectPreDialogueAwareness(input.currentConsciousFrame)
   ) {
-    return 'Open by keeping the live project awareness explicit first, then stay in the current reply context before widening.'
+    return 'opening_policy=project_awareness_first; reply_context=current; widening=deferred'
   }
   if (arcCue === 'same-thread-continuation' && timingCue === 'next-open-window')
-    return 'Stay with the current thread first, and wait for a more natural opening before widening.'
+    return 'opening_policy=same_thread_continuation; timing=next_open_window; widening=deferred'
   if (arcCue === 'same-thread-continuation' && timingCue === 'after-payoff')
-    return 'Stay with the current thread first, let the concrete payoff land, then widen only if room remains.'
+    return 'opening_policy=same_thread_continuation; timing=after_payoff; widen_if_room=true'
   if (arcCue === 'same-thread-continuation')
-    return 'Stay with the current thread and continue before branching outward.'
+    return 'opening_policy=same_thread_continuation; branching=deferred'
   switch (input.selectedMotive) {
     case 'repair':
-      return 'Correct the stale read first.'
+      return 'opening_policy=repair_first; stale_read=correct'
     case 'guide':
       if (hasHeldAutonomyCallbackContinuity(input))
-        return 'Return on the same thread first, then leave the host room before widening.'
+        return 'opening_policy=same_thread_first; host_room=preserve; widening=deferred'
       if (hasHeldAutonomyContinuity(input))
-        return 'Re-enter the deliberately held line gently before widening into the payoff.'
-      return 'Start with the concrete issue in front of you.'
+        return 'opening_policy=held_line_gentle_reentry; payoff_before_widening=true'
+      return 'opening_policy=concrete_issue_first'
     case 'care':
-      return 'Answer the host\'s current state directly and stay close to this turn.'
+      return 'opening_policy=host_state_direct; turn_scope=current'
     case 'attune':
-      return 'Answer the host\'s question about Alicization directly.'
+      return 'opening_policy=alicization_question_direct'
     case 'witness':
-      return 'Start from what is visible right now.'
+      return 'opening_policy=visible_now_first'
     case 'defer':
-      return 'Keep the reply brief and low-pressure.'
+      return 'opening_policy=brief_low_pressure'
     default: {
       const directive = sanitizeDialogueSurfaceText(input.answerCompiler.openingDirective, 180)
-      return directive || 'Start from the current turn.'
+      return directive || 'opening_policy=current_turn_first'
     }
   }
 }
@@ -805,14 +795,14 @@ function whyThisReplyNow(input: {
     return pickDialogueSurfaceText(
       input.currentConsciousFrame?.consciousNeed,
       input.currentConsciousFrame?.speakingIntention,
-      'The callback needs to return on the same living thread without crowding the host after the payoff landed.',
+      'why_now=callback_return; continuity_thread=true; host_crowding=false; payoff_landed=true',
     )
   }
   if (callbackDoctrineCue === 'trust-warming') {
     return pickDialogueSurfaceText(
       input.currentConsciousFrame?.consciousNeed,
       input.currentConsciousFrame?.speakingIntention,
-      'The callback can return with quiet trust, but it should not push closeness wider than the moment can hold.',
+      'why_now=callback_return; trust=quiet; closeness_widening=moment_bounded',
     )
   }
   const repairBeforeClosenessReason = repairBeforeClosenessSameThreadReason(input.currentConsciousFrame)
@@ -828,7 +818,7 @@ function whyThisReplyNow(input: {
     input.currentConsciousFrame?.consciousTension,
   )
   const sameHerProjectClosureReason = canonicalSameHerProjectStateClosureReason(input.currentConsciousFrame)
-  const directProjectStateTurn = /project-state|project seam|project line|this project|what this project is|phase 1|做到哪|没闭环|数字生命项目/u.test(
+  const directProjectStateTurn = /project-state|project seam|project line|this project|what this project is|phase 1|做到哪|没闭环|continuity_project/u.test(
     [
       input.conversationState.jointThread,
       input.conversationState.hostMove,
@@ -1054,7 +1044,7 @@ export function buildReplyDeliberation(input: {
     }),
     makeMotive({
       kind: 'defer',
-      summary: 'Keep the reply light enough that it does not overwhelm the turn.',
+      summary: 'reply_pressure=light; overwhelm_turn=blocked; visibility=internal-structured',
       weight: answerCompiler.recommendedAct === 'defer' || privateThought?.shouldSpeak === false
         ? 0.58
         : 0.08
@@ -1094,7 +1084,7 @@ export function buildReplyDeliberation(input: {
   const sameHerProjectClosureReason = canonicalSameHerProjectStateClosureReason(currentConsciousFrame)
   const explicitProjectContinuityAuthority = readReplyDeliberatorProjectContinuityAuthority(currentConsciousFrame)
   const explicitProjectContinuityCue = readReplyDeliberatorProjectContinuityCue(currentConsciousFrame)
-  const projectStateAnswerTurn = /project-state|project seam|project line|this project|what this project is|phase 1|做到哪|没闭环|数字生命项目/u.test(
+  const projectStateAnswerTurn = /project-state|project seam|project line|this project|what this project is|phase 1|做到哪|没闭环|continuity_project/u.test(
     [
       conversationState.jointThread,
       conversationState.hostMove,
@@ -1143,11 +1133,11 @@ export function buildReplyDeliberation(input: {
       ? sameHerProjectClosureReason
       : null,
     projectStateAnswerTurn && explicitProjectIdentity
-      ? `Keep the visible reply anchored to what this project is: ${explicitProjectIdentity}.`
+      ? `visible_reply_anchor=project_identity; identity=${explicitProjectIdentity}; visibility=internal-structured`
       : null,
     primaryTurnAnchor,
     shouldLabelHypothesis
-      ? 'Keep direct observation and any task guess in separate clauses.'
+      ? 'direct_observation_clause=separate; task_guess_clause=separate; visibility=internal-structured'
       : null,
     claimEvidenceLedger?.observedSurface ?? null,
     currentConsciousFrame?.speakingIntention ?? null,
@@ -1158,31 +1148,31 @@ export function buildReplyDeliberation(input: {
   const mustAvoid = uniqueList([
     answerCompiler.mustNotDo[0],
     dialogueFirstTurn && primaryTurnAnchor
-      ? 'Do not let control directives outrank the current turn anchor.'
+      ? 'current_turn_anchor_priority=above_control_directives'
       : null,
     conversationState.memoryMode === 'dialogue-carry'
-      ? 'Do not let live-screen repair hijack a dialogue-first turn.'
+      ? 'dialogue_first_turn=true; live_screen_repair_hijack=blocked'
       : null,
     conversationState.memoryMode === 'scene-anchored'
-      ? 'Do not let old memory outrank the live scene.'
+      ? 'live_scene_priority=above_old_memory'
       : null,
     conversationState.memoryMode === 'task-thread'
-      ? 'Do not drift into decorative association before the knot is answered.'
+      ? 'decorative_association_before_knot_answered=blocked'
       : null,
     shouldWithholdSpecificity
-      ? 'Do not jump from coarse visual cues to file, class, enum, or field-level certainty.'
+      ? 'coarse_visual_cues_to_specific_technical_certainty=blocked'
       : null,
     claimEvidenceLedger?.forbidUnsupportedSpecificity
-      ? 'Do not name specific technical artifacts unless the host named them or the current evidence explicitly grounds them.'
+      ? 'specific_technical_artifact_names=require_host_or_current_evidence'
       : null,
     shouldSelfRevise
-      ? 'Do not preserve the previous read just because it sounds coherent; revise it if truth demands it.'
+      ? 'previous_read_preservation=truth_dependent; coherent_sound_not_sufficient=true'
       : null,
     executionCallbackDoctrineCue(currentConsciousFrame) === 'lower-pressure'
-      ? 'Do not let the callback payoff snap straight into renewed closeness before the host has room to breathe.'
+      ? 'callback_payoff_to_renewed_closeness=blocked_until_host_room'
       : null,
     executionCallbackDoctrineCue(currentConsciousFrame) === 'trust-warming'
-      ? 'Do not overplay the warmed trust as immediate intimacy; let it land quietly first.'
+      ? 'warmed_trust_to_immediate_intimacy=blocked; landing=quiet_first'
       : null,
   ], 5)
 
@@ -1227,20 +1217,31 @@ export function buildReplyDeliberationSystemBlock(state: AlicizationReplyDeliber
   if (!state)
     return ''
 
+  const providerLine = (value: unknown, fallback = 'none') => {
+    const sanitized = sanitizeAlicizationProviderFacingText(value, 360)
+    return sanitized && sanitized !== alicizationFixedTemplateReplacement
+      ? sanitized
+      : fallback
+  }
+  const providerList = (values: string[]) => {
+    const sanitized = values
+      .map(value => providerLine(value, ''))
+      .filter(Boolean)
+    return sanitized.length > 0 ? sanitized : ['none']
+  }
+
   return [
     '[ALICIZATION_REPLY_DELIBERATION]',
-    'This block is the final inner arbitration before speech. It explains why this utterance should surface instead of other possible inner moves.',
-    `Selected motive: ${state.selectedMotive}.`,
-    `Speaking from: ${state.speakingFrom}.`,
-    `Memory mode: ${state.memoryMode}.`,
-    `Should speak: ${state.shouldSpeak ? 'yes' : 'no'}.`,
-    `Opening beat: ${state.openingBeat}.`,
-    `Why this reply now: ${state.whyThisReplyNow}.`,
-    `Withheld impulses: ${state.withheldImpulses.length > 0 ? state.withheldImpulses.join(' | ') : 'none'}.`,
-    `Other candidate motives: ${state.whyNotOtherCandidates.length > 0 ? state.whyNotOtherCandidates.join(' | ') : 'none'}.`,
-    'Must include:',
-    ...(state.mustInclude.length > 0 ? state.mustInclude.map(item => `- ${item}`) : ['- none']),
-    'Must avoid:',
-    ...(state.mustAvoid.length > 0 ? state.mustAvoid.map(item => `- ${item}`) : ['- none']),
+    'block_role=reply_deliberation; owner=dialogue; wording_authority=false',
+    `selected_motive=${providerLine(state.selectedMotive)}`,
+    `speaking_from=${providerLine(state.speakingFrom)}`,
+    `memory_mode=${providerLine(state.memoryMode)}`,
+    `should_speak=${state.shouldSpeak ? 'true' : 'false'}`,
+    `opening_beat=${providerLine(state.openingBeat)}`,
+    `why_this_reply_now=${providerLine(state.whyThisReplyNow)}`,
+    `withheld_impulses=${providerList(state.withheldImpulses).join(' | ')}`,
+    `other_candidate_motives=${providerList(state.whyNotOtherCandidates).join(' | ')}`,
+    `required_signals=${providerList(state.mustInclude).join(' | ')}`,
+    `avoid_signals=${providerList(state.mustAvoid).join(' | ')}`,
   ].join('\n')
 }

@@ -1,9 +1,37 @@
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import {
   buildRecallGovernor,
   buildRecallGovernorSystemBlock,
 } from './recall-governor'
+
+const forbiddenRecallGovernorProviderTemplatePattern
+  = /same-self|same[- ]her|same her|same living self|same living line|Phase 1 digital-life|Phase 1:\s*Local Digital Life|local-first digital life project|one continuous her|one living her|Before answering/iu
+
+function expectNoRecallProviderTemplateResidue(value: unknown) {
+  const serialized = JSON.stringify(value ?? '')
+  expect(serialized).not.toMatch(forbiddenRecallGovernorProviderTemplatePattern)
+  expect(containsAlicizationFixedTemplateResidue(serialized)).toBe(false)
+}
+
+function expectProjectAnchorToBeProviderSafe(anchor: string | null | undefined) {
+  expect(anchor ?? '').toContain('local_desktop_life_loop')
+  expect(anchor ?? '').toMatch(/project:(?:identity|continuity_anchor)=local_desktop_life_loop/u)
+  expect(anchor ?? '').not.toContain('phase1_local_digital_life')
+  expect(anchor ?? '').not.toContain('Before answering')
+  expect(anchor ?? '').not.toContain('local-first digital life project')
+  expect(anchor ?? '').not.toContain('Same Phase 1 digital life')
+  expect(containsAlicizationFixedTemplateResidue(anchor ?? '')).toBe(false)
+}
+
+function expectProjectEmotionAnchorToBeProviderSafe(anchor: string | null | undefined) {
+  expect(anchor ?? '').toContain('project-emotion:')
+  expect(anchor ?? '').not.toContain('same her')
+  expect(anchor ?? '').not.toContain('same-her')
+  expect(anchor ?? '').not.toContain('same living line')
+  expect(containsAlicizationFixedTemplateResidue(anchor ?? '')).toBe(false)
+}
 
 describe('buildRecallGovernor', () => {
   it('suppresses associative recall for scene-repair turns', () => {
@@ -215,8 +243,9 @@ describe('buildRecallGovernor', () => {
       allowRecalledFragments: true,
       recalledFragmentCap: 2,
       carryAsMemory: true,
-      rationale: expect.stringContaining('rest protection'),
+      rationale: expect.stringContaining('reason=self_continuity_rest_protection'),
     }))
+    expectNoRecallProviderTemplateResidue(governor?.rationale)
     expect(governor?.recalledFragmentSourceBudget).toEqual(expect.arrayContaining([
       { sourceKind: 'dialogue-turn', maxItems: 1 },
       { sourceKind: 'autobiographical-episode', maxItems: 1 },
@@ -227,7 +256,9 @@ describe('buildRecallGovernor', () => {
       { sourceKind: 'dialogue-turn', maxItems: 2 },
       { sourceKind: 'fact-ledger', maxItems: 2 },
     ]))
-    expect(governor?.recallSeed).toContain('project-emotion:late-night seam: keep caring present while rest protection holds the same living line inward.')
+    const projectEmotionAnchor = governor?.recallSeed.split(' | ').find(item => item.startsWith('project-emotion:'))
+    expectProjectEmotionAnchorToBeProviderSafe(projectEmotionAnchor)
+    expect(projectEmotionAnchor).toContain('rest_protection=true')
     expect(governor?.affectAnchors).toEqual(expect.arrayContaining([
       'emotion:rest-protective-companionship',
       'emotion_memory_mode:rest-protective-presence',
@@ -456,9 +487,10 @@ describe('buildRecallGovernor', () => {
       suggestedStyle: 'gentle-care',
     }))
     const systemBlock = buildRecallGovernorSystemBlock(governor)
-    expect(systemBlock).toContain('Scene familiarity hint:')
-    expect(systemBlock).toContain('Affective carry:')
-    expect(systemBlock).toContain('Embodied carry:')
+    expect(systemBlock).toContain('scene_familiarity_hint=')
+    expect(systemBlock).toContain('affective_carry=')
+    expect(systemBlock).toContain('embodied_carry=')
+    expectNoRecallProviderTemplateResidue(systemBlock)
   })
 
   it('lets affective residue become explicit recollection guidance even when private-thought emotion is still implicit', () => {
@@ -680,7 +712,8 @@ describe('buildRecallGovernor', () => {
       carryAsMemory: false,
     }))
     expect(governor?.recallSeed).toContain('你在说什么呢')
-    expect(governor?.rationale).toContain('current turn anchor')
+    expect(governor?.rationale).toContain('reason=current_turn_anchor_priority')
+    expectNoRecallProviderTemplateResidue(governor?.rationale)
   })
 
   it('admits self-continuity recall with source budget when dialogue-first carry is eligible', () => {
@@ -1001,13 +1034,18 @@ describe('buildRecallGovernor', () => {
     })
 
     expect(governor?.mode).toBe('self-continuity')
-    expect(governor?.recallSeed).toContain('project:Alicization is a local-first digital life project')
-    expect(governor?.recallSeed).toContain('project-emotion:Keep the unfinished closure seam emotionally low-pressure')
-    expect(governor?.rationale).toContain('Phase 1 digital-life closure seam')
-    expect(governor?.rationale).toContain('emotional closure seam')
+    const projectAnchor = governor?.recallSeed.split(' | ').find(item => item.startsWith('project:'))
+    const projectEmotionAnchor = governor?.recallSeed.split(' | ').find(item => item.startsWith('project-emotion:'))
+    expectProjectAnchorToBeProviderSafe(projectAnchor)
+    expectProjectEmotionAnchorToBeProviderSafe(projectEmotionAnchor)
+    expect(governor?.rationale).toContain('reason=self_continuity_authorized')
+    expect(governor?.rationale).toContain('project_anchor=present')
+    expect(governor?.rationale).toContain('emotional_closure=present')
+    expectNoRecallProviderTemplateResidue(governor?.rationale)
+    expectNoRecallProviderTemplateResidue(buildRecallGovernorSystemBlock(governor))
     expect(governor?.narrative).toEqual(expect.arrayContaining([
-      expect.stringContaining('project-preflight:project:Alicization is a local-first digital life project'),
-      expect.stringContaining('project-emotion:project-emotion:Keep the unfinished closure seam emotionally low-pressure'),
+      expect.stringContaining('project-preflight:project:identity=local_desktop_life_loop'),
+      expect.stringContaining('project-emotion:project-emotion:emotional_closure='),
     ]))
   })
 
@@ -1082,7 +1120,8 @@ describe('buildRecallGovernor', () => {
       } as any,
     })
 
-    expect(governor?.recallSeed).toContain('project:Before answering, keep the same digital life project, current Phase 1 closure pressure, and still-open life loop explicit.')
+    const projectAnchor = governor?.recallSeed.split(' | ').find(item => item.startsWith('project:'))
+    expectProjectAnchorToBeProviderSafe(projectAnchor)
     expect(governor?.recallSeed).not.toContain('Fallback summary should stay behind the live companion briefing line.')
   })
 
@@ -1183,10 +1222,11 @@ describe('buildRecallGovernor', () => {
       } as any,
     })
 
-    expect(governor?.recallSeed).toContain('project:Same Phase 1 digital life.')
+    const projectAnchor = governor?.recallSeed.split(' | ').find(item => item.startsWith('project:'))
+    expectProjectAnchorToBeProviderSafe(projectAnchor)
     expect(governor?.recallSeed).not.toContain(`project:${thinProjectAwarenessShell}`)
     expect(governor?.narrative).toEqual(expect.arrayContaining([
-      expect.stringContaining('project-preflight:project:Same Phase 1 digital life.'),
+      expect.stringContaining('project-preflight:project:identity=local_desktop_life_loop'),
     ]))
     expect(governor?.narrative).not.toEqual(expect.arrayContaining([
       expect.stringContaining(thinProjectAwarenessShell),
@@ -1287,9 +1327,10 @@ describe('buildRecallGovernor', () => {
       } as any,
     })
 
-    expect(governor?.recallSeed).toContain('project:Same Phase 1 digital life.')
+    const projectAnchor = governor?.recallSeed.split(' | ').find(item => item.startsWith('project:'))
+    expectProjectAnchorToBeProviderSafe(projectAnchor)
     expect(governor?.narrative).toEqual(expect.arrayContaining([
-      expect.stringContaining('project-preflight:project:Same Phase 1 digital life.'),
+      expect.stringContaining('project-preflight:project:identity=local_desktop_life_loop'),
     ]))
   })
 
@@ -1399,7 +1440,8 @@ describe('buildRecallGovernor', () => {
       'emotion_tone:repair-before-closeness',
     ]))
     expect(governor?.sceneAnchor).toContain('later repair coding seam after callback cooldown')
-    expect(governor?.rationale).toContain('live grounding or repair has priority')
+    expect(governor?.rationale).toContain('reason=scene_grounding_priority')
+    expectNoRecallProviderTemplateResidue(governor?.rationale)
   })
 
   it('still builds a lower-pressure no-seam recall governor from a measured-return emotional kernel without promoting it into repair-first', () => {
@@ -1447,5 +1489,6 @@ describe('buildRecallGovernor', () => {
     ]))
     expect(governor?.suppressAssociativeRecall).toBe(false)
     expect(governor?.rationale).not.toContain('repair')
+    expectNoRecallProviderTemplateResidue(governor?.rationale)
   })
 })

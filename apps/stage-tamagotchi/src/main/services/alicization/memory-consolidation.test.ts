@@ -258,13 +258,14 @@ describe('memory consolidation', () => {
         autobiographicalDelta: expect.stringContaining('corrected same-person continuity'),
       }),
       projectState: expect.objectContaining({
-        selfContinuityInwardLine: expect.stringContaining('Phase 1 digital life'),
+        selfContinuityInwardLine: expect.stringContaining('memory_continuity=local_runtime'),
         selfContinuitySourceTags: expect.arrayContaining([
           'project-state-carry',
           'continuity-execution-callback-project-carry',
         ]),
       }),
     }))
+    expect(String(relationshipEra?.metadata?.humanlikeCarry?.autobiographicalDelta)).not.toContain('same living line')
   })
 
   it('keeps vulnerable care autobiographical carry inside consolidation metadata instead of flattening it into generic relationship summary', () => {

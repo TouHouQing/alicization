@@ -260,8 +260,8 @@ export function deriveMemoryFollowUpAffordance(input: {
   const domainWhyNow = relationshipDominant
     ? (
         shouldStayInward
-          ? 'The relation line still matters, but saying it too early would crowd the host before the repair or payoff fully lands.'
-          : 'The relation line can come back once the present answer has made enough room for it.'
+          ? 'relationship_recall=active; surface_timing=defer_until_repair_or_payoff_room; crowding_risk=high'
+          : 'relationship_recall=active; surface_timing=after_present_answer_room'
       )
     : procedureDominant
       ? (
@@ -608,32 +608,32 @@ export function resolveRecollectionPlanSearch(input: {
   const firstHopSummary = plan.searchTrace?.firstHop.summary
     ?? (
       preferredPrimaryFocus === 'procedure'
-        ? 'The recollection first grabs the remembered way of handling this kind of task.'
+        ? 'search_hop=first; focus=remembered_procedure'
         : preferredPrimaryFocus === 'relationship-line'
-          ? 'The recollection first grabs a remembered relationship meaning before exact detail.'
+          ? 'search_hop=first; focus=relationship_meaning; exact_detail=secondary'
           : preferredPrimaryFocus === 'era'
-            ? 'The recollection first grabs a remembered period or era before unpacking fragments.'
+            ? 'search_hop=first; focus=remembered_period_or_era; fragments=secondary'
             : preferredPrimaryFocus === 'conversation-turn'
-              ? 'The recollection first grabs one remembered exchange before broadening out.'
-              : 'The recollection first grabs one remembered episode.'
+              ? 'search_hop=first; focus=remembered_exchange; broaden_after_anchor=true'
+              : 'search_hop=first; focus=remembered_episode'
     )
   const secondHopSummary = plan.searchTrace?.secondHop.summary
     ?? (
       secondHopAction === 'hold'
-        ? 'The first remembered anchor already carries enough evidence, so the search does not need to widen.'
+        ? 'search_hop=second; action=hold; evidence=enough; widen=false'
         : secondHopAction === 'narrow-to-stable-core'
-          ? 'The search narrows toward the stable core because remembered variants do not fully agree.'
-          : 'The search expands from the first anchor to gather enough remembered evidence for a coherent answer.'
+          ? 'search_hop=second; action=narrow_to_stable_core; variant_agreement=partial'
+          : 'search_hop=second; action=expand_from_first_anchor; evidence_goal=coherent_recall'
     )
   const thirdHopSummary = plan.searchTrace?.thirdHop.summary
     ?? (
       ambiguityPosture === 'ambiguous'
         ? clusterState?.dominantSummary && clusterState?.runnerUpSummary
-          ? `The recollection leans toward "${clusterState.dominantSummary}" but "${clusterState.runnerUpSummary}" still shadows it, so the answer should stay ambiguity-aware.`
-          : 'The remembered material still branches in more than one direction, so the answer should stay openly ambiguity-aware.'
+          ? `search_hop=third; ambiguity=branching; dominant=${clusterState.dominantSummary}; runner_up=${clusterState.runnerUpSummary}; certainty=ambiguous`
+          : 'search_hop=third; ambiguity=branching; certainty=ambiguous'
         : ambiguityPosture === 'approximate'
-          ? 'The remembered material is usable but not exact, so the answer should stay approximate.'
-          : 'The remembered material feels coherent enough to be carried with normal confidence.'
+          ? 'search_hop=third; ambiguity=approximate; exact=false'
+          : 'search_hop=third; ambiguity=settled; confidence=normal'
     )
 
   const certainty: RecollectionPlanSnapshot['certainty']
@@ -707,7 +707,7 @@ export function applyMemoryDeliberationToSpeechPlan(input: {
     // not hand a visible reply draft to the response layer. Visible wording is
     // authored only by the provider mind or second-pass rewrite.
     visibleLead: null,
-    styleNote: speechPlan?.styleNote || 'Let recollection contour the answer without turning into a rigid reply shell.',
+    styleNote: speechPlan?.styleNote || 'recollection_role=contour_answer; rigid_reply_shell=false; visibility=internal-structured',
     rationale: deliberation.whyNow || speechPlan?.rationale || '',
     confidence: deliberation.confidence,
   } satisfies NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']>

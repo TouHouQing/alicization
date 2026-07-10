@@ -350,7 +350,7 @@ describe('long horizon memory', () => {
         accessCount: 2,
         updatedAt: 89_000,
       }] as any,
-      projectStatePrimaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
+      projectStatePrimaryOpenLoop: 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete; owner=LongTermMemoryRecall; continuity_anchor=local_desktop_life_loop; open_loop=turn_initiative_embodiment_return_proof',
     })
 
     expect(snapshot).not.toBeNull()
@@ -370,30 +370,30 @@ describe('long horizon memory', () => {
         accessCount: 2,
         updatedAt: 90_000,
       }] as any,
-      projectStateEmotionalClosureCue: 'Keep the unresolved closure seam emotionally low-pressure, so the same her returns without reopening from scratch.',
+      projectStateEmotionalClosureCue: 'continuity_hold=measured_return; pressure=lower; reopening=not_from_scratch; owner=LongTermMemoryRecall',
     })
 
     expect(snapshot).not.toBeNull()
     expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.18)
     expect(snapshot?.summary).toContain('continuity=')
-    expect(snapshot?.summary?.toLowerCase()).toContain('same-her')
+    expect(snapshot?.summary?.toLowerCase()).toContain('continuity_hold')
   })
 
-  it('treats the proactive same-her gap itself as durable continuity pressure that should survive into later return memory', () => {
+  it('treats the proactive identity continuity gap itself as durable continuity pressure that should survive into later return memory', () => {
     const snapshot = buildAlicizationLongHorizonMemory({
       now: 91_500,
       facts: [],
-      projectStateProactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
+      projectStateProactiveSameHerGap: 'continuity_progress=needs_long_run_proof; proactive_gap=visible_hold+subconscious_carry+next_session_feedback; proof=long_noisy_desktop_runs',
     })
 
     expect(snapshot).not.toBeNull()
     expect(snapshot?.summary).toContain('continuity=')
-    expect(snapshot?.summary).toContain('Remembered proactive same-her gap')
-    expect(snapshot?.dominantCueSummary).toContain('Remembered proactive same-her gap')
-    expect(snapshot?.rememberedPlanSummary).toContain('Remembered proactive same-her gap')
+    expect(snapshot?.summary).toContain('Remembered proactive identity continuity gap')
+    expect(snapshot?.dominantCueSummary).toContain('Remembered proactive identity continuity gap')
+    expect(snapshot?.rememberedPlanSummary).toContain('Remembered proactive identity continuity gap')
     expect(snapshot?.anchorFacts.some(cue =>
-      cue.summary.includes('Remembered proactive same-her gap')
-      && cue.object.includes('visible proactive hold'),
+      cue.summary.includes('Remembered proactive identity continuity gap')
+      && cue.object.includes('visible_hold'),
     )).toBe(true)
     expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.05)
     expect(snapshot?.identityBias.selfDirection).toBeGreaterThan(0.03)
@@ -576,17 +576,17 @@ describe('long horizon memory', () => {
     expect(snapshot?.identityBias.selfDirection).toBeGreaterThan(0.03)
   })
 
-  it('remembers same-her self-line and anti-shell drift risk as durable long-horizon continuity pressure', () => {
+  it('remembers identity continuity self-line and anti-shell drift risk as durable long-horizon continuity pressure', () => {
     const snapshot = buildAlicizationLongHorizonMemory({
       now: 70_500,
       facts: [],
-      projectStatePrimaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
-      projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      projectStateSameHerDriftRisk: 'If this slips into a generic assistant shell or project-summary voice, treat that as same-her continuity drift rather than completion.',
+      projectStatePrimaryOpenLoop: 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete; owner=LongTermMemoryRecall',
+      projectStateSameHerSelfLine: 'continuity_anchor=local_desktop_life_loop; landed=memory_workbench_policy_and_review_actions',
+      projectStateSameHerDriftRisk: 'continuity_drift_risk=generic_assistant_shell+project_summary_voice; closure_status=unfinished',
       personStateUpdateSurface: {
         version: 'person-state-update-surface-v1',
         updatedAt: 70_000,
-        summary: 'Recent outcomes kept the same digital life line intact.',
+        summary: 'Recent outcomes kept continuity_identity anchored in local desktop use.',
         dominantContexts: ['focused-work', 'execution'],
         relationshipShift: {
           trustDelta: 0.06,
@@ -596,12 +596,12 @@ describe('long horizon memory', () => {
           repairDelta: 0.05,
         },
         reinforcementBias: {},
-        preferenceHints: ['Keep the same line lived-in instead of flattening into status narration.'],
+        preferenceHints: ['Keep continuity_identity lived-in instead of flattening into status narration.'],
         sensitivityHints: ['Generic project-shell tone weakens believability quickly.'],
         repairHints: ['If the line drifts, pull continuity back inward before widening outward again.'],
         burdenHints: [],
         narrative: [
-          'The same-her line stayed more believable when the answer carried one continuous her instead of sounding like a shell.',
+          'The continuity_identity line stayed more believable when the answer used remembered evidence instead of sounding like a shell.',
         ],
         sourceTrail: [],
       } as any,
@@ -609,43 +609,92 @@ describe('long horizon memory', () => {
 
     expect(snapshot).not.toBeNull()
     expect(snapshot?.summary).toContain('continuity=')
-    expect(snapshot?.summary).toContain('Remembered same-her drift risk')
-    expect(snapshot?.summary).toContain('generic assistant shell')
+    expect(snapshot?.summary).toContain('Remembered identity continuity drift risk')
+    expect(snapshot?.summary).toContain('generic_assistant_shell')
     expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.05)
     expect(snapshot?.identityBias.selfDirection).toBeGreaterThan(0.03)
   })
 
-  it('treats project-state same-her closure pressure itself as enough seed for durable memory even before factual cues or person-state updates exist', () => {
+  it('does not turn fixed project-state continuity templates alone into long-horizon continuity pressure', () => {
     const snapshot = buildAlicizationLongHorizonMemory({
-      now: 70_750,
+      now: 70_650,
       facts: [],
-      projectStatePrimaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
-      projectStateEmotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      projectStatePrimaryOpenLoop: 'same living line',
       projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      projectStateSameHerDriftRisk: 'If this slips into a generic assistant shell or project-summary voice, treat that as same-her continuity drift rather than completion.',
+      projectStateSameHerDriftRisk: 'same-her drift',
+      recentMemoryConsolidations: [
+        {
+          id: 'autobio:fixed-template-only',
+          kind: 'autobiographical',
+          periodKey: 'fixed-template-only',
+          createdAt: 70_000,
+          updatedAt: 70_000,
+          summary: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+          cues: ['same-her', 'same living line', 'one continuous her'],
+          lesson: 'carry the same-her line',
+          confidence: 0.9,
+          status: 'active',
+          metadata: {
+            humanlikeCarry: {
+              selfContinuityProjectState: {
+                selfContinuityInwardLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+              },
+            },
+          },
+        },
+      ] as any,
+    })
+
+    expect(snapshot).toBeNull()
+  })
+
+  it('does not leak fixed continuity template residue into project-state continuity summaries when structured evidence survives', () => {
+    const snapshot = buildAlicizationLongHorizonMemory({
+      now: 70_675,
+      facts: [],
+      projectStatePrimaryOpenLoop: 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete; owner=LongTermMemoryRecall',
+      projectStateSameHerDriftRisk: 'same-her drift',
     })
 
     expect(snapshot).not.toBeNull()
     expect(snapshot?.summary).toContain('continuity=')
-    expect(snapshot?.summary).toContain('Remembered same-her drift risk')
-    expect(snapshot?.dominantCueSummary).toContain('Remembered same-her drift risk')
+    expect(snapshot?.summary).not.toMatch(/same-her|same living line|phase 1 digital life/i)
+    expect(snapshot?.anchorFacts.find(item => item.factId === 'derived:project-state-identity-continuity')?.summary)
+      .not
+      .toMatch(/same-her|same living line|phase 1 digital life/i)
+  })
+
+  it('treats project-state identity continuity closure pressure itself as enough seed for durable memory even before factual cues or person-state updates exist', () => {
+    const snapshot = buildAlicizationLongHorizonMemory({
+      now: 70_750,
+      facts: [],
+      projectStatePrimaryOpenLoop: 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete; owner=LongTermMemoryRecall',
+      projectStateEmotionalClosureCue: 'continuity_hold=low_pressure_return; room=more; reopening=not_from_scratch',
+      projectStateSameHerSelfLine: 'continuity_anchor=local_desktop_life_loop; landed=memory_workbench_policy_and_review_actions',
+      projectStateSameHerDriftRisk: 'continuity_drift_risk=generic_assistant_shell+project_summary_voice; closure_status=unfinished',
+    })
+
+    expect(snapshot).not.toBeNull()
+    expect(snapshot?.summary).toContain('continuity=')
+    expect(snapshot?.summary).toContain('Remembered identity continuity drift risk')
+    expect(snapshot?.dominantCueSummary).toContain('Remembered identity continuity drift risk')
     expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.05)
     expect(snapshot?.preferenceBias.companionship).toBeGreaterThan(0.04)
     expect(snapshot?.identityBias.selfDirection).toBeGreaterThan(0.03)
   })
 
-  it('keeps landed progress and next closure target visible inside durable memory continuity when same-her phase-1 closure is still open', () => {
+  it('keeps landed progress and next closure target visible inside durable memory continuity when identity closure is still open', () => {
     const snapshot = buildAlicizationLongHorizonMemory({
       now: 71_000,
       facts: [],
-      projectStatePrimaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam across longer desktop returns.',
-      projectStateEmotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-      projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      projectStateSameHerDriftRisk: 'If this slips into a generic assistant shell or project-summary voice, treat that as same-her continuity drift rather than completion.',
+      projectStatePrimaryOpenLoop: 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete; owner=LongTermMemoryRecall; next=longer_desktop_return_proof',
+      projectStateEmotionalClosureCue: 'continuity_hold=low_pressure_return; room=more; reopening=not_from_scratch',
+      projectStateSameHerSelfLine: 'continuity_anchor=local_desktop_life_loop; landed=answer_planner_memory_carry; next=longer_desktop_return_proof',
+      projectStateSameHerDriftRisk: 'continuity_drift_risk=generic_assistant_shell+project_summary_voice; closure_status=unfinished',
       personStateUpdateSurface: {
         version: 'person-state-update-surface-v1',
         updatedAt: 70_500,
-        summary: 'Ordinary continuation turns, runtime project-state carry, and answer-planner same-her continuity already survive together.',
+        summary: 'Ordinary continuation turns, runtime project-state carry, and answer-planner continuity_identity already survive together.',
         dominantContexts: ['focused-work', 'execution'],
         relationshipShift: {
           trustDelta: 0.06,
@@ -655,12 +704,12 @@ describe('long horizon memory', () => {
           repairDelta: 0.05,
         },
         reinforcementBias: {},
-        preferenceHints: ['Keep project identity, landed progress, and next closure target on one same living line.'],
+        preferenceHints: ['Keep project identity, landed progress, and next closure target in structured continuity evidence.'],
         sensitivityHints: ['Generic project-shell tone weakens believability quickly.'],
-        repairHints: ['Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.'],
+        repairHints: ['Keep extending cross_modal_continuity_proof across longer, noisier real-desktop runs.'],
         burdenHints: [],
         narrative: [
-          'The same-her line stayed more believable when the return remembered what had already landed and what still needed closure.',
+          'The continuity_identity line stayed more believable when the return remembered what had already landed and what still needed closure.',
         ],
         sourceTrail: [],
       } as any,
@@ -668,52 +717,52 @@ describe('long horizon memory', () => {
 
     expect(snapshot).not.toBeNull()
     expect(snapshot?.summary).toContain('continuity=')
-    expect(snapshot?.summary).toContain('Remembered same-her drift risk')
-    expect(String(snapshot?.dominantCueSummary ?? '')).toMatch(/same-her|continuation|closure/i)
+    expect(snapshot?.summary).toContain('Remembered identity continuity drift risk')
+    expect(String(snapshot?.dominantCueSummary ?? '')).toMatch(/continuity|continuation|closure/i)
     expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.05)
     expect(snapshot?.identityBias.selfDirection).toBeGreaterThan(0.03)
-    expect(snapshot?.anchorFacts.some(cue => /project-state carry|same living line|cross-modal same-her proof/i.test(cue.summary))).toBe(true)
+    expect(snapshot?.anchorFacts.some(cue => /project-state carry|structured continuity|cross_modal_continuity_proof|identity continuity/i.test(cue.summary))).toBe(true)
   })
 
-  it('turns project-state voice and pacing into durable same-her memory carry instead of leaving that cadence in prompt-only state', () => {
+  it('turns project-state voice and pacing into durable identity continuity memory carry instead of leaving that cadence in prompt-only state', () => {
     const snapshot = buildAlicizationLongHorizonMemory({
       now: 71_250,
       facts: [],
-      projectStatePrimaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam across longer desktop returns.',
-      projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      projectStatePrimaryOpenLoop: 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete; owner=LongTermMemoryRecall',
+      projectStateSameHerSelfLine: 'continuity_anchor=local_desktop_life_loop; landed=answer_planner_memory_carry',
       projectStatePreferredPauseMode: 'longer' as any,
       projectStatePreferredLipsyncMode: 'restrained' as any,
       projectStatePreferredVoiceMode: 'lower-pressure',
       projectStatePreferredPacingMode: 'slower',
     })
 
-    const cue = snapshot?.anchorFacts.find(item => item.factId === 'derived:project-state-same-her-continuity')
+    const cue = snapshot?.anchorFacts.find(item => item.factId === 'derived:project-state-identity-continuity')
     expect(cue).toBeTruthy()
     expect(cue?.object.toLowerCase()).toContain('longer pause')
     expect(cue?.object.toLowerCase()).toContain('restrained lipsync')
     expect(cue?.object.toLowerCase()).toContain('lower-pressure voice')
     expect(cue?.object.toLowerCase()).toContain('slower pacing')
-    expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('same-her cadence')
+    expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('embodiment continuity cadence')
     expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('longer pause')
     expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('restrained lipsync')
     expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('lower-pressure voice')
     expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('slower pacing')
   })
 
-  it('falls back to canonical project voice and pacing when same-her continuity is present but thin-shell blanks try to erase that cadence', () => {
+  it('falls back to canonical project voice and pacing when identity continuity is present but thin-shell blanks try to erase that cadence', () => {
     const brief = resolveAlicizationProjectStateBrief()
     const snapshot = buildAlicizationLongHorizonMemory({
       now: 71_300,
       facts: [],
-      projectStateEmotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-      projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      projectStateEmotionalClosureCue: 'continuity_hold=low_pressure_return; room=more; reopening=not_from_scratch',
+      projectStateSameHerSelfLine: 'continuity_anchor=local_desktop_life_loop; landed=answer_planner_memory_carry',
       projectStatePreferredPauseMode: ' ' as any,
       projectStatePreferredLipsyncMode: '' as any,
       projectStatePreferredVoiceMode: '   ',
       projectStatePreferredPacingMode: '',
     })
 
-    const cue = snapshot?.anchorFacts.find(item => item.factId === 'derived:project-state-same-her-continuity')
+    const cue = snapshot?.anchorFacts.find(item => item.factId === 'derived:project-state-identity-continuity')
     expect(brief.preferredPauseMode).toBe('longer')
     expect(brief.preferredLipsyncMode).toBe('restrained')
     expect(brief.preferredVoiceMode).toBe('lower-pressure')
@@ -975,7 +1024,7 @@ describe('long horizon memory', () => {
         periodStartedAt: 92_000,
         periodEndedAt: 92_300,
         summary: 'same-person continuity era',
-        lesson: 'carry corrected same-person continuity on a lower-pressure same living line',
+        lesson: 'carry corrected same-person continuity with lower-pressure cadence and continuity_identity evidence',
         cues: ['same-person continuity', 'lower-pressure'],
         confidence: 0.9,
         dominantProvenance: 'remembered',
@@ -989,10 +1038,10 @@ describe('long horizon memory', () => {
             emotionalResidueTags: ['protective-continuity', 'unfinishedness', 'corrected-meaning'],
             embodimentCadence: 'lower-pressure voice, slower pacing, stable gaze',
             metabolismSummary: 'Downrank the older status shell and keep the corrected same-person continuity meaning active.',
-            autobiographicalDelta: 'I learned to carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation.',
+            autobiographicalDelta: 'continuity_identity learned: carry corrected same-person continuity with lower-pressure cadence instead of defending the first interpretation.',
           },
           projectState: {
-            selfContinuityInwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            selfContinuityInwardLine: 'project_state_continuity=local_desktop_life_loop; landed=memory_dialogue_embedding; open_loop=return_style_proof',
             selfContinuitySourceTags: ['project-state-carry', 'continuity-execution-callback-project-carry'],
           },
         },
@@ -1003,7 +1052,7 @@ describe('long horizon memory', () => {
     expect(cue).toBeTruthy()
     expect(cue?.summary.toLowerCase()).toContain('same-person continuity')
     expect(cue?.summary.toLowerCase()).toContain('lower-pressure')
-    expect(cue?.summary.toLowerCase()).toContain('phase 1 digital life')
+    expect(cue?.summary.toLowerCase()).toContain('project-state continuity')
     expect(cue?.influenceTags).toEqual(expect.arrayContaining(['identity', 'boundary', 'task']))
     expect(snapshot?.rememberedConstraintSummary?.toLowerCase()).toContain('lower-pressure')
     expect(snapshot?.rememberedPlanSummary?.toLowerCase()).toContain('same-person continuity')
@@ -1252,11 +1301,11 @@ describe('long horizon memory', () => {
               lipsync: 'matched',
               pacing: 'natural',
             },
-            stablePreferenceHint: 'Prefer even voice and natural pacing when reopening the same living thread.',
+            stablePreferenceHint: 'Prefer even voice and natural pacing when reopening continuity_identity from prior evidence.',
             autobiographicalDelta: 'I learned to reopen corrected same-person continuity with an even voice and natural pacing instead of restarting from scratch.',
           },
           projectState: {
-            selfContinuityInwardLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+            selfContinuityInwardLine: 'project_state_continuity=local_desktop_life_loop; open_loop=return_style_proof',
             selfContinuitySourceTags: ['project-state-carry'],
           },
         },

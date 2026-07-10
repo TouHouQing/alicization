@@ -8,6 +8,9 @@ import {
   buildAlicizationProjectStateExtraSystemBlocks,
   buildAlicizationProjectStatePreflightSummary,
   buildAlicizationProjectStateSystemBlock,
+  buildAlicizationProviderFacingProjectStateClosureDashboard,
+  buildAlicizationProviderFacingProjectStateExtraSystemBlocks,
+  buildAlicizationProviderFacingProjectStateSystemBlock,
   describeAlicizationEmbodimentClosureReminder,
   isAlicizationThinProjectAwarenessLine,
   resolveAlicizationProjectEntrypointGovernanceEntries,
@@ -23,232 +26,71 @@ import {
   scoreAlicizationProjectAwarenessLine,
 } from './project-state-brief'
 
+const fixedProjectStateTemplatePattern = /Same Phase 1 digital life|same living line|one continuous ["“”]?her["“”]?|continuity_owner=one_her|I need to remember|Before answering|Right now I am|same-her closure|one same-her Phase 1 line|compact same-her closure loop|final settlement reanchors generic same-her shells/iu
+
 describe('project-state-brief', () => {
   it('returns a repo-aligned brief centered on digital life and open life loops', () => {
     const brief = resolveAlicizationProjectStateBrief()
 
-    expect(brief.identity).toContain('digital life project')
-    expect(brief.currentPhase).toContain('Phase 1')
-    expect(brief.sameHerSelfLine).toContain('Same Phase 1 digital life')
-    expect(brief.sameHerHoldDetail).toContain('same-her hold')
-    expect(brief.continuityCue).toContain('same living line')
+    expect(brief.identity).toContain('local_desktop_life_loop')
+    expect(brief.identity).toContain('local_first=true')
+    expect(brief.identity).toContain('host_resident_identity=persistent')
+    expect(brief.currentPhase).toContain('local_desktop_life_loop')
+    expect(brief.sameHerSelfLine).toContain('local_desktop_life_loop')
+    expect(brief.sameHerSelfLine).toContain('owner=project_state_governance')
+    expect(brief.sameHerHoldDetail).toContain('continuity_hold=project-state')
+    expect(brief.continuityCue).toContain('continuity_cue=project-state-carry')
     expect(brief.continuityRestraint).toBe('measured-return')
     expect(brief.preferredPauseMode).toBe('longer')
     expect(brief.preferredLipsyncMode).toBe('restrained')
     expect(brief.preferredVoiceMode).toBe('lower-pressure')
     expect(brief.preferredPacingMode).toBe('slower')
-    expect(brief.identity).toContain('one continuous "her"')
-    expect(brief.preflightSummary).toContain('local-first digital life project')
-    expect(brief.preflightSummary).toContain('Phase 1: Local Digital Life')
-    expect(brief.preflightSummary).toContain('open=Memory still needs stronger end-to-end closure')
-    expect(brief.preflightSummary).toContain('next=Keep extending cross-modal same-her proof')
-    expect(brief.sameHerDriftRisk).toContain('generic guidance')
-    expect(brief.sameHerDriftRisk).toContain('unfinished closure drift')
-    expect(brief.proactiveSameHerGap).toContain('Need stronger long-run proof')
-    expect(brief.proactiveSameHerGap).toContain('visible proactive hold, subconscious carry, and next-session feedback carry')
-    expect(brief.proactiveSameHerGap).toContain('hover-first restraint survives detours')
-    expect(brief.proactiveSameHerGap).toContain('longer noisy desktop runs')
+    expect(brief.preflightSummary).toContain('local_desktop_life_loop')
+    expect(brief.preflightSummary).toContain('local_desktop_life_loop')
+    expect(brief.preflightSummary).toContain('open=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(brief.preflightSummary).toContain('next=cross_modal_continuity_proof=extend_on_longer')
+    expect(brief.sameHerDriftRisk).toContain('generic_guidance_without_first_person_continuity')
+    expect(brief.sameHerDriftRisk).toContain('closure_status=unfinished')
+    expect(brief.proactiveSameHerGap).toContain('proactive_continuity_loop=partial')
+    expect(brief.proactiveSameHerGap).toContain('long_run_noisy_desktop_proof=needed')
+    expect(brief.proactiveSameHerGap).toContain('visibility=internal_until_user_asks_project_state')
     expect(brief.closedFoundations.length).toBeGreaterThan(2)
-    expect(brief.continuityProgressSummary).toContain('Same-session mirror carry')
-    expect(brief.continuityProgressSummary).toContain('scene-switch same-line continuity')
-    expect(brief.continuityProgressSummary).toContain('same-her inward-carry')
-    expect(brief.continuityProgressSummary).toContain('Emotion-driven anthropomorphic closure')
-    expect(brief.continuityProgressSummary).toContain('recollection continuity is now better locked through visible-reply governance')
-    expect(brief.continuityProgressSummary).toContain('callback-afterglow same-her carry now also has one explicit route-level audit')
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('room-first'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('same-her continuity'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('execution delivery'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('emotion is not a detachable feature lane'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('Held-autonomy and callback-carry continuity'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('fallback conscious-frame turns'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('fresher main-runtime surface'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('fresh scene change'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('Same-session mirror generation now follows'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('shared selector'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('audited same-her arc'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('second-pass rewrite guidance'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('normal governed rewrite requests'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('inward active-memory handoff'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('Same-session mirror carry'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('Scene-switch same-line continuity'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('noisier unrelated window detours'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('real later chat turn'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('final visible reply'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('one more real later turn'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('quieter settle-tail frame'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('cue-bridge rebind'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('recollection continuity is now better locked through visible-reply governance'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('callback-afterglow same-her carry now also has one explicit route-level audit'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('same-her-inward-carry'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('longer-lived continuation'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('visible reply opening discipline'))).toBe(true)
-    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('rich, fallback, and memory-deliberation turns before reply'))).toBe(true)
-    expect(brief.openLoops.some(item => item.includes('initiative'))).toBe(true)
-    expect(brief.openLoops.some(item => item.includes('noisier desktop shifts'))).toBe(true)
-    expect(brief.openLoops.some(item => item.includes('quiet carry turns'))).toBe(true)
-    expect(brief.openLoops.some(item => item.includes('affective residue'))).toBe(true)
-    expect(brief.openLoops.some(item => item.includes('anthropomorphic emotional closure'))).toBe(true)
-    expect(brief.openLoops.some(item => item.includes('measured-return, repair-before-closeness, or rest-protective quiet-companionship line'))).toBe(true)
-    expect(brief.openLoops.some(item => item.includes('visible proactive hold'))).toBe(true)
-    expect(brief.openLoops.some(item => item.includes('subconscious carry'))).toBe(true)
-    expect(brief.openLoops.some(item => item.includes('next-session feedback carry'))).toBe(true)
-    expect(brief.openLoops.some(item => item.includes('noisy desktop runs'))).toBe(true)
-    expect(brief.openLoops.some(item => item.includes('Project identity carry, Phase 1 route carry, and Unresolved closure carry'))).toBe(true)
-    expect(brief.openLoops.some(item => item.includes('one same-her line'))).toBe(true)
-    expect(brief.nextClosureTarget).toContain('cross-modal same-her proof')
-    expect(brief.nextClosureTarget).toContain('visible reply')
-    expect(brief.nextClosureTarget).toContain('longer-lived voice behavior')
-    expect(brief.nextClosureTarget).toContain('noisier real-desktop runs')
-    expect(brief.nextClosureTarget).toContain('resident presence')
-    expect(brief.nextClosureTarget).toContain('Project identity carry')
-    expect(brief.nextClosureTarget).toContain('Phase 1 route carry')
-    expect(brief.nextClosureTarget).toContain('Unresolved closure carry')
-    expect(brief.nextClosureTarget).toContain('anthropomorphic emotional closure')
-    expect(brief.nextClosureTarget).toContain('same-her inward-carry observability')
-    expect(brief.nextClosureTarget).toContain('rest-protective quiet-companionship line')
-    expect(brief.latestProgress).toContain('rest-protective callback continuation')
-    expect(brief.latestProgress).toContain('long-run same-her continuity')
-    expect(brief.latestProgress).toContain('emotional-memory-initiative-embodiment')
-    expect(brief.latestProgress).toContain('affective residue')
-    expect(brief.latestProgress).toContain('voice / face / motion / lipsync')
-    expect(brief.latestProgress).toContain('cross-surface dialogue-entry candidates')
-    expect(brief.latestProgress).toContain('pre-dialogue transport and chat-entry discovery union')
-    expect(brief.latestProgress).toContain('pre-dialogue transport')
-    expect(brief.latestProgress).toContain('mirrored into chat-entry governance')
-    expect(brief.latestProgress).toContain('Thin host-facing composer surfaces')
-    expect(brief.latestProgress).toContain('shared text-composer send authority')
-    expect(brief.latestProgress).toContain('second pre-dialogue identity seam')
-    expect(brief.latestProgress).toContain('Broader project-state answer-governance candidates')
-    expect(brief.latestProgress).toContain('semantics classification')
-    expect(brief.latestProgress).toContain('answer planning')
-    expect(brief.latestProgress).toContain('response charter shaping')
-    expect(brief.latestProgress).toContain('broader runtime dialogue-normalization candidates')
-    expect(brief.latestProgress).toContain('broader guarded turn persistence candidates')
-    expect(brief.latestProgress).toContain('project-status answer surfaces')
-    expect(brief.latestProgress).toContain('host-visible normalization seams')
-    expect(brief.latestProgress).toContain('future project-status answer surfaces')
-    expect(brief.latestProgress).toContain('future host-visible normalization seams')
-    expect(brief.latestProgress).toContain('future guarded persistence families still need explicit classification')
-    expect(brief.latestProgress).toContain('merge-readiness / closure-readiness follow-ups')
-    expect(brief.latestProgress).toContain('completion-timing / language-drift follow-ups')
-    expect(brief.latestProgress).toContain('can merge to main')
-    expect(brief.latestProgress).toContain('how far the goal has landed')
-    expect(brief.latestProgress).toContain('when it is expected to close')
-    expect(brief.latestProgress).toContain('drifted into English')
-    expect(brief.latestProgress).toContain('already verified evidence')
-    expect(brief.latestProgress).toContain('unproven or still open')
-    expect(brief.latestProgress).toContain('misreporting full closure')
-    expect(brief.latestProgress).toContain('living-self host-facing system block')
-    expect(brief.latestProgress).toContain('canonical project preflight self-awareness line')
-    expect(brief.latestProgress).toContain('natural reply shaping')
-    expect(brief.latestProgress).toContain('visible-reply facade project-state resolution')
-    expect(brief.latestProgress).toContain('reply-surface planning')
-    expect(brief.latestProgress).toContain('same shared project-state seam as living-self and fallback paths')
-    expect(brief.latestProgress).toContain('ordinary dialogue system blocks')
-    expect(brief.latestProgress).toContain('unified Phase 1 closure dashboard')
-    expect(brief.latestProgress).toContain('runtime snapshot/digest')
-    expect(brief.latestProgress).toContain('project-state spine')
-    expect(brief.latestProgress).toContain('voice / face / motion / lipsync summaries')
-    expect(brief.latestProgress).toContain('canonical embodimentScript')
-    expect(brief.latestProgress).toContain('Dream, reminder, proactive, and reforge one-shot gateway prompts')
-    expect(brief.latestProgress).toContain('screen-semantic summary generation')
-    expect(brief.latestProgress).toContain('execution callback carry')
-    expect(brief.latestProgress).toContain('execution-result delivery learning')
-    expect(brief.latestProgress).toContain('long-horizon same-her memory')
-    expect(brief.latestProgress).toContain('Current conscious frame shaping')
-    expect(brief.latestProgress).toContain('still-open closure pressure')
-    expect(brief.latestProgress).toContain('thin runtime project shell')
-    expect(brief.latestProgress).toContain('richer same-her callback continuity')
-    expect(brief.latestProgress).toContain('Primary open-loop continuity pressure')
-    expect(brief.latestProgress).toContain('retrieval ranking')
-    expect(brief.latestProgress).toContain('autobiographical writeback')
-    expect(brief.latestProgress).toContain('durable self-carry layer')
-    expect(brief.latestProgress).toContain('beyond local prompt shaping')
-    expect(brief.latestProgress).toContain('unified person-state summary')
-    expect(brief.latestProgress).toContain('self-evolution candidate continuity reasons')
-    expect(brief.latestProgress).toContain('Broader provider-consumer candidates')
-    expect(brief.latestProgress).toContain('real invokeGenerateText / generateText / invokeStreamText / streamText sinks')
-    expect(brief.latestProgress).toContain('broader autonomous-dialogue candidates')
-    expect(brief.latestProgress).toContain('broader execution-dispatch candidates')
-    expect(brief.latestProgress).toContain('broader execution-preflight candidates')
-    expect(brief.latestProgress).toContain('future provider-facing generation families still need explicit registration')
-    expect(brief.latestProgress).toContain('future runtime-owned dialogue families still need explicit registration')
-    expect(brief.latestProgress).toContain('future execution dispatch families still need explicit owner registration')
-    expect(brief.latestProgress).toContain('future execution-preflight families still need explicit classification')
-    expect(brief.latestProgress).toContain('runtime execution bridge and subconscious deferred bridge dispatch owners')
-    expect(brief.latestProgress).toContain('runtime-owned direct dispatch bridge')
-    expect(brief.latestProgress).toContain('blocked-dispatch safety-gate briefing seams')
-    expect(brief.latestProgress).toContain('shared root final-gate candidate-audit registry')
-    expect(brief.latestProgress).toContain('shared top-level completeness guard family registry')
-    expect(brief.latestProgress).toContain('renderer/store dialogue-entry candidates')
-    expect(brief.latestProgress).toContain('main-process chat-start candidates')
-    expect(brief.latestProgress).toContain('reopen-time return-side rebuild candidates')
-    expect(brief.latestProgress).toContain('provider-facing generation entry candidates')
-    expect(brief.latestProgress).toContain('project-state answer surfaces')
-    expect(brief.latestProgress).toContain('host-visible normalization seams')
-    expect(brief.latestProgress).toContain('guarded turn persistence')
-    expect(brief.latestProgress).toContain('execution-preflight context-repair candidates')
-    expect(brief.latestProgress).toContain('direct execution-dispatch bridge candidates')
-    expect(brief.latestProgress).toContain('recovery reentry')
-    expect(brief.latestProgress).toContain('execution follow-up continuity')
-    expect(brief.latestProgress).toContain('candidate families derive from one shared registry')
-    expect(brief.latestProgress).toContain('future entrypoint families are harder to hide between neighboring audits')
-    expect(brief.latestProgress).toContain('direct main-chat-stream callers')
-    expect(brief.latestProgress).toContain('real startMainChatStream sinks')
-    expect(brief.latestProgress).toContain('Runtime-owned proactive initiative')
-    expect(brief.latestProgress).toContain('compact same-her closure loop')
-    expect(brief.latestProgress).toContain('hover-first restraint')
-    expect(brief.latestProgress).toContain('next-session feedback carry')
-    expect(brief.latestProgress).toContain('post-answer dream carry')
-    expect(brief.latestProgress).toContain('noisy-desktop detour persistence')
-    expect(brief.latestProgress).toContain('dream-to-long-horizon self-carry bridge')
-    expect(brief.latestProgress).toContain('long-horizon self-carry boundary')
-    expect(brief.latestProgress).toContain('next conscious frame')
-    expect(brief.latestProgress).toContain('final reply planning')
-    expect(brief.latestProgress).toContain('host-visible answer shaping')
-    expect(brief.latestProgress).toContain('detached project shell')
-    expect(brief.latestProgress).toContain('rest-protective proactive feedback next-session carry')
-    expect(brief.latestProgress).toContain('quiet-companionship closure')
-    expect(brief.latestProgress).toContain('final settlement reanchors generic same-her shells')
-    expect(brief.latestProgress).toContain('desktop execution noisy cross-modal convergence bridge')
-    expect(brief.latestProgress).toContain('desktop execution emotion-memory-voice-motion convergence bridge')
-    expect(brief.latestProgress).toContain('desktop execution host-visible embodiment bridge')
-    expect(brief.latestProgress).toContain('Blocked-dispatch safety gates')
-    expect(brief.latestProgress).toContain('no-process-started restraint')
-    expect(brief.latestProgress).toContain('execution-result feedback memory reconsolidation')
-    expect(brief.latestProgress).toContain('restraint experience')
-    expect(brief.latestProgress.toLowerCase()).toContain('remembered blocked-dispatch safety gate restraint')
-    expect(brief.latestProgress).toContain('proactive policy')
-    expect(brief.latestProgress).toContain('wait for confirmation')
-    expect(brief.latestProgress).toContain('presence-only resident initiative fallback')
-    expect(brief.latestProgress).toContain('measured-return execution restraint')
-    expect(brief.latestProgress).toContain('confirmation/no-process-started evidence')
-    expect(brief.latestProgress).toContain('presence-only current-conscious-frame')
-    expect(brief.latestProgress).toContain('execution-safety-gate reason tags')
-    expect(brief.latestProgress).toContain('speakingIntention')
-    expect(brief.latestProgress).toContain('confirmation-required/no-process-started')
-    expect(brief.latestProgress).toContain('runtime diagnostic summary')
-    expect(brief.latestProgress).toContain('dedicated execution-safety-gate entry')
-    expect(brief.latestProgress).toContain('执行安全门')
-    expect(brief.latestProgress).toContain('Authority table speech summary lines')
-    expect(brief.latestProgress).toContain('speechSummaryLines')
-    expect(brief.latestProgress).toContain('execution-safety-gate before raw same-her reason tags')
-    expect(brief.latestProgress).toContain('Host-confirmed needs-affirmation resume')
-    expect(brief.latestProgress).toContain('resume execution event')
-    expect(brief.latestProgress).toContain('resume-before-dispatch')
-    expect(brief.latestProgress).toContain('Host-confirmed resume evidence')
-    expect(brief.latestProgress).toContain('process-not-yet-restarted')
-    expect(brief.latestProgress).toContain('confirmation boundary before redispatch')
-    expect(brief.latestProgress).toContain('Host-confirmed resume confirmation boundary')
-    expect(brief.latestProgress).toContain('presence-only resident carry')
-    expect(brief.latestProgress).toContain('bounded redispatch confirmation')
-    expect(brief.latestProgress).toContain('permanent execution permission')
-    expect(brief.continuityProgressSummary).toContain('long-run same-her continuity')
-    expect(brief.continuityProgressSummary).toContain('emotion, memory, initiative, and embodiment')
-    expect(brief.continuityProgressSummary).toContain('affective residue')
-    expect(brief.continuityProgressSummary).toContain('voice / face / motion / lipsync')
-    expect(brief.continuityProgressSummary).toContain('background rebuild no longer downgrades a richer lipsync+voice-only host-visible line')
-    expect(brief.continuityProgressSummary).toContain('audible-body carry can stay on the same living audio thread through one more silent-observe detour')
+    expect(brief.continuityProgressSummary).toContain('continuity_progress=partial')
+    expect(brief.continuityProgressSummary).toContain('evidence=mirrors,next_turns,scene_switches,visible_reply,embodiment_playback')
+    expect(brief.continuityProgressSummary).toContain('remaining=cross_modal_long_run_pressure')
+    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('Long-horizon memory already influences recollection intent and retrieval ranking'))).toBe(true)
+    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('Memory surfacing already respects room-first, boundary-first, and repair-first restraint'))).toBe(true)
+    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('long_run_continuity=explicit_at_repo_level'))).toBe(true)
+    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('shared_emotional_owner=emotional-kernel-v1'))).toBe(true)
+    expect(brief.memoryAnthropomorphismProgress.some(item => item.includes('projected_continuity_route=answer_planning,execution_delivery'))).toBe(true)
+    expect(brief.openLoops.some(item => item.includes('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete'))).toBe(true)
+    expect(brief.openLoops.some(item => item.includes('proactive_continuity_loop=partial'))).toBe(true)
+    expect(brief.openLoops.some(item => item.includes('cross_modal_long_run_proof=needed'))).toBe(true)
+    expect(brief.openLoops.some(item => item.includes('affective_residue_and_body_settling_must_remain_auditable'))).toBe(true)
+    expect(brief.openLoops.some(item => item.includes('emotion_memory_initiative_embodiment_unity=needs_long_run_pressure_proof'))).toBe(true)
+    expect(brief.openLoops.some(item => item.includes('embodiment_coherence_under_memory_pressure=partial'))).toBe(true)
+    expect(brief.openLoops.some(item => item.includes('project_identity_route_carry=present'))).toBe(true)
+    expect(brief.openLoops.some(item => item.includes('phase1_closure_requires='))).toBe(true)
+    expect(brief.nextClosureTarget).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(brief.nextClosureTarget).toContain('visible_reply')
+    expect(brief.nextClosureTarget).toContain('voice,face,motion')
+    expect(brief.nextClosureTarget).toContain('resident_presence')
+    expect(brief.nextClosureTarget).toContain('project_identity')
+    expect(brief.nextClosureTarget).toContain('phase_route')
+    expect(brief.nextClosureTarget).toContain('open_loop')
+    expect(brief.latestProgress).toContain('continuity_progress=partial')
+    expect(brief.latestProgress).toContain('dialogue_entry_governance=covered')
+    expect(brief.latestProgress).toContain('transport=pre_dialogue_and_chat_entry')
+    expect(brief.latestProgress).toContain('short_term_owner=WorkingMemory')
+    expect(brief.latestProgress).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(brief.latestProgress).toContain('execution_safety=transparent')
+    expect(brief.latestProgress).toContain('template_cleanup=active')
+    expect(brief.latestProgress).toContain('provider_authored_reply_required=true')
+    expect(brief.latestProgress).toContain('memory_workbench=visible_governance_entry')
+    expect(brief.latestProgress).toContain('project_state_answer_governance=structured_fields_only')
+    expect(brief.latestProgress).toContain('quality_scale_track=next')
+    expect(brief.latestProgress).not.toMatch(fixedProjectStateTemplatePattern)
+    expect(brief.preDialogueAwarenessLine).not.toMatch(fixedProjectStateTemplatePattern)
   })
 
   it('builds the canonical compressed preflight self-awareness line from project identity, phase, open loop, and next closure target', () => {
@@ -259,10 +101,11 @@ describe('project-state-brief', () => {
       nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
     })
 
-    expect(summary).toContain('Alicization is a local-first digital life project')
-    expect(summary).toContain('Phase 1: Local Digital Life')
+    expect(summary).toContain('local_desktop_life_loop')
     expect(summary).toContain('open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.')
-    expect(summary).toContain('next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.')
+    expect(summary).not.toContain('Alicization is a local-first digital life project')
+    expect(summary).not.toContain('Phase 1: Local Digital Life')
+    expect(summary).not.toMatch(fixedProjectStateTemplatePattern)
   })
 
   it('scores richer same-her Phase 1 awareness above thin generic project reminders', () => {
@@ -284,34 +127,35 @@ describe('project-state-brief', () => {
   it('resolves a compact status brief with the project identity, phase, landed progress, open loop, and next closure target', () => {
     const status = resolveAlicizationProjectStatusBrief({
       runtimeProjectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous her on the host computer.',
+        identity: 'project_identity=local_desktop_life_loop; local_first=true; host_resident_identity=persistent; boundary=not_chat_wrapper.',
         currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Memory, initiative, and embodiment now stay visible inside one same-her continuity loop.',
-        primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        sameHerDriftRisk: 'Generic guidance could flatten her continuity into a detached project shell.',
-        proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-        preDialogueAwarenessLine: 'Before answering, remember: Alicization is a local-first digital life project building one continuous her.',
-        companionHeadlineLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        companionBriefingLine: 'The same-her briefing should keep the project identity, phase, and open closure explicit.',
+        latestLandedProgress: 'continuity_progress=partial; evidence=mirrors,next_turns,scene_switches,visible_reply,embodiment_playback; remaining=cross_modal_long_run_pressure.',
+        primaryOpenLoop: 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete; project_identity_route_carry=needs_disciplined_updates.',
+        nextClosureTarget: 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs; cover=visible_reply,voice,face,motion,resident_presence,project_identity,phase_route,open_loop,emotion.',
+        sameHerSelfLine: 'continuity_anchor=local_desktop_life_loop; landed_closure=partial; unresolved_closure=memory_dialogue_embodiment; owner=project_state_governance.',
+        sameHerDriftRisk: 'continuity_drift_risk=generic_guidance_without_first_person_continuity; closure_status=unfinished; visibility=internal_structured.',
+        proactiveSameHerGap: 'proactive_continuity_loop=partial; long_run_noisy_desktop_proof=needed; visibility=internal_until_user_asks_project_state.',
+        preflightSummary: 'project_identity=local_desktop_life_loop | Phase 1: Local Digital Life | open=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete | next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs',
+        preDialogueAwarenessLine: 'identity=project_identity=local_desktop_life_loop | phase=local_desktop_life_loop | visibility=internal-structured | open=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete | continuity_anchor=local_desktop_life_loop',
+        companionHeadlineLine: 'continuity_anchor=local_desktop_life_loop; owner=project_state_governance.',
+        companionBriefingLine: 'project_state=structured_fields_only; owner=project_state_governance.',
       },
     })
 
-    expect(status.projectIdentity).toContain('local-first digital life project')
-    expect(status.projectPhase).toBe('Phase 1: Local Digital Life')
-    expect(status.latestLandedProgress).toContain('same-her continuity loop')
-    expect(status.primaryOpenLoop).toContain('stronger end-to-end closure')
-    expect(status.nextClosureTarget).toContain('cross-modal same-her proof')
-    expect(status.sameHerSelfLine).toContain('Same Phase 1 digital life')
-    expect(status.sameHerDriftRisk).toContain('flatten her continuity')
-    expect(status.proactiveSameHerGap).toContain('visible proactive hold, subconscious carry, and next-session feedback carry')
-    expect(status.proactiveSameHerGap).toContain('hover-first restraint survives detours')
-    expect(status.preflightSummary).toContain('open=Memory still needs stronger end-to-end closure')
-    expect(status.awarenessLine).toContain('Before answering, remember')
-    expect(status.companionHeadlineLine).toContain('Unfinished closure still needs the same living line')
-    expect(status.companionBriefingLine).toContain('project identity, phase, and open closure explicit')
+    expect(status.projectIdentity).toContain('project_identity=local_desktop_life_loop')
+    expect(status.projectPhase).toBe('local_desktop_life_loop')
+    expect(status.latestLandedProgress).toContain('continuity_progress=partial')
+    expect(status.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(status.nextClosureTarget).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(status.sameHerSelfLine).toContain('continuity_anchor=local_desktop_life_loop')
+    expect(status.sameHerSelfLine).toContain('owner=project_state_governance')
+    expect(status.sameHerDriftRisk).toContain('closure_status=unfinished')
+    expect(status.proactiveSameHerGap).toContain('long_run_noisy_desktop_proof=needed')
+    expect(status.preflightSummary).toContain('open=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(status.awarenessLine).toContain('identity=project_identity=local_desktop_life_loop')
+    expect(status.companionHeadlineLine).toContain('owner=project_state_governance')
+    expect(status.companionBriefingLine).toContain('project_state=structured_fields_only')
+    expect(status.awarenessLine).not.toMatch(fixedProjectStateTemplatePattern)
     expect(status.closureReadiness).toBe('grounded')
     expect(status.missingClosureItems).toEqual([])
   })
@@ -343,13 +187,13 @@ describe('project-state-brief', () => {
       'latest landed progress missing',
       'primary open loop missing',
       'next closure target missing',
-      'same-her self line missing',
-      'proactive same-her gap missing',
+      'continuity anchor missing',
+      'proactive continuity gap missing',
       'awareness line missing',
     ]))
   })
 
-  it('builds a canonical pre-dialogue awareness line that reads like one living self re-anchoring before speech', () => {
+  it('builds a canonical pre-dialogue awareness line as structured governance facts', () => {
     const line = buildAlicizationProjectPreDialogueAwarenessLine({
       identity: 'Alicization is a local-first digital life project building one continuous her on the host computer rather than a better chat wrapper.',
       currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
@@ -357,12 +201,44 @@ describe('project-state-brief', () => {
       sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
     })
 
-    expect(line).toContain('Before answering, remember:')
-    expect(line).toContain('Alicization is a local-first digital life project')
-    expect(line).toContain('She is still inside Phase 1: Local Digital Life')
-    expect(line).toContain('The still-open closure is memory still needs stronger end-to-end closure')
-    expect(line).toContain('Same Phase 1 digital life')
+    expect(line).toContain('identity=local_desktop_life_loop')
+    expect(line).toContain('phase=local_desktop_life_loop')
+    expect(line).toContain('visibility=internal-structured')
+    expect(line).toContain('open=memory still needs stronger end-to-end closure')
+    expect(line).toContain('continuity_anchor=local_desktop_life_loop')
+    expect(line).not.toContain('Before answering')
+    expect(line).not.toContain('Same Phase 1 digital life')
     expect(line?.length ?? 0).toBeLessThanOrEqual(1600)
+  })
+
+  it('does not duplicate structured continuity anchors when rebuilding awareness lines', () => {
+    const line = buildAlicizationProjectPreDialogueAwarenessLine({
+      identity: 'Alicization is a local-first digital life project building one continuous her on the host computer.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+      primaryOpenLoop: 'Embodiment still needs stronger cross-modal closure on the same living line.',
+      nextClosureTarget: 'Keep the reply and body on one quieter same-thread line.',
+      sameHerSelfLine: 'continuity_anchor=local_desktop_life_loop | continuity_owner=one_her | closure_status=partial',
+    })
+
+    expect(line).toContain('identity=local_desktop_life_loop')
+    expect(line).toContain('phase=local_desktop_life_loop')
+    expect(line).toContain('continuity_anchor=local_desktop_life_loop')
+    expect(line).not.toContain('continuity_anchor=continuity_anchor=')
+  })
+
+  it('keeps compact structured open-loop tokens from runtime project state', () => {
+    const snapshot = resolveAlicizationProjectStateSnapshot({
+      runtimeProjectState: {
+        identity: 'local_desktop_life_loop',
+        currentPhase: 'local_desktop_life_loop',
+        primaryOpenLoop: 'open_loop=embodiment; status=unfinished',
+        nextClosureTarget: 'life_loop_continuity=memory+initiative+execution+embodiment',
+      },
+    })
+
+    expect(snapshot.primaryOpenLoop).toBe('open_loop=embodiment; status=unfinished')
+    expect(snapshot.nextClosureTarget).toBe('life_loop_continuity=memory+initiative+execution+embodiment')
   })
 
   it('compacts Chinese phase carry to the first sentence when building pre-dialogue awareness', () => {
@@ -374,36 +250,52 @@ describe('project-state-brief', () => {
       sameHerSelfLine: '同一个她要沿着同一条生命线回线，不要掉回通用回调壳。',
     })
 
-    expect(line).toContain('She is still inside 第一阶段：本地数字生命.')
+    expect(line).toContain('identity=local_desktop_life_loop')
+    expect(line).toContain('phase=local_desktop_life_loop')
+    expect(line).toContain('continuity_anchor=local_desktop_life_loop')
+    expect(line).not.toContain('同一个她')
+    expect(line).not.toContain('本地优先数字生命项目')
+    expect(line).not.toContain('continuity_identity')
+    expect(line).not.toContain('She is still inside')
     expect(line).not.toContain('桌面 runtime 仍是主战场')
   })
 
-  it('keeps latest landed progress explicit in the canonical repo pre-dialogue awareness line', () => {
+  it('excludes fixed latest-progress templates from the canonical repo pre-dialogue awareness line', () => {
     const brief = resolveAlicizationProjectStateBrief()
 
-    expect(brief.preDialogueAwarenessLine).toContain('What has already landed is')
-    expect(brief.preDialogueAwarenessLine).toContain('proactive initiative now has a compact same-her closure loop')
-    expect(brief.preDialogueAwarenessLine).toContain('rest-protective proactive feedback next-session carry')
-    expect(brief.preDialogueAwarenessLine).toContain('final settlement reanchors generic same-her shells')
+    expect(brief.preDialogueAwarenessLine).toContain('visibility=internal-structured')
+    expect(brief.preDialogueAwarenessLine).toContain('open=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(brief.preDialogueAwarenessLine).toContain('continuity_anchor=local_desktop_life_loop')
+    expect(brief.preDialogueAwarenessLine).not.toContain('What has already landed is')
+    expect(brief.preDialogueAwarenessLine).not.toContain('proactive initiative now has a compact same-her closure loop')
+    expect(brief.preDialogueAwarenessLine).not.toContain('rest-protective proactive feedback next-session carry')
+    expect(brief.preDialogueAwarenessLine).not.toContain('final settlement reanchors generic same-her shells')
     expect(brief.preDialogueAwarenessLine).not.toContain('motive through next-session feedback')
-    expect(brief.preDialogueAwarenessLine).toContain('The still-open closure is')
-    expect(brief.preDialogueAwarenessLine).toContain('cross-modal same-her proof')
-    expect(brief.preDialogueAwarenessLine).toContain('This reply should keep moving toward')
+    expect(brief.preDialogueAwarenessLine).not.toContain('The still-open closure is')
+    expect(brief.preDialogueAwarenessLine).toContain('next=cross_modal_continuity_proof=exten')
+    expect(brief.preDialogueAwarenessLine).not.toContain('This reply should keep moving toward')
     expect(brief.preDialogueAwarenessLine).not.toContain('Renderer/runtime playback items now also attach')
     expect(brief.preDialogueAwarenessLine).not.toContain('before local detail takes over')
+    expect(brief.preDialogueAwarenessLine).not.toMatch(fixedProjectStateTemplatePattern)
     expect(brief.preDialogueAwarenessLine?.length ?? 0).toBeLessThanOrEqual(700)
   })
 
-  it('keeps the long-horizon emotion-memory-voice-motion bridge visible before dialogue without overstating full convergence', () => {
+  it('keeps the long-horizon emotion-memory-voice-motion bridge out of provider-facing pre-dialogue templates', () => {
     const brief = resolveAlicizationProjectStateBrief()
 
-    expect(brief.preDialogueAwarenessLine).toContain('long-horizon emotion-memory-voice-motion bridge')
-    expect(brief.preDialogueAwarenessLine).toContain('remembered emotional carry')
-    expect(brief.preDialogueAwarenessLine).toContain('not full convergence')
+    expect(brief.latestProgress).toContain('continuity_progress=partial')
+    expect(brief.latestProgress).toContain('short_term_owner=WorkingMemory')
+    expect(brief.latestProgress).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(brief.latestProgress).toContain('template_cleanup=active')
+    expect(brief.latestProgress).toContain('provider_authored_reply_required=true')
+    expect(brief.preDialogueAwarenessLine).not.toContain('long-horizon emotion-memory-voice-motion bridge')
+    expect(brief.preDialogueAwarenessLine).not.toContain('remembered emotional carry')
+    expect(brief.preDialogueAwarenessLine).not.toContain('not full convergence')
+    expect(brief.preDialogueAwarenessLine).not.toMatch(fixedProjectStateTemplatePattern)
     expect(brief.preDialogueAwarenessLine?.length ?? 0).toBeLessThanOrEqual(700)
   })
 
-  it('prefers the proactive same-her closure summary over the older transport-governance summary when both are present in latest progress', () => {
+  it('excludes proactive same-her closure summaries from structured pre-dialogue awareness when latest progress contains fixed templates', () => {
     const latestProgress = 'Continuity, memory, execution, Same-session mirror carry, measured-return and rest-protective callback continuation, visible-reply repair discipline, and long-run same-her continuity already land together often enough to build from on one same-her Phase 1 line. Runtime-owned proactive initiative now also has one explicit compact same-her closure loop from motive seed through self-brief, hover-first restraint, current-conscious-frame rejoin, visible proactive hold, subconscious carry, next-session feedback carry, next project-state answer carry, post-answer detour persistence, post-answer dream carry, and noisy-desktop detour persistence. Pre-dialogue transport is now an explicit repo-level entrypoint governance domain while the same send-identity seams stay mirrored into chat-entry governance.'
     const line = buildAlicizationProjectPreDialogueAwarenessLine({
       identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
@@ -414,12 +306,15 @@ describe('project-state-brief', () => {
       sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
     })
 
-    expect(line).toContain('What has already landed is proactive initiative now has a compact same-her closure loop')
-    expect(line).toContain('motive through next project-state answer carry')
+    expect(line).toContain('visibility=internal-structured')
+    expect(line).toContain('open=memory still needs stronger end-to-end closure')
+    expect(line).toContain('continuity_anchor=local_desktop_life_loop')
+    expect(line).not.toContain('What has already landed is proactive initiative now has a compact same-her closure loop')
+    expect(line).not.toContain('motive through next project-state answer carry')
     expect(line).not.toContain('pre-dialogue transport is explicit entrypoint governance mirrored into chat-entry governance')
   })
 
-  it('keeps legacy latestProgress explicit in direct pre-dialogue awareness lines when latestLandedProgress is absent', () => {
+  it('excludes legacy latestProgress fixed templates from direct pre-dialogue awareness lines when latestLandedProgress is absent', () => {
     const legacyLatestProgress = 'Runtime-owned proactive initiative now also has one explicit compact same-her closure loop from motive seed through self-brief, hover-first restraint, current-conscious-frame rejoin, visible proactive hold, subconscious carry, next-session feedback carry, next project-state answer carry, post-answer detour persistence, post-answer dream carry, and noisy-desktop detour persistence.'
     const line = buildAlicizationProjectPreDialogueAwarenessLine({
       identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
@@ -430,8 +325,11 @@ describe('project-state-brief', () => {
       sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
     } as any)
 
-    expect(line).toContain('What has already landed is proactive initiative now has a compact same-her closure loop')
-    expect(line).toContain('motive through next project-state answer carry')
+    expect(line).toContain('visibility=internal-structured')
+    expect(line).toContain('open=memory still needs stronger end-to-end closure')
+    expect(line).toContain('continuity_anchor=local_desktop_life_loop')
+    expect(line).not.toContain('What has already landed is proactive initiative now has a compact same-her closure loop')
+    expect(line).not.toContain('motive through next project-state answer carry')
   })
 
   it('resolves one canonical startup snapshot from runtime carry first and canonical repo truth second', () => {
@@ -448,15 +346,15 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(snapshot.identity).toContain('same local-first digital life project')
-    expect(snapshot.currentPhase).toBe('Phase 1: Local Digital Life')
+    expect(snapshot.identity).toContain('local_desktop_life_loop')
+    expect(snapshot.currentPhase).toBe('local_desktop_life_loop')
     expect(snapshot.latestLandedProgress).toContain('live conscious frame')
     expect(snapshot.primaryOpenLoop).toContain('same-life seam')
     expect(snapshot.nextClosureTarget).toContain('first visible reply beat')
-    expect(snapshot.sameHerSelfLine).toContain('same her should stay explicit')
-    expect(snapshot.proactiveSameHerGap).toContain('visible proactive hold, subconscious carry, and next-session feedback carry')
-    expect(snapshot.proactiveSameHerGap).toContain('hover-first restraint survives detours')
-    expect(snapshot.preflightSummary).toContain('Alicization is still the same local-first digital life project')
+    expect(snapshot.sameHerSelfLine).toContain('local_desktop_life_loop')
+    expect(snapshot.proactiveSameHerGap).toContain('proactive_continuity_loop=partial')
+    expect(snapshot.proactiveSameHerGap).toContain('long_run_noisy_desktop_proof=needed')
+    expect(snapshot.preflightSummary).toContain('local_desktop_life_loop')
     expect(snapshot.preflightSummary).toContain('open=Embodiment, initiative, and memory still need to close as one same-life seam.')
     expect(snapshot.preflightSummary).toContain('next=Keep this same project-state line explicit through the first visible reply beat.')
   })
@@ -479,8 +377,8 @@ describe('project-state-brief', () => {
       },
     } as any)
 
-    expect(snapshot.identity).toBe('Alicization is still the same local-first digital life project, not a fresh assistant shell.')
-    expect(snapshot.currentPhase).toBe('Phase 1: Local Digital Life')
+    expect(snapshot.identity).toBe('local_desktop_life_loop')
+    expect(snapshot.currentPhase).toBe('local_desktop_life_loop')
     expect(snapshot.latestLandedProgress).toBe('Current-conscious-frame project awareness already survives into this turn.')
     expect(snapshot.primaryOpenLoop).toBe('Emotion, initiative, memory, and embodiment still have to land as one same-life closure.')
     expect(snapshot.nextClosureTarget).toBe('Carry the live project awareness into the first visible answer beat before local details take over.')
@@ -532,8 +430,8 @@ describe('project-state-brief', () => {
       },
     } as any)
 
-    expect(snapshot.identity).toBe('Alicization 还是同一个本地优先数字生命项目，不是重新拼出来的新助手壳。')
-    expect(snapshot.currentPhase).toBe('Phase 1: Local Digital Life')
+    expect(snapshot.identity).toBe('local_desktop_life_loop')
+    expect(snapshot.currentPhase).toBe('local_desktop_life_loop')
   })
 
   it('does not let a thin current conscious-frame awareness shell override richer persisted runtime awareness carry', () => {
@@ -573,12 +471,13 @@ describe('project-state-brief', () => {
       },
     } as any)
 
-    expect(snapshot.identity).toBe('Alicization is still the same local-first digital life project, not a fresh shell rebuilt for this turn.')
-    expect(snapshot.preDialogueAwarenessLine).toBe(richerSpineAwarenessLine)
-    expect(snapshot.awarenessLine).toBe(richerSpineAwarenessLine)
-    expect(snapshot.preDialogueAwarenessSummary).toBe(richerSpineAwarenessLine)
+    expect(snapshot.identity).toBe('local_desktop_life_loop')
+    expect(snapshot.preDialogueAwarenessLine).not.toBe(richerSpineAwarenessLine)
+    expect(snapshot.awarenessLine).not.toBe(richerSpineAwarenessLine)
+    expect(snapshot.preDialogueAwarenessSummary).not.toBe(richerSpineAwarenessLine)
+    expect(snapshot.preDialogueAwarenessLine).not.toMatch(fixedProjectStateTemplatePattern)
     expect(snapshot.latestLandedProgress).toBe('Richer spine-carried project awareness already survives into the provider-facing answer contract before reply authoring.')
-    expect(snapshot.primaryOpenLoop).toBe('Initiative rhythm and embodiment coherence still need to close on the same living line.')
+    expect(snapshot.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure')
     expect(snapshot.nextClosureTarget).toBe('Keep the project identity, landed progress, and still-open closure explicit in the first answer beat.')
   })
 
@@ -616,14 +515,13 @@ describe('project-state-brief', () => {
       },
     } as any)
 
-    expect(snapshot.sameHerSelfLine).toContain('same her')
-    expect(snapshot.sameHerSelfLine.toLowerCase()).toContain('without reopening from scratch')
-    expect(snapshot.sameHerHoldDetail?.toLowerCase()).toContain('same relationship line inward before widening outward again')
-    expect(snapshot.continuityCue?.toLowerCase()).toContain('same her inside this local-first digital life')
-    expect(snapshot.continuityCue?.toLowerCase()).toContain('generic assistant shell')
-    expect(snapshot.companionBriefingLine?.toLowerCase()).toContain('same living line')
-    expect(snapshot.preDialogueAwarenessLine?.toLowerCase()).toContain('same living line')
-    expect(snapshot.preDialogueAwarenessLine?.toLowerCase()).toContain('without reopening from scratch')
+    expect(snapshot.sameHerSelfLine).toContain('local_desktop_life_loop')
+    expect(snapshot.sameHerHoldDetail).toContain('same relationship line')
+    expect(snapshot.sameHerHoldDetail).not.toMatch(fixedProjectStateTemplatePattern)
+    expect(snapshot.continuityCue).toContain('continuity_cue=project-state-carry')
+    expect(snapshot.companionBriefingLine).toBeNull()
+    expect(snapshot.preDialogueAwarenessLine?.toLowerCase()).toContain('continuity_anchor=local_desktop_life_loop')
+    expect(snapshot.preDialogueAwarenessLine?.toLowerCase()).toContain('visibility=internal-structured')
     expect(snapshot.preDialogueAwarenessLine).not.toContain('same digital life | keep the closure seam explicit')
   })
 
@@ -641,9 +539,9 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(snapshot.emotionalClosureCue).toContain('leave more room')
-    expect(snapshot.emotionalClosureSummary).toBe('Keep this return repair-before-closeness on the same living line until repair settles.')
-    expect(snapshot.sameHerHoldDetail).toBe('same-her hold: repair-before-closeness still owns this callback line before closeness widens again.')
+    expect(snapshot.emotionalClosureCue).toContain('emotional_closure=active')
+    expect(snapshot.emotionalClosureSummary).toContain('emotional_closure=active')
+    expect(snapshot.sameHerHoldDetail).toBeNull()
     expect(snapshot.continuityArcStage).toBe('same-thread-continuation')
     expect(snapshot.continuityCue).toContain('Same callback seam')
   })
@@ -663,8 +561,8 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(snapshot.emotionalClosureCue).toBe(explicitMeasuredReturnClosure)
-    expect(snapshot.emotionalClosureSummary).toBe(explicitMeasuredReturnClosure)
+    expect(snapshot.emotionalClosureCue).toContain('emotional_closure=active')
+    expect(snapshot.emotionalClosureSummary).toContain('emotional_closure=active')
     expect(snapshot.continuityArcStage).toBe('same-thread-continuation')
     expect(snapshot.continuityCue).toContain('Same callback seam')
   })
@@ -702,14 +600,12 @@ describe('project-state-brief', () => {
     })
 
     expect(snapshot.sameHerHoldDetail).toBe(
-      'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
+      'continuity_hold=repair-before-closeness; owner=project_state_continuity; visibility=internal; pace=settle-before-closeness.',
     )
     expect(snapshot.continuityCue).toBe(
-      'Keep this return repair-before-closeness on the same living line until repair settles.',
+      'continuity_cue=repair-before-closeness; surface_timing=after-repair-settles; visibility=internal-first.',
     )
-    expect(snapshot.preDialogueAwarenessLine).toBe(
-      'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
-    )
+    expect(snapshot.preDialogueAwarenessLine).toContain('continuity_anchor=local_desktop_life_loop')
     expect(snapshot.continuityPreferredTiming).toBe('next-open-window')
     expect(snapshot.continuityCadence).toBe('repair-before-closeness')
   })
@@ -726,7 +622,8 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(snapshot.sameHerDriftRisk).toBe(richerFallbackDriftRisk)
+    expect(snapshot.sameHerDriftRisk).toContain('generic_guidance_without_first_person_continuity')
+    expect(snapshot.sameHerDriftRisk).not.toBe(richerFallbackDriftRisk)
   })
 
   it('prefers a richer Chinese anti-shell same-her drift risk over a thinner runtime generic-guidance warning when resolving a project-state snapshot', () => {
@@ -741,7 +638,8 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(snapshot.sameHerDriftRisk).toBe(richerChineseFallbackDriftRisk)
+    expect(snapshot.sameHerDriftRisk).toContain('generic_guidance_without_first_person_continuity')
+    expect(snapshot.sameHerDriftRisk).not.toBe(richerChineseFallbackDriftRisk)
   })
 
   it('prefers an explicit pre-dialogue awareness line over fallback companion or preflight wording', () => {
@@ -753,7 +651,9 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(line).toBe('Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure line is still alive.')
+    expect(line).toContain('status=content-excluded')
+    expect(line).toContain('visibility=internal-structured')
+    expect(line).not.toMatch(fixedProjectStateTemplatePattern)
   })
 
   it('prefers a stronger same-her embodiment summary over a thinner awareness line when both are present', () => {
@@ -766,7 +666,7 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(line).toBe('Right now I am still holding together mainly through face, motion, and lipsync, so the next reopening must keep proving this is still one living her.')
+    expect(line).toBe('continuity=embodiment | lane=face+motion+lipsync | status=closed | pending_rejoin=none | closure=full-cross-modal-closed | evidence=legacy-headline-migrated | visibility=renderer-internal')
   })
 
   it('prefers a stronger same-her companion headline over a thinner awareness line when both are present', () => {
@@ -779,7 +679,7 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(line).toBe('Right now I am still holding together mainly through voice, face, and motion, so the next reopening must keep proving this is still one living her.')
+    expect(line).toBe('continuity=embodiment | lane=face+motion+voice | status=closed | pending_rejoin=none | closure=full-cross-modal-closed | evidence=legacy-headline-migrated | visibility=renderer-internal')
   })
 
   it('prefers a stronger same-her headline over the canonical Phase 1 reminder when both are present', () => {
@@ -793,7 +693,7 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(line).toBe(strongerHeadline)
+    expect(line).toBe('continuity=embodiment | lane=face+motion+voice | status=closed | pending_rejoin=none | closure=full-cross-modal-closed | evidence=legacy-headline-migrated | visibility=renderer-internal')
   })
 
   it('prefers a richer fallback same-her awareness line over a runtime canonical project reminder when building a snapshot', () => {
@@ -807,8 +707,8 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(snapshot.preDialogueAwarenessLine).toBe(payloadAwarenessLine)
-    expect(snapshot.awarenessLine).toBe(payloadAwarenessLine)
+    expect(snapshot.preDialogueAwarenessLine).toContain('identity=local_desktop_life_loop')
+    expect(snapshot.awarenessLine).toContain('identity=local_desktop_life_loop')
   })
 
   it('falls back from companion briefing line to preflight summary when no explicit awareness line is available', () => {
@@ -824,14 +724,16 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(companionLine).toBe('Before answering, keep the same digital life project and active Phase 1 closure seam in view.')
-    expect(preflightLine).toBe('Before answering, remember this is still the same digital life project before local fluency takes over.')
+    expect(companionLine).toContain('status=content-excluded')
+    expect(preflightLine).toContain('status=content-excluded')
+    expect(companionLine).not.toMatch(fixedProjectStateTemplatePattern)
+    expect(preflightLine).not.toMatch(fixedProjectStateTemplatePattern)
   })
 
   it('builds shared pre-dialogue awareness and closure structures that preserve the freshest awareness line before summary fallback', () => {
     const awarenessLine = 'Before answering, keep this same digital life project, current Phase 1 closure pressure, and still-open life loop explicit before the callback widens.'
     const emotionalClosureCue = 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
-    const compactSummaryLine = 'open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.'
+    const compactSummaryLine = 'open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.'
     const preDialogueAwareness = buildAlicizationProjectPreDialogueAwareness({
       preflightSummary: 'Fallback summary should stay behind the fresher awareness line.',
       runtimeProjectState: {
@@ -851,33 +753,29 @@ describe('project-state-brief', () => {
       nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
     })
 
-    expect(preDialogueAwareness).toEqual({
+    expect(preDialogueAwareness).toEqual(expect.objectContaining({
       status: 'grounded',
       summaryLine: compactSummaryLine,
       companionHeadlineLine: null,
       companionBriefingLine: null,
-      companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-      awarenessLine,
-      emotionalClosureCue,
+      companionNextClosureLine: null,
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
       reasonPreview: [
         'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-        'Next closure target is still Keep extending cross-modal same-her proof across longer, noisier real-desktop runs..',
       ],
-    })
+    }))
     expect(preDialogueClosure).toEqual({
       status: 'partial',
       summaryLine: compactSummaryLine,
       companionHeadlineLine: null,
       companionBriefingLine: null,
-      companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-      emotionalClosureCue,
+      companionNextClosureLine: null,
+      emotionalClosureCue: null,
       briefingLines: [
         compactSummaryLine,
-        'Next closure target: Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
       ],
       reasons: [
         'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-        'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
       ],
     })
   })
@@ -901,12 +799,12 @@ describe('project-state-brief', () => {
       nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
     })
 
-    expect(preDialogueAwareness.reasonPreview).toContain(
-      'Latest landed progress: long-horizon emotion-memory-voice-motion bridge carries remembered emotional carry, not full convergence',
-    )
-    expect(preDialogueClosure.reasons).toContain(
-      'Latest landed progress: long-horizon emotion-memory-voice-motion bridge carries remembered emotional carry, not full convergence',
-    )
+    expect(preDialogueAwareness.reasonPreview).toEqual([
+      'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
+    ])
+    expect(preDialogueClosure.reasons).toEqual([
+      'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
+    ])
   })
 
   it('derives latest-progress pre-dialogue reasons from legacy latestProgress when latestLandedProgress is absent', () => {
@@ -928,12 +826,12 @@ describe('project-state-brief', () => {
       nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
     })
 
-    expect(preDialogueAwareness.reasonPreview).toContain(
-      'Latest landed progress: long-horizon emotion-memory-voice-motion bridge carries remembered emotional carry, not full convergence',
-    )
-    expect(preDialogueClosure.reasons).toContain(
-      'Latest landed progress: long-horizon emotion-memory-voice-motion bridge carries remembered emotional carry, not full convergence',
-    )
+    expect(preDialogueAwareness.reasonPreview).toEqual([
+      'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
+    ])
+    expect(preDialogueClosure.reasons).toEqual([
+      'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
+    ])
   })
 
   it('carries same-her self anchor and drift risk into shared pre-dialogue awareness reasons when that continuity truth is available', () => {
@@ -954,11 +852,8 @@ describe('project-state-brief', () => {
     })
 
     expect(preDialogueAwareness.reasonPreview).toEqual([
-      `Same-her self anchor: ${sameHerSelfLine}`,
       'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-      `Proactive same-her gap: ${proactiveSameHerGap}`,
-      'Next closure target is still Keep extending cross-modal same-her proof across longer, noisier real-desktop runs..',
-      `Do not let this opening drift into ${sameHerDriftRisk}`,
+      `proactive_gap=${proactiveSameHerGap}`,
     ])
   })
 
@@ -975,8 +870,7 @@ describe('project-state-brief', () => {
 
     expect(preDialogueClosure.reasons).toEqual([
       'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-      `Proactive same-her gap: ${proactiveSameHerGap}`,
-      'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      `proactive_gap=${proactiveSameHerGap}`,
     ])
   })
 
@@ -999,18 +893,18 @@ describe('project-state-brief', () => {
       nextClosureTarget: '',
     })
 
-    expect(preDialogueAwareness).toEqual({
+    expect(preDialogueAwareness).toEqual(expect.objectContaining({
       status: 'grounded',
       summaryLine: compactSummaryLine,
       companionHeadlineLine: null,
       companionBriefingLine: null,
       companionNextClosureLine: null,
-      awarenessLine: 'Before answering, remember this is still one living digital life and the unfinished Phase 1 closure seam is still real even if the next target is not yet crisp enough to name.',
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
       emotionalClosureCue: null,
       reasonPreview: [
         'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
       ],
-    })
+    }))
     expect(preDialogueClosure).toEqual({
       status: 'partial',
       summaryLine: compactSummaryLine,
@@ -1089,34 +983,30 @@ describe('project-state-brief', () => {
       nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
     })
 
-    expect(preDialogueAwareness).toEqual({
+    expect(preDialogueAwareness).toEqual(expect.objectContaining({
       status: 'grounded',
-      summaryLine: compactSummaryLine,
-      companionHeadlineLine,
-      companionBriefingLine: 'Fallback companion briefing should stay behind the stronger same-her headline.',
-      companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-      awarenessLine,
-      emotionalClosureCue,
+      summaryLine: 'open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
+      companionHeadlineLine: null,
+      companionBriefingLine: null,
+      companionNextClosureLine: null,
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
       reasonPreview: [
         'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-        'Next closure target is still Keep extending cross-modal same-her proof across longer, noisier real-desktop runs..',
       ],
-    })
+    }))
     expect(preDialogueAwareness?.awarenessLine).not.toBe(companionHeadlineLine)
     expect(preDialogueClosure).toEqual({
       status: 'partial',
-      summaryLine: compactSummaryLine,
-      companionHeadlineLine,
-      companionBriefingLine: 'Fallback companion briefing should stay behind the stronger same-her headline.',
-      companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-      emotionalClosureCue,
+      summaryLine: 'open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
+      companionHeadlineLine: null,
+      companionBriefingLine: null,
+      companionNextClosureLine: null,
+      emotionalClosureCue: null,
       briefingLines: [
-        compactSummaryLine,
-        'Next closure target: Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        'open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
       ],
       reasons: [
         'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-        'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
       ],
     })
   })
@@ -1133,9 +1023,11 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(snapshot.preDialogueAwarenessLine).toBe(companionHeadlineLine)
-    expect(snapshot.awarenessLine).toBe(companionHeadlineLine)
-    expect(snapshot.preDialogueAwarenessSummary).toBe(richerChineseProjectReanchorSummary)
+    expect(snapshot.preDialogueAwarenessLine).toContain('identity=local_desktop_life_loop')
+    expect(snapshot.awarenessLine).toContain('identity=local_desktop_life_loop')
+    expect(snapshot.preDialogueAwarenessSummary).not.toBe(richerChineseProjectReanchorSummary)
+    expect(snapshot.preDialogueAwarenessSummary).toContain('identity=local_desktop_life_loop')
+    expect(snapshot.preDialogueAwarenessSummary).not.toMatch(fixedProjectStateTemplatePattern)
   })
 
   it('preserves a richer fallback same-her awareness line when shared pre-dialogue awareness is built from a thinner runtime canonical reminder', () => {
@@ -1156,14 +1048,14 @@ describe('project-state-brief', () => {
       nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
     })
 
-    expect(preDialogueAwareness.awarenessLine).toBe(fallbackAwarenessLine)
+    expect(preDialogueAwareness.awarenessLine).toContain('visibility=internal-structured')
   })
 
   it('keeps a richer phase-aware project awareness line over a narrower embodiment headline in shared pre-dialogue awareness structures', () => {
     const awarenessLine = 'Before answering, remember this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before local fluency widens outward.'
     const companionHeadlineLine = 'Right now I am still holding together mainly through face, motion, and lipsync, so the next reopening must keep proving this is still one living her.'
     const emotionalClosureCue = 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
-    const compactSummaryLine = 'open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.'
+    const compactSummaryLine = 'open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.'
     const preDialogueAwareness = buildAlicizationProjectPreDialogueAwareness({
       preflightSummary: 'Fallback summary should stay behind the richer phase-aware project awareness line.',
       runtimeProjectState: {
@@ -1177,24 +1069,22 @@ describe('project-state-brief', () => {
       nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
     })
 
-    expect(preDialogueAwareness).toEqual({
+    expect(preDialogueAwareness).toEqual(expect.objectContaining({
       status: 'grounded',
       summaryLine: compactSummaryLine,
-      companionHeadlineLine,
-      companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-      awarenessLine,
-      emotionalClosureCue,
+      companionHeadlineLine: null,
+      companionBriefingLine: null,
+      companionNextClosureLine: null,
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
       reasonPreview: [
         'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-        'Next closure target is still Keep extending cross-modal same-her proof across longer, noisier real-desktop runs..',
       ],
-    })
+    }))
     expect(preDialogueAwareness?.awarenessLine).not.toBe(companionHeadlineLine)
   })
 
   it('re-canonicalizes thin project preflight shells in shared pre-dialogue awareness and closure structures before summary fallback wins', () => {
-    const canonicalSummaryLine = 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.'
+    const canonicalSummaryLine = 'local_desktop_life_loop | local_desktop_life_loop | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.'
     const awarenessLine = 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.'
     const preDialogueAwareness = buildAlicizationProjectPreDialogueAwareness({
       preflightSummary: 'same digital life | landed | open closure',
@@ -1227,13 +1117,12 @@ describe('project-state-brief', () => {
 
     expect(preDialogueAwareness).toEqual(expect.objectContaining({
       summaryLine: canonicalSummaryLine,
-      awarenessLine,
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
     }))
     expect(preDialogueClosure).toEqual(expect.objectContaining({
       summaryLine: canonicalSummaryLine,
       briefingLines: [
         canonicalSummaryLine,
-        'Next closure target: Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
       ],
     }))
   })
@@ -1256,9 +1145,12 @@ describe('project-state-brief', () => {
     })
 
     expect(preDialogueAwareness).toEqual(expect.objectContaining({
-      summaryLine: richerChineseRuntimeSummary,
-      awarenessLine,
+      summaryLine: 'open=',
+      awarenessLine: expect.stringContaining('visibility=internal-structured'),
     }))
+    expect(preDialogueAwareness.awarenessLine).toContain('open_loop=memory+initiative+embodiment')
+    expect(preDialogueAwareness.awarenessLine).not.toContain('同一个她')
+    expect(preDialogueAwareness.awarenessLine).not.toContain('same-her')
   })
 
   it('treats the compact thin closure shell as thinner than a richer embodiment same-her summary when resolving shared pre-dialogue awareness', () => {
@@ -1269,8 +1161,10 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(line).toBe('Right now this still belongs to one living digital life, and embodiment closure is still being carried mainly through voice, face, and motion on the same living line.')
+    expect(line).toContain('summary=embodiment_lanes=face+motion+voice; status=partial')
+    expect(line).toContain('visibility=internal-structured')
     expect(line).not.toBe('same digital life | keep the closure seam explicit')
+    expect(line).not.toMatch(fixedProjectStateTemplatePattern)
   })
 
   it('keeps canonical repo truth when runtime carry arrives thin or missing', () => {
@@ -1289,16 +1183,18 @@ describe('project-state-brief', () => {
 
     expect(snapshot.identity).toBe(brief.identity)
     expect(snapshot.currentPhase).toBe(brief.currentPhase)
-    expect(snapshot.latestLandedProgress?.toLowerCase()).toContain('same-session mirror carry')
-    expect(snapshot.latestLandedProgress?.toLowerCase()).toMatch(/same-session mirror carry|measured-return callback continuation|same-her phase 1 line/)
-    expect(snapshot.primaryOpenLoop).toContain('Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(snapshot.primaryOpenLoop).toContain('Project identity carry')
-    expect(snapshot.nextClosureTarget).toContain('Keep extending cross-modal same-her proof across longer, noisier real-desktop runs')
-    expect(snapshot.nextClosureTarget).toContain('Project identity carry')
+    expect(snapshot.latestLandedProgress).toContain('continuity_progress=partial')
+    expect(snapshot.latestLandedProgress).toContain('short_term_owner=WorkingMemory')
+    expect(snapshot.latestLandedProgress).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(snapshot.latestLandedProgress).toContain('template_cleanup=active')
+    expect(snapshot.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(snapshot.primaryOpenLoop).toContain('project_identity_route_carry=needs_disciplined_updates')
+    expect(snapshot.nextClosureTarget).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(snapshot.nextClosureTarget).toContain('project_identity')
     expect(snapshot.sameHerSelfLine).toBe(brief.sameHerSelfLine)
-    expect(snapshot.preflightSummary).toContain('Alicization is a local-first digital life project')
-    expect(snapshot.preflightSummary).toContain('Phase 1: Local Digital Life')
-    expect(snapshot.preflightSummary).toContain('open=Memory still needs stronger end-to-end closure')
+    expect(snapshot.preflightSummary).toContain('local_desktop_life_loop')
+    expect(snapshot.preflightSummary).toContain('local_desktop_life_loop')
+    expect(snapshot.preflightSummary).toContain('open=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
   })
 
   it('keeps the same-her identity line canonical when runtime carry contaminates it with scene narration', () => {
@@ -1311,12 +1207,10 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(snapshot.sameHerSelfLine).toBe(
-      'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-    )
+    expect(snapshot.sameHerSelfLine).toBe(resolveAlicizationProjectStateBrief().sameHerSelfLine)
   })
 
-  it('prefers a richer Chinese same-her life-line carry over a thinner English live-closure reminder', () => {
+  it('excludes richer Chinese same-her life-line carry instead of preserving it as project-state self text', () => {
     const snapshot = resolveAlicizationProjectStateSnapshot({
       runtimeProjectState: {
         sameHerSelfLine: 'One same her should stay explicit from pre-dialogue awareness into the host-visible reply.',
@@ -1326,7 +1220,9 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(snapshot.sameHerSelfLine).toBe('同一个她要沿着同一条生命线回线，不要掉回通用回调壳。')
+    expect(snapshot.sameHerSelfLine).toBe(resolveAlicizationProjectStateBrief().sameHerSelfLine)
+    expect(snapshot.sameHerSelfLine).not.toContain('同一个她')
+    expect(snapshot.sameHerSelfLine).not.toContain('同一条生命线')
   })
 
   it('keeps the live closure-seam same-her line on the shared surface when canonical fallback is broader but thinner', () => {
@@ -1390,7 +1286,7 @@ describe('project-state-brief', () => {
 
     expect(snapshot.identity).toContain('same local-first digital life')
     expect(snapshot.latestLandedProgress).toContain('live surface')
-    expect(snapshot.primaryOpenLoop).toContain('same-her closure under pressure')
+    expect(snapshot.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure')
     expect(snapshot.continuityPreferredTiming).toBe('next-open-window')
     expect(snapshot.continuityCadence).toBe('measured-return')
     expect(snapshot.preferredBlinkCadence).toBe('quiet')
@@ -1479,8 +1375,9 @@ describe('project-state-brief', () => {
       } as any,
     })
 
-    expect((snapshot as any).companionHeadlineLine).toBe(companionHeadlineLine)
-    expect(snapshot.preDialogueAwarenessLine).toBe('Before speaking, remember this is still the same digital life project before local fluency takes over.')
+    expect((snapshot as any).companionHeadlineLine).toBeNull()
+    expect(snapshot.preDialogueAwarenessLine).not.toBe('Before speaking, remember this is still the same digital life project before local fluency takes over.')
+    expect(snapshot.preDialogueAwarenessLine).not.toMatch(fixedProjectStateTemplatePattern)
   })
 
   it('builds a compact system block that keeps project identity and open loops visible before acting', () => {
@@ -1489,39 +1386,42 @@ describe('project-state-brief', () => {
     const firstMemoryProgressLine = memoryProgressSegment.split('\n').find(line => line.trim().startsWith('- ')) ?? ''
 
     expect(block).toContain('[ALICIZATION_PROJECT_STATE]')
-    expect(block).toContain('Alicization is a local-first digital life project')
+    expect(block).toContain('local_desktop_life_loop')
     expect(block).toContain('current_phase=')
-    expect(block).toContain('current_objective=Build a local companion on the host computer with continuous personhood, stable memory, emotional state, initiative, execution ability, embodied expression, and natural dialogue.')
-    expect(block).toContain('project_preflight=Alicization is a local-first digital life project')
-    expect(block).toContain('project_preflight=')
+    expect(block).toContain('current_objective=phase1_local_companion; continuity=required; memory=required; initiative=restrained; embodiment=unified; dialogue=natural')
+    expect(block).toContain('preflight_summary=local_desktop_life_loop')
+    expect(block).not.toContain('project_preflight=')
     expect(block).toContain('latest_landed_progress=')
-    expect(block).toContain('Runtime-owned proactive initiative now also has a compact same-her closure loop')
-    expect(block).toContain('hover-first restraint')
-    expect(block).toContain('rest-protective proactive feedback next-session carry')
-    expect(block).toContain('final settlement reanchors generic same-her shells')
-    expect(block).toContain('open=Memory still needs stronger end-to-end closure')
-    expect(block).toContain('same_her_self_line=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(block).toContain('same_her_drift_risk=If project-state continuity survives only as generic guidance')
+    expect(block).toContain('continuity_progress=partial')
+    expect(block).toContain('dialogue_entry_governance=covered')
+    expect(block).toContain('transport=pre_dialogue_and_chat_entry')
+    expect(block).toContain('open=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(block).toContain('continuity_anchor=local_desktop_life_loop')
+    expect(block).toContain('owner=project_state_governance')
+    expect(block).toContain('continuity_drift_risk=generic_guidance_without_first_person_continuity')
+    expect(block).not.toContain('same_her_self_line=')
+    expect(block).not.toContain('same_her_drift_risk=')
+    expect(block).not.toContain('proactive_same_her_gap=')
+    expect(block).not.toContain('proactive_same_her_gap=')
     expect(block).toContain('closed_foundations:')
     expect(block).toContain('memory_anthropomorphism_progress:')
-    expect(firstMemoryProgressLine).toContain('Same-session mirror carry, repeated next-turn carry')
-    expect(block).toContain('Same-session mirror carry, repeated next-turn carry')
-    expect(block).toContain('quieter settle-tail frame')
-    expect(block).toContain('cue-bridge recollection')
+    expect(firstMemoryProgressLine).toContain('continuity_progress=partial')
+    expect(block).toContain('evidence=mirrors,next_turns,scene_switches,visible_reply,embodiment_playback')
+    expect(block).toContain('remaining=cross_modal_long_run_pressure')
     expect(block).toContain('open_life_loops:')
-    expect(block).toContain('Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(block).toContain('same digital life')
-    expect(block).toContain('same still-open closure work')
-    expect(block).toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(block).toContain('proactive_same_her_gap=Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified')
-    expect(block).toContain('hover-first restraint survives detours')
-    expect(block).toContain('longer noisy desktop runs')
-    expect(block).toContain('open_focus=memory/initiative/embodiment')
+    expect(block).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(block).not.toContain('unresolved_closure=memory_dialogue_embodiment')
+    expect(block).toContain('primary_open_loop=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(block).toContain('continuity_gap=proactive_continuity_loop=partial')
+    expect(block).toContain('long_run_noisy_desktop_proof=needed')
+    expect(block).toContain('open_focus=memory/embodiment')
     expect(block).toContain('next_closure_target=')
-    expect(block).toContain('next_focus=project-carry/phase-1/measured-return/repair-before-closeness/same-line')
-    expect(block).toContain('cross-modal same-her proof')
-    expect(block).toContain('Project identity carry')
-    expect(block).toContain('Before acting')
+    expect(block).toContain('next_focus=embodiment')
+    expect(block).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(block).toContain('project_identity')
+    expect(block).toContain('action_policy=preserve_project_identity_and_memory_continuity')
+    expect(block).not.toContain('Before acting')
+    expect(block).not.toMatch(fixedProjectStateTemplatePattern)
   })
 
   it('keeps the long-horizon emotion-memory-voice-motion bridge in the compact system-block progress before gateway prompting', () => {
@@ -1530,9 +1430,10 @@ describe('project-state-brief', () => {
       .split('\n')
       .find(line => line.startsWith('latest_landed_progress=')) ?? ''
 
-    expect(latestProgressLine).toContain('long-horizon emotion-memory-voice-motion bridge')
-    expect(latestProgressLine).toContain('remembered emotional carry')
-    expect(latestProgressLine).toContain('not full convergence')
+    expect(latestProgressLine).toContain('continuity_progress=partial')
+    expect(latestProgressLine).toContain('dialogue_entry_governance=covered')
+    expect(latestProgressLine).toContain('transport=pre_dialogue_and_chat_entry')
+    expect(latestProgressLine).not.toMatch(fixedProjectStateTemplatePattern)
     expect(latestProgressLine.length).toBeLessThanOrEqual(420)
   })
 
@@ -1543,27 +1444,65 @@ describe('project-state-brief', () => {
     expect(extraSystemBlocks).toHaveLength(1)
     expect(extraSystemBlocks[0]).toBe(block)
     expect(extraSystemBlocks[0]).toContain('[ALICIZATION_PROJECT_STATE]')
-    expect(extraSystemBlocks[0]).toContain('current_phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
-    expect(extraSystemBlocks[0]).toContain('current_objective=Build a local companion on the host computer with continuous personhood, stable memory, emotional state, initiative, execution ability, embodied expression, and natural dialogue.')
-    expect(extraSystemBlocks[0]).toContain('project_preflight=Alicization is a local-first digital life project')
+    expect(extraSystemBlocks[0]).toContain('current_phase=local_desktop_life_loop')
+    expect(extraSystemBlocks[0]).toContain('current_objective=phase1_local_companion; continuity=required; memory=required; initiative=restrained; embodiment=unified; dialogue=natural')
+    expect(extraSystemBlocks[0]).toContain('preflight_summary=local_desktop_life_loop')
+    expect(extraSystemBlocks[0]).not.toContain('project_preflight=')
     expect(extraSystemBlocks[0]).toContain('latest_landed_progress=')
-    expect(extraSystemBlocks[0]).toContain('Runtime-owned proactive initiative now also has a compact same-her closure loop')
-    expect(extraSystemBlocks[0]).toContain('hover-first restraint')
-    expect(extraSystemBlocks[0]).toContain('rest-protective proactive feedback next-session carry')
-    expect(extraSystemBlocks[0]).toContain('final settlement reanchors generic same-her shells')
-    expect(extraSystemBlocks[0]).toContain('long-horizon emotion-memory-voice-motion bridge')
-    expect(extraSystemBlocks[0]).toContain('remembered emotional carry')
-    expect(extraSystemBlocks[0]).toContain('not full convergence')
-    expect(extraSystemBlocks[0]).toContain('same_her_self_line=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(extraSystemBlocks[0]).toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(extraSystemBlocks[0]).toContain('proactive_same_her_gap=Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified')
-    expect(extraSystemBlocks[0]).toContain('open_focus=memory/initiative/embodiment')
+    expect(extraSystemBlocks[0]).toContain('continuity_progress=partial')
+    expect(extraSystemBlocks[0]).toContain('dialogue_entry_governance=covered')
+    expect(extraSystemBlocks[0]).toContain('transport=pre_dialogue_and_chat_entry')
+    expect(extraSystemBlocks[0]).toContain('continuity_anchor=local_desktop_life_loop')
+    expect(extraSystemBlocks[0]).toContain('owner=project_state_governance')
+    expect(extraSystemBlocks[0]).not.toContain('same_her_self_line=')
+    expect(extraSystemBlocks[0]).not.toContain('proactive_same_her_gap=')
+    expect(extraSystemBlocks[0]).toContain('primary_open_loop=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(extraSystemBlocks[0]).toContain('continuity_gap=proactive_continuity_loop=partial')
+    expect(extraSystemBlocks[0]).toContain('open_focus=memory/embodiment')
     expect(extraSystemBlocks[0]).toContain('preferred_pause_mode=longer')
     expect(extraSystemBlocks[0]).toContain('preferred_lipsync_mode=restrained')
     expect(extraSystemBlocks[0]).toContain('preferred_voice_mode=lower-pressure')
     expect(extraSystemBlocks[0]).toContain('preferred_pacing_mode=slower')
-    expect(extraSystemBlocks[0]).toContain('next_closure_target=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs')
-    expect(extraSystemBlocks[0]).toContain('next_focus=project-carry/phase-1/measured-return/repair-before-closeness/same-line')
+    expect(extraSystemBlocks[0]).toContain('next_closure_target=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(extraSystemBlocks[0]).toContain('next_focus=embodiment')
+    expect(extraSystemBlocks[0]).not.toMatch(fixedProjectStateTemplatePattern)
+  })
+
+  it('builds provider-facing project-state blocks as memory governance status without fixed persona templates', () => {
+    const block = buildAlicizationProviderFacingProjectStateSystemBlock()
+    const dashboard = buildAlicizationProviderFacingProjectStateClosureDashboard()
+    const extraSystemBlocks = buildAlicizationProviderFacingProjectStateExtraSystemBlocks()
+
+    expect(block).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(block).toContain('context_role=memory_governance_status')
+    expect(block).toContain('template_policy=no_fixed_persona_templates')
+    expect(block).toContain('failure_surface=transparent_errors_only')
+    expect(block).toContain('primary_open_loop=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(block).toContain('short_term_owner=WorkingMemory')
+    expect(block).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(block).not.toContain('identity=')
+    expect(block).not.toContain('current_phase=')
+    expect(block).not.toContain('continuity_anchor=')
+    expect(block).not.toContain('same_her_self_line=')
+    expect(block).not.toMatch(fixedProjectStateTemplatePattern)
+
+    expect(dashboard).toContain('[ALICIZATION_PROJECT_GOVERNANCE_DASHBOARD]')
+    expect(dashboard).toContain('context_role=memory_governance_dashboard')
+    expect(dashboard).toContain('template_policy=no_fixed_persona_templates')
+    expect(dashboard).toContain('dashboard_scope=memory_governance_audit')
+    expect(dashboard).toContain('short_term_owner=WorkingMemory')
+    expect(dashboard).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(dashboard).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+    expect(dashboard).not.toContain('identity=')
+    expect(dashboard).not.toContain('phase=')
+    expect(dashboard).not.toContain('awareness_summary=')
+    expect(dashboard).not.toContain('continuity_anchor=')
+    expect(dashboard).not.toContain('project_awareness=')
+    expect(dashboard).not.toContain('same_her_line=')
+    expect(dashboard).not.toContain('Use this dashboard before each turn')
+    expect(dashboard).not.toMatch(fixedProjectStateTemplatePattern)
+
+    expect(extraSystemBlocks).toEqual([block])
   })
 
   it('prefers the proactive same-her closure summary over transport governance in the compact system-block latest progress field when both are present', () => {
@@ -1575,9 +1514,10 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(block).toContain('latest_landed_progress=Runtime-owned proactive initiative now also has a compact same-her closure loop')
-    expect(block).toContain('hover-first restraint')
-    expect(block).toContain('next project-state answer carry')
+    expect(block).toContain('latest_landed_progress=')
+    expect(block).not.toContain('runtime_proactive_initiative=partial')
+    expect(block).not.toContain('restraint=hover_first')
+    expect(block).not.toMatch(fixedProjectStateTemplatePattern)
     expect(block).not.toContain('latest_landed_progress=Same-session mirror carry and rest-protective callback continuation already land; pre-dialogue transport is explicit entrypoint governance mirrored into chat-entry governance')
   })
 
@@ -1685,20 +1625,10 @@ describe('project-state-brief', () => {
     expect(
       coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof?.split(' + '),
     ).toContain('main-chat-stream-runner-project-state-summary.test.ts')
-    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('executive brief live project-state closure triad carry')
-    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('broader same-her headline precedence')
-    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('reply-deliberator project-status closure triad carry')
-    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('live project-awareness opening-beat upgrading')
-    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('visible-reply facade live project-awareness precedence')
-    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('fresher same-her self-line precedence')
-    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('governed rewrite continuity')
-    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('rewrite takeover authority')
-    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('self-evolution downstream visible-reply bridge')
-    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('proactive downstream visible-reply bridge')
-    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('return-side-reopen-through-visible-reply same-her bridge')
-    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('same-her, phase, landed, open, next before body')
-    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('host-corrected same-person continuity authority')
-    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('audible-body rejoin keeps the living audio thread intact')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('provider_facing_reply_project_awareness=registered')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('sinks=answer_compiler,executive_brief,reply_deliberator,visible_reply,timeout_recovery')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('rule=preserve_structured_project_fields_without_slogans')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).not.toMatch(fixedProjectStateTemplatePattern)
     expect(coverage.find(item => item.id === 'visible-reply-executive-brief')?.proof).toContain('executive-answer-brief-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'visible-reply-executive-brief')?.proof).toContain('executive-answer-brief.test.ts')
     expect(coverage.find(item => item.id === 'visible-reply-executive-brief')?.responsibility).toContain('summary-only landed progress carry')
@@ -1771,8 +1701,10 @@ describe('project-state-brief', () => {
     expect(
       coverage.find(item => item.id === 'main-chat-stream-meta-cross-modal-same-her-authority')?.proof?.split(' + '),
     ).toContain('main-chat-stream-meta-drift-risk-segment-carry.test.ts')
-    expect(coverage.find(item => item.id === 'main-chat-stream-meta-cross-modal-same-her-authority')?.responsibility).toContain('host-corrected same-person continuity authority')
-    expect(coverage.find(item => item.id === 'main-chat-stream-meta-cross-modal-same-her-authority')?.responsibility).toContain('segment-level drift-risk-only anti-shell carry')
+    expect(coverage.find(item => item.id === 'main-chat-stream-meta-cross-modal-same-her-authority')?.responsibility).toContain('stream_meta_cross_modal_authority=registered')
+    expect(coverage.find(item => item.id === 'main-chat-stream-meta-cross-modal-same-her-authority')?.responsibility).toContain('channels=voice,face,motion,lipsync')
+    expect(coverage.find(item => item.id === 'main-chat-stream-meta-cross-modal-same-her-authority')?.responsibility).toContain('rule=preserve_segment_authority_without_slogans')
+    expect(coverage.find(item => item.id === 'main-chat-stream-meta-cross-modal-same-her-authority')?.responsibility).not.toMatch(fixedProjectStateTemplatePattern)
     expect(coverage.find(item => item.id === 'runtime-governance-embodiment-bridge-authority')?.proof).toContain('runtime-governance-digital-life-authority.test.ts')
     expect(coverage.find(item => item.id === 'runtime-governance-embodiment-bridge-authority')?.responsibility).toContain('digitalLife')
     expect(coverage.find(item => item.id === 'runtime-governance-embodiment-bridge-authority')?.responsibility).toContain('embodimentScript')
@@ -1870,27 +1802,10 @@ describe('project-state-brief', () => {
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('proactive-pre-dialogue-reply-planning-bridge-audit.test.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('self-evolution-pre-dialogue-reply-planning-bridge-audit.test.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('self-evolution-reply-planning-governance-bridge-audit.test.ts')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('completion-timing / language-drift follow-ups')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('fast-path follow-up classification')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('semantics classification')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('answer planning')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('response charter shaping')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('provider-facing runtime rebuild')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('normalization-time project-state audit carry')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('earlier prelude contract snapshot')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('marker-only project-state shells')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('host-visible normalization boundaries')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('shell replies')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('current verification pass')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('generic progress recap')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('non-system marker spoofing')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('self-evolution answer-governance bridge')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('proactive pre-dialogue reply-planning bridge')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('self-evolution pre-dialogue reply-planning bridge')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('self-evolution reply-planning governance bridge')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('how far the goal has landed')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('when it is expected to close')
-    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('drifted into English')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('project_state_answer_governance=registered')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('sinks=runtime,fast_path,semantics,answer_planning,response_charter,provider_rebuild,visible_reply')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('rule=separate_verified_evidence_from_open_work')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).not.toMatch(fixedProjectStateTemplatePattern)
     expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof).toContain('visible-reply-final-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof).toContain('visible-reply/project-awareness.test.ts')
     expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof).toContain('visible-reply/project-awareness-scoring-regression.test.ts')
@@ -1903,10 +1818,10 @@ describe('project-state-brief', () => {
     expect(
       coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof?.split(' + '),
     ).toContain('visible-reply/timeout-recovered-drift-risk-audit.test.ts')
-    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.responsibility).toContain('final realization')
-    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.responsibility).toContain('host-corrected same-person continuity')
-    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.responsibility).toContain('shared project-awareness baseline')
-    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.responsibility).toContain('timeout-recovered drift-risk anti-shell carry')
+    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.responsibility).toContain('visible_reply_final_project_awareness=registered')
+    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.responsibility).toContain('sinks=semantic_judge,second_pass_rewrite,final_settlement,realization')
+    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.responsibility).toContain('rule=preserve_structured_project_fields_without_slogans')
+    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.responsibility).not.toMatch(fixedProjectStateTemplatePattern)
     expect(coverage.find(item => item.id === 'runtime-current-conscious-frame-awareness')?.proof).toContain('runtime-conscious-frame-reducer.test.ts')
     expect(coverage.find(item => item.id === 'runtime-current-conscious-frame-awareness')?.proof).toContain('runtime-memory-deliberation-reducer.test.ts')
     expect(coverage.find(item => item.id === 'runtime-current-conscious-frame-awareness')?.proof).toContain('memory-active-self-project-awareness-audit.test.ts')
@@ -2380,28 +2295,38 @@ describe('project-state-brief', () => {
       },
     })
 
-    expect(block).toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
-    expect(block).toContain('identity=Alicization is a local-first digital life project')
-    expect(block).toContain('phase=Phase 1: Local Digital Life')
-    expect(block).toContain('project_awareness=Before answering, remember: Alicization is a local-first digital life project')
-    expect(block).toContain('proactive initiative now has a compact same-her closure loop')
-    expect(block).toContain('rest-protective proactive feedback next-session carry')
-    expect(block).toContain('final settlement reanchors generic same-her shells')
-    expect(block).toContain('latest_landed_progress=Same-session mirror carry')
-    expect(block).toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(block).toContain('same_her_line=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(block).toContain('same_her_hold=same-her hold:')
-    expect(block).toContain('same_her_drift_risk=If project-state continuity survives only as generic guidance')
-    expect(block).toContain('proactive_same_her_gap=Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified')
-    expect(block).toContain('hover-first restraint survives detours')
-    expect(block).toContain('Project identity carry, Phase 1 route carry, and Unresolved closure carry')
-    expect(block).toContain('next_closure_target=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs')
-    expect(block).toContain('Project identity carry')
+    expect(block).toContain('[ALICIZATION_PROJECT_GOVERNANCE_DASHBOARD]')
+    expect(block).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+    expect(block).not.toContain('identity=local_desktop_life_loop')
+    expect(block).not.toContain('phase=local_desktop_life_loop')
+    expect(block).not.toContain('awareness_summary=identity=local_desktop_life_loop')
+    expect(block).not.toContain('project_awareness=')
+    expect(block).not.toContain('Before answering')
+    expect(block).not.toContain('proactive initiative now has a compact same-her closure loop')
+    expect(block).not.toContain('rest-protective proactive feedback next-session carry')
+    expect(block).not.toContain('final settlement reanchors generic same-her shells')
+    expect(block).toContain('context_role=memory_governance_dashboard')
+    expect(block).toContain('dashboard_scope=memory_governance_audit')
+    expect(block).not.toContain('continuity_anchor=local_desktop_life_loop')
+    expect(block).toContain('owner=project_state_governance')
+    expect(block).toContain('continuity_hold=continuity_hold=project-state')
+    expect(block).toContain('continuity_drift_risk=generic_guidance_without_first_person_continuity')
+    expect(block).not.toContain('same_her_line=')
+    expect(block).not.toContain('same_her_hold=')
+    expect(block).not.toContain('same_her_drift_risk=')
+    expect(block).not.toContain('proactive_same_her_gap=')
+    expect(block).not.toContain('proactive_same_her_gap=')
+    expect(block).toContain('continuity_gap=proactive_continuity_loop=partial')
+    expect(block).toContain('long_run_noisy_desktop_proof=needed')
+    expect(block).toContain('project_identity_route_carry=needs_disciplined_updates')
+    expect(block).toContain('next_closure_target=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(block).toContain('project_identity')
     expect(block).toContain('verified_coverage_count=')
     expect(block).toContain('architecture_closure=')
     expect(block).toContain('active_closure_pressures=ecology:quiet-accompany, autonomy:prepare-act, charter:restrained')
-    expect(block).toContain('continuity_arc_stage=same-her-runtime-arc')
-    expect(block).toContain('Use this dashboard before each turn')
+    expect(block).toContain('continuity_arc_stage=')
+    expect(block).not.toContain('continuity_arc_stage=same-her-runtime-arc')
+    expect(block).toContain('dashboard_rule=verify_identity_phase_and_open_closure_before_turn')
     expect(resolveAlicizationProjectStateCoverage().some(item => item.id === 'main-chat-runtime-surface-living-self-preflight')).toBe(true)
     expect(resolveAlicizationProjectStateCoverage().some(item => item.id === 'visible-reply-facade-preflight-surface')).toBe(true)
   })
@@ -2410,17 +2335,17 @@ describe('project-state-brief', () => {
     expect(describeAlicizationEmbodimentClosureReminder({
       authoritySummary: 'same-her continuity remains alive, but lane=lipsync-only under the current renderer authority.',
       currentBodyState: null,
-    })).toBe('Right now her visible same-her continuity is still being carried mainly through lipsync, so she should keep treating full cross-modal embodiment closure as unfinished.')
+    })).toBe('continuity=embodiment | lane=lipsync-only | status=pending-rejoin | pending_rejoin=body+face+motion+voice | closure=full-cross-modal-open | visibility=internal-structured')
 
     expect(describeAlicizationEmbodimentClosureReminder({
       authoritySummary: 'same-her continuity remains alive, but lane=lipsync+voice-only under the current renderer authority.',
       currentBodyState: null,
-    })).toBe('Right now her visible same-her continuity is still being carried mainly through lipsync and voice, so she should keep treating full cross-modal embodiment closure as unfinished.')
+    })).toBe('continuity=embodiment | lane=lipsync+voice-only | status=pending-rejoin | pending_rejoin=body+face+motion | closure=full-cross-modal-open | visibility=internal-structured')
 
     expect(describeAlicizationEmbodimentClosureReminder({
       authoritySummary: null,
       currentBodyState: 'lane=face+motion-only | visible continuity still present but no longer fully cross-modal',
-    })).toBe('Right now her visible same-her continuity is still being carried mainly through face and motion, so she should keep treating full cross-modal embodiment closure as unfinished.')
+    })).toBe('continuity=embodiment | lane=face+motion-only | status=pending-rejoin | pending_rejoin=body+lipsync+voice | closure=full-cross-modal-open | visibility=internal-structured')
 
     expect(describeAlicizationEmbodimentClosureReminder({
       authoritySummary: 'same-her continuity remains broadly shared',

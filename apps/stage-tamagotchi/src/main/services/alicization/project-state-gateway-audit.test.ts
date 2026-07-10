@@ -35,13 +35,13 @@ describe('project-state-gateway-audit', () => {
       `,
       executionDeliverySource: `
         async function x(options) {
-          await options.generateMainGatewayText({ source: 'execution-callback', extraSystemBlocks: [buildAlicizationProjectStateSystemBlock()] })
+          await options.generateMainGatewayText({ source: 'execution-callback', extraSystemBlocks: [buildAlicizationProviderFacingProjectStateSystemBlock()] })
         }
       `,
       oneShotSource: `
         async function x() {
-          await generateMainGatewayText({ source: 'screen-semantic', extraSystemBlocks: [buildAlicizationProjectStateSystemBlock()] })
-          await generateMainGatewayText({ source: 'scene-appraisal', extraSystemBlocks: [buildAlicizationProjectStateSystemBlock()] })
+          await generateMainGatewayText({ source: 'screen-semantic', extraSystemBlocks: [buildAlicizationProviderFacingProjectStateSystemBlock()] })
+          await generateMainGatewayText({ source: 'scene-appraisal', extraSystemBlocks: [buildAlicizationProviderFacingProjectStateSystemBlock()] })
         }
       `,
     })
@@ -99,7 +99,7 @@ describe('project-state-gateway-audit', () => {
       family: 'runtime-execution-delivery.ts:execution-callback',
       source: 'execution-callback',
       extraSystemBlocks: [],
-      extraSystemBlocksExpression: 'buildAlicizationProjectStateExtraSystemBlocks()',
+      extraSystemBlocksExpression: 'buildAlicizationProviderFacingProjectStateExtraSystemBlocks()',
       system: null,
       callText: 'options.generateMainGatewayText({ source: "execution-callback" })',
     } as const
@@ -110,7 +110,7 @@ describe('project-state-gateway-audit', () => {
       family: 'runtime-execution-delivery.ts:execution-callback',
       source: 'execution-callback',
       extraSystemBlocks: [],
-      extraSystemBlocksExpression: '[...buildAlicizationProjectStateExtraSystemBlocks(), `pre_dialogue_awareness=aware\\nsame_her_line=line\\nprimary_open_loop=open\\nnext_closure_target=next`, buildExecutionCallbackProjectSelfBriefSystemBlock()]',
+      extraSystemBlocksExpression: '[...buildAlicizationProviderFacingProjectStateExtraSystemBlocks(), `pre_dialogue_awareness=aware\\ncontinuity_anchor=line\\nprimary_open_loop=open\\nnext_closure_target=next`, buildExecutionCallbackProjectSelfBriefSystemBlock()]',
       system: null,
       callText: 'options.generateMainGatewayText({ source: "execution-callback" })',
     } as const
@@ -125,8 +125,8 @@ describe('project-state-gateway-audit', () => {
       system: 'buildScreenSemanticClassifierSystemPrompt()',
       callText: 'generateMainGatewayText({ source: "screen-semantic" })',
       sourceText: `
-        const projectStateSystemBlock = buildAlicizationProjectStateSystemBlock()
-        const projectStateClosureDashboard = buildAlicizationProjectStateClosureDashboard({
+        const projectStateSystemBlock = buildAlicizationProviderFacingProjectStateSystemBlock()
+        const projectStateClosureDashboard = buildAlicizationProviderFacingProjectStateClosureDashboard({
           architecture: oneShotDigitalLifeArchitecture,
         })
         const systemMessages = [
@@ -142,7 +142,7 @@ describe('project-state-gateway-audit', () => {
         projectSelfBrief.includes('project_identity=')
         projectSelfBrief.includes('current_phase=')
         projectSelfBrief.includes('pre_dialogue_awareness=')
-        projectSelfBrief.includes('same_her_line=')
+        projectSelfBrief.includes('continuity_anchor=')
         projectSelfBrief.includes('primary_open_loop=')
         projectSelfBrief.includes('next_closure_target=')
         if (!carriesAlicizationCanonicalProjectState(generationMessages)) {
@@ -167,8 +167,8 @@ describe('project-state-gateway-audit', () => {
       system: 'buildScreenSemanticClassifierSystemPrompt()',
       callText: 'generateMainGatewayText({ source: "screen-semantic" })',
       sourceText: `
-        const projectStateSystemBlock = buildAlicizationProjectStateSystemBlock()
-        const projectStateClosureDashboard = buildAlicizationProjectStateClosureDashboard({
+        const projectStateSystemBlock = buildAlicizationProviderFacingProjectStateSystemBlock()
+        const projectStateClosureDashboard = buildAlicizationProviderFacingProjectStateClosureDashboard({
           architecture: oneShotDigitalLifeArchitecture,
         })
         const systemMessages = [
@@ -215,7 +215,7 @@ describe('project-state-gateway-audit', () => {
     expect(auditedSources.every(source => !isAlicizationProjectStateUnauditedMainGatewaySource(source as any))).toBe(true)
   })
 
-  it('keeps shared provider-facing entry layers anchored to pre-dialogue project-state self-awareness', () => {
+  it('keeps shared provider-facing entry layers anchored to memory owner boundaries instead of project-state templates', () => {
     const runtimeSurfaceSource = readFileSync(
       new URL('./main-chat-runtime-surface.ts', import.meta.url),
       'utf8',
@@ -226,16 +226,25 @@ describe('project-state-gateway-audit', () => {
     )
 
     expect(runtimeSurfaceSource).toContain('export const alicizationLivingSelfMarker = \'[ALICIZATION_LIVING_SELF]\'')
-    expect(runtimeSurfaceSource).toContain('Pre-dialogue closure briefing:')
-    expect(runtimeSurfaceSource).toContain('How the living project is still shaping her before she speaks:')
-    expect(runtimeSurfaceSource).toContain('What this turn should quietly keep moving toward:')
-    expect(runtimeSurfaceSource).toContain('Project same-her self line:')
+    expect(runtimeSurfaceSource).toContain('short_term_owner=WorkingMemory')
+    expect(runtimeSurfaceSource).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(runtimeSurfaceSource).toContain('policy=express_lived_turn_state_without_project_narrator_shell')
+    expect(runtimeSurfaceSource).not.toContain('pre_dialogue_closure=')
+    expect(runtimeSurfaceSource).not.toContain('`project_context=')
+    expect(runtimeSurfaceSource).not.toContain('project_continuity_anchor=')
+    expect(runtimeSurfaceSource).not.toContain('project_drift_risk=')
 
-    expect(executiveBriefSource).toContain('Project preflight self-awareness:')
-    expect(executiveBriefSource).toContain('Latest landed continuity progress:')
-    expect(executiveBriefSource).toContain('Still-open life loop pressure:')
-    expect(executiveBriefSource).toContain('Next closure target:')
-    expect(executiveBriefSource).toContain('Project same-her self line:')
+    expect(executiveBriefSource).toContain('project_state_visibility=governance_only')
+    expect(executiveBriefSource).toContain('short_term_owner=WorkingMemory')
+    expect(executiveBriefSource).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(executiveBriefSource).toContain('preflight_summary=')
+    expect(executiveBriefSource).toContain('awareness_summary=')
+    expect(executiveBriefSource).toContain('latest_landed_progress=')
+    expect(executiveBriefSource).toContain('primary_open_loop=')
+    expect(executiveBriefSource).toContain('next_closure_target=')
+    expect(executiveBriefSource).toContain('continuity_anchor=')
+    expect(executiveBriefSource).not.toContain('project_preflight=')
+    expect(executiveBriefSource).not.toContain('project_context=')
   })
 
   it('anchors audited runtime gateway families to real prompt-injection coverage instead of only family-shape derivation', () => {
@@ -245,7 +254,7 @@ describe('project-state-gateway-audit', () => {
     )
 
     expect(runtimeSource).toContain('expect(reminderSystemTexts.every(text => text.includes(\'[ALICIZATION_PROJECT_STATE]\'))).toBe(true)')
-    expect(runtimeSource).toContain('expect(proactiveSystemText).toContain(\'[ALICIZATION_PROJECT_STATE]\')')
+    expect(runtimeSource).toContain('expect(proactivePromptText).toContain(\'[ALICIZATION_PROJECT_STATE]\')')
     expect(runtimeSource).toContain('expect(dreamSystemTexts[0]).toContain(\'[ALICIZATION_PROJECT_STATE]\')')
     expect(runtimeSource).toContain('expect(dreamSystemTexts[0]).toContain(\'[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]\')')
     expect(runtimeSource).toContain('expect(dreamSystemTexts[0]).toContain(\'phase=Phase 1: Local Digital Life\')')
