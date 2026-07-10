@@ -2123,15 +2123,15 @@ function deriveFallbackProjectStateContinuitySnapshotFromSessionMessages(
       continue
 
     const normalizedIdentity = sanitizeSessionFallbackText(normalizedProjectState.identity, 220)
-      ?? 'local_desktop_life_loop'
+      ?? null
     const normalizedCurrentPhase = sanitizeSessionFallbackText(normalizedProjectState.currentPhase, 180)
-      ?? 'local_desktop_life_loop'
+      ?? null
     const normalizedLatestLandedProgress = sanitizeSessionFallbackText(normalizedProjectState.latestLandedProgress, 320)
       ?? null
     const normalizedPrimaryOpenLoop = sanitizeSessionFallbackText(normalizedProjectState.primaryOpenLoop, 320)
       ?? null
     const normalizedNextClosureTarget = sanitizeSessionFallbackText(normalizedProjectState.nextClosureTarget, 320)
-      ?? 'continuity_review_required'
+      ?? null
     const normalizedSameHerSelfLine = sanitizeSessionFallbackText(normalizedProjectState.sameHerSelfLine, 320)
       ?? null
     const normalizedSameHerDriftRisk = sanitizeSessionFallbackText(normalizedProjectState.sameHerDriftRisk, 320)

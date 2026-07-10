@@ -408,6 +408,13 @@ describe('chat orchestrator', () => {
     expect(source).not.toContain('const resolvePreferredSessionFallbackAwarenessLine =')
   })
 
+  it('does not let session fallback synthesize local loop debug tokens', () => {
+    const source = readFileSync(new URL('./chat.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toContain('?? \'local_desktop_life_loop\'')
+    expect(source).not.toContain('?? \'continuity_review_required\'')
+  })
+
   beforeEach(() => {
     const pinia = createPinia()
     setActivePinia(pinia)

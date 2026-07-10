@@ -738,12 +738,12 @@ export interface AlicizationProjectStateObservation {
 }
 
 export interface AlicizationProjectStateContinuitySnapshot {
-  identity: string
-  currentPhase: string
+  identity: string | null
+  currentPhase: string | null
   latestLandedProgress: string | null
   latestProgress?: string | null
   primaryOpenLoop: string | null
-  nextClosureTarget: string
+  nextClosureTarget: string | null
   continuitySummary?: string | null
   continuityRestraint?: string | null
   continuityArcStage?: string | null

@@ -16,13 +16,13 @@ interface AlicizationPersonalityState {
 }
 
 interface AlicizationProjectStateContinuitySnapshot {
-  identity: string
-  currentPhase: string
+  identity: string | null
+  currentPhase: string | null
   latestLandedProgress: string | null
   latestProgress?: string | null
   landedProgressSummary?: string | null
   primaryOpenLoop: string | null
-  nextClosureTarget: string
+  nextClosureTarget: string | null
   continuitySummary?: string | null
   nonHumanAuthoredStatus: string | null
   sameHerSelfLine?: string | null

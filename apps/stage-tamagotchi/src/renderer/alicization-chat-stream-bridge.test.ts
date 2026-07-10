@@ -5,9 +5,8 @@ import {
   bridgeAlicizationChatStartResultToStreamEvent,
 } from './alicization-chat-stream-bridge'
 
-const EXCLUDED_CONTINUITY_RESIDUE = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
 const BRIDGE_FIXED_TEMPLATE_OUTPUT_PATTERN
-  = /Latest landed progress still holds|Next closure target is still|Before (?:answering|speaking|acting)|Same Phase 1 digital life|same living line|local-first digital life project|one continuous "?her"?|same-her\b|数字生命主线|同一个她/iu
+  = /Latest landed progress still holds|Next closure target is still|Before (?:answering|speaking|acting)|Same Phase 1 digital life|same living line|local-first digital life project|one continuous "?her"?|same-her\b|local_desktop_life_loop|content=excluded|visibility=internal[-_]structured|数字生命主线|同一个她/iu
 
 function expectNoBridgeFixedTemplateResidue(value: unknown) {
   expect(JSON.stringify(value ?? '')).not.toMatch(BRIDGE_FIXED_TEMPLATE_OUTPUT_PATTERN)
@@ -96,28 +95,29 @@ describe('alicization chat stream bridge', () => {
     expect(bridged).toEqual(expect.objectContaining({
       type: 'meta',
       projectState: expect.objectContaining({
-        identity: 'local_desktop_life_loop',
-        currentPhase: 'local_desktop_life_loop',
-        primaryOpenLoop: EXCLUDED_CONTINUITY_RESIDUE,
-        sameHerSelfLine: EXCLUDED_CONTINUITY_RESIDUE,
+        identity: null,
+        currentPhase: null,
+        primaryOpenLoop: expect.stringContaining('continuity_closure'),
+        sameHerSelfLine: null,
       }),
       preDialogueAwareness: expect.objectContaining({
         status: 'grounded',
-        awarenessLine: expect.stringContaining('visibility=internal-structured'),
-        companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
-        companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
+        awarenessLine: expect.stringContaining('open='),
+        companionBriefingLine: null,
+        companionNextClosureLine: null,
       }),
       embodimentScript: expect.objectContaining({
         turnId: 'turn-start-project-awareness-forward-1',
       }),
       runtimeDigest: expect.objectContaining({
-        summary: EXCLUDED_CONTINUITY_RESIDUE,
+        summary: null,
         projectState: expect.objectContaining({
-          preDialogueAwarenessLine: EXCLUDED_CONTINUITY_RESIDUE,
-          sameHerSelfLine: EXCLUDED_CONTINUITY_RESIDUE,
+          preDialogueAwarenessLine: null,
+          sameHerSelfLine: null,
         }),
       }),
     }))
+    expectNoBridgeFixedTemplateResidue(bridged)
   })
 
   it('preserves runtimeDigest when forwarding main-process meta into the renderer stream bridge', () => {
@@ -156,9 +156,10 @@ describe('alicization chat stream bridge', () => {
           continuityArcStage: 'same-thread-continuation',
           handoffTarget: 'active-memory',
         }),
-        summary: EXCLUDED_CONTINUITY_RESIDUE,
+        summary: null,
       }),
     }))
+    expectNoBridgeFixedTemplateResidue(bridged.runtimeDigest?.summary)
   })
 
   it('forwards explicit project-state continuity so renderer can keep the same-her project brief visible', () => {
@@ -195,12 +196,17 @@ describe('alicization chat stream bridge', () => {
     expect(bridged).toEqual(expect.objectContaining({
       type: 'meta',
       projectState: expect.objectContaining({
-        identity: 'local_desktop_life_loop',
-        currentPhase: 'local_desktop_life_loop',
-        sameHerSelfLine: EXCLUDED_CONTINUITY_RESIDUE,
-        sameHerHoldDetail: EXCLUDED_CONTINUITY_RESIDUE,
+        identity: null,
+        currentPhase: null,
+        primaryOpenLoop: expect.stringContaining('Memory still needs stronger end-to-end closure'),
+        sameHerHoldDetail: null,
+      }),
+      preDialogueAwareness: expect.objectContaining({
+        status: 'grounded',
+        awarenessLine: expect.stringContaining('open='),
       }),
     }))
+    expectNoBridgeFixedTemplateResidue(bridged)
   })
 
   it('forwards explicit pre-dialogue awareness so the renderer stream keeps project identity and open closure visible before reply delivery', () => {
@@ -227,16 +233,13 @@ describe('alicization chat stream bridge', () => {
       type: 'meta',
       preDialogueAwareness: expect.objectContaining({
         status: 'grounded',
-        summaryLine: EXCLUDED_CONTINUITY_RESIDUE,
-        companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
-        companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
-        awarenessLine: expect.stringContaining('visibility=internal-structured'),
-        reasonPreview: expect.arrayContaining([
-          expect.stringContaining('kind=latest_landed_progress; value=Renderer-side preparation'),
-        ]),
+        summaryLine: null,
+        companionBriefingLine: null,
+        companionNextClosureLine: null,
+        awarenessLine: null,
+        reasonPreview: [],
       }),
     }))
-    expect(bridged.preDialogueAwareness?.reasonPreview).not.toContain(EXCLUDED_CONTINUITY_RESIDUE)
     expectNoBridgeFixedTemplateResidue(bridged)
   })
 
@@ -261,12 +264,8 @@ describe('alicization chat stream bridge', () => {
       } as any,
     } as any)
 
-    expect(bridged.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
-      companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
-      companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
-      awarenessLine: expect.stringContaining('visibility=internal-structured'),
-    }))
+    expect(bridged.preDialogueAwareness).toBeNull()
+    expectNoBridgeFixedTemplateResidue(bridged)
   })
 
   it('preserves body-face-motion same-her awareness and remaining-open lipsync voice carry when bridging main-process meta into renderer stream events', () => {
@@ -291,14 +290,14 @@ describe('alicization chat stream bridge', () => {
     } as any)
 
     expect(bridged.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
-      companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
-      awarenessLine: expect.stringContaining('visibility=internal-structured'),
+      companionHeadlineLine: null,
+      companionBriefingLine: null,
+      awarenessLine: null,
       reasonPreview: expect.arrayContaining([
-        'same-segment face+motion+body recovery@segment-bridge-body-face-motion-1',
         'remaining-open=lipsync+voice',
       ]),
     }))
+    expectNoBridgeFixedTemplateResidue(bridged)
   })
 
   it('preserves body-plus-voice same-her awareness and remaining-open face motion lipsync carry when bridging main-process meta into renderer stream events', () => {
@@ -323,15 +322,16 @@ describe('alicization chat stream bridge', () => {
     } as any)
 
     expect(bridged.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
-      companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
-      companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
-      awarenessLine: expect.stringContaining('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs'),
+      companionHeadlineLine: null,
+      companionBriefingLine: null,
+      companionNextClosureLine: expect.stringContaining('project_state_continuity'),
+      awarenessLine: expect.stringContaining('next='),
       reasonPreview: expect.arrayContaining([
         'embodiment:body+voice-only',
         'remaining-open=face+motion+lipsync',
       ]),
     }))
+    expectNoBridgeFixedTemplateResidue(bridged)
   })
 
   it('preserves body-plus-lipsync same-her awareness and remaining-open face motion voice carry when bridging main-process meta into renderer stream events', () => {
@@ -356,14 +356,15 @@ describe('alicization chat stream bridge', () => {
     } as any)
 
     expect(bridged.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
-      companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
-      awarenessLine: expect.stringContaining('visibility=internal-structured'),
+      companionHeadlineLine: null,
+      companionBriefingLine: null,
+      awarenessLine: expect.stringContaining('next='),
       reasonPreview: expect.arrayContaining([
         'embodiment:body+lipsync-only',
         'remaining-open=face+motion+voice',
       ]),
     }))
+    expectNoBridgeFixedTemplateResidue(bridged)
   })
 
   it('upgrades a thin explicit awareness shell into richer anthropomorphic same-her closure carry before renderer delivery', () => {
@@ -388,12 +389,8 @@ describe('alicization chat stream bridge', () => {
       } as any,
     } as any)
 
-    expect(bridged.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
-      companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
-      awarenessLine: expect.stringContaining('visibility=internal-structured'),
-      emotionalClosureCue: EXCLUDED_CONTINUITY_RESIDUE,
-    }))
+    expect(bridged.preDialogueAwareness).toBeNull()
+    expectNoBridgeFixedTemplateResidue(bridged)
   })
 
   it('backfills the canonical same-her self line when bridge input only carries phase-one closure context', () => {
@@ -412,8 +409,9 @@ describe('alicization chat stream bridge', () => {
     } as any)
 
     expect(bridged.projectState).toEqual(expect.objectContaining({
-      sameHerSelfLine: EXCLUDED_CONTINUITY_RESIDUE,
+      sameHerSelfLine: null,
     }))
+    expectNoBridgeFixedTemplateResidue(bridged.projectState)
   })
 
   it('backfills pre-dialogue awareness from project-state carry when the bridge only receives project continuity fields', () => {
@@ -435,14 +433,12 @@ describe('alicization chat stream bridge', () => {
     expect(bridged.preDialogueAwareness).toEqual(expect.objectContaining({
       status: 'grounded',
       summaryLine: 'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
-      companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
-      awarenessLine: expect.stringContaining('visibility=internal-structured'),
+      companionNextClosureLine: null,
+      awarenessLine: expect.stringContaining('landed='),
       reasonPreview: expect.arrayContaining([
         expect.stringContaining('kind=latest_landed_progress; value=Project-state landed progress'),
       ]),
     }))
-    expect(bridged.preDialogueAwareness?.awarenessLine).toContain('local_desktop_life_loop')
-    expect(bridged.preDialogueAwareness?.awarenessLine).not.toContain('Before answering')
     expectNoBridgeFixedTemplateResidue(bridged)
   })
 
@@ -465,10 +461,8 @@ describe('alicization chat stream bridge', () => {
       } as any,
     } as any)
 
-    expect(bridged.preDialogueAwareness).toEqual(expect.objectContaining({
-      status: 'grounded',
-      emotionalClosureCue: EXCLUDED_CONTINUITY_RESIDUE,
-    }))
+    expect(bridged.preDialogueAwareness).toBeNull()
+    expectNoBridgeFixedTemplateResidue(bridged)
   })
 
   it('keeps fixed-template exclusion markers out of bridged pre-dialogue closure payloads', () => {
@@ -501,7 +495,7 @@ describe('alicization chat stream bridge', () => {
       briefingLines: [],
       reasons: [],
     }))
-    expect(JSON.stringify(bridged.preDialogueClosure)).not.toContain(EXCLUDED_CONTINUITY_RESIDUE)
+    expectNoBridgeFixedTemplateResidue(bridged.preDialogueClosure)
   })
 
   it('preserves embodimentScript so renderer voice, face, and motion can stay on the same companionship line', () => {
@@ -1041,15 +1035,15 @@ describe('alicization chat stream bridge', () => {
     } as any)
 
     expect(bridged.preDialogueAwareness).toEqual(expect.objectContaining({
-      companionHeadlineLine: EXCLUDED_CONTINUITY_RESIDUE,
-      companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
-      companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
-      awarenessLine: expect.stringContaining('visibility=internal-structured'),
+      companionHeadlineLine: null,
+      companionBriefingLine: null,
+      companionNextClosureLine: null,
+      awarenessLine: null,
       reasonPreview: expect.arrayContaining([
-        'same-segment face+motion+body recovery@segment-bridge-body-face-motion-voice-1',
         'remaining-open=lipsync+voice',
       ]),
     }))
+    expectNoBridgeFixedTemplateResidue(bridged.preDialogueAwareness)
     expect(bridged.embodimentScript?.speechPlan.segments[0]?.rendererHints).toEqual({
       residentMode: 'repair-before-closeness',
       preferredExpressionAliases: ['RecoverSoft'],
