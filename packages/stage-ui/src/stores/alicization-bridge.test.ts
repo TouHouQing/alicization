@@ -63,6 +63,17 @@ describe('alicization performance manifest clamp', () => {
     expect(source).toContain('memoryWorkbenchTestEmbeddingConnection')
   })
 
+  it('summarizes visible-reply critic and closure before the desktop renderer forwards finish events', () => {
+    const source = readFileSync(new URL('../../../../apps/stage-tamagotchi/src/renderer/App.vue', import.meta.url), 'utf8')
+
+    expect(source).toContain('summarizeAlicizationVisibleReplyCriticForRenderer')
+    expect(source).toContain('summarizeAlicizationVisibleReplyClosureForRenderer')
+    expect(source).toContain('pending.visibleReplyCritic = summarizeAlicizationVisibleReplyCriticForRenderer(payload.visibleReplyCritic)')
+    expect(source).toContain('pending.visibleReplyClosure = summarizeAlicizationVisibleReplyClosureForRenderer(payload.visibleReplyClosure)')
+    expect(source).not.toContain('pending.visibleReplyCritic = payload.visibleReplyCritic ?? null')
+    expect(source).not.toContain('pending.visibleReplyClosure = payload.visibleReplyClosure ?? null')
+  })
+
   it('drops unsupported cues and downgrades unsupported base emotions', () => {
     const result = clampAlicizationPerformancePayloadToManifest({
       baseEmotion: 'angry',

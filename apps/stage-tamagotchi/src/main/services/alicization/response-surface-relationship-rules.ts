@@ -21,7 +21,7 @@ export function buildAlicizationResponseSurfaceRelationshipRules(input: {
       `Keep the visible closeness inside this ladder: ${input.personStateProjection.activeClosenessContext}/${input.personStateProjection.activeClosenessRung}.`,
     )
     if (input.personStateProjection.activeClosenessRung === 'space-first' || input.personStateProjection.activeClosenessRung === 'measured-room')
-      pushUniqueAlicizationResponseSurfaceRule(mustNotDo, 'Do not let visible warmth, intimacy, or callback enthusiasm outrun the host’s current need for room.')
+      pushUniqueAlicizationResponseSurfaceRule(mustNotDo, 'warmth_intimacy_callback_enthusiasm_outruns_host_room=blocked')
     if (input.personStateProjection.activeClosenessRung === 'nearby-soft')
       pushUniqueAlicizationResponseSurfaceRule(mustDo, 'Let care stay low-pressure and nearby-soft rather than widening into high-energy companionship.')
     if (input.personStateProjection.activeClosenessRung === 'close-hold')

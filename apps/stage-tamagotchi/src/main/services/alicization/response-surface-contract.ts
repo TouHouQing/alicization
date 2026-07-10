@@ -224,7 +224,7 @@ export function buildRecollectionSpeechVisibleSurfaceRules(
   if (controls.continuityRole === 'procedure-carry') {
     pushUnique(mustDo, 'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.')
     pushUnique(mustNotDo, 'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.')
-    pushUnique(mustNotDo, 'Do not let remembered procedure impersonate fresh execution completion.')
+    pushUnique(mustNotDo, 'remembered_procedure_as_fresh_execution_completion=blocked')
   }
 
   return {
@@ -1446,7 +1446,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
   })()
   if (callbackDoctrineCue === 'lower-pressure') {
     pushUnique(mustDo, 'Let the visible reply return on the same thread first, then leave the host room before widening into added warmth or follow-up.')
-    pushUnique(mustNotDo, 'Do not let a finished execution payoff snap straight into renewed closeness, extra affection, or pressure for immediate continuation.')
+    pushUnique(mustNotDo, 'finished_execution_payoff_to_renewed_closeness_or_continuation_pressure=blocked')
   }
   else if (callbackDoctrineCue === 'trust-warming') {
     pushUnique(mustDo, 'Let the visible reply carry the warmed trust quietly, without widening closeness faster than the moment can hold.')
@@ -1505,7 +1505,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
   }
   if (projectContinuity?.sameHerDriftRisk) {
     pushUnique(mustDo, `Keep this continuity drift-risk boundary explicit in the visible reply posture: ${projectContinuity.sameHerDriftRisk}`)
-    pushUnique(mustNotDo, 'Do not let the visible reply flatten into a generic task shell, detached project narration, generic assistant guidance, or project-summary voice just because the project update is explicit this turn.')
+    pushUnique(mustNotDo, 'visible_reply_flattening=blocked; generic_task_shell=blocked; detached_project_narration=blocked; generic_assistant_guidance=blocked; project_summary_voice=blocked')
   }
   if (projectContinuity?.proactiveSameHerGap) {
     pushUnique(mustDo, 'proactive_continuity_gap=open; preserve_as_status_field=true; do_not_quote_gap_text=true')
@@ -1572,12 +1572,12 @@ export function buildAlicizationResponseSurfaceContract(input: {
     if (selfRevisionPatch.responsePosture.hypothesisLabelBias >= 0.1)
       pushUnique(mustDo, 'Expose hypothesis boundaries more explicitly because the active self-revision patch raised hypothesis-label discipline.')
     if (selfRevisionPatch.responsePosture.specificityClampBias >= 0.1)
-      pushUnique(mustNotDo, 'Do not let freshly revised confidence leak into unsupported specificity on the visible surface.')
+      pushUnique(mustNotDo, 'freshly_revised_confidence_unsupported_specificity=blocked')
     if (selfRevisionPatch.responsePosture.templateShellSuppressionBias >= 0.1)
       pushUnique(mustNotDo, 'Do not satisfy the host with a template shell; close the loop with concrete answer or care content now.')
     if (selfRevisionPatch.projectStateContinuity?.sameHerSelfLine) {
       pushUnique(mustDo, `Keep the visible reply on the continuity route the active self-revision patch just re-anchored: ${selfRevisionPatch.projectStateContinuity.sameHerSelfLine}.`)
-      pushUnique(mustNotDo, 'Do not let a self-revised visible reply fall back into generic assistant guidance, detached project narration, or external summary cadence.')
+      pushUnique(mustNotDo, 'self_revised_visible_reply_generic_assistant_guidance=blocked; detached_project_narration=blocked; external_summary_cadence=blocked')
     }
     if (selfRevisionPatch.projectStateContinuity?.sameHerHoldDetail) {
       pushUnique(mustDo, `Keep the active self-revision hold detail alive in the visible reply posture: ${selfRevisionPatch.projectStateContinuity.sameHerHoldDetail}.`)
@@ -1585,7 +1585,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
     }
     if (selfRevisionPatch.projectStateContinuity?.continuityGuard) {
       pushUnique(mustDo, `Keep the active self-revision anti-shell guard alive in the visible reply posture: ${selfRevisionPatch.projectStateContinuity.continuityGuard}.`)
-      pushUnique(mustNotDo, 'Do not let visible caution after self-revision flatten into a project-summary shell instead of the current digital-life context answering.')
+      pushUnique(mustNotDo, 'self_revision_caution_project_summary_shell=blocked; current_context_answering=required')
     }
   }
   for (const item of dialogueActKernel?.mustSay ?? [])

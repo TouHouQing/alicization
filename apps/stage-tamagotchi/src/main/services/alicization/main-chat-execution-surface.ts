@@ -885,7 +885,7 @@ export function buildExecutionCapabilitySystemBlocks(
     ? [
         '[ALICIZATION_EXECUTION_BRIEFING]',
         'briefing_scope=execution_capability | visibility=internal-structured | owner=execution-runtime-context',
-        'runtime_context=alicization_phase1',
+        'runtime_context=local_runtime',
         options.runtimeContext.projectBriefing.latestLandedProgress
           ? `latest_landed_progress=${cleanProjectBriefingFact(options.runtimeContext.projectBriefing.latestLandedProgress)}`
           : '',

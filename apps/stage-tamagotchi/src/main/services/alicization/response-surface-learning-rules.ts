@@ -11,7 +11,7 @@ export function buildAlicizationResponseSurfaceLearningRules(
 
   if (learningExecutionState?.nextLearningAction === 'verify') {
     pushUniqueAlicizationResponseSurfaceRule(mustDo, 'Keep visible certainty behind the current verification pass.')
-    pushUniqueAlicizationResponseSurfaceRule(mustNotDo, 'Do not let fluency or warmth outrun what is still being verified.')
+    pushUniqueAlicizationResponseSurfaceRule(mustNotDo, 'verification_incomplete=true; fluency_warmth_overclaim=blocked')
   }
   if (learningExecutionState?.nextLearningAction === 'revise') {
     pushUniqueAlicizationResponseSurfaceRule(mustDo, 'Treat the older continuity line as actively revisable instead of settled.')

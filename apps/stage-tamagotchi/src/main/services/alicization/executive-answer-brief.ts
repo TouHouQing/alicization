@@ -144,9 +144,9 @@ function structuredExecutiveControlFromNaturalLanguage(raw: unknown, section: 'm
   if (/active continuity drift risk|continuity drift risk/u.test(normalized))
     push('continuity_drift_risk=hard_boundary')
   if (/answer what alicization is|project identity|project-state answer|project status/u.test(normalized))
-    push('project_identity=answer_first')
+    push('project_state_answer=answer_first')
   if (/landed phase 1 progress|latest landed|landed progress/u.test(normalized))
-    push('phase1_latest_landed_progress=explicit')
+    push('latest_landed_progress=explicit')
   if (/still-open closure|open closure|still remains open/u.test(normalized))
     push('still_open_closure_work=explicit')
   if (/next closure target|next closure/u.test(normalized))
@@ -626,8 +626,8 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
     ),
   })
   const executiveProjectLivingOrientationControls = [
-    'project_identity=answer_first',
-    'phase1_latest_landed_progress=explicit',
+    'project_state_answer=answer_first',
+    'latest_landed_progress=explicit',
     'still_open_closure_work=explicit',
     'next_closure_target=explicit',
     'source_section=must_do; continuity_drift_risk=hard_boundary; visible_wording=false',
@@ -733,7 +733,7 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
   }
   if (weakLiveSurface && dialogueFocus?.screenReferenceMode !== 'required') {
     pushUnique(mustDo, 'Treat a generic desktop shell as background noise unless the host explicitly asks about it.')
-    pushUnique(mustNotDo, 'Do not let a weak generic surface outrank the user’s real question.')
+    pushUnique(mustNotDo, 'weak_generic_surface_outranks_user_question=blocked')
   }
   if (dialogueObligation?.mustAnswerDirectly) {
     pushUnique(mustDo, 'Treat the opening sentence as the owed action for this turn.')
@@ -745,7 +745,7 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
     pushUnique(mustNotDo, 'Do not introduce concrete technical entities that are absent from the host turn and absent from the current evidence.')
   }
   if (dialogueObligation?.personaKernelMode !== 'full') {
-    pushUnique(mustNotDo, 'Do not let pet names, coy prefaces, or persona routines delay the first useful sentence.')
+    pushUnique(mustNotDo, 'pet_names_coy_prefaces_persona_routines_delay_first_useful_sentence=blocked')
   }
   if (dialogueSemantics?.truthExpectation === 'strict') {
     pushUnique(mustDo, 'Keep truth, repair, and task focus above mood display.')
@@ -777,7 +777,7 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
   })
   if (sameHerDriftRisk && isProjectStateDirectAnswerTurn) {
     pushUnique(mustDo, 'Answer from ProjectStateGovernance facts without replacing WorkingMemory or LongTermMemoryRecall.')
-    pushUnique(mustNotDo, 'Do not let the reply collapse into detached project narration or a generic assistant shell.')
+    pushUnique(mustNotDo, 'detached_project_narration_or_generic_assistant_shell=blocked')
   }
   if (isProjectStateDirectAnswerTurn) {
     const enrichedProjectStateGovernance = enrichProjectStateAnswerGovernanceIfNeeded({
@@ -797,7 +797,7 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
     if (sameHerDriftRisk) {
       pushUnique(mustDo, 'Treat active continuity drift risk as a hard boundary while answering project state.')
       pushUnique(mustDo, `Current continuity drift risk: ${sameHerDriftRisk}`)
-      pushUnique(mustNotDo, 'Do not let the project-state answer open like detached project narration, generic task-shell reporting, or project-summary voice.')
+      pushUnique(mustNotDo, 'project_state_answer_opening=direct; detached_project_narration=blocked; generic_task_shell=blocked; project_summary_voice=blocked')
     }
   }
 
@@ -852,12 +852,14 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
         }),
         '[ALICIZATION_EXECUTIVE_PROJECT_LIVING_ORIENTATION]',
         'owner=ProjectStateGovernance',
+        'short_term_owner=WorkingMemory',
+        'long_term_recall_owner=LongTermMemoryRecall',
+        'visible_governance_entry=MemoryWorkbench',
+        'template_policy=no_fixed_persona_templates',
         'orientation_visibility=internal_structured; visible_wording=false',
         executiveProjectLivingOrientationControls,
         `preflight_summary=${sanitizeExecutiveProjectFactValue((liveProjectState as { preflightSummary?: unknown } | null)?.preflightSummary, 400) || sanitizeExecutiveProjectFactValue(projectStateBrief.preflightSummary, 400) || 'none'}`,
         `awareness_summary=${sanitizeExecutiveProjectFactValue(preferredExecutiveProjectPreDialogueAwarenessLine, 800) || 'none'}`,
-        `project_identity=${sanitizeExecutiveProjectFactValue(normalizedProjectState.identity, 220) || sanitizeExecutiveProjectFactValue(projectStateBrief.identity, 220) || 'local_desktop_life_loop'}`,
-        `project_phase=${sanitizeExecutiveProjectFactValue(normalizedProjectState.currentPhase, 220) || sanitizeExecutiveProjectFactValue(projectStateBrief.currentPhase, 220) || 'local_desktop_life_loop'}`,
         `latest_landed_progress=${sanitizeExecutiveProjectFactValue(preferredProjectLatestLandedProgress, 360) || 'none'}`,
         `primary_open_loop=${sanitizeExecutiveProjectFactValue(normalizedProjectState.primaryOpenLoop, 360) || sanitizeExecutiveProjectFactValue(projectStateBrief.openLoops[0], 360) || sanitizeExecutiveProjectFactValue(projectStateBrief.primaryOpenLoop, 360) || 'none'}`,
         `open_focus=${preferredProjectOpenFocusSummary || 'none'}`,

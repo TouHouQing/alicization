@@ -96,14 +96,14 @@ function deriveSelfEvolutionOpeningBias(selfEvolution?: OrganicMemoryPromptConte
 
   return {
     openingGuidance: acceptedGentleContinue
-      ? 'Keep the opening gentle, lower-pressure, and memory-led while the opening is still receiving the return, without falling silent.'
-      : 'Keep the opening lower-pressure and leave room before widening closeness.',
+      ? 'relationship_cadence=lower_pressure; memory_led=true; silence_collapse=avoid'
+      : 'relationship_cadence=lower_pressure; closeness_widening=defer',
     mustInclude: acceptedGentleContinue
-      ? 'Keep long-horizon relationship timing visible: continue gently from memory instead of dropping back into silence or widening too fast.'
-      : 'Keep long-horizon relationship timing visible: lower pressure before closeness widens.',
+      ? 'long_horizon_relationship_timing=visible; memory_continuation=gentle; widening=defer'
+      : 'long_horizon_relationship_timing=visible; pressure=lower_before_closeness',
     mustAvoid: acceptedGentleContinue
-      ? 'Do not let eager warmth widen too fast, and do not collapse a received opening back into total silence.'
-      : 'Do not let eager warmth or older closeness tempo reopen faster than this learned relationship timing supports.',
+      ? 'avoid=eager_warmth_fast_widening,total_silence_after_received_opening'
+      : 'avoid=eager_warmth_or_old_closeness_fast_reopen',
     narrativeTag: 'self-evolution:lower-pressure-opening',
     sourceTrace: 'self-evolution:lower-pressure-opening',
   }
@@ -250,20 +250,20 @@ export function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
   })()
   const socialWhyNow = mergeGuidanceLine([
     surface.dialogue.replyDeliberation?.whyThisReplyNow ?? null,
-    continuityAwareProjection.preferenceText ? `Host preference in this context: ${continuityAwareProjection.preferenceText}` : null,
-    `Closeness ladder in play: ${continuityAwareProjection.activeClosenessContext}/${continuityAwareProjection.activeClosenessRung}.`,
-    continuityAwareProjection.sensitivityText ? `Host sensitivity in play: ${continuityAwareProjection.sensitivityText}` : null,
-    continuityAwareProjection.repairTriggerText ? `Repair trigger in play: ${continuityAwareProjection.repairTriggerText}` : null,
-    continuityAwareProjection.relationshipDoctrine ? `Relationship doctrine in play: ${continuityAwareProjection.relationshipDoctrine}` : null,
-    continuityAwareProjection.trustRationale ? `Trust line: ${continuityAwareProjection.trustRationale}` : null,
-    continuityAwareProjection.summary ? `Person-state: ${continuityAwareProjection.summary}` : null,
+    continuityAwareProjection.preferenceText ? `host_preference=${continuityAwareProjection.preferenceText}` : null,
+    `closeness_ladder=${continuityAwareProjection.activeClosenessContext}/${continuityAwareProjection.activeClosenessRung}`,
+    continuityAwareProjection.sensitivityText ? `host_sensitivity=${continuityAwareProjection.sensitivityText}` : null,
+    continuityAwareProjection.repairTriggerText ? `repair_trigger=${continuityAwareProjection.repairTriggerText}` : null,
+    continuityAwareProjection.relationshipDoctrine ? `relationship_doctrine=${continuityAwareProjection.relationshipDoctrine}` : null,
+    continuityAwareProjection.trustRationale ? `trust_rationale=${continuityAwareProjection.trustRationale}` : null,
+    continuityAwareProjection.summary ? `person_state=${continuityAwareProjection.summary}` : null,
   ], 240)
   const socialAnswerIntent = mergeGuidanceLine([
     surface.dialogue.answerPlanner?.answerIntent ?? governance.answerIntent ?? null,
-    continuityAwareProjection.relationshipDoctrine ? `Relationship doctrine: ${continuityAwareProjection.relationshipDoctrine}` : null,
-    selfEvolution?.relationshipDoctrine ? `Long-horizon doctrine: ${selfEvolution.relationshipDoctrine}` : null,
-    continuityAwareProjection.routineText ? `Routine cue: ${continuityAwareProjection.routineText}` : null,
-    continuityAwareProjection.preferenceText ? `Preferred closeness here: ${continuityAwareProjection.preferenceText}` : null,
+    continuityAwareProjection.relationshipDoctrine ? `relationship_doctrine=${continuityAwareProjection.relationshipDoctrine}` : null,
+    selfEvolution?.relationshipDoctrine ? `long_horizon_doctrine=${selfEvolution.relationshipDoctrine}` : null,
+    continuityAwareProjection.routineText ? `routine_cue=${continuityAwareProjection.routineText}` : null,
+    continuityAwareProjection.preferenceText ? `closeness_preference=${continuityAwareProjection.preferenceText}` : null,
   ], 220)
   const socialOpeningMove = mergeGuidanceLine([
     surface.dialogue.dialogueActKernel?.openingMove ?? null,
@@ -297,26 +297,26 @@ export function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
         whyNotOtherCandidates: surface.dialogue.replyDeliberation?.whyNotOtherCandidates ?? [],
         withheldImpulses: mergeUniqueRules([
           ...(surface.dialogue.replyDeliberation?.withheldImpulses ?? []),
-          continuityAwareProjection.sensitivityText ? `Do not trigger host sensitivity: ${continuityAwareProjection.sensitivityText}` : null,
+          continuityAwareProjection.sensitivityText ? `avoid_trigger_host_sensitivity=${continuityAwareProjection.sensitivityText}` : null,
         ], 8),
         candidateMotives: surface.dialogue.replyDeliberation?.candidateMotives ?? [],
         shouldSpeak: surface.dialogue.replyDeliberation?.shouldSpeak ?? true,
         mustInclude: mergeUniqueRules([
           ...(surface.dialogue.replyDeliberation?.mustInclude ?? []),
-          `Respect closeness ladder: ${continuityAwareProjection.activeClosenessContext}/${continuityAwareProjection.activeClosenessRung}.`,
-          continuityAwareProjection.preferenceText ? `Respect host closeness preference: ${continuityAwareProjection.preferenceText}` : null,
-          continuityAwareProjection.repairTriggerText ? `Respect repair trigger: ${continuityAwareProjection.repairTriggerText}` : null,
-          continuityAwareProjection.openingGuidance ? `Keep opening guidance active: ${continuityAwareProjection.openingGuidance}` : null,
+          `closeness_ladder=${continuityAwareProjection.activeClosenessContext}/${continuityAwareProjection.activeClosenessRung}`,
+          continuityAwareProjection.preferenceText ? `host_closeness_preference=${continuityAwareProjection.preferenceText}` : null,
+          continuityAwareProjection.repairTriggerText ? `repair_trigger=${continuityAwareProjection.repairTriggerText}` : null,
+          continuityAwareProjection.openingGuidance ? `opening_guidance=${continuityAwareProjection.openingGuidance}` : null,
           selfEvolutionOpeningBias?.mustInclude ?? null,
-          continuityAwareProjection.relationshipPosture === 'restrained' ? 'Let repair land before closeness.' : null,
-          continuityAwareProjection.relationshipDoctrine ? `Keep this doctrine alive: ${continuityAwareProjection.relationshipDoctrine}` : null,
+          continuityAwareProjection.relationshipPosture === 'restrained' ? 'repair_before_closeness=true' : null,
+          continuityAwareProjection.relationshipDoctrine ? `relationship_doctrine=${continuityAwareProjection.relationshipDoctrine}` : null,
         ], 10),
         mustAvoid: mergeUniqueRules([
           ...(surface.dialogue.replyDeliberation?.mustAvoid ?? []),
-          continuityAwareProjection.sensitivityText ? `Avoid this sensitivity: ${continuityAwareProjection.sensitivityText}` : null,
-          continuityAwareProjection.burdenText ? `Avoid adding burden here: ${continuityAwareProjection.burdenText}` : null,
+          continuityAwareProjection.sensitivityText ? `avoid_sensitivity=${continuityAwareProjection.sensitivityText}` : null,
+          continuityAwareProjection.burdenText ? `avoid_adding_burden=${continuityAwareProjection.burdenText}` : null,
           selfEvolutionOpeningBias?.mustAvoid ?? null,
-          continuityAwareProjection.restrained ? 'Do not let presence become pressure.' : null,
+          continuityAwareProjection.restrained ? 'avoid_presence_becoming_pressure' : null,
         ], 10),
         confidence: surface.dialogue.replyDeliberation?.confidence ?? 0.72,
         narrative: mergeUniqueRules([
@@ -333,8 +333,8 @@ export function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
         confidence: surface.dialogue.answerPlanner?.confidence ?? 0.72,
         governingFocus: mergeGuidanceLine([
           surface.dialogue.answerPlanner?.governingFocus ?? null,
-          continuityAwareProjection.preferenceText ? `Host preference: ${continuityAwareProjection.preferenceText}` : null,
-          continuityAwareProjection.relationshipDoctrine ? `Doctrine: ${continuityAwareProjection.relationshipDoctrine}` : null,
+          continuityAwareProjection.preferenceText ? `host_preference=${continuityAwareProjection.preferenceText}` : null,
+          continuityAwareProjection.relationshipDoctrine ? `doctrine=${continuityAwareProjection.relationshipDoctrine}` : null,
         ], 220) || surface.dialogue.answerPlanner?.governingFocus || socialWhyNow || '',
         governingProject: surface.dialogue.answerPlanner?.governingProject ?? null,
         openingMove: mergeGuidanceLine([
@@ -357,19 +357,19 @@ export function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
         selectedTruthFrame: surface.dialogue.answerPlanner?.selectedTruthFrame ?? null,
         mustDo: mergeUniqueRules([
           ...(surface.dialogue.answerPlanner?.mustDo ?? []),
-          `Plan to the closeness ladder: ${continuityAwareProjection.activeClosenessContext}/${continuityAwareProjection.activeClosenessRung}.`,
-          continuityAwareProjection.preferenceText ? `Respect host preference here: ${continuityAwareProjection.preferenceText}` : null,
-          continuityAwareProjection.routineText ? `Remember host routine: ${continuityAwareProjection.routineText}` : null,
-          continuityAwareProjection.openingGuidance ? `Open with this guidance: ${continuityAwareProjection.openingGuidance}` : null,
+          `closeness_ladder=${continuityAwareProjection.activeClosenessContext}/${continuityAwareProjection.activeClosenessRung}`,
+          continuityAwareProjection.preferenceText ? `host_preference=${continuityAwareProjection.preferenceText}` : null,
+          continuityAwareProjection.routineText ? `host_routine=${continuityAwareProjection.routineText}` : null,
+          continuityAwareProjection.openingGuidance ? `opening_guidance=${continuityAwareProjection.openingGuidance}` : null,
           selfEvolutionOpeningBias?.mustInclude ?? null,
-          continuityAwareProjection.relationshipPosture === 'restrained' ? 'Plan the answer so repair lands before closeness.' : null,
-          continuityAwareProjection.relationshipDoctrine ? `Keep doctrine visible in the answer plan: ${continuityAwareProjection.relationshipDoctrine}` : null,
+          continuityAwareProjection.relationshipPosture === 'restrained' ? 'repair_before_closeness=true' : null,
+          continuityAwareProjection.relationshipDoctrine ? `doctrine=${continuityAwareProjection.relationshipDoctrine}` : null,
         ], 10),
         mustNotDo: mergeUniqueRules([
           ...(surface.dialogue.answerPlanner?.mustNotDo ?? []),
-          continuityAwareProjection.sensitivityText ? `Do not ignore host sensitivity: ${continuityAwareProjection.sensitivityText}` : null,
+          continuityAwareProjection.sensitivityText ? `avoid_ignoring_host_sensitivity=${continuityAwareProjection.sensitivityText}` : null,
           selfEvolutionOpeningBias?.mustAvoid ?? null,
-          continuityAwareProjection.restrained ? 'Do not let closeness outrun room or turn into pressure.' : null,
+          continuityAwareProjection.restrained ? 'avoid_closeness_outrun_room_or_pressure' : null,
         ], 10),
         narrative: mergeUniqueRules([
           ...(surface.dialogue.answerPlanner?.narrative ?? []),
@@ -420,15 +420,15 @@ export function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
         mustSay: mergeUniqueRules([
           ...(surface.dialogue.dialogueActKernel?.mustSay ?? []),
           socialAnswerIntent,
-          continuityAwareProjection.openingGuidance ? `Keep opening guidance active: ${continuityAwareProjection.openingGuidance}` : null,
+          continuityAwareProjection.openingGuidance ? `opening_guidance=${continuityAwareProjection.openingGuidance}` : null,
           selfEvolutionOpeningBias?.mustInclude ?? null,
-          continuityAwareProjection.relationshipPosture === 'restrained' ? 'Let repair land before closeness.' : null,
+          continuityAwareProjection.relationshipPosture === 'restrained' ? 'repair_before_closeness=true' : null,
         ], 8),
         mustAvoid: mergeUniqueRules([
           ...(surface.dialogue.dialogueActKernel?.mustAvoid ?? []),
-          continuityAwareProjection.sensitivityText ? `Avoid this sensitivity: ${continuityAwareProjection.sensitivityText}` : null,
+          continuityAwareProjection.sensitivityText ? `avoid_sensitivity=${continuityAwareProjection.sensitivityText}` : null,
           selfEvolutionOpeningBias?.mustAvoid ?? null,
-          continuityAwareProjection.restrained ? 'Do not let closeness outrun room or turn into pressure.' : null,
+          continuityAwareProjection.restrained ? 'avoid_closeness_outrun_room_or_pressure' : null,
         ], 8),
         sourceTrace: mergeUniqueRules([
           ...(surface.dialogue.dialogueActKernel?.sourceTrace ?? []),

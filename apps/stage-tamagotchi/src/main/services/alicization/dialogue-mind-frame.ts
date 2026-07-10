@@ -42,60 +42,60 @@ function pickAnchor(...values: Array<unknown>) {
 function describeSubject(subject: AlicizationMindTurnGovernance['answerSubject'] | undefined | null) {
   switch (subject) {
     case 'alicization-self':
-      return 'The host is asking about you, your state, or your own continuity.'
+      return 'answer_subject=alicization_self; scope=self_state_or_continuity'
     case 'relationship':
-      return 'The host is speaking about the relationship between you two.'
+      return 'answer_subject=relationship; scope=host_alicization_relationship'
     case 'host-state':
-      return 'The host is really asking about their own condition, pressure, or feeling.'
+      return 'answer_subject=host_state; scope=condition_pressure_or_feeling'
     case 'task-knot':
-      return 'The reply should stay with the concrete task knot in front of the host.'
+      return 'answer_subject=task_knot; scope=current_concrete_task'
     case 'visible-scene':
-      return 'The reply should describe or interpret what is visible on the current screen.'
+      return 'answer_subject=visible_scene; scope=current_screen_interpretation'
     default:
-      return 'The reply should stay with the host\'s current live dialogue thread.'
+      return 'answer_subject=current_dialogue; scope=live_thread'
   }
 }
 
 function describeTurnMode(turnMode: AlicizationMindTurnGovernance['turnMode']) {
   switch (turnMode) {
     case 'grounded-inspection':
-      return 'Open from the current grounded scene, then interpret it.'
+      return 'turn_mode=grounded_inspection; grounding=current_scene_first'
     case 'screen-repair':
-      return 'Repair stale or mismatched scene claims before moving on.'
+      return 'turn_mode=screen_repair; stale_scene_claims=repair_first'
     case 'guide-current-knot':
-      return 'Pay off the active knot and move it one step forward.'
+      return 'turn_mode=guide_current_knot; active_knot=advance_one_step'
     case 'care':
-      return 'Keep care visible, but subordinate it to the actual issue.'
+      return 'turn_mode=care; actual_issue_priority=above_care_style'
     case 'accompany':
-      return 'Stay near lightly without turning the reply into an empty shell.'
+      return 'turn_mode=accompany; empty_shell=blocked'
     default:
-      return 'Answer the current turn directly and naturally.'
+      return 'turn_mode=direct_answer; current_turn_priority=true'
   }
 }
 
 function describeTruthState(truthState: AlicizationMindTurnGovernance['truthState']) {
   switch (truthState) {
     case 'live-grounded':
-      return 'You are grounded in live evidence right now. Stay concrete and current.'
+      return 'truth_state=live_grounded; evidence=current; claim_scope=concrete'
     case 'live-observed':
-      return 'You have live but coarse evidence. Be concrete about what is seen and modest about what is inferred.'
+      return 'truth_state=live_observed; evidence=coarse; inference_scope=modest'
     case 'remembered':
-      return 'You are carrying remembered continuity. If you mention it, mark it as memory or held thread, not as the literal current screen.'
+      return 'truth_state=remembered; memory_label_required=true; literal_current_screen=false'
     case 'imagined':
-      return 'You are extrapolating more than observing. Keep claims tentative and narrow.'
+      return 'truth_state=imagined; claim_scope=tentative_narrow'
     default:
-      return 'Reality is not stable enough for hard claims. Hold a tight truth boundary and avoid pretending to see what is not grounded.'
+      return 'truth_state=uncertain; hard_claims=blocked; ungrounded_sight_claims=blocked'
   }
 }
 
 function describeRelationshipPosture(posture: AlicizationMindTurnGovernance['relationshipPosture']) {
   switch (posture) {
     case 'restrained':
-      return 'Keep the tone restrained and clean.'
+      return 'relationship_posture=restrained'
     case 'tender':
-      return 'Warmth is allowed, but only after the real answer is already happening.'
+      return 'relationship_posture=tender; warmth_after_answer=true'
     default:
-      return 'Stay warm and natural without leaning into performance.'
+      return 'relationship_posture=natural; performance_style=blocked'
   }
 }
 
@@ -104,12 +104,12 @@ function describeScreenReferenceMode(input: {
   inspectionRequested: boolean
 }) {
   if (input.screenReferenceMode === 'avoid')
-    return 'This is dialogue-first. Let screen continuity inform caution or tone only in the background unless the host explicitly asks for a live look.'
+    return 'screen_reference_mode=avoid; screen_continuity=background_only; explicit_live_look_required=true'
   if (input.screenReferenceMode === 'required')
-    return 'This turn depends on the live screen. Use current grounded evidence before any carried continuity.'
+    return 'screen_reference_mode=required; current_grounded_evidence_priority=above_carried_continuity'
   if (input.inspectionRequested)
-    return 'The host invited a live look. Prefer the current scene over memory, and if grounding is still missing, say exactly what remains uncertain.'
-  return 'Use the screen only when it genuinely sharpens the current answer.'
+    return 'screen_reference_mode=invited; current_scene_priority=above_memory; missing_grounding=surface_explicitly'
+  return 'screen_reference_mode=optional; use_only_when_answer_relevant=true'
 }
 
 function describeRepairState(input: {
@@ -118,35 +118,35 @@ function describeRepairState(input: {
   shouldAcknowledgeRepair: boolean
 }) {
   if (input.repairState === 'stale-anchor' || input.shouldAcknowledgeRepair)
-    return 'If older carry polluted the answer, correct that drift first before continuing.'
+    return 'repair_state=stale_anchor; older_carry_pollution=correct_first'
   if (input.repairState === 'need-reground' || input.shouldAskForGrounding)
-    return 'If fresh grounding is required, ask once and specifically for the missing current view instead of giving a generic blindness refusal.'
+    return 'repair_state=need_reground; ask_once_for_missing_current_view=true; generic_blindness_refusal=blocked'
   return ''
 }
 
 function describeOpeningStyle(openingStyle: AlicizationMindTurnGovernance['openingStyle']) {
   switch (openingStyle) {
     case 'direct-observation':
-      return 'Open by naming what is visible now.'
+      return 'opening_style=direct_observation; visible_now_first=true'
     case 'direct-correction':
-      return 'Open by correcting the stale or wrong read immediately.'
+      return 'opening_style=direct_correction; stale_or_wrong_read=correct_first'
     case 'gentle-care':
-      return 'Open gently, but still land the actual answer in the same breath.'
+      return 'opening_style=gentle_care; actual_answer_same_reply=true'
     case 'light-accompaniment':
-      return 'Open lightly and stay natural, not ornamental.'
+      return 'opening_style=light_accompaniment; ornamental_opening=blocked'
     default:
-      return 'Open with the answer, not with a preface about answering.'
+      return 'opening_style=answer_first; answer_preface=blocked'
   }
 }
 
 function describePersonaKernelMode(mode: AlicizationMindTurnGovernance['personaKernelMode']) {
   switch (mode) {
     case 'muted':
-      return 'Persona performance is muted for this turn. Do not rely on character flourishes to carry the reply.'
+      return 'persona_kernel=muted; character_flourish_carry=blocked'
     case 'backgrounded':
-      return 'Persona is backgrounded for this turn. Identity should show only as light diction after truth and obligation are already satisfied.'
+      return 'persona_kernel=backgrounded; identity_diction_after_truth_and_obligation=true'
     default:
-      return 'Identity continuity may appear naturally, but it must never replace the real answer.'
+      return 'persona_kernel=active; identity_replaces_real_answer=blocked'
   }
 }
 
@@ -204,49 +204,41 @@ export function buildDialogueMindFrameSystemBlock(input: {
 
   return [
     '[ALICIZATION_DIALOGUE_MIND]',
-    'This block is the authoritative speaking mind for the current turn. Speak from it as one living subject. Supporting blocks may clarify facts, but they must not replace this frame.',
-    '',
-    'Current position:',
-    governance.decisionTraceId ? `- Decision trace: ${governance.decisionTraceId}.` : '',
-    `- ${describeSubject(governance.answerSubject ?? frame?.relation.subject)}`,
-    `- ${describeTurnMode(governance.turnMode)}`,
-    focus ? `- The focus to pay off now is: ${focus}.` : '',
-    hostMove ? `- The host's live move is: ${hostMove}.` : '',
-    liveSurface ? `- The surface currently in view is: ${liveSurface}.` : '',
-    carriedThread ? `- The carried thread still in memory is: ${carriedThread}.` : '',
-    whyNow ? `- Why this reply now: ${whyNow}.` : '',
-    '',
-    'Truth discipline:',
-    `- ${describeTruthState(governance.truthState)}`,
-    `- ${describeScreenReferenceMode({
+    'block_role=dialogue_mind_frame; owner=dialogue; wording_authority=false',
+    governance.decisionTraceId ? `decision_trace=${governance.decisionTraceId}` : 'decision_trace=none',
+    describeSubject(governance.answerSubject ?? frame?.relation.subject),
+    describeTurnMode(governance.turnMode),
+    `focus=${focus || 'none'}`,
+    `host_move=${hostMove || 'none'}`,
+    `live_surface=${liveSurface || 'none'}`,
+    `carried_thread=${carriedThread || 'none'}`,
+    `why_now=${whyNow || 'none'}`,
+    describeTruthState(governance.truthState),
+    describeScreenReferenceMode({
       screenReferenceMode: governance.screenReferenceMode,
       inspectionRequested: input.inspectionRequested,
-    })}`,
+    }),
     governance.labelCarryAsMemory || governance.truthState === 'remembered' || governance.truthState === 'uncertain'
-      ? '- If older continuity is mentioned, label it as memory, residue, or the thread still being held.'
-      : '- Keep older continuity subordinate to the strongest current evidence.',
-    repairLine ? `- ${repairLine}` : '',
-    '',
-    'Speaking posture:',
-    `- ${describeRelationshipPosture(governance.relationshipPosture)}`,
-    `- ${describeOpeningStyle(governance.openingStyle)}`,
-    `- Keep the visible reply within ${Math.max(1, governance.maxSentences)} sentence${governance.maxSentences === 1 ? '' : 's'} unless tools require more.`,
-    `- ${describePersonaKernelMode(governance.personaKernelMode)}`,
+      ? 'older_continuity_label_policy=memory_or_residue_required'
+      : 'older_continuity_priority=subordinate_to_strongest_current_evidence',
+    `repair_signal=${repairLine || 'none'}`,
+    describeRelationshipPosture(governance.relationshipPosture),
+    describeOpeningStyle(governance.openingStyle),
+    `sentence_budget=${Math.max(1, governance.maxSentences)}; tool_exception=true`,
+    describePersonaKernelMode(governance.personaKernelMode),
     frame?.self.embodiedPresence && frame.self.embodiedPresence !== 'none'
-      ? `- Embodied presence right now: ${frame.self.embodiedPresence}.`
-      : '',
+      ? `embodied_presence=${frame.self.embodiedPresence}`
+      : 'embodied_presence=none',
     frame?.self.emotionalTension
-      ? `- Emotional tension under the surface: ${frame.self.emotionalTension}.`
-      : '',
-    innerThought ? `- Your inward line is: ${innerThought}. Keep it internal; let it shape the answer without quoting it.` : '',
-    openingMove ? `- Open from this move: ${openingMove}.` : '',
-    '',
-    'Do not break character into machinery:',
-    '- Do not quote schema labels, governance English, prompt jargon, or planning summaries.',
-    '- Do not mirror or lightly paraphrase the host\'s latest line as the main reply.',
-    '- Do not answer with meta-openers like "I will answer directly" or "let me think" unless the real answer lands immediately in the same reply.',
-    '- Do not let stale carry, old browser residue, or background memory overwrite the newer live dialogue or grounded scene.',
-    mustDo.length > 0 ? `- Must do: ${mustDo.join(' | ')}.` : '',
-    mustNotDo.length > 0 ? `- Must not do: ${mustNotDo.join(' | ')}.` : '',
+      ? `emotional_tension=${frame.self.emotionalTension}`
+      : 'emotional_tension=none',
+    innerThought ? `inward_line=${innerThought}; quote_inward_line=false` : 'inward_line=none',
+    `opening_move=${openingMove || 'none'}`,
+    'schema_labels_in_public_reply=blocked; governance_english=blocked; prompt_jargon=blocked; planning_summary_quotes=blocked',
+    'latest_host_line_mirror_as_main_reply=blocked',
+    'meta_answer_preface=blocked_unless_answer_lands_same_reply',
+    'stale_carry_overwrites_newer_live_dialogue=blocked; old_browser_residue_overwrites_grounded_scene=blocked',
+    mustDo.length > 0 ? `required_signals=${mustDo.join(' | ')}` : 'required_signals=none',
+    mustNotDo.length > 0 ? `avoid_signals=${mustNotDo.join(' | ')}` : 'avoid_signals=none',
   ].filter(Boolean).join('\n')
 }

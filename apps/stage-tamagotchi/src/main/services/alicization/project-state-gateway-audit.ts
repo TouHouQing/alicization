@@ -197,8 +197,11 @@ export function resolveAlicizationProjectStateGatewayInjectionMode(
     return 'extra-system-block-local'
 
   const carriesHelperExtraSystemBlock = evidence.extraSystemBlocks
-    .some(block => block.includes('buildAlicizationProjectStateSystemBlock()') || block.includes('buildAlicizationProjectStateExtraSystemBlocks()'))
-    || evidence.extraSystemBlocksExpression?.includes('buildAlicizationProjectStateExtraSystemBlocks()')
+    .some(block =>
+      block.includes('buildAlicizationProviderFacingProjectStateSystemBlock()')
+      || block.includes('buildAlicizationProviderFacingProjectStateExtraSystemBlocks()'),
+    )
+    || evidence.extraSystemBlocksExpression?.includes('buildAlicizationProviderFacingProjectStateExtraSystemBlocks()')
     || false
   if (carriesHelperExtraSystemBlock && carriesExplicitSelfBrief)
     return 'extra-system-block-self-brief'
@@ -214,8 +217,23 @@ export function resolveAlicizationProjectStateGatewayInjectionMode(
   if (evidence.extraSystemBlocksExpression?.includes('.concat(projectStateSystemBlock)'))
     return 'system-concat'
 
+  const carriesOwnerBoundary
+    = /OWNER_BOUNDARY/u.test(evidence.extraSystemBlocksExpression ?? '')
+      || /build(?:DialogueTurnSemantics|SubjectiveInference|MemoryPlanning)ProjectSelfBriefSystemBlock\(\)/u.test(evidence.extraSystemBlocksExpression ?? '')
+      || (
+        evidence.family === 'runtime-mind-state.ts:dialogue-semantics-and-subjective-inference'
+        && Boolean(evidence.sourceText?.includes('[ALICIZATION_DIALOGUE_TURN_SEMANTICS_OWNER_BOUNDARY]'))
+        && Boolean(evidence.sourceText?.includes('[ALICIZATION_SUBJECTIVE_INFERENCE_OWNER_BOUNDARY]'))
+      )
+      || (
+        evidence.family === 'memory-os/provider-planning.ts:recollection-and-deliberation'
+        && Boolean(evidence.sourceText?.includes('[ALICIZATION_MEMORY_PLANNING_OWNER_BOUNDARY]'))
+      )
+  if (carriesOwnerBoundary)
+    return 'owner-boundary'
+
   const carriesUnifiedOneShotProjectStateRuntime = evidence.family === 'runtime-main-gateway-one-shot.ts:screen-semantic-and-scene-appraisal'
-    && Boolean(evidence.sourceText?.includes('const projectStateClosureDashboard = buildAlicizationProjectStateClosureDashboard({'))
+    && Boolean(evidence.sourceText?.includes('const projectStateClosureDashboard = buildAlicizationProviderFacingProjectStateClosureDashboard({'))
     && Boolean(evidence.sourceText?.includes('{ role: \'system\', content: projectStateSystemBlock } as Message,'))
     && Boolean(evidence.sourceText?.includes('{ role: \'system\', content: projectStateClosureDashboard } as Message,'))
     && Boolean(evidence.sourceText?.includes('buildOneShotSourceProjectSelfBriefs({'))

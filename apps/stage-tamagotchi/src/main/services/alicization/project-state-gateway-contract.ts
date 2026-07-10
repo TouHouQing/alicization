@@ -8,6 +8,7 @@ export type AlicizationProjectStateGatewayInjectionMode
     | 'system-wrapper-self-brief'
     | 'system-concat'
     | 'one-shot-unified-runtime'
+    | 'owner-boundary'
     | 'missing'
 
 // NOTICE: When adding a new main-gateway source, update this union together with:

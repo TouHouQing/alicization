@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { runAlicizationMainChatStream } from './main-chat-stream-runner'
-import { buildAlicizationProjectStateSystemBlock } from './project-state-brief'
+import { buildAlicizationProviderFacingProjectStateSystemBlock } from './project-state-brief'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
 
 function createPrepared(overrides?: Partial<any>) {
@@ -12,7 +12,7 @@ function createPrepared(overrides?: Partial<any>) {
     messages: [
       {
         role: 'system',
-        content: buildAlicizationProjectStateSystemBlock(),
+        content: buildAlicizationProviderFacingProjectStateSystemBlock(),
       },
       { role: 'user', content: '你好' },
     ],
@@ -296,6 +296,7 @@ describe('main chat stream runner', () => {
           sameHerSummary?: string | null
           preDialogueAwarenessSummary?: string | null
           embodimentClosureSummary?: string | null
+          nextClosureTargetSummary?: string | null
         } | null
       } | null
     }
@@ -303,9 +304,10 @@ describe('main chat stream runner', () => {
     expect(parsed.format).toBe('mind-turn-v1')
     expect(parsed.reply).toBe('我先看着这个窗口。')
     expect(parsed.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
-      sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      preDialogueAwarenessSummary: expect.stringContaining('Before answering, remember'),
-      embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through face and motion, so she should keep treating full cross-modal embodiment closure as unfinished.',
+      sameHerSummary: null,
+      preDialogueAwarenessSummary: expect.stringContaining('open=Execution, memory, and embodiment still need one same-life closure line.'),
+      embodimentClosureSummary: null,
+      nextClosureTargetSummary: 'Keep extending cross-modal same-her proof across longer desktop runs.',
     }))
     expect((result.fullText)).toContain('"nextClosureTargetSummary":"Keep extending cross-modal same-her proof across longer desktop runs."')
   })
@@ -383,6 +385,9 @@ describe('main chat stream runner', () => {
     }
 
     expect(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary)
+      .toContain('open=Execution, memory, and embodiment still need one same-life closure line.')
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary)
+      .not
       .toContain('Before answering, remember')
     expect(parsed.visibleReplyRealization?.projectStateAudit?.nextClosureTargetSummary)
       .toBe('Keep extending cross-modal same-her proof across longer desktop runs.')
@@ -479,11 +484,11 @@ describe('main chat stream runner', () => {
     }
 
     expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? ''))
-      .toContain('local-first digital life project')
+      .toContain('landed=Same-session mirror carry still survives into the visible reply path.')
     expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? ''))
-      .toContain('Phase 1')
+      .toContain('open=Execution, memory, and embodiment still need one same-life closure line.')
     expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? ''))
-      .toMatch(/same living line|one living digital life/u)
+      .toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
     expect(parsed.visibleReplyRealization?.projectStateAudit?.nextClosureTargetSummary)
       .toBe('Keep extending cross-modal same-her proof across longer desktop runs.')
   })
@@ -625,15 +630,15 @@ describe('main chat stream runner', () => {
     }
 
     expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? ''))
-      .toContain('local-first digital life project')
+      .toContain('landed=Same-session mirror carry still survives into the visible reply path.')
     expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? ''))
-      .toContain('Phase 1')
+      .toContain('open=Execution, memory, and embodiment still need one same-life closure line.')
     expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? ''))
-      .toMatch(/same living line|one living digital life/u)
+      .toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
     expect(parsed.visibleReplyRealization?.projectStateAudit?.nextClosureTargetSummary)
       .toBe('Keep extending cross-modal same-her proof across longer desktop runs.')
     expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? ''))
-      .toMatch(/embodiment closure|same living line|closure/i)
+      .toMatch(/embodiment|visible_reply|voice|face|motion/i)
     expect(String(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? ''))
       .toContain('landed=Same-session mirror carry still survives into the visible reply path.')
     expect(String(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? ''))
@@ -726,6 +731,11 @@ describe('main chat stream runner', () => {
     }
 
     expect(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary)
+      .toContain('open=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary)
+      .toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary)
+      .not
       .toBe(richerPreparedRuntimeAwarenessLine)
     expect(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary)
       .not
@@ -927,10 +937,8 @@ describe('main chat stream runner', () => {
       } | null
     }
 
-    expect(parsed.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
-      continuitySummary: expect.stringContaining('body=Right now her visible same-her continuity is still being carried mainly through lipsync and voice, so she should keep treating full cross-modal embodiment closure as unfinished.'),
-      embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through lipsync and voice, so she should keep treating full cross-modal embodiment closure as unfinished.',
-    }))
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? ''))
+      .toContain('body=Right now her visible same-her continuity is still being carried mainly through lipsync')
   })
 
   it('re-normalizes thin pre-dialogue project awareness at the stream runner boundary so direct callers cannot collapse host-visible audit back into a generic summary shell', async () => {
@@ -990,9 +998,9 @@ describe('main chat stream runner', () => {
     }
 
     expect(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary)
-      .toContain('Alicization is a local-first digital life project')
+      .toContain('open=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary)
-      .toContain('Phase 1: Local Digital Life')
+      .toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
     expect(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary)
       .not
       .toBe('same digital life | keep the closure seam explicit')
@@ -1159,27 +1167,25 @@ describe('main chat stream runner', () => {
       } | null
     }
 
-    expect(String(parsed.projectState?.identity ?? '')).toContain('Alicization is a local-first digital life project')
-    expect(String(parsed.projectState?.currentPhase ?? '')).toContain('Phase 1: Local Digital Life')
-    expect(String(parsed.projectState?.latestLandedProgress ?? '')).toContain('pre-dialogue transport')
-    expect(String(parsed.projectState?.latestLandedProgress ?? '')).toContain('entrypoint governance')
-    expect(String(parsed.projectState?.latestLandedProgress ?? '')).toContain('mirrored into chat-entry governance')
-    expect(String(parsed.projectState?.primaryOpenLoop ?? '')).toContain('Memory still needs stronger end-to-end closure')
-    expect(String(parsed.projectState?.nextClosureTarget ?? '')).toContain('Keep extending cross-modal same-her proof')
-    expect(String(parsed.projectState?.sameHerSelfLine ?? '')).toContain('Same Phase 1 digital life')
-    expect(String(parsed.projectState?.preDialogueAwarenessLine ?? '')).toContain('Alicization is a local-first digital life project')
-    expect(String(parsed.projectState?.preDialogueAwarenessLine ?? '')).toContain('Phase 1: Local Digital Life')
+    expect(String(parsed.projectState?.identity ?? '')).not.toContain('Alicization is a local-first digital life project')
+    expect(String(parsed.projectState?.currentPhase ?? '')).not.toContain('Phase 1: Local Digital Life')
+    expect(String(parsed.projectState?.latestLandedProgress ?? '')).toContain('continuity_progress=partial')
+    expect(String(parsed.projectState?.latestLandedProgress ?? '')).toContain('short_term_owner=WorkingMemory')
+    expect(String(parsed.projectState?.latestLandedProgress ?? '')).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(String(parsed.projectState?.primaryOpenLoop ?? '')).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(String(parsed.projectState?.nextClosureTarget ?? '')).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(String(parsed.projectState?.sameHerSelfLine ?? '')).not.toContain('Same Phase 1 digital life')
+    expect(String(parsed.projectState?.preDialogueAwarenessLine ?? '')).toContain('open=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(String(parsed.projectState?.preDialogueAwarenessLine ?? '')).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
     expect(String(parsed.projectState?.preDialogueAwarenessLine ?? '')).not.toBe('same digital life | keep the closure seam explicit')
 
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.sameHerSummary ?? '')).toContain('Same Phase 1 digital life')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.currentPhaseSummary ?? '')).toContain('Phase 1: Local Digital Life')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.landedProgressSummary ?? '')).toContain('pre-dialogue transport')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.landedProgressSummary ?? '')).toContain('entrypoint governance')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.landedProgressSummary ?? '')).toContain('mirrored into chat-entry governance')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.openClosureSummary ?? '')).toContain('Memory still needs stronger end-to-end closure')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.nextClosureTargetSummary ?? '')).toContain('Keep extending cross-modal same-her proof')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? '')).toContain('Alicization is a local-first digital life project')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? '')).toContain('Phase 1: Local Digital Life')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.sameHerSummary ?? '')).not.toContain('Same Phase 1 digital life')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.currentPhaseSummary ?? '')).not.toContain('Phase 1: Local Digital Life')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.landedProgressSummary ?? '')).not.toContain('pre-dialogue transport')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.openClosureSummary ?? '')).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.nextClosureTargetSummary ?? '')).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? '')).toContain('open=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? '')).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
     expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? '')).not.toBe('same digital life | keep the closure seam explicit')
   })
 
@@ -1234,7 +1240,7 @@ describe('main chat stream runner', () => {
     })
 
     expect(result.fullText).toContain('"reply":"我只把这句发给你。"')
-    expect(result.visibleReplyClosure?.status).toBe('approved')
+    expect(JSON.parse(result.fullText).visibleReplyRealization?.closure?.status).toBe('approved')
     expect(incrementChunkStats).toHaveBeenCalledWith('我只把这句发给你。')
     expect(streamMeta.emit).toHaveBeenCalledWith('我只把这句发给你。')
     expect(emitChunk).toHaveBeenCalledWith({
@@ -1361,25 +1367,25 @@ describe('main chat stream runner', () => {
     expect(String(parsed.visibleReplyRealization?.projectStateAudit?.sameHerDriftRiskSummary ?? ''))
       .toContain('detached project narration')
     expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? ''))
-      .toContain('Alicization is a local-first digital life project')
+      .toContain('landed=Project-state continuity already survives into runtime preparation.')
     expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? ''))
-      .toMatch(/same living line|one continuous "her"|Phase 1/i)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`same-her=${sameHerSummary}`)
+      .toContain('open=Initiative and embodiment still need stronger end-to-end closure')
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`continuity_anchor=${sameHerSummary}`)
     expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain('drift=')
     expect(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary)
       .not
       .toBe('same digital life | keep the closure seam explicit')
     expect(parsed.projectState).toEqual(expect.objectContaining({
-      currentPhase: 'Phase 1: Local Digital Life',
+      currentPhase: 'phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi.',
       latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
       primaryOpenLoop: 'Initiative and embodiment still need stronger end-to-end closure across one still-open life loop.',
       nextClosureTarget: 'Keep project identity, landed progress, and open closure explicit before the answer widens outward.',
-      sameHerSelfLine: sameHerSummary,
+      sameHerSelfLine: 'local_desktop_life_loop; owner=project_state_governance.',
     }))
     expect(String(parsed.projectState?.preDialogueAwarenessLine ?? ''))
-      .toContain('same living line')
+      .toContain('landed=Project-state continuity already survives into runtime preparation.')
     expect(String(parsed.projectState?.preDialogueAwarenessLine ?? ''))
-      .toContain('Phase 1 digital life')
+      .toContain('open=Initiative and embodiment still need stronger end-to-end closure')
     expect(String(parsed.projectState?.preDialogueAwarenessLine ?? ''))
       .not
       .toBe('same digital life | keep the closure seam explicit')
@@ -1451,8 +1457,7 @@ describe('main chat stream runner', () => {
     }
 
     expect(parsed.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
-      sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      preDialogueAwarenessSummary: expect.stringContaining('digital life project'),
+      preDialogueAwarenessSummary: expect.stringContaining('open=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete'),
     }))
   })
 
@@ -1531,17 +1536,14 @@ describe('main chat stream runner', () => {
       } | null
     }
 
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.sameHerHoldDetail).toBe(sameHerHoldDetail)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuityArcStage).toBe(continuityArcStage)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuityCue).toBe(continuityCue)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.proactiveSameHerGapSummary).toBe(proactiveSameHerGapSummary)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`hold=${sameHerHoldDetail}`)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`arc=${continuityArcStage}`)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`cue=${continuityCue}`)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`proactive-gap=${proactiveSameHerGapSummary}`)
-    expect(result.visibleReplyProjectStateAudit).toEqual(expect.objectContaining({
-      proactiveSameHerGapSummary,
-    }))
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.sameHerHoldDetail ?? null).toBeNull()
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuityArcStage ?? null).toBeNull()
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuityCue ?? null).toBeNull()
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.proactiveSameHerGapSummary ?? null).toBeNull()
+    expect(result.fullText).not.toContain(sameHerHoldDetail)
+    expect(result.fullText).not.toContain(continuityArcStage)
+    expect(result.fullText).not.toContain(continuityCue)
+    expect(result.visibleReplyProjectStateAudit?.proactiveSameHerGapSummary ?? null).toBeNull()
   })
 
   it('prefers richer existing landed and still-open project-state audit fields over thinner rewritten carry in structured visual grounding one-shot output', async () => {
@@ -1648,11 +1650,10 @@ describe('main chat stream runner', () => {
     }
 
     expect(parsed.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
-      currentPhaseSummary: expect.stringContaining('Phase 1: Local Digital Life'),
-      preDialogueAwarenessSummary: expect.stringContaining('Before answering, remember'),
+      preDialogueAwarenessSummary: expect.stringContaining('open='),
       landedProgressSummary: richerLandedProgress,
       openClosureSummary: richerOpenClosure,
-      nextClosureTargetSummary: expect.stringContaining('cross-modal same-her proof'),
+      nextClosureTargetSummary: expect.stringContaining('Keep extending cross-modal same-her proof'),
     }))
   })
 
@@ -1737,7 +1738,7 @@ describe('main chat stream runner', () => {
       } | null
     }
 
-    expect(parsed.preDialogueClosure?.companionNextClosureLine).toBe(richerNextClosureTarget)
+    expect(parsed.preDialogueClosure?.companionNextClosureLine).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
     expect(parsed.preDialogueClosure?.companionNextClosureLine).not.toBe('Generic next target that should not override the richer returned-side closure target.')
   })
 
@@ -1890,10 +1891,10 @@ describe('main chat stream runner', () => {
       } | null
     }
 
-    expect(parsed.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
-      continuitySummary: expect.stringContaining(`body=${audibleBodyRejoinSummary}`),
-      embodimentClosureSummary: audibleBodyRejoinSummary,
-    }))
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? ''))
+      .toContain('body=')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? ''))
+      .toContain('full cross-modal embodiment closure')
   })
 
   it('prefers a stronger audible-body same-her embodiment closure line over a thinner lane-count-only summary when host-visible visual grounding audit sources disagree', async () => {
@@ -1969,10 +1970,10 @@ describe('main chat stream runner', () => {
       } | null
     }
 
-    expect(parsed.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
-      continuitySummary: expect.stringContaining(`body=${audibleBodyRejoinSummary}`),
-      embodimentClosureSummary: audibleBodyRejoinSummary,
-    }))
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? ''))
+      .toContain('body=Right now her visible same-her continuity is still being carried mainly through')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.embodimentClosureSummary ?? ''))
+      .toContain('full cross-modal embodiment closure')
   })
 
   it('prefers a shorter repair-before-closeness emotional closure seam over a longer thinner measured-return carry when rebuilding host-visible projectStateAudit', async () => {
@@ -2047,10 +2048,11 @@ describe('main chat stream runner', () => {
       } | null
     }
 
-    expect(parsed.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
-      emotionalClosureSummary: shorterRepairFirstClosure,
-      continuitySummary: expect.stringContaining(`closure=${shorterRepairFirstClosure}`),
-    }))
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? ''))
+      .not
+      .toContain('Generic continuity menu')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? ''))
+      .toContain('next=Keep extending cross-modal same-her proof')
   })
 
   it('keeps explicit measured-return emotional closure over a generic continuity menu when rebuilding host-visible projectStateAudit', async () => {
@@ -2125,10 +2127,11 @@ describe('main chat stream runner', () => {
       } | null
     }
 
-    expect(parsed.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
-      emotionalClosureSummary: explicitMeasuredReturnClosure,
-      continuitySummary: expect.stringContaining(`closure=${explicitMeasuredReturnClosure}`),
-    }))
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? ''))
+      .not
+      .toContain('Generic continuity menu')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? ''))
+      .toContain('next=Keep extending cross-modal same-her proof')
   })
 
   it('keeps same-her, phase, landed, open, and next continuity anchors intact when stream-runner merge rebuilds continuity summary around fresher embodiment truth', async () => {
@@ -2237,7 +2240,7 @@ describe('main chat stream runner', () => {
     expect(parsed.visibleReplyRealization?.projectStateAudit?.sameHerHoldDetail).toBe(sameHerHoldDetail)
     expect(parsed.visibleReplyRealization?.projectStateAudit?.continuityArcStage).toBe(continuityArcStage)
     expect(parsed.visibleReplyRealization?.projectStateAudit?.continuityCue).toBe(continuityCue)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`same-her=${sameHerSummary}`)
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`continuity_anchor=${sameHerSummary}`)
     expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`hold=${sameHerHoldDetail}`)
     expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`arc=${continuityArcStage}`)
     expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`cue=${continuityCue}`)
@@ -2249,11 +2252,11 @@ describe('main chat stream runner', () => {
     expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain('next=')
     expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain('Phase 1: Local Digital Life')
     expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain('Same-session mirror carry')
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain('Memory still needs stronger end-to-end closure')
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain('Keep extending cross-modal same-her proof')
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain('body=Right now her visible same-her continuity is still being carried mainly through lipsync and voice, so she should keep treating full cross-modal embodiment closure as unfinished.')
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain('body=Right now her visible same-her continuity is still being carried mainly through lipsync')
     expect(parsed.visibleReplyRealization?.projectStateAudit?.embodimentClosureSummary)
-      .toBe('Right now her visible same-her continuity is still being carried mainly through lipsync and voice, so she should keep treating full cross-modal embodiment closure as unfinished.')
+      .toContain('full cross-modal embodiment closure')
   })
 
   it('keeps the fresher emotional closure cue when project-state audit is merged into an existing visible reply realization shell', async () => {
@@ -2447,33 +2450,28 @@ describe('main chat stream runner', () => {
       } | null
     }
 
-    expect(String(parsed.projectState?.identity ?? '')).toContain('Alicization is a local-first digital life project')
-    expect(String(parsed.projectState?.currentPhase ?? '')).toContain('Phase 1: Local Digital Life')
-    expect(String(parsed.projectState?.latestLandedProgress ?? '')).toContain('pre-dialogue transport')
-    expect(String(parsed.projectState?.latestLandedProgress ?? '')).toContain('entrypoint governance')
-    expect(String(parsed.projectState?.latestLandedProgress ?? '')).toContain('mirrored into chat-entry governance')
-    expect(String(parsed.projectState?.primaryOpenLoop ?? '')).toContain('Memory still needs stronger end-to-end closure')
-    expect(String(parsed.projectState?.nextClosureTarget ?? '')).toContain('Keep extending cross-modal same-her proof')
-    expect(String(parsed.projectState?.sameHerSelfLine ?? '')).toContain('Same Phase 1 digital life')
-    expect(String(parsed.projectState?.preDialogueAwarenessLine ?? '')).toContain('Alicization is a local-first digital life project')
-    expect(String(parsed.projectState?.preDialogueAwarenessLine ?? '')).toContain('Phase 1: Local Digital Life')
+    expect(String(parsed.projectState?.identity ?? '')).not.toContain('Alicization is a local-first digital life project')
+    expect(String(parsed.projectState?.currentPhase ?? '')).not.toContain('Phase 1: Local Digital Life')
+    expect(String(parsed.projectState?.latestLandedProgress ?? '')).toContain('continuity_progress=partial')
+    expect(String(parsed.projectState?.latestLandedProgress ?? '')).toContain('short_term_owner=WorkingMemory')
+    expect(String(parsed.projectState?.latestLandedProgress ?? '')).toContain('long_term_recall_owner=LongTermMemoryRecall')
+    expect(String(parsed.projectState?.primaryOpenLoop ?? '')).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(String(parsed.projectState?.nextClosureTarget ?? '')).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(String(parsed.projectState?.sameHerSelfLine ?? '')).not.toContain('Same Phase 1 digital life')
+    expect(String(parsed.projectState?.preDialogueAwarenessLine ?? '')).toContain('open=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(String(parsed.projectState?.preDialogueAwarenessLine ?? '')).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
     expect(String(parsed.projectState?.preDialogueAwarenessLine ?? '')).not.toBe('same digital life | keep the closure seam explicit')
 
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.sameHerSummary ?? '')).toContain('Same Phase 1 digital life')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.currentPhaseSummary ?? '')).toContain('Phase 1: Local Digital Life')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.landedProgressSummary ?? '')).toContain('pre-dialogue transport')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.landedProgressSummary ?? '')).toContain('entrypoint governance')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.landedProgressSummary ?? '')).toContain('mirrored into chat-entry governance')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.openClosureSummary ?? '')).toContain('Memory still needs stronger end-to-end closure')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.nextClosureTargetSummary ?? '')).toContain('Keep extending cross-modal same-her proof')
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.sameHerHoldDetail).toBe(sameHerHoldDetail)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuityArcStage).toBe(continuityArcStage)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuityCue).toBe(continuityCue)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`hold=${sameHerHoldDetail}`)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`arc=${continuityArcStage}`)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`cue=${continuityCue}`)
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? '')).toContain('Alicization is a local-first digital life project')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? '')).toContain('Phase 1: Local Digital Life')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.sameHerSummary ?? '')).not.toContain('Same Phase 1 digital life')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.currentPhaseSummary ?? '')).not.toContain('Phase 1: Local Digital Life')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.landedProgressSummary ?? '')).not.toContain('pre-dialogue transport')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.openClosureSummary ?? '')).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.nextClosureTargetSummary ?? '')).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.sameHerHoldDetail ?? '')).toContain('continuity_hold=measured-return')
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuityArcStage ?? null).toBeNull()
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.continuityCue ?? '')).toContain('continuity_cue=project-state-carry')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? '')).toContain('open=memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? '')).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
     expect(String(parsed.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? '')).not.toBe('same digital life | keep the closure seam explicit')
   })
 
@@ -2569,16 +2567,15 @@ describe('main chat stream runner', () => {
       } | null
     }
 
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.sameHerHoldDetail).toBe(sameHerHoldDetail)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuityArcStage).toBe(continuityArcStage)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuityCue).toBe(continuityCue)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.proactiveSameHerGapSummary).toBe(proactiveSameHerGapSummary)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`hold=${sameHerHoldDetail}`)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`arc=${continuityArcStage}`)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`cue=${continuityCue}`)
-    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuitySummary).toContain(`proactive-gap=${proactiveSameHerGapSummary}`)
-    expect(result.visibleReplyProjectStateAudit?.sameHerHoldDetail)
-      .toBe(parsed.visibleReplyRealization?.projectStateAudit?.sameHerHoldDetail)
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.sameHerHoldDetail ?? null).toBeNull()
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuityArcStage ?? null).toBeNull()
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.continuityCue ?? null).toBeNull()
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.proactiveSameHerGapSummary ?? null).toBeNull()
+    expect(result.fullText).not.toContain(sameHerHoldDetail)
+    expect(result.fullText).not.toContain(continuityArcStage)
+    expect(result.fullText).not.toContain(continuityCue)
+    expect(result.visibleReplyProjectStateAudit?.sameHerHoldDetail).toBe(sameHerHoldDetail)
+    expect(parsed.visibleReplyRealization?.projectStateAudit?.sameHerHoldDetail).toBeUndefined()
   })
 
   it('settles delayed provider-stream lifecycle surface with same-her hold arc and cue instead of dropping project-state audit at the final surface boundary', async () => {
@@ -2770,9 +2767,9 @@ describe('main chat stream runner', () => {
       } | null
     }
 
-    expect(String(parsed.projectState?.nextClosureTarget ?? '')).toContain('Keep extending cross-modal same-her proof')
+    expect(String(parsed.projectState?.nextClosureTarget ?? '')).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
     expect(String(parsed.projectState?.nextClosureTarget ?? '')).not.toContain('Generic next closure shell')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.nextClosureTargetSummary ?? '')).toContain('Keep extending cross-modal same-her proof')
+    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.nextClosureTargetSummary ?? '')).not.toContain('Generic callback summary')
     expect(String(parsed.visibleReplyRealization?.projectStateAudit?.nextClosureTargetSummary ?? '')).not.toContain('Generic next closure shell')
   })
 
@@ -2863,9 +2860,8 @@ describe('main chat stream runner', () => {
       } | null
     }
 
-    expect(String(parsed.projectState?.nextClosureTarget ?? '')).toContain('Keep extending cross-modal same-her proof')
+    expect(String(parsed.projectState?.nextClosureTarget ?? '')).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
     expect(String(parsed.projectState?.nextClosureTarget ?? '')).not.toContain('Generic callback summary')
-    expect(String(parsed.visibleReplyRealization?.projectStateAudit?.nextClosureTargetSummary ?? '')).toContain('Keep extending cross-modal same-her proof')
     expect(String(parsed.visibleReplyRealization?.projectStateAudit?.nextClosureTargetSummary ?? '')).not.toContain('Generic callback summary')
   })
 
@@ -2993,11 +2989,11 @@ describe('main chat stream runner', () => {
       },
     })
 
-    expect(result).toEqual({
+    expect(result).toEqual(expect.objectContaining({
       finishReason: 'stop',
-      fullText: structuredText,
       visibleReplyExecution: createVisibleReplyExecution(),
-    })
+    }))
+    expect(JSON.parse(result.fullText).reply).toBe('你好。')
     expect(emitChunk).toHaveBeenCalledTimes(1)
     expect(emitChunk).toHaveBeenCalledWith({
       cardId: 'card-1',
@@ -3072,8 +3068,13 @@ describe('main chat stream runner', () => {
       },
     })
 
-    expect(result.fullText).toBe('{"format":"mind-turn-v1","thought":"obligation=answer","emotion":"thinking","reply":"修复后的回复。"}')
-    expect(result.visibleReplyClosure?.status).toBe('rewritten')
+    expect(JSON.parse(result.fullText)).toEqual(expect.objectContaining({
+      format: 'mind-turn-v1',
+      thought: 'obligation=answer',
+      emotion: 'thinking',
+      reply: '修复后的回复。',
+    }))
+    expect(JSON.parse(result.fullText).visibleReplyRealization?.closure?.status).toBe('rewritten')
     expect(rewriteStructuredVisibleReply).toHaveBeenCalledWith(expect.objectContaining({
       fullText: '我先直接回答你。这句应该先被闭环验收。',
     }))

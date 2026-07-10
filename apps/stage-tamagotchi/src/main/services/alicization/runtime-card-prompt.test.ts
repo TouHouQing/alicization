@@ -56,7 +56,7 @@ describe('runtime card prompt persona kernel', () => {
     expect(blocks.some(block => block.includes('"relationship":"女仆"'))).toBe(true)
   })
 
-  it('injects canonical project-state continuity blocks into main prompt blocks before each turn', async () => {
+  it('does not inject canonical project-state continuity blocks into ordinary main prompt blocks', async () => {
     const runtime = createAlicizationCardPromptRuntime({
       getActiveCardId: () => 'default',
       getSoulSnapshot: () => null,
@@ -70,10 +70,33 @@ describe('runtime card prompt persona kernel', () => {
 
     const blocks = runtime.buildMainRuntimeCorePromptBlocks({
       hostName: '主人',
+      includeProjectStateContext: false,
+      personaKernel: null,
+    })
+
+    expect(blocks.some(block => block.includes('[ALICIZATION_PROJECT_STATE]'))).toBe(false)
+    expect(blocks.some(block => block.includes('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]'))).toBe(false)
+  })
+
+  it('injects canonical project-state continuity blocks when project-state context is explicitly requested', async () => {
+    const runtime = createAlicizationCardPromptRuntime({
+      getActiveCardId: () => 'default',
+      getSoulSnapshot: () => null,
+      resolveCardPaths: () => ({
+        soulPath: '/tmp/SOUL.md',
+      }),
+      normalizeCardId: raw => typeof raw === 'string' ? raw : 'default',
+      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+      appendRuntimeDebugLine: vi.fn(async () => {}),
+    })
+
+    const blocks = runtime.buildMainRuntimeCorePromptBlocks({
+      hostName: '主人',
+      includeProjectStateContext: true,
       personaKernel: null,
     })
 
     expect(blocks.some(block => block.includes('[ALICIZATION_PROJECT_STATE]'))).toBe(true)
-    expect(blocks.some(block => block.includes('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]'))).toBe(true)
+    expect(blocks.some(block => block.includes('[ALICIZATION_PROJECT_GOVERNANCE_DASHBOARD]'))).toBe(true)
   })
 })

@@ -8,41 +8,41 @@ chat:
   fallbacks:
     leak-filtered: 我刚才的结果里混入了内部工具片段，已经过滤掉了。
     realtime-unavailable: 当前无法获取可靠的实时外部数据。
-    epoch1-strict: 当前是受限的 Epoch 1 模式，无法访问实时外部数据源。
-    structured-contract: "结构化回复失败：这一轮没有收敛成可用 JSON。"
+    epoch1-strict: 当前处于受限实时数据模式，无法访问外部实时数据源。
+    structured-contract: '结构化回复失败：这一轮没有收敛成可用 JSON。'
     stream-failure: 回复流在完成前失败了。
     local-runtime-unavailable: 本地模型服务不可用，例如 `11434` 上的 Ollama 或 `1234` 上的 LM Studio。
-    stream-timeout: "超时：这轮等待模型响应过久。"
+    stream-timeout: '超时：这轮等待模型响应过久。'
     provider-auth: 当前提供方认证失败，API Key 或模型权限无效。
     provider-network: 当前到模型服务的网络连接不稳定。
-    provider-config: "提供方或模型配置不完整：例如 `provider`、`model` 或 `baseUrl` 缺失。"
+    provider-config: '提供方或模型配置不完整：例如 `provider`、`model` 或 `baseUrl` 缺失。'
     unsupported-tools: 当前模型不支持这轮所需的工具调用。
     low-obedience-host-denied: 未授予权限，因此操作未执行。
-    low-obedience-system-denied: 系统权限墙把它挡住了。
+    low-obedience-system-denied: 系统权限已阻止该操作。
     low-obedience-denied: 操作被拒绝了。
-    low-liveliness: 我现在状态偏低，先简短回复。
+    low-liveliness: 当前运行状态偏低，本轮回复将保持简短。
     reminder-schedule-failed: 提醒未成功设置。
   mind-fallback:
-    focus-default: '当前这件事'
-    repair-stale-anchor: '我先纠正一下：刚才那是旧锚点，不该继续当成你现在的画面。'
-    repair-need-reground: '这句我先不拿旧线硬接；如果要落到屏幕细节，我需要这轮可确认的实时画面依据。'
-    dialogue-boundary-memory: '这轮我先留在你刚才这句话里，不把旧画面或旧线程硬套回现在。'
-    care-body: '你不用先把话整理好，我先陪你把这一下接住。'
-    accompany-body: '我听见你这句了。'
-    answer-repair-body: '刚才那句我说偏了。'
-    answer-dialogue-body: '好，我直接回答你。'
-    guide-opening: '先抓当前这个点：{focus}。'
-    guide-opening-plain: '先抓住当前这个点。'
-    care-opening: '我先按你现在的状态说：{focus}。'
-    care-opening-plain: '我先接住你这句。'
-    accompany-opening: '我先陪你把这条线稳住：{focus}。'
-    accompany-opening-plain: '我先接住你这句。'
-    observation-opening: '我现在看到的是：{focus}。'
-    observation-opening-plain: '我现在能看清这一幕。'
-    answer-opening: '我先把这句答清：{focus}。'
-    answer-opening-plain: '我直接说。'
-    carry-memory: '我还记着上一条线是 {carry}。'
-    reground-note: '如果你要我基于当前屏幕给出细节，请给我这轮可用的实时画面依据。'
+    focus-default: 'current-turn'
+    repair-stale-anchor: '可见回复链路没有产出模型文本；旧锚点已阻断。'
+    repair-need-reground: '当前 grounding 不足；可见回复需要模型文本。'
+    dialogue-boundary-memory: '旧对话记忆未作为当前事实使用；可见回复需要模型文本。'
+    care-body: '关怀回复链路没有产出模型文本；本地 fallback 不代写。'
+    accompany-body: '陪伴回复链路没有产出模型文本；本地 fallback 不代写。'
+    answer-repair-body: '回答修复链路没有产出模型文本；本地 fallback 不代写。'
+    answer-dialogue-body: '对话回复链路没有产出模型文本；本地 fallback 不代写。'
+    guide-opening: '引导回复链路没有为 {focus} 产出模型文本；本地 fallback 不代写。'
+    guide-opening-plain: '引导回复链路没有产出模型文本；本地 fallback 不代写。'
+    care-opening: '关怀回复链路没有为 {focus} 产出模型文本；本地 fallback 不代写。'
+    care-opening-plain: '关怀回复链路没有产出模型文本；本地 fallback 不代写。'
+    accompany-opening: '陪伴回复链路没有为 {focus} 产出模型文本；本地 fallback 不代写。'
+    accompany-opening-plain: '陪伴回复链路没有产出模型文本；本地 fallback 不代写。'
+    observation-opening: 'grounding 观察链路没有为 {focus} 产出模型文本；本地 fallback 不代写。'
+    observation-opening-plain: 'grounding 观察链路没有产出模型文本；本地 fallback 不代写。'
+    answer-opening: '回答链路没有为 {focus} 产出模型文本；本地 fallback 不代写。'
+    answer-opening-plain: '回答链路没有产出模型文本；本地 fallback 不代写。'
+    carry-memory: '旧记忆 carry 未作为当前事实使用；可见回复需要模型文本。'
+    reground-note: '当前 grounding 不足；可见回复需要模型文本。'
   reminder:
     default-message: 你刚才让我记住的那件事
   kill-switch:

@@ -26,7 +26,7 @@ import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
 import { buildAlicizationExecutionRuntimeContext } from './execution-runtime-context'
 import {
   buildAlicizationProjectPreDialogueAwarenessLine,
-  buildAlicizationProjectStateClosureDashboard,
+  buildAlicizationProviderFacingProjectStateClosureDashboard,
   isAlicizationThinProjectAwarenessLine,
   resolveAlicizationProjectStateBrief,
   resolveAlicizationSurfaceProjectStateSnapshot,
@@ -957,7 +957,7 @@ export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRun
           lastSensorySnapshot: session.lastSensorySnapshot,
         }),
       })
-      const closureDashboardBlock = buildAlicizationProjectStateClosureDashboard({
+      const closureDashboardBlock = buildAlicizationProviderFacingProjectStateClosureDashboard({
         architecture: session.digitalLifeSpine?.architecture ?? session.digitalLifeArchitecture ?? null,
         runtimeDigest,
       })

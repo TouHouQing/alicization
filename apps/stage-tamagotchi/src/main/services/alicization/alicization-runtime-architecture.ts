@@ -2996,8 +2996,6 @@ export function buildAlicizationRuntimeSystemBlock(
     320,
   ) || null
   const projectState = snapshot.projectState as Record<string, unknown> | null | undefined
-  const projectIdentity = sanitizeProviderRuntimeText(projectState?.identity, 260)
-  const projectPhase = sanitizeProviderRuntimeText(projectState?.currentPhase, 180)
   const projectLandedProgress = sanitizeProviderRuntimeText(
     projectState?.latestLandedProgress ?? projectState?.latestProgress,
     360,
@@ -3031,8 +3029,7 @@ export function buildAlicizationRuntimeSystemBlock(
     snapshot.emotionalKernel?.memoryRecallMode ? `emotional_kernel_recall=${snapshot.emotionalKernel.memoryRecallMode}` : '',
     snapshot.emotionalKernel?.embodimentTone ? `emotional_kernel_embodiment=${snapshot.emotionalKernel.embodimentTone}` : '',
     snapshot.projectState ? 'memory_continuity_boundary=short_term_owner=WorkingMemory; long_term_recall_owner=LongTermMemoryRecall; project_state_visibility=governance_only' : '',
-    projectIdentity ? `project_identity=${projectIdentity}` : '',
-    projectPhase ? `project_phase=${projectPhase}` : '',
+    snapshot.projectState ? 'visible_governance_entry=MemoryWorkbench; template_policy=no_fixed_persona_templates' : '',
     projectLandedProgress ? `project_landed_progress=${projectLandedProgress}` : '',
     projectMemoryClosure ? `project_memory_closure=${projectMemoryClosure}` : '',
     projectOpenLoop ? `project_open_loop=${projectOpenLoop}` : '',

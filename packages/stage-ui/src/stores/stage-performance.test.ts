@@ -127,7 +127,7 @@ describe('stage performance helpers', () => {
     })).toEqual({
       actionKey: 'idle_gentle_nod',
       label: '轻轻点头',
-      description: '轻轻低头再抬起，像在安静回应主人，适合默认待机、温柔附和或乖巧应声。',
+      description: '轻轻低头再抬起，像在安静回应用户，适合默认待机、温柔附和或轻声应答。',
     })
 
     expect(resolveLive2DActionBindingForMotion({

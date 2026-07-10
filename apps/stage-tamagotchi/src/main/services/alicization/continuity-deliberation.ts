@@ -311,7 +311,7 @@ function deriveBackgroundSceneShiftContinuityEvidence(input: {
   return {
     arcStage: 'same-thread-continuation' as const,
     summary: sanitizeText(
-      `Stay on the same line from ${peerTitle || 'the earlier unresolved seam'} into ${activeTitle || 'the current knot'}.`,
+      `continuation_state=active; from=${peerTitle || 'earlier_unresolved_context'}; to=${activeTitle || 'current_knot'}; restart_policy=context_preserving`,
       180,
     ) || activeTitle || peerTitle || null,
     sourceTags: uniqueTextList([
@@ -400,7 +400,7 @@ function deriveStayingWithThreadContinuityEvidence(input: {
   return {
     arcStage: 'same-thread-continuation',
     summary: sanitizeText(
-      `Stay on the same line while the foreground drifts; ${peerTitle || 'the unresolved callback seam'} is still live underneath.`,
+      `continuation_state=active; foreground=drifted; underlying_context=${peerTitle || 'unresolved_callback'}; restart_policy=context_preserving`,
       180,
     ) || peerTitle || null,
     sourceTags: uniqueTextList([

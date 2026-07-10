@@ -383,7 +383,7 @@ const coverageRows = [
     evidence: 'shared gateway-family auditing now also anchors real runtime gateway-family prompt injection to dedicated audit coverage, so dream, reminder, and proactive prompts keep project-state identity and Phase 1 closure cues explicit while the other families remain covered by their own audited provider-facing regressions',
     fileMustContain: [
       'expect(runtimeSource).toContain(\'expect(reminderSystemTexts.every(text => text.includes(\\\'[ALICIZATION_PROJECT_STATE]\\\'))).toBe(true)\')',
-      'expect(runtimeSource).toContain(\'expect(proactiveSystemText).toContain(\\\'[ALICIZATION_PROJECT_STATE]\\\')\')',
+      'expect(runtimeSource).toContain(\'expect(proactivePromptText).toContain(\\\'[ALICIZATION_PROJECT_STATE]\\\')\')',
       'expect(runtimeSource).toContain(\'expect(dreamSystemTexts[0]).toContain(\\\'[ALICIZATION_PROJECT_STATE]\\\')\')',
       'expect(runtimeSource).toContain(\'expect(dreamSystemTexts[0]).toContain(\\\'[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]\\\')\')',
       'expect(runtimeSource).toContain(\'expect(dreamSystemTexts[0]).toContain(\\\'phase=Phase 1: Local Digital Life\\\')\')',
@@ -405,7 +405,7 @@ const coverageRows = [
       'maps audited main gateway sources to shared project-state audit families',
       'expect(resolveAlicizationProjectStateAuditFamilyForMainGatewaySource(\'scene-appraisal\')).toBe(\'runtime-main-gateway-one-shot.ts:screen-semantic-and-scene-appraisal\')',
       'treats only truly unmapped main gateway sources as fail-closed candidates',
-      'keeps shared provider-facing entry layers anchored to pre-dialogue project-state self-awareness',
+      'keeps shared provider-facing entry layers anchored to memory owner boundaries instead of project-state templates',
     ],
   },
   {
@@ -431,10 +431,11 @@ const coverageRows = [
       'requires provider wrapper authority files to own direct provider imports and canonical project-state fail-close guards',
       'requires provider dispatch owner files to wire only the audited main gateway text provider through runtime composition',
       'requires typed gateway consumer files to constrain their provider use to explicit audited source tags',
-      'project_identity=',
-      'current_phase=',
-      'pre_dialogue_awareness=',
-      'same_her_line=',
+      'short_term_owner=${facts.shortTermOwner}',
+      'long_term_recall_owner=${facts.longTermRecallOwner}',
+      'visible_governance_entry=${facts.visibleGovernanceEntry}',
+      'failure_surface=${facts.failureSurface}',
+      'template_policy=${facts.templatePolicy}',
       'primary_open_loop=',
       'next_closure_target=',
     ],
@@ -5275,7 +5276,7 @@ describe('project awareness coverage matrix', () => {
 
     expect(gatewayRow?.fileMustContain).toEqual(expect.arrayContaining([
       'expect(runtimeSource).toContain(\'expect(reminderSystemTexts.every(text => text.includes(\\\'[ALICIZATION_PROJECT_STATE]\\\'))).toBe(true)\')',
-      'expect(runtimeSource).toContain(\'expect(proactiveSystemText).toContain(\\\'[ALICIZATION_PROJECT_STATE]\\\')\')',
+      'expect(runtimeSource).toContain(\'expect(proactivePromptText).toContain(\\\'[ALICIZATION_PROJECT_STATE]\\\')\')',
       'expect(runtimeSource).toContain(\'expect(dreamSystemTexts[0]).toContain(\\\'[ALICIZATION_PROJECT_STATE]\\\')\')',
     ]))
   })
@@ -5325,10 +5326,10 @@ describe('project awareness coverage matrix', () => {
     const matrixSource = readFileSync(new URL('../../../../../../docs/pre-dialogue-project-awareness-matrix.md', import.meta.url), 'utf8')
     const briefSource = readFileSync(new URL('./project-state-brief.test.ts', import.meta.url), 'utf8')
 
-    expect(briefSource).toContain('Proactive same-her gap: ${proactiveSameHerGap}')
+    expect(briefSource).toContain('proactive_gap=${proactiveSameHerGap}')
     expect(briefSource).toContain('reasonPreview')
     expect(briefSource).toContain('reasons')
-    expect(matrixSource).toContain('shared pre-dialogue awareness/closure structures now also keep explicit `Proactive same-her gap:` carry inside `reasonPreview` / `reasons`')
+    expect(matrixSource).toContain('shared pre-dialogue awareness/closure structures now keep explicit `proactive_gap=` carry inside `reasonPreview` / `reasons`')
     expect(matrixSource).toContain('project-state-brief.test.ts')
   })
 })

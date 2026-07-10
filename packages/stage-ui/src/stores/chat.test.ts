@@ -6210,7 +6210,7 @@ describe('chat orchestrator', () => {
         companionBriefingLine: 'phase1_local_digital_life',
       }),
     }))
-    const promptAwarenessSnapshot = composeAlicizationPromptMessagesMock.mock.calls.at(-1)?.[0]?.preDialogueAwarenessSnapshot
+    const promptAwarenessSnapshot = (composeAlicizationPromptMessagesMock.mock.calls.at(-1)?.[0] as any)?.preDialogueAwarenessSnapshot
     expectNoFixedTemplateResidue(promptAwarenessSnapshot)
 
     const turnPayload = appendConversationTurnMock.mock.calls.at(-1)?.[0]

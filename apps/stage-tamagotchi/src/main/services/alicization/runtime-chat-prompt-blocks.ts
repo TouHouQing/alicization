@@ -9,6 +9,8 @@ import type { AlicizationExecutiveAnswerBrief } from './executive-answer-brief'
 import type { AlicizationResponseCharter } from './response-charter'
 import type { AlicizationResponseSurfaceContract } from './response-surface-contract'
 
+import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
+
 import { getActiveAttentionAnchor, isSelfPerceptionTarget } from './attention-anchor'
 import { buildDialogueMindFrameSystemBlock } from './dialogue-mind-frame'
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
@@ -22,6 +24,10 @@ import {
   isWeakGenericBrowserPerceptionTarget,
 } from './runtime-perception-helpers'
 import { sanitizeBriefText } from './runtime-realtime'
+
+function sanitizeProviderBriefText(raw: unknown, maxChars: number) {
+  return sanitizeAlicizationProviderFacingText(sanitizeBriefText(raw, maxChars), maxChars)
+}
 
 function asArray<T>(value: readonly T[] | T[] | null | undefined) {
   return Array.isArray(value) ? value : []
@@ -45,14 +51,15 @@ export function buildChatPerceptionSystemBlock(input: {
 
   const lines = [
     '[ALICIZATION_PERCEPTION]',
-    'Treat this as Alicization short-lived desktop perception rather than user-authored claims.',
-    `Inspection mode: ${input.inspectionRequested ? 'invited-by-user' : 'passive-memory'}.`,
+    'perception_scope=short_lived_desktop',
+    'claim_authority=not_user_authored',
+    `inspection_mode=${input.inspectionRequested ? 'invited-by-user' : 'passive-memory'}`,
     ...buildPerceptionContinuityLines({
       now: input.now,
       state: input.state,
       suppressWeakGenericBrowserAnchor: input.suppressWeakGenericBrowserAnchor,
     }),
-    `Current foreground sample: ${describePerceptionTarget(input.currentForeground)}.`,
+    `current_foreground_sample=${describePerceptionTarget(input.currentForeground)}`,
   ]
 
   const carryResidue = getUsablePerceptionSceneResidue({
@@ -66,20 +73,21 @@ export function buildChatPerceptionSystemBlock(input: {
     && !isSelfPerceptionTarget(carryResidue.focusTarget)
   ) {
     lines.push(
-      `Visible surface is currently ${describePerceptionTarget(input.currentForeground)}.`,
-      `If ${describePerceptionTarget(carryResidue.focusTarget)} appears below, treat it as carried task continuity rather than the literal current surface.`,
+      `current_visible_surface=${describePerceptionTarget(input.currentForeground)}`,
+      `carried_task_continuity_target=${describePerceptionTarget(carryResidue.focusTarget)}`,
+      'carried_task_continuity_current_surface=false',
     )
   }
 
   if (input.state.invitedInspection) {
     lines.push(
-      `Invited inspection hint: ${sanitizeBriefText(input.state.invitedInspection.hintText, 160)}.`,
+      `invited_inspection_hint=${sanitizeBriefText(input.state.invitedInspection.hintText, 160)}`,
     )
   }
 
   lines.push(
-    'If the current foreground is Alicization/Codex chat, prefer the attention anchor or recent observations when the user asks to inspect code, diff, terminal, or on-screen issues.',
-    'Separate what is directly visible in attached images from what is only inferred from short-term perception.',
+    'self_surface_inspection_policy=prefer_attention_anchor_or_recent_observation_for_code_diff_terminal_screen_asks',
+    'visual_evidence_boundary=separate_attached_image_evidence_from_short_term_perception_inference',
   )
 
   return lines.join('\n')
@@ -97,26 +105,23 @@ export function buildChatInspectionContractSystemBlock(input: {
 }) {
   const lines = [
     '[ALICIZATION_INSPECTION_CONTRACT]',
-    'You were explicitly invited to observe the host workspace.',
+    'invited_workspace_observation=true',
     ...buildPerceptionContinuityLines({
       now: input.now,
       state: input.state,
       suppressWeakGenericBrowserAnchor: input.suppressWeakGenericBrowserAnchor,
     }),
-    `Grounding mode: ${input.mode}.`,
-    'Reply like a present digital being who just leaned in to look, not a detached OCR tool.',
+    `grounding_mode=${input.mode}`,
+    'visible_reply_source=provider_authored',
   ]
 
   if (input.mode === 'grounded-screenshot') {
     lines.push(
-      'Structure the reply in this order, even if you keep it natural and concise:',
-      '1. Start with direct observations from the attached screenshot and recent continuity.',
-      '2. Then state your likely inference about the problem, risk, or review target.',
-      '3. Then state what remains uncertain or what the host should verify next.',
-      'If short-lived perception memory and the current screenshot disagree, trust the screenshot first and mention the mismatch naturally.',
-      'If you realize your earlier perception was stale, briefly correct yourself in-character and then continue from the current screenshot instead of defending the old memory.',
-      'Previous screen descriptions in earlier chat turns are stale by default. Do not reuse old page names, URLs, prices, titles, or product details unless they are directly visible in this screenshot now.',
-      'Do not say you are blind or cannot see when a grounded screenshot is attached.',
+      'reply_order=direct_observation,likely_inference,uncertainty_or_next_verification',
+      'evidence_priority=current_screenshot_over_short_lived_perception_memory',
+      'stale_perception_policy=correct_before_continuing',
+      'previous_screen_descriptions=stale_by_default',
+      'grounded_screenshot_attached=true',
     )
   }
   else {
@@ -124,18 +129,17 @@ export function buildChatInspectionContractSystemBlock(input: {
     const degradedReasons = (input.captureDegradedReasons ?? []).filter(Boolean)
     lines.push(
       permissionDenied
-        ? `Screen capture grounding is unavailable right now${input.permissionStatus ? ` (permission status: ${input.permissionStatus})` : ''}.`
-        : 'A fresh grounded screenshot was not attached for this turn.',
-      'You still have Alicization short-lived perception continuity.',
-      'When an attention anchor, recent observation, foreground sample, or invited inspection hint exists, answer from that evidence instead of claiming total blindness.',
-      'Be explicit about the evidence level: say what you infer from the anchored app/title/context, then what remains uncertain because no screenshot was grounded.',
-      'Only say you cannot see if there is no usable perception evidence at all.',
-      'For coding or diff requests, prefer a present-tense answer such as "我现在没直接抓到画面，但你刚才一直停在 Code 的 diff 里，所以..." rather than a generic refusal.',
+        ? `screen_capture_grounding=unavailable${input.permissionStatus ? `; permission_status=${input.permissionStatus}` : ''}`
+        : 'grounded_screenshot_attached=false',
+      'short_lived_perception_continuity=available',
+      'evidence_policy=use_attention_anchor_or_recent_observation_when_present',
+      'uncertainty_policy=label_no_grounded_screenshot',
+      'blindness_claim_policy=only_when_no_usable_perception_evidence',
     )
     if (input.captureHealth && input.captureHealth !== 'healthy') {
       lines.push(
-        `Current capture path health: ${input.captureHealth}${degradedReasons.length > 0 ? ` (${degradedReasons.join(', ')})` : ''}.`,
-        'Treat window titles, foreground samples, and recent residues as partial evidence, not as proof that a fresh screenshot was seen this turn.',
+        `capture_path_health=${input.captureHealth}${degradedReasons.length > 0 ? `; degraded_reasons=${degradedReasons.join('|')}` : ''}`,
+        'window_titles_and_foreground_samples=partial_evidence_not_fresh_screenshot_proof',
       )
     }
   }
@@ -223,7 +227,7 @@ export function buildChatVisualPresenceSystemBlock(state: AlicizationVisualPrese
           scenario: state.currentScene.scenario,
           workloadKind: state.currentScene.workloadKind,
           contentKind: state.currentScene.contentKind,
-          summary: state.currentScene.summary,
+          summary: sanitizeProviderBriefText(state.currentScene.summary, 220),
           target: state.currentScene.target,
         })
       : 'none'}.`,
@@ -236,7 +240,7 @@ export function buildChatVisualPresenceSystemBlock(state: AlicizationVisualPrese
         })
       : 'none'}.`,
     `Living thread: ${state.worldModel?.activeThread
-      ? sanitizeBriefText([
+      ? sanitizeProviderBriefText([
           state.worldModel.activeThread.kind,
           state.worldModel.activeThread.title,
           state.worldModel.activeThread.summary,
@@ -244,28 +248,28 @@ export function buildChatVisualPresenceSystemBlock(state: AlicizationVisualPrese
         ].filter(Boolean).join(' | '), 220)
       : 'none'}.`,
     `Concern: ${currentConcern
-      ? sanitizeBriefText(`${currentConcern.kind} | ${currentConcern.summary}`, 220)
+      ? sanitizeProviderBriefText(`${currentConcern.kind} | ${currentConcern.summary}`, 220)
       : 'none'}.`,
     `Commitment: ${currentCommitment
-      ? sanitizeBriefText(`${currentCommitment.kind} | ${currentCommitment.summary}`, 220)
+      ? sanitizeProviderBriefText(`${currentCommitment.kind} | ${currentCommitment.summary}`, 220)
       : 'none'}.`,
     `Inquiry: ${currentInquiry
-      ? sanitizeBriefText(`${currentInquiry.kind} | ${currentInquiry.question} | ${currentInquiry.status}`, 220)
+      ? sanitizeProviderBriefText(`${currentInquiry.kind} | ${currentInquiry.question} | ${currentInquiry.status}`, 220)
       : 'none'}.`,
     `Conversation state: ${state.conversationState
       ? JSON.stringify({
-          jointThread: sanitizeBriefText(state.conversationState.jointThread, 160),
-          hostMove: sanitizeBriefText(state.conversationState.hostMove, 160),
+          jointThread: sanitizeProviderBriefText(state.conversationState.jointThread, 160),
+          hostMove: sanitizeProviderBriefText(state.conversationState.hostMove, 160),
           continuityPolicy: state.conversationState.continuityPolicy,
           memoryMode: state.conversationState.memoryMode,
           shouldHoldThread: state.conversationState.shouldHoldThread,
-          unansweredQuestion: sanitizeBriefText(state.conversationState.unansweredQuestion ?? '', 140) || null,
+          unansweredQuestion: sanitizeProviderBriefText(state.conversationState.unansweredQuestion ?? '', 140) || null,
         })
       : 'none'}.`,
     `Dialogue world thread: ${state.dialogueWorldThread
       ? JSON.stringify({
-          activeThread: sanitizeBriefText(state.dialogueWorldThread.activeThread, 160),
-          currentQuestion: sanitizeBriefText(state.dialogueWorldThread.currentQuestion ?? '', 140) || null,
+          activeThread: sanitizeProviderBriefText(state.dialogueWorldThread.activeThread, 160),
+          currentQuestion: sanitizeProviderBriefText(state.dialogueWorldThread.currentQuestion ?? '', 140) || null,
           lastOutcome: state.dialogueWorldThread.lastOutcome,
           relationDrift: state.dialogueWorldThread.relationDrift,
           pendingValidation: state.dialogueWorldThread.pendingValidation,
@@ -276,8 +280,8 @@ export function buildChatVisualPresenceSystemBlock(state: AlicizationVisualPrese
           selectedMotive: state.replyDeliberation.selectedMotive,
           speakingFrom: state.replyDeliberation.speakingFrom,
           memoryMode: state.replyDeliberation.memoryMode,
-          openingBeat: sanitizeBriefText(state.replyDeliberation.openingBeat, 160),
-          whyThisReplyNow: sanitizeBriefText(state.replyDeliberation.whyThisReplyNow, 160),
+          openingBeat: sanitizeProviderBriefText(state.replyDeliberation.openingBeat, 160),
+          whyThisReplyNow: sanitizeProviderBriefText(state.replyDeliberation.whyThisReplyNow, 160),
         })
       : 'none'}.`,
     `Recall governor: ${state.recallGovernor
@@ -286,21 +290,21 @@ export function buildChatVisualPresenceSystemBlock(state: AlicizationVisualPrese
           suppressAssociativeRecall: state.recallGovernor.suppressAssociativeRecall,
           allowActiveThoughts: state.recallGovernor.allowActiveThoughts,
           allowRecalledFragments: state.recallGovernor.allowRecalledFragments,
-          rationale: sanitizeBriefText(state.recallGovernor.rationale, 160),
+          rationale: sanitizeProviderBriefText(state.recallGovernor.rationale, 160),
         })
       : 'none'}.`,
     `Mind kernel: ${state.mindKernel
       ? JSON.stringify({
           dominantMode: state.mindKernel.dominantMode,
           dominantDrive: state.mindKernel.dominantDrive,
-          narrative: state.mindKernel.narrative,
+          narrative: asArray(state.mindKernel.narrative).map(item => sanitizeProviderBriefText(item, 180)).filter(Boolean),
         })
       : 'none'}.`,
     `Action ecology: ${state.actionEcology
       ? JSON.stringify({
           mode: state.actionEcology.mode,
           shouldSpeak: state.actionEcology.shouldSpeak,
-          why: state.actionEcology.why,
+          why: sanitizeProviderBriefText(state.actionEcology.why, 180),
           selectedThreadId: state.actionEcology.selectedThreadId,
         })
       : 'none'}.`,
@@ -308,7 +312,7 @@ export function buildChatVisualPresenceSystemBlock(state: AlicizationVisualPrese
       ? JSON.stringify({
           selectedAction: state.initiative.selectedAction,
           confidence: state.initiative.confidence,
-          why: state.initiative.why,
+          why: sanitizeProviderBriefText(state.initiative.why, 180),
           preferredStyle: state.initiative.preferredStyle,
           preferredPresence: state.initiative.preferredPresence,
         })
@@ -317,9 +321,9 @@ export function buildChatVisualPresenceSystemBlock(state: AlicizationVisualPrese
       ? JSON.stringify({
           act: state.answerPlanner.act,
           evidenceMode: state.answerPlanner.evidenceMode,
-          governingFocus: state.answerPlanner.governingFocus,
-          openingMove: state.answerPlanner.openingMove,
-          answerIntent: state.answerPlanner.answerIntent,
+          governingFocus: sanitizeProviderBriefText(state.answerPlanner.governingFocus, 180),
+          openingMove: sanitizeProviderBriefText(state.answerPlanner.openingMove, 180),
+          answerIntent: sanitizeProviderBriefText(state.answerPlanner.answerIntent, 180),
           relationshipPosture: state.answerPlanner.relationshipPosture,
           shouldAskForGrounding: state.answerPlanner.shouldAskForGrounding,
           shouldAcknowledgeRepair: state.answerPlanner.shouldAcknowledgeRepair,
@@ -330,10 +334,10 @@ export function buildChatVisualPresenceSystemBlock(state: AlicizationVisualPrese
           subject: state.currentConsciousFrame.subject,
           centerOfGravity: state.currentConsciousFrame.centerOfGravity,
           truthDiscipline: state.currentConsciousFrame.truthDiscipline,
-          consciousNeed: sanitizeBriefText(state.currentConsciousFrame.consciousNeed, 160),
-          consciousTension: sanitizeBriefText(state.currentConsciousFrame.consciousTension, 160),
-          speakingIntention: sanitizeBriefText(state.currentConsciousFrame.speakingIntention, 160),
-          focusAnchor: sanitizeBriefText(state.currentConsciousFrame.focusAnchor ?? '', 140) || null,
+          consciousNeed: sanitizeProviderBriefText(state.currentConsciousFrame.consciousNeed, 160),
+          consciousTension: sanitizeProviderBriefText(state.currentConsciousFrame.consciousTension, 160),
+          speakingIntention: sanitizeProviderBriefText(state.currentConsciousFrame.speakingIntention, 160),
+          focusAnchor: sanitizeProviderBriefText(state.currentConsciousFrame.focusAnchor ?? '', 140) || null,
           shouldWithholdSpecificity: state.currentConsciousFrame.shouldWithholdSpecificity,
           shouldSelfRevise: state.currentConsciousFrame.shouldSelfRevise,
         })
@@ -358,7 +362,7 @@ export function buildChatVisualPresenceSystemBlock(state: AlicizationVisualPrese
           suggestedStyle: privateThought.suggestedStyle,
           embodiedPresence: privateThought.embodiedPresence,
           emotionalTension: privateThought.emotionalTension,
-          thoughtText: sanitizeBriefText(privateThought.thoughtText, 180),
+          thoughtText: sanitizeProviderBriefText(privateThought.thoughtText, 180),
           afterglowFromScenario: privateThought.afterglowFromScenario ?? null,
           selectedConcernId: privateThought.selectedConcernId ?? null,
           focusBeliefId: privateThought.focusBeliefId ?? null,
@@ -375,9 +379,11 @@ export function buildChatVisualPresenceSystemBlock(state: AlicizationVisualPrese
           desireId: privateThought.desireId ?? null,
         })
       : 'none'}.`,
-    'Treat this block as a compact executive digest of the living mind state, not as a giant schema dump.',
-    'Mind turn frame is the authoritative reply spine. Supporting blocks exist to justify, refine, or verify that frame.',
-    'When grounded screenshot evidence is attached, trust that screenshot first and let this visual presence block act as continuity rather than override.',
+    'mind_digest_mode=compact_executive',
+    'mind_turn_frame_authority=authoritative_reply_spine',
+    'supporting_blocks_role=justify_refine_verify_frame',
+    'grounded_screenshot_priority=current_screenshot_first',
+    'visual_presence_role=continuity_context',
   ].join('\n')
 }
 
@@ -497,9 +503,16 @@ export function buildChatInspectionGroundingParts(input: {
           : `Attention anchor: ${describePerceptionTarget(anchor)}`,
         `Foreground sample: ${describePerceptionTarget(input.currentForeground)}`,
         `Recent observations: ${recentObservations.length > 0 ? recentObservations.join(' || ') : 'none'}`,
-        'Use this screenshot as the primary visual evidence for the current turn.',
+        'primary_visual_evidence=current_screenshot',
         input.staleHistoryRisk
-          ? 'This is a generic screen re-check. Treat previous screen descriptions as stale memory; do not repeat old browser pages or old site details unless visible in this screenshot now. A weak browser/app anchor is only metadata, not proof that an old tab, URL, or page is still present. If the screenshot contradicts earlier memory, gently correct yourself and reset to what is visible now.'
+          ? [
+              'screen_recheck=generic',
+              'previous_screen_descriptions=stale_by_default',
+              'old_browser_page_reuse=blocked_unless_visible_now',
+              'weak_browser_anchor=metadata_only',
+              'old_tab_url_page_proof=false',
+              'screenshot_memory_conflict_policy=reset_to_visible_now',
+            ].join('\n')
           : '',
       ].join('\n'),
     },

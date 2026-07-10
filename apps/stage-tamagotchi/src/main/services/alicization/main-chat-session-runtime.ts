@@ -539,6 +539,7 @@ function readLatestUserMessageText(messages: Message[]) {
 
 const ordinaryDialogueProjectStateBlockMarkers = [
   '[ALICIZATION_PROJECT_STATE]',
+  '[ALICIZATION_PROJECT_GOVERNANCE_DASHBOARD]',
   '[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]',
   '[ALICIZATION_PROJECT_STATE_CONTINUITY]',
 ] as const
@@ -547,7 +548,7 @@ const ordinaryDialogueMemoryOwnerBlockMarkers = [
   '[ALICIZATION_WORKING_MEMORY_OWNER]',
   '[ALICIZATION_WORKING_MEMORY]',
   '[ALICIZATION_RECALLED_MEMORY]',
-] as const
+] as readonly string[]
 
 const ordinaryDialogueProjectStateLinePattern
   = /^(?:Provider-facing same-her project orientation|Project identity|Project phase|Project preflight self-awareness|Project pre-dialogue awareness line|Project companion headline|Project proactive same-her gap|Project memory closure summary|Project emotional closure seam|Project emotional closure summary|Project same-her hold detail|Latest landed continuity progress|Landed progress|Still-open life loop pressure|Still-open closure work|Open closure focus|Next closure target|Next closure focus|Emotional closure seam|Project same-her self line|Project same-her hold detail|Project same-her drift risk|Project continuity current phase|Project continuity latest progress|Project continuity primary open loop|Project continuity proactive gap|Project continuity next closure target|Project continuity pre-dialogue awareness line|Project continuity emotional closure cue|Project continuity self line|Project continuity drift risk|Project continuity self line required|Project continuity restraint|Project continuity arc stage|Project continuity cue|Project continuity timing|Project continuity preferred timing|Project continuity cadence|Project preferred blink cadence|Project preferred gaze mode|Project preferred pause mode|Project preferred lipsync mode|Project preferred voice mode|Project preferred pacing mode|Pre-dialogue closure summary|Pre-dialogue next closure line|Pre-dialogue closure cue|Governing project|Canonical Phase 1 continuity progress still anchoring her|How the living project is still shaping her before she speaks|Pre-dialogue closure briefing):/u
@@ -6681,7 +6682,7 @@ export function normalizeProviderFacingMindTurnContract(
   )
     ? mergeUniqueRules([
         ...(normalizedAnswerGovernance?.mustNotDo ?? contract.mustNotDo ?? []),
-        'Do not let continuity collapse into a detached project narrator shell.',
+        'continuity_surface=preserve_structured_context; detached_project_narrator_shell=blocked',
       ])
     : normalizedAnswerGovernance?.mustNotDo ?? contract.mustNotDo
   const preferredNormalizedLatestLandedProgress = pickPreferredRuntimeProjectStateDetail([
@@ -7160,7 +7161,7 @@ function readProviderFacingPayloadProjectState(
     if (!normalized)
       return null
 
-    const matchedPayload = normalized.match(/^Do not let this opening drift into\s+(.*)$/iu)?.[1] ?? null
+    const matchedPayload = normalized.match(/^D[o0]\s+not\s+let this opening drift into\s+(.*)$/iu)?.[1] ?? null
     if (matchedPayload)
       return normalizeProviderFacingProjectAwarenessPayloadText(matchedPayload, 1600)
 

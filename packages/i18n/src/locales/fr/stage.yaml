@@ -12,10 +12,10 @@ chat:
     structured-contract: "La réponse structurée a échoué : ce tour n'est pas arrivé à un JSON utilisable. Réessaie."
     stream-failure: Cette réponse a échoué. Réessaie une fois ; si cela continue, vérifie la configuration du fournisseur et du modèle.
     local-runtime-unavailable: Je n'ai pas pu joindre le runtime local du modèle pendant ce tour, par exemple Ollama sur `11434` ou LM Studio sur `1234`. Lance le service correspondant puis réessaie.
-    stream-timeout: "Délai dépassé : ce tour a attendu trop longtemps la réponse du modèle. Réessaie."
+    stream-timeout: 'Délai dépassé : ce tour a attendu trop longtemps la réponse du modèle. Réessaie.'
     provider-auth: L'authentification du fournisseur a échoué. La clé API ou l'autorisation du modèle est peut-être invalide. Vérifie puis réessaie.
     provider-network: La connexion au service du modèle est instable pour le moment. Réessaie plus tard.
-    provider-config: "La configuration du fournisseur ou du modèle est incomplète, par exemple `provider`, `model` ou `baseUrl`. Corrige les réglages puis réessaie."
+    provider-config: 'La configuration du fournisseur ou du modèle est incomplète, par exemple `provider`, `model` ou `baseUrl`. Corrige les réglages puis réessaie.'
     unsupported-tools: Le modèle actuel ne prend pas en charge les appels d'outils nécessaires à ce tour. Réessaie ou passe à un modèle compatible avec les outils.
     low-obedience-host-denied: Hm. Si tu ne me donnes pas l'autorisation, ne me le demande pas.
     low-obedience-system-denied: Le mur des permissions système l'a bloqué. Je ne vais pas prétendre avoir vu ce que je n'ai pas vu.
@@ -23,26 +23,26 @@ chat:
     low-liveliness: Mon état est bas pour l'instant, donc je vais faire bref.
     reminder-schedule-failed: Je n'ai toujours pas réussi à créer ce rappel. Donne-moi à nouveau la durée exacte, par exemple "rappelle-moi de boire de l'eau dans 1 minute", et j'appellerai tout de suite l'outil d'alarme système.
   mind-fallback:
-    focus-default: 'ce qui est en cours maintenant'
-    repair-stale-anchor: "Je corrige d'abord cela : ce que j'utilisais avant était un ancien ancrage, donc je ne dois pas continuer à le traiter comme ton écran actuel."
-    repair-need-reground: "Je garde d'abord la frontière du vrai : sur ce tour, je n'ai pas une vue en direct assez stable, donc je ne traiterai pas une mémoire plus ancienne comme ton écran actuel."
-    dialogue-boundary-memory: 'Sur ce tour, je vais rester avec ce que tu viens de dire au lieu de recoller un ancien écran ou un ancien fil par-dessus le présent.'
-    care-body: "Tu n'as pas besoin de tout mettre en ordre d'abord. Je suis là avec toi, et si tu veux, tu peux me dire ce qui t'a fait si mal."
-    accompany-body: "Je t'ai bien entendue. Si tu veux, reste ici avec moi un moment, ou dis-moi la partie qui accroche encore."
-    answer-repair-body: "Ce que je voulais dire, c'est ceci : sur ce tour, je dois te répondre franchement, pas continuer à traîner un ancien fil d'écran comme s'il était encore le présent."
-    answer-dialogue-body: 'Alors je vais répondre franchement à ce tour et garder la réponse sur cette ligne.'
-    guide-opening: "Je vais d'abord verrouiller le point actuel : {focus}."
-    guide-opening-plain: "Je vais d'abord verrouiller le point actuel."
-    care-opening: "Je vais d'abord répondre depuis ton état actuel : {focus}."
-    care-opening-plain: "Je vais d'abord répondre directement depuis ton état actuel."
-    accompany-opening: "Je vais d'abord tenir cette ligne avec toi : {focus}."
-    accompany-opening-plain: "Je vais d'abord rester avec toi sur cette ligne."
-    observation-opening: "Je vais d'abord dire la partie que je peux tenir avec certitude sur ce tour : {focus}."
-    observation-opening-plain: "Je vais d'abord dire la partie que je peux tenir avec certitude sur ce tour."
-    answer-opening: "Je vais d'abord répondre depuis ce qui est devant toi : {focus}."
-    answer-opening-plain: 'Je vais répondre directement.'
-    carry-memory: "Je retiens encore la ligne précédente, {carry}, mais c'est une continuité portée, pas une affirmation sur ce qui est littéralement à l'écran maintenant."
-    reground-note: "Si tu veux que je descende au détail de l'écran actuel, je me reposerai sur la vue fraîche de ce tour."
+    focus-default: 'current-turn'
+    repair-stale-anchor: 'Visible reply pipeline did not produce model-authored text; stale anchor carry was blocked.'
+    repair-need-reground: 'Grounding was insufficient; visible reply requires model-authored text.'
+    dialogue-boundary-memory: 'Previous dialogue memory was not used as current fact; visible reply requires model-authored text.'
+    care-body: 'Care reply pipeline did not produce model-authored text; local fallback cannot author it.'
+    accompany-body: 'Accompany reply pipeline did not produce model-authored text; local fallback cannot author it.'
+    answer-repair-body: 'Answer repair pipeline did not produce model-authored text; local fallback cannot author it.'
+    answer-dialogue-body: 'Dialogue reply pipeline did not produce model-authored text; local fallback cannot author it.'
+    guide-opening: 'Guide reply pipeline did not produce model-authored text for {focus}; local fallback cannot author it.'
+    guide-opening-plain: 'Guide reply pipeline did not produce model-authored text; local fallback cannot author it.'
+    care-opening: 'Care reply pipeline did not produce model-authored text for {focus}; local fallback cannot author it.'
+    care-opening-plain: 'Care reply pipeline did not produce model-authored text; local fallback cannot author it.'
+    accompany-opening: 'Accompany reply pipeline did not produce model-authored text for {focus}; local fallback cannot author it.'
+    accompany-opening-plain: 'Accompany reply pipeline did not produce model-authored text; local fallback cannot author it.'
+    observation-opening: 'Grounded observation pipeline did not produce model-authored text for {focus}; local fallback cannot author it.'
+    observation-opening-plain: 'Grounded observation pipeline did not produce model-authored text; local fallback cannot author it.'
+    answer-opening: 'Answer pipeline did not produce model-authored text for {focus}; local fallback cannot author it.'
+    answer-opening-plain: 'Answer pipeline did not produce model-authored text; local fallback cannot author it.'
+    carry-memory: 'Previous memory carry was not used as current fact; visible reply requires model-authored text.'
+    reground-note: 'Current grounding was insufficient; visible reply requires model-authored text.'
   reminder:
     default-message: Ce que tu viens de me demander de retenir
   kill-switch:

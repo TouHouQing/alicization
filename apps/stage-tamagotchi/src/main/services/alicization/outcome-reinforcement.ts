@@ -55,7 +55,7 @@ function structuredFixedTemplateMemoryFact(raw: string) {
   const lower = raw.toLowerCase()
   return uniqueFactFields([
     'continuity_scope=local_runtime',
-    /phase\s*1|local[- ]first|digital[- ]life/u.test(lower) ? 'project_phase=local_desktop_life_loop' : null,
+    /phase\s*1|local[- ]first|digital[- ]life/u.test(lower) ? 'project_context=memory_governance_status' : null,
     /closure|open loop|unfinished|still open|gap|needs/u.test(lower) ? 'closure_state=open' : null,
     /proactive/u.test(lower) ? 'proactive_continuity_gap=open' : null,
     /execution|callback|proposal|codex|command|tool/u.test(lower) ? 'execution_context=bounded' : null,

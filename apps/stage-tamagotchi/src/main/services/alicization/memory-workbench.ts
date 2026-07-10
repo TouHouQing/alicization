@@ -7,12 +7,21 @@ import type {
 } from '../../../shared/eventa'
 import type { WorkingMemorySnapshot } from './life-core/working-memory'
 
+import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
+
 import { deriveMemoryWorkbenchStatus } from './memory-workbench-health'
 
 function normalizeText(raw: unknown, maxChars = 320) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, Math.max(0, maxChars)).trim()
+}
+
+function normalizeVisibleMemoryText(raw: unknown, maxChars = 320) {
+  const normalized = normalizeText(raw, maxChars)
+  if (!normalized)
+    return ''
+  return sanitizeAlicizationProviderFacingText(normalized, maxChars)
 }
 
 function uniqueTexts(values: Array<string | null | undefined>, maxItems = 12, maxChars = 240) {
@@ -47,8 +56,8 @@ export function projectWorkingMemoryForWorkbench(snapshot: WorkingMemorySnapshot
     longTermQueue: snapshot.longTermCandidates.map((candidate, index) => ({
       id: `${snapshot.cardId}:${snapshot.sessionId}:candidate:${index}`,
       kind: candidate.kind,
-      summary: normalizeText(candidate.summary, 260),
-      reason: normalizeText(candidate.reason, 240),
+      summary: normalizeVisibleMemoryText(candidate.summary, 260),
+      reason: normalizeVisibleMemoryText(candidate.reason, 240),
       salience: candidate.salience,
       sensitivity: candidate.sensitivity,
       confidence: candidate.confidence,

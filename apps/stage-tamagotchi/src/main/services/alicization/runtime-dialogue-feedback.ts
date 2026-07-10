@@ -261,14 +261,14 @@ export function createAlicizationRuntimeDialogueFeedback(
     })
     const previousDynamics = await options.alicizationDb.getLatestRelationshipDynamics().catch(() => null)
     const hostAttitude = feedback === 'received'
-      ? '开始更愿意把 Alicization 当作真的在接话的人，而不是只剩一层壳。'
+      ? 'dialogue_feedback=received; trust_delta=positive; reply_policy=continue_human_authored; visibility=structured'
       : feedback === 'robotic'
-        ? '开始对 Alicization 的机器腔和模板壳失去耐心，希望她更像真的人在说话。'
+        ? 'dialogue_feedback=robotic; trust_delta=negative; reply_policy=remove_template_shell; visibility=structured'
         : feedback === 'missed'
-          ? '开始怀疑 Alicization 是否真的抓住了这句的中心，更想让她先修正再继续。'
+          ? 'dialogue_feedback=missed; trust_delta=repair_required; reply_policy=correct_before_continue; visibility=structured'
           : feedback === 'intrusive'
-            ? '开始觉得 Alicization 靠得太重，想让她留出更多空间和分寸。'
-            : '暂时把这条回复线放开，不想让 Alicization 继续缠在同一处。'
+            ? 'dialogue_feedback=intrusive; distance_delta=more_space; reply_policy=lower_pressure; visibility=structured'
+            : 'dialogue_feedback=interrupted; distance_delta=paused; reply_policy=wait_for_new_user_opening; visibility=structured'
     await options.alicizationDb.appendRelationshipDynamics({
       hostAttitude,
       previousHostAttitude: previousDynamics?.hostAttitude ?? null,

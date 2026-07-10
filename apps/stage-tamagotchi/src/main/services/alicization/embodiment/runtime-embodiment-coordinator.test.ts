@@ -3252,17 +3252,17 @@ describe('runtime embodiment coordinator', () => {
       preferredGazeMode: 'soften',
       residentMode: 'measured-return',
       reasonTags: expect.arrayContaining(['embodiment:body_lipsync_voice_rejoin']),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.embodimentScript?.speechPlan.segments[0]?.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'measured-return',
       reasonTags: expect.arrayContaining(['embodiment:body_lipsync_voice_rejoin']),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.speechTimeline?.segments[0]?.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'measured-return',
       reasonTags: expect.arrayContaining(['embodiment:body_lipsync_voice_rejoin']),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.embodimentScript?.motionPlan.actionBursts[0]?.actionCue).toBe('observe_focus')
     expect(authority.digitalLife?.action.actionCue).toBe('observe_focus')
@@ -4042,7 +4042,7 @@ describe('runtime embodiment coordinator', () => {
       residentMode: 'measured-return',
       preferredMotionAliases: ['Inspect', 'Still'],
       reasonTags: expect.arrayContaining(['embodiment:body_lipsync_voice_rejoin']),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.digitalLife?.motor.stillness).toBeGreaterThanOrEqual(0.18)
     expect(authority.digitalLife?.motor.gaze.stability).toBeGreaterThanOrEqual(0.14)
@@ -4058,7 +4058,7 @@ describe('runtime embodiment coordinator', () => {
       residentMode: 'measured-return',
       preferredMotionAliases: ['Inspect', 'Still'],
       reasonTags: expect.arrayContaining(['embodiment:body_lipsync_voice_rejoin']),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
   })
 
@@ -4452,45 +4452,45 @@ describe('runtime embodiment coordinator', () => {
       preferredExpressionAliases: ['recover-soft', 'soft-gaze'],
       preferredMotionAliases: ['stillness_guard', 'observe_focus'],
       reasonTags: expect.arrayContaining([
-        'embodiment:audible_same_her_line',
+        'embodiment:audible_continuity_line',
         'embodiment:body+voice-only',
       ]),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.embodimentScript?.state.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'repair-before-closeness',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
       reasonTags: expect.arrayContaining([
-        'embodiment:audible_same_her_line',
+        'embodiment:audible_continuity_line',
         'embodiment:body+voice-only',
       ]),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.embodimentScript?.speechPlan.segments[0]?.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'repair-before-closeness',
       reasonTags: expect.arrayContaining([
-        'embodiment:audible_same_her_line',
+        'embodiment:audible_continuity_line',
         'embodiment:body+voice-only',
       ]),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.speechTimeline?.segments[0]?.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'repair-before-closeness',
       reasonTags: expect.arrayContaining([
-        'embodiment:audible_same_her_line',
+        'embodiment:audible_continuity_line',
         'embodiment:body+voice-only',
       ]),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.digitalLife?.action.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'repair-before-closeness',
       preferredMotionAliases: expect.arrayContaining(['Still', 'Inspect']),
       reasonTags: expect.arrayContaining([
-        'embodiment:audible_same_her_line',
+        'embodiment:audible_continuity_line',
         'embodiment:body+voice-only',
       ]),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.embodimentScript?.motionPlan.actionBursts[0]?.actionCue).toBe('idle_settle')
     expect(authority.digitalLife?.action.actionCue).toBe('idle_settle')
@@ -9341,23 +9341,23 @@ describe('runtime embodiment coordinator', () => {
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
       reasonTags: expect.arrayContaining(['embodiment:body_lipsync_voice_rejoin']),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.embodimentScript?.speechPlan.segments[0]?.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'measured-return',
       reasonTags: expect.arrayContaining(['embodiment:body_lipsync_voice_rejoin']),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.speechTimeline?.segments[0]?.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'measured-return',
       reasonTags: expect.arrayContaining(['embodiment:body_lipsync_voice_rejoin']),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.digitalLife?.action.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'measured-return',
       preferredMotionAliases: expect.arrayContaining(['Inspect', 'Still']),
       reasonTags: expect.arrayContaining(['embodiment:body_lipsync_voice_rejoin']),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.embodimentScript?.motionPlan.actionBursts[0]?.actionCue).toBe('observe_focus')
     expect(authority.digitalLife?.action.actionCue).toBe('observe_focus')
@@ -9746,35 +9746,35 @@ describe('runtime embodiment coordinator', () => {
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
       reasonTags: expect.arrayContaining([
-        'embodiment:audible_same_her_line',
+        'embodiment:audible_continuity_line',
         'embodiment:body+voice-only',
       ]),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.embodimentScript?.speechPlan.segments[0]?.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'measured-return',
       reasonTags: expect.arrayContaining([
-        'embodiment:audible_same_her_line',
+        'embodiment:audible_continuity_line',
         'embodiment:body+voice-only',
       ]),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.speechTimeline?.segments[0]?.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'measured-return',
       reasonTags: expect.arrayContaining([
-        'embodiment:audible_same_her_line',
+        'embodiment:audible_continuity_line',
         'embodiment:body+voice-only',
       ]),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.digitalLife?.action.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'measured-return',
       preferredMotionAliases: expect.arrayContaining(['Inspect', 'Still']),
       reasonTags: expect.arrayContaining([
-        'embodiment:audible_same_her_line',
+        'embodiment:audible_continuity_line',
         'embodiment:body+voice-only',
       ]),
-      signature: 'embodiment:audible_same_her_line',
+      signature: 'embodiment:audible_continuity_line',
     }))
     expect(authority.embodimentScript?.motionPlan.actionBursts[0]?.actionCue).toBe('observe_focus')
     expect(authority.digitalLife?.action.actionCue).toBe('observe_focus')
@@ -9897,7 +9897,7 @@ describe('runtime embodiment coordinator', () => {
       reasonTags: expect.arrayContaining(['embodiment:lipsync+voice-only']),
     }))
     expect(authority.embodimentScript?.state.rendererHints?.signature).toBeUndefined()
-    expect(authority.embodimentScript?.state.rendererHints?.reasonTags).not.toContain('embodiment:audible_same_her_line')
+    expect(authority.embodimentScript?.state.rendererHints?.reasonTags).not.toContain('embodiment:audible_continuity_line')
     expect(authority.embodimentScript?.state.rendererHints?.reasonTags).not.toContain('embodiment:body_lipsync_voice_rejoin')
     expect(authority.embodimentScript?.speechPlan.segments[0]?.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'measured-return',

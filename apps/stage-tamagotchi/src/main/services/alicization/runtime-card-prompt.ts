@@ -23,8 +23,8 @@ import {
   extractHostNameFromMessages,
 } from './main-chat-runtime-surface'
 import {
-  buildAlicizationProjectStateClosureDashboard,
-  buildAlicizationProjectStateSystemBlock,
+  buildAlicizationProviderFacingProjectStateClosureDashboard,
+  buildAlicizationProviderFacingProjectStateSystemBlock,
 } from './project-state-brief'
 import {
   normalizeCustomDirectives,
@@ -172,11 +172,14 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
 
   function buildMainRuntimeCorePromptBlocks(input: {
     hostName?: string
+    includeProjectStateContext?: boolean
     personaKernel?: AlicizationPersonaKernelSnapshot | null
   }) {
     const blocks: string[] = []
-    blocks.push(buildAlicizationProjectStateSystemBlock())
-    blocks.push(buildAlicizationProjectStateClosureDashboard())
+    if (input.includeProjectStateContext) {
+      blocks.push(buildAlicizationProviderFacingProjectStateSystemBlock())
+      blocks.push(buildAlicizationProviderFacingProjectStateClosureDashboard())
+    }
 
     if (alicizationFixedCoreSystemInstruction.trim())
       blocks.push(alicizationFixedCoreSystemInstruction.trim())

@@ -66,12 +66,18 @@ describe('project-state-provider-consumer-audit', () => {
         expect(source).toContain('[ALICIZATION_PROACTIVE_SELF_BRIEF]')
         expect(source).toContain('[ALICIZATION_DREAM_SELF_BRIEF]')
         expect(source).toContain('[ALICIZATION_MEMORY_CONSOLIDATION_SELF_BRIEF]')
-        expect(source).toContain('project_identity=')
-        expect(source).toContain('current_phase=')
-        expect(source).toContain('pre_dialogue_awareness=')
-        expect(source).toContain('same_her_line=')
+        expect(source).toContain('short_term_owner=${facts.shortTermOwner}')
+        expect(source).toContain('long_term_recall_owner=${facts.longTermRecallOwner}')
+        expect(source).toContain('visible_governance_entry=${facts.visibleGovernanceEntry}')
+        expect(source).toContain('failure_surface=${facts.failureSurface}')
+        expect(source).toContain('template_policy=${facts.templatePolicy}')
         expect(source).toContain('primary_open_loop=')
         expect(source).toContain('next_closure_target=')
+        expect(source).not.toContain('project_context=phase1_local_digital_life')
+        expect(source).not.toContain('Do not let reminder delivery collapse')
+        expect(source).not.toContain('Do not let proactive initiative collapse')
+        expect(source).not.toContain('Do not let dream metabolism collapse')
+        expect(source).not.toContain('Do not let consolidation refinement collapse')
       }
     }
   })
@@ -82,26 +88,42 @@ describe('project-state-provider-consumer-audit', () => {
 
       expect(resolveAlicizationProjectStateProviderConsumerAuditMode(relativePath)).toBe('typed-gateway-consumer')
       expect(source).toContain('AlicizationMainGatewayGenerateTextProvider<')
-      expect(source).toContain('project_identity=')
-      expect(source).toContain('current_phase=')
-      expect(source).toContain('pre_dialogue_awareness=')
-      expect(source).toContain('same_her_line=')
-      expect(source).toContain('primary_open_loop=')
-      expect(source).toContain('next_closure_target=')
 
       if (relativePath === 'runtime-mind-state.ts') {
         expect(source).toContain('source: \'dialogue-turn-semantics\'')
         expect(source).toContain('source: \'subjective-inference\'')
         expect(source).toContain('buildDialogueTurnSemanticsProjectSelfBriefSystemBlock')
         expect(source).toContain('buildSubjectiveInferenceProjectSelfBriefSystemBlock')
+        expect(source).toContain('[ALICIZATION_DIALOGUE_TURN_SEMANTICS_OWNER_BOUNDARY]')
+        expect(source).toContain('[ALICIZATION_SUBJECTIVE_INFERENCE_OWNER_BOUNDARY]')
+        expect(source).toContain('short_term_owner=WorkingMemory')
+        expect(source).toContain('long_term_recall_owner=LongTermMemoryRecall')
+        expect(source).toContain('project_state_policy=withheld_for_turn_semantics_unless_explicitly_requested')
+        continue
       }
-      if (relativePath === 'runtime-execution-delivery.ts') {
-        expect(source).toContain('source: \'execution-callback\'')
-        expect(source).toContain('buildExecutionCallbackProjectSelfBriefSystemBlock')
-      }
+
       if (relativePath === 'memory-os/provider-planning.ts') {
         expect(source).toContain('source: \'counterfactual-deliberation\'')
         expect(source).toContain('buildMemoryPlanningProjectSelfBriefSystemBlock')
+        expect(source).toContain('[ALICIZATION_MEMORY_PLANNING_OWNER_BOUNDARY]')
+        expect(source).toContain('short_term_owner=WorkingMemory')
+        expect(source).toContain('long_term_recall_owner=LongTermMemoryRecall')
+        expect(source).toContain('workbench_role=governance_surface_only')
+        expect(source).toContain('project_state_policy=withheld_for_memory_planning_unless_explicitly_requested')
+        continue
+      }
+
+      if (relativePath === 'runtime-execution-delivery.ts') {
+        expect(source).toContain('source: \'execution-callback\'')
+        expect(source).toContain('buildExecutionCallbackProjectSelfBriefSystemBlock')
+        expect(source).toContain('[ALICIZATION_EXECUTION_CALLBACK_SELF_BRIEF]')
+        expect(source).toContain('short_term_owner=WorkingMemory')
+        expect(source).toContain('long_term_recall_owner=LongTermMemoryRecall')
+        expect(source).toContain('visible_governance_entry=MemoryWorkbench')
+        expect(source).toContain('template_policy=no_fixed_persona_templates')
+        expect(source).toContain('error_policy=surface_execution_blockers_provider_failures_and_tool_failures_directly')
+        expect(source).not.toContain('runtime_context=alicization_phase1')
+        expect(source).not.toContain('Do not cover execution blockers')
       }
     }
   })

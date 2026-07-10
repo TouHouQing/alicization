@@ -293,29 +293,7 @@ function sanitizeInspectorStructuredFact(value: string | null | undefined, maxCh
   if (/^Before (?:answering|speaking|acting),\s*(?:remember|keep|stay on|she should|I should|we should)\b/iu.test(normalized))
     return null
 
-  const neutralized = normalized
-    .replace(/\bAlicization is a local-first digital life project\b/giu, 'local_desktop_life_loop')
-    .replace(/\blocal-first digital life project\b/giu, 'local_desktop_life_loop')
-    .replace(/\bPhase\s*1\s*:\s*Local Digital Life\b/giu, 'local_desktop_life_loop')
-    .replace(/\bSame Phase 1 digital life\b/giu, 'local_desktop_life_loop')
-    .replace(/\bcross-modal same-her proof\b/giu, 'cross_modal_continuity_proof')
-    .replace(/\bsame-her proof\b/giu, 'continuity_proof')
-    .replace(/\bsame-her follow-through\b/giu, 'identity-continuity follow-through')
-    .replace(/\bsame-her continuity\b/giu, 'identity-continuity')
-    .replace(/\bsame-her carry\b/giu, 'identity-continuity carry')
-    .replace(/\bsame-her\b/giu, 'identity-continuity')
-    .replace(/\bsame her\b/giu, 'identity-continuity')
-    .replace(/\bsame living line\b/giu, 'continuity_line')
-    .replace(new RegExp(String.raw`\bsame ${'digital'} life line\b`, 'giu'), 'continuity_line')
-    .replace(/\bone continuous "?her"?\b/giu, 'identity_continuity')
-    .replace(/\bone living her\b/giu, 'identity_continuity')
-    .replace(/同一个\s*her/giu, 'identity_continuity')
-    .replace(/同一个她/gu, 'identity_continuity')
-    .replace(/数字生命主线/gu, 'continuity_line')
-    .replace(/^Keep extending\s+/iu, 'extend_')
-    .replace(/^Keep the reopened callback on the continuity_line\b/iu, 'callback_reopen_on_continuity_line')
-
-  const sanitized = sanitizeInspectorTemplateText(neutralized, maxChars)
+  const sanitized = sanitizeInspectorTemplateText(normalized, maxChars)
   return sanitized && sanitized !== alicizationFixedTemplateReplacement
     ? sanitized
     : null
@@ -3910,25 +3888,28 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
             nextClosureTarget: normalizedObservedProjectState?.nextClosureTarget ?? '',
             continuitySummary: normalizedObservedProjectState?.continuitySummary ?? null,
             sameHerSelfLine:
-              normalizedObservedProjectState?.sameHerSelfLine
+              sanitizeInspectorStructuredFact(normalizedObservedProjectState?.sameHerSelfLine ?? null)
               ?? '',
             sameHerHoldDetail:
-              normalizedObservedProjectState?.sameHerHoldDetail
+              sanitizeInspectorStructuredFact(normalizedObservedProjectState?.sameHerHoldDetail ?? null)
               ?? null,
             proactiveSameHerGap:
-              normalizedObservedProjectState?.proactiveSameHerGap
+              sanitizeInspectorStructuredFact(normalizedObservedProjectState?.proactiveSameHerGap ?? null)
               ?? null,
             ...(normalizedObservedProjectState?.sameHerDriftRisk
               ? {
-                  sameHerDriftRisk: normalizedObservedProjectState.sameHerDriftRisk,
+                  sameHerDriftRisk: sanitizeInspectorStructuredFact(normalizedObservedProjectState.sameHerDriftRisk),
                 }
               : {}),
             emotionalClosureCue:
-              nextProjectStateObservation?.preDialogueAwareness?.emotionalClosureCue
-              ?? nextProjectStateObservation?.preDialogueClosure?.emotionalClosureCue
-              ?? synthesizedObservationAwareness?.emotionalClosureCue
-              ?? observedContinuitySnapshot?.preDialogueClosure?.emotionalClosureCue
-              ?? null,
+              sanitizeInspectorSnapshotLine(
+                nextProjectStateObservation?.preDialogueAwareness?.emotionalClosureCue
+                ?? nextProjectStateObservation?.preDialogueClosure?.emotionalClosureCue
+                ?? synthesizedObservationAwareness?.emotionalClosureCue
+                ?? observedContinuitySnapshot?.preDialogueClosure?.emotionalClosureCue
+                ?? null,
+                { dropResidue: true },
+              ),
             preDialogueAwareness:
               synthesizedObservationAwareness,
             preDialogueClosure:

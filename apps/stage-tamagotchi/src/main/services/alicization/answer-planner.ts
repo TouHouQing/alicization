@@ -1856,7 +1856,7 @@ function buildMustNotDo(input: {
     )
   }
   if (input.dialogueObligation?.personaKernelMode !== 'full') {
-    rows.push('Do not let persona mannerisms become the spine of the reply for this turn.')
+    rows.push('persona_mannerisms=response_spine_blocked')
   }
   if (input.act === 'guide') {
     rows.push('Do not flatten the knot into broad generic troubleshooting lists.')

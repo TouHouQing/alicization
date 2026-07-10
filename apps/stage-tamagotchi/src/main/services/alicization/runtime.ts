@@ -7033,11 +7033,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   function buildRuntimeProjectSelfBriefFacts() {
     const brief = resolveAlicizationProjectStateBrief()
     return {
-      projectIdentity: 'local_desktop_life_loop',
-      currentPhase: 'local_desktop_life_loop',
-      preDialogueAwareness: 'structured_project_state_context',
-      continuityAnchor: 'owner=ProjectStateGovernance; source=structured_project_state',
-      continuityHold: 'withheld_fixed_template_persona_directive',
+      shortTermOwner: 'WorkingMemory',
+      longTermRecallOwner: 'LongTermMemoryRecall',
+      visibleGovernanceEntry: 'MemoryWorkbench',
+      failureSurface: 'transparent_errors_only',
+      templatePolicy: 'no_fixed_persona_templates',
+      memoryContinuity: 'local_runtime',
       latestLandedProgress: sanitizeRuntimeProviderProjectText(brief.latestProgress),
       primaryOpenLoop: sanitizeRuntimeProviderProjectText(brief.openLoops[0]),
       nextClosureTarget: sanitizeRuntimeProviderProjectText(brief.nextClosureTarget),
@@ -7050,17 +7051,18 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     return [
       '[ALICIZATION_CORE_INCARNATION_REFORGE_SELF_BRIEF]',
-      `project_identity=${facts.projectIdentity}`,
-      `current_phase=${facts.currentPhase}`,
-      `pre_dialogue_awareness=${facts.preDialogueAwareness}`,
-      `continuity_anchor=${facts.continuityAnchor}`,
-      `continuity_hold=${facts.continuityHold}`,
+      'context_role=core_incarnation_reforge',
+      `short_term_owner=${facts.shortTermOwner}`,
+      `long_term_recall_owner=${facts.longTermRecallOwner}`,
+      `visible_governance_entry=${facts.visibleGovernanceEntry}`,
+      `failure_surface=${facts.failureSurface}`,
+      `template_policy=${facts.templatePolicy}`,
+      `memory_continuity=${facts.memoryContinuity}`,
       `latest_landed_progress=${facts.latestLandedProgress}`,
       `primary_open_loop=${facts.primaryOpenLoop}`,
       `next_closure_target=${facts.nextClosureTarget}`,
       `continuity_drift_risk=${facts.continuityDriftRisk}`,
-      'reforge_scope=core_incarnation | memory_continuity=local_runtime | visibility=internal-structured',
-      'Do not let core incarnation reforge collapse into a detached persona rewrite, generic companion archetype, or abstract assistant shell.',
+      'visibility=internal_structured',
     ].join('\n')
   }
 
@@ -7069,17 +7071,18 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     return [
       '[ALICIZATION_REMINDER_SELF_BRIEF]',
-      `project_identity=${facts.projectIdentity}`,
-      `current_phase=${facts.currentPhase}`,
-      `pre_dialogue_awareness=${facts.preDialogueAwareness}`,
-      `continuity_anchor=${facts.continuityAnchor}`,
-      `continuity_hold=${facts.continuityHold}`,
+      'context_role=scheduled_memory_delivery',
+      `short_term_owner=${facts.shortTermOwner}`,
+      `long_term_recall_owner=${facts.longTermRecallOwner}`,
+      `visible_governance_entry=${facts.visibleGovernanceEntry}`,
+      `failure_surface=${facts.failureSurface}`,
+      `template_policy=${facts.templatePolicy}`,
+      `memory_continuity=${facts.memoryContinuity}`,
       `latest_landed_progress=${facts.latestLandedProgress}`,
       `primary_open_loop=${facts.primaryOpenLoop}`,
       `next_closure_target=${facts.nextClosureTarget}`,
       `continuity_drift_risk=${facts.continuityDriftRisk}`,
-      'reminder_scope=scheduled_memory_delivery | memory_continuity=local_runtime | visibility=internal-structured',
-      'Do not let reminder delivery collapse into a detached utility notification or a generic assistant reminder shell.',
+      'visibility=internal_structured',
     ].join('\n')
   }
 
@@ -7088,59 +7091,58 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     return [
       '[ALICIZATION_PROACTIVE_SELF_BRIEF]',
-      `project_identity=${facts.projectIdentity}`,
-      `current_phase=${facts.currentPhase}`,
-      `pre_dialogue_awareness=${facts.preDialogueAwareness}`,
-      `continuity_anchor=${facts.continuityAnchor}`,
-      `continuity_hold=${facts.continuityHold}`,
+      'context_role=initiative_arbitration',
+      `short_term_owner=${facts.shortTermOwner}`,
+      `long_term_recall_owner=${facts.longTermRecallOwner}`,
+      `visible_governance_entry=${facts.visibleGovernanceEntry}`,
+      `failure_surface=${facts.failureSurface}`,
+      `template_policy=${facts.templatePolicy}`,
+      `memory_continuity=${facts.memoryContinuity}`,
       `latest_landed_progress=${facts.latestLandedProgress}`,
       `primary_open_loop=${facts.primaryOpenLoop}`,
       `next_closure_target=${facts.nextClosureTarget}`,
       `continuity_drift_risk=${facts.continuityDriftRisk}`,
-      'proactive_scope=initiative_arbitration | memory_continuity=local_runtime | visibility=internal-structured',
-      'Do not let proactive initiative collapse into a generic caring nudge, a detached productivity prompt, or a shallow assistant check-in shell.',
+      'visibility=internal_structured',
     ].join('\n')
   }
 
   function buildDreamProjectSelfBriefSystemBlock() {
     const facts = buildRuntimeProjectSelfBriefFacts()
-    const quietContinuityLine = 'continuity_mode=quiet-inward | pressure=lower-pressure | avoid=generic_measured_return_helper_state'
 
     return [
       '[ALICIZATION_DREAM_SELF_BRIEF]',
-      `project_identity=${facts.projectIdentity}`,
-      `current_phase=${facts.currentPhase}`,
-      `pre_dialogue_awareness=${facts.preDialogueAwareness}`,
-      `continuity_anchor=${facts.continuityAnchor}`,
-      `continuity_hold=${facts.continuityHold}`,
+      'context_role=memory_metabolism',
+      `short_term_owner=${facts.shortTermOwner}`,
+      `long_term_recall_owner=${facts.longTermRecallOwner}`,
+      `visible_governance_entry=${facts.visibleGovernanceEntry}`,
+      `failure_surface=${facts.failureSurface}`,
+      `template_policy=${facts.templatePolicy}`,
+      `memory_continuity=${facts.memoryContinuity}`,
       `latest_landed_progress=${facts.latestLandedProgress}`,
       `primary_open_loop=${facts.primaryOpenLoop}`,
       `next_closure_target=${facts.nextClosureTarget}`,
       `continuity_drift_risk=${facts.continuityDriftRisk}`,
-      `quiet_continuity=${quietContinuityLine}`,
-      'dream_scope=memory_metabolism | memory_continuity=local_runtime | visibility=internal-structured',
-      'Do not let dream metabolism collapse into detached trait optimization, generic self-improvement advice, or shallow assistant-style preference cleanup.',
+      'visibility=internal_structured',
     ].join('\n')
   }
 
   function buildMemoryConsolidationProjectSelfBriefSystemBlock() {
     const facts = buildRuntimeProjectSelfBriefFacts()
-    const quietContinuityLine = 'continuity_mode=quiet-inward | pressure=lower-pressure | avoid=generic_measured_return_helper_state'
 
     return [
       '[ALICIZATION_MEMORY_CONSOLIDATION_SELF_BRIEF]',
-      `project_identity=${facts.projectIdentity}`,
-      `current_phase=${facts.currentPhase}`,
-      `pre_dialogue_awareness=${facts.preDialogueAwareness}`,
-      `continuity_anchor=${facts.continuityAnchor}`,
-      `continuity_hold=${facts.continuityHold}`,
+      'context_role=reflection_refinement',
+      `short_term_owner=${facts.shortTermOwner}`,
+      `long_term_recall_owner=${facts.longTermRecallOwner}`,
+      `visible_governance_entry=${facts.visibleGovernanceEntry}`,
+      `failure_surface=${facts.failureSurface}`,
+      `template_policy=${facts.templatePolicy}`,
+      `memory_continuity=${facts.memoryContinuity}`,
       `latest_landed_progress=${facts.latestLandedProgress}`,
       `primary_open_loop=${facts.primaryOpenLoop}`,
       `next_closure_target=${facts.nextClosureTarget}`,
       `continuity_drift_risk=${facts.continuityDriftRisk}`,
-      `quiet_continuity=${quietContinuityLine}`,
-      'memory_consolidation_scope=reflection_refinement | memory_continuity=local_runtime | visibility=internal-structured',
-      'Do not let consolidation refinement collapse into generic summarization, detached note cleanup, or assistant-style timeline compression.',
+      'visibility=internal_structured',
     ].join('\n')
   }
 

@@ -152,8 +152,8 @@ export async function closeAlicizationVisibleReply(input: {
       finalReasonCodes: finalCritic.reasonCodes,
       finalRepairReasonCodes: finalCritic.repairReasonCodes,
       rewrittenReplyExcerpt: readVisibleReplyExcerpt(rewritten.fullText),
-      mustPreserve: finalCritic.mustPreserve,
-      mustDrop: finalCritic.mustDrop,
+      preserveItemCount: finalCritic.mustPreserve.length,
+      dropItemCount: finalCritic.mustDrop.length,
     })
     const debug = {
       rewrittenReplyExcerpt: readVisibleReplyExcerpt(rewritten.fullText),

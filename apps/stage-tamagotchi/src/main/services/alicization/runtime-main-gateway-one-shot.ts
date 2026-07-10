@@ -269,8 +269,12 @@ function resolveOneShotMinimumPromptChars(index: number, messages: Message[]) {
   let minimumChars = 0
   if (message.content.includes('[ALICIZATION_PROJECT_STATE]'))
     minimumChars = Math.max(minimumChars, 12_000)
-  if (message.content.includes('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]'))
+  if (
+    message.content.includes('[ALICIZATION_PROJECT_GOVERNANCE_DASHBOARD]')
+    || message.content.includes('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+  ) {
     minimumChars = Math.max(minimumChars, 8_000)
+  }
   if (message.content.includes('[ALICIZATION_DIALOGUE_SESSION_MIRROR]'))
     minimumChars = Math.max(minimumChars, 12_000)
   if (index === messages.length - 2 && message.role === 'system')
@@ -290,8 +294,12 @@ function resolveOneShotMinimumPromptPriority(index: number, messages: Message[])
     return 1
   if (message.content.includes('[ALICIZATION_PROJECT_STATE]'))
     return 2
-  if (message.content.includes('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]'))
+  if (
+    message.content.includes('[ALICIZATION_PROJECT_GOVERNANCE_DASHBOARD]')
+    || message.content.includes('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+  ) {
     return 3
+  }
   if (message.content.includes('[ALICIZATION_DIALOGUE_SESSION_MIRROR]'))
     return 4
   return 99
@@ -949,16 +957,16 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
 
     return [
       '[ALICIZATION_SCREEN_SEMANTIC_SELF_BRIEF]',
-      `project_identity=${sanitizeOneShotProjectBriefText(projectState.identity)}`,
-      `current_phase=${sanitizeOneShotProjectBriefText(projectState.currentPhase)}`,
-      `pre_dialogue_awareness=${sanitizeOneShotProjectBriefText(projectState.preDialogueAwarenessLine ?? projectState.preflightSummary)}`,
-      `continuity_anchor=${sanitizeOneShotProjectBriefText(projectState.sameHerSelfLine)}`,
-      `continuity_hold=${sanitizeOneShotProjectBriefText(projectState.sameHerHoldDetail)}`,
+      'context_role=screen_semantic_perception',
+      'short_term_owner=WorkingMemory',
+      'long_term_recall_owner=LongTermMemoryRecall',
+      'visible_governance_entry=MemoryWorkbench',
+      'template_policy=no_fixed_persona_templates',
       `latest_landed_progress=${sanitizeOneShotProjectBriefText(projectState.latestLandedProgress)}`,
       `primary_open_loop=${sanitizeOneShotProjectBriefText(projectState.primaryOpenLoop)}`,
       `next_closure_target=${sanitizeOneShotProjectBriefText(projectState.nextClosureTarget)}`,
       'screen_semantic_scope=desktop_semantics | memory_continuity=local_runtime | visibility=internal-structured',
-      'Do not let screen semantic interpretation collapse into a generic desktop classifier, a detached productivity captioner, or an assistant utility shell.',
+      'screen_semantic_policy=evidence_first; generic_desktop_classifier=blocked; detached_productivity_caption=blocked; assistant_utility_shell=blocked',
     ].join('\n')
   }
 
@@ -967,16 +975,16 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
 
     return [
       '[ALICIZATION_SCENE_APPRAISAL_SELF_BRIEF]',
-      `project_identity=${sanitizeOneShotProjectBriefText(projectState.identity)}`,
-      `current_phase=${sanitizeOneShotProjectBriefText(projectState.currentPhase)}`,
-      `pre_dialogue_awareness=${sanitizeOneShotProjectBriefText(projectState.preDialogueAwarenessLine ?? projectState.preflightSummary)}`,
-      `continuity_anchor=${sanitizeOneShotProjectBriefText(projectState.sameHerSelfLine)}`,
-      `continuity_hold=${sanitizeOneShotProjectBriefText(projectState.sameHerHoldDetail)}`,
+      'context_role=scene_appraisal',
+      'short_term_owner=WorkingMemory',
+      'long_term_recall_owner=LongTermMemoryRecall',
+      'visible_governance_entry=MemoryWorkbench',
+      'template_policy=no_fixed_persona_templates',
       `latest_landed_progress=${sanitizeOneShotProjectBriefText(projectState.latestLandedProgress)}`,
       `primary_open_loop=${sanitizeOneShotProjectBriefText(projectState.primaryOpenLoop)}`,
       `next_closure_target=${sanitizeOneShotProjectBriefText(projectState.nextClosureTarget)}`,
       'scene_appraisal_scope=desktop_scene_appraisal | memory_continuity=local_runtime | visibility=internal-structured',
-      'Do not let scene appraisal collapse into generic productivity guessing, detached environment scoring, or assistant utility heuristics.',
+      'scene_appraisal_policy=current_evidence_first; productivity_guessing=blocked; detached_environment_scoring=blocked; assistant_utility_heuristics=blocked',
     ].join('\n')
   }
 
@@ -984,12 +992,14 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     const { projectState } = resolveOneShotProjectStateFallback(runtimeSurface)
     return [
       '[ALICIZATION_PROJECT_STATE_ANSWER_CONTRACT]',
-      `identity=${sanitizeOneShotProjectBriefText(projectState.identity)}`,
-      `current_phase=${sanitizeOneShotProjectBriefText(projectState.currentPhase)}`,
+      'answer_owner=ProjectStateAnswerContract',
+      'short_term_owner=WorkingMemory',
+      'long_term_recall_owner=LongTermMemoryRecall',
+      'visible_governance_entry=MemoryWorkbench',
+      'template_policy=no_fixed_persona_templates',
       `landed=${sanitizeOneShotProjectBriefText(projectState.latestLandedProgress)}`,
       `open=${sanitizeOneShotProjectBriefText(projectState.primaryOpenLoop)}`,
       `next=${sanitizeOneShotProjectBriefText(projectState.nextClosureTarget)}`,
-      `continuity_anchor=${sanitizeOneShotProjectBriefText(projectState.sameHerSelfLine)}`,
       ...alicizationProjectStateAnswerMustDo
         .map(line => sanitizeOneShotProjectBriefText(line, 260))
         .filter(line => line !== alicizationFixedTemplateReplacement),
@@ -1033,7 +1043,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     const normalizeReasonPreview = (reason: string) => reason
       .replace(/^Same-her self anchor:\s*/u, 'continuity_anchor: ')
       .replace(/^Proactive same-her gap:\s*/u, 'continuity_gap: ')
-      .replace(/^Do not let this opening drift into\s*/u, 'continuity_drift_risk: ')
+      .replace(/^D[o0]\s+not\s+let this opening drift into\s*/iu, 'continuity_drift_risk: ')
     const reasonPreview = [
       continuityAnchorReason,
       ...(Array.isArray(awareness.reasonPreview) ? awareness.reasonPreview.map(normalizeReasonPreview) : []),

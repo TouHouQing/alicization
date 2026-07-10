@@ -390,10 +390,6 @@ function matchesProjectBriefFilter(line: string) {
     || normalizedLine.includes('face, motion, lipsync, and voice continuity')
 }
 
-function isCleanQuickReplyProjectBriefLine(line: string) {
-  return matchesProjectBriefFilter(line)
-}
-
 export function buildStageQuickReplyProjectBriefLines(
   preDialogueAwarenessSnapshot: PreDialogueAwarenessSnapshot,
   preDialogueClosureSnapshot: PreDialogueClosureSnapshot,

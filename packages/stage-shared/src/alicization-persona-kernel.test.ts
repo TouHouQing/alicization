@@ -9,6 +9,19 @@ import {
 } from './alicization-persona-kernel'
 
 describe('alicization-persona-kernel', () => {
+  it('keeps default persona seeds companion-neutral instead of master/maid roleplay', () => {
+    const snapshot = resolveAlicizationPersonaKernel({})
+
+    expect(defaultAlicizationProfile.hostName).not.toBe('主人')
+    expect(defaultAlicizationProfile.relationship).not.toBe('女仆')
+    expect(snapshot.profile.hostName).not.toBe('主人')
+    expect(snapshot.profile.relationship).not.toBe('女仆')
+    expect(snapshot.hostAttitudeSeed).not.toContain('主人')
+    expect(snapshot.hostAttitudeSeed).not.toContain('女仆')
+    expect(snapshot.coreIncarnationSeed).not.toContain('主人')
+    expect(snapshot.coreIncarnationSeed).not.toContain('女仆')
+  })
+
   it('normalizes richer persona fields while preserving legacy temperament metrics', () => {
     const snapshot = resolveAlicizationPersonaKernel({
       profile: {
@@ -100,7 +113,7 @@ describe('alicization-persona-kernel', () => {
     })
     expect(snapshot.personality.identityAnchors).toEqual(['host-steadiness'])
     expect(snapshot.personality.antiPersonaConstraints).toEqual(['no theatrical warmth'])
-    expect(snapshot.temperamentSummary).toBe('温顺服从、沉静内敛、细腻有感')
+    expect(snapshot.temperamentSummary).toBe('obedience=0.91; liveliness=0.14; sensibility=0.67')
     expect(snapshot.hostAttitudeSeed).toContain(defaultAlicizationProfile.hostName)
     expect(snapshot.coreIncarnationSeed).toContain(defaultAlicizationProfile.alicizationName)
     expect(snapshot.coreIncarnation).toContain('先稳住，再靠近。')
@@ -125,6 +138,6 @@ describe('alicization-persona-kernel', () => {
       obedience: 0.91,
       liveliness: 0.14,
       sensibility: 0.67,
-    })).toBe('温顺服从、沉静内敛、细腻有感')
+    })).toBe('obedience=0.91; liveliness=0.14; sensibility=0.67')
   })
 })

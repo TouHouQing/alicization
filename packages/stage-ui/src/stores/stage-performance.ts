@@ -38,7 +38,7 @@ const defaultAlicizationLive2DActionBindingSeeds: Record<string, Live2DActionBin
   'Idle:0': {
     actionKey: 'idle_gentle_nod',
     label: '轻轻点头',
-    description: '轻轻低头再抬起，像在安静回应主人，适合默认待机、温柔附和或乖巧应声。',
+    description: '轻轻低头再抬起，像在安静回应用户，适合默认待机、温柔附和或轻声应答。',
   },
   'Idle:1': {
     actionKey: 'idle_surprised_smile',
@@ -63,7 +63,7 @@ const defaultAlicizationLive2DActionBindingSeeds: Record<string, Live2DActionBin
   'FlickUp:0': {
     actionKey: 'cheer_raise_hand',
     label: '开心举手',
-    description: '开心地抬手回应，动作轻快明亮，适合答应主人、庆祝成功或主动求表扬。',
+    description: '开心地抬手回应，动作轻快明亮，适合答应用户、庆祝成功或表达期待。',
   },
   'Tap:0': {
     actionKey: 'shock_freeze',

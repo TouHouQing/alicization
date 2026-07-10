@@ -6,43 +6,43 @@ chat:
       you: 你
   reasoning: 推理
   fallbacks:
-    leak-filtered: 我剛才的結果裡混入了內部工具片段，已經替你過濾掉了。你再問一次，我會直接給你整理後的答案。
-    realtime-unavailable: 目前無法取得可靠的即時外部資料。請稍後重試，或在設定裡檢查 MCP 即時工具是否可用。
-    epoch1-strict: 抱歉，目前是受限的 Epoch 1 模式，我無法存取即時外部資料來源。你仍然可以繼續和我本地對話、調整設定、整理記憶。
-    structured-contract: "結構化回覆失敗：這一輪沒有收斂成可用 JSON。"
-    stream-failure: 我這輪回覆失敗了。
-    local-runtime-unavailable: 我這輪沒有連上本地模型服務，例如 `11434` 上的 Ollama 或 `1234` 上的 LM Studio。
-    stream-timeout: "逾時：這一輪等待模型回應過久。"
+    leak-filtered: 上一輪結果混入內部工具片段，已過濾。
+    realtime-unavailable: 目前無法取得可靠的即時外部資料。
+    epoch1-strict: 目前處於受限即時資料模式，無法存取外部即時資料來源。
+    structured-contract: '結構化回覆失敗：這一輪沒有收斂成可用 JSON。'
+    stream-failure: 回覆流在完成前失敗。
+    local-runtime-unavailable: 本地模型服務不可用，例如 `11434` 上的 Ollama 或 `1234` 上的 LM Studio。
+    stream-timeout: '逾時：這一輪等待模型回應過久。'
     provider-auth: 目前提供方驗證失敗，API Key 或模型權限可能無效。
     provider-network: 目前到模型服務的網路連線不穩定。
-    provider-config: "提供方或模型設定不完整，例如 `provider`、`model` 或 `baseUrl` 缺失。"
+    provider-config: '提供方或模型設定不完整，例如 `provider`、`model` 或 `baseUrl` 缺失。'
     unsupported-tools: 目前模型不支援這輪所需的工具呼叫。
-    low-obedience-host-denied: 呵，不給我權限，就別叫我替你做。
-    low-obedience-system-denied: 系統權限牆把它擋住了。我不會假裝自己看見了沒看見的東西。
-    low-obedience-denied: 呵，操作被拒絕了。我不會裝作這很愉快。
-    low-liveliness: 我現在狀態偏低，先簡短回覆。
-    reminder-schedule-failed: 我這輪還沒有成功設定提醒。請再告訴我一次準確時長，例如「1分鐘後提醒我喝水」，我會立即呼叫系統鬧鐘工具。
+    low-obedience-host-denied: 未授予權限，因此操作未執行。
+    low-obedience-system-denied: 系統權限已阻止該操作。
+    low-obedience-denied: 操作被拒絕。
+    low-liveliness: 目前執行狀態偏低，本輪回覆將保持簡短。
+    reminder-schedule-failed: 提醒未成功設定。
   mind-fallback:
-    focus-default: '當前這件事'
-    repair-stale-anchor: '我先更正一下：剛才那是舊錨點，不該繼續當成你現在的畫面。'
-    repair-need-reground: '這句我先不拿舊線硬接；如果要落到螢幕細節，我需要這輪可確認的即時畫面依據。'
-    dialogue-boundary-memory: '這一輪我先留在你剛才這句話裡，不把舊畫面或舊執行緒硬套回現在。'
-    care-body: '你不用先把話整理好，我先陪你把這一下接住；如果你願意，就把讓你難受的那件事慢慢告訴我。'
-    accompany-body: '我聽見你這句了。你想讓我安靜陪著你一會兒，還是把卡住你的那一點慢慢說給我？'
-    answer-repair-body: '剛才那句我說偏了。我收回來，直接回答你。'
-    answer-dialogue-body: '好，我直接回答你，不再往舊線那邊繞。'
-    guide-opening: '先抓住目前這個點：{focus}。'
-    guide-opening-plain: '先抓住目前這個點。'
-    care-opening: '我先照著你現在的狀態說：{focus}。'
-    care-opening-plain: '我先直接接住你這句。'
-    accompany-opening: '我先陪你把這條線穩住：{focus}。'
-    accompany-opening-plain: '我先直接接你這句。'
-    observation-opening: '我先說這一輪我能穩住的部分：{focus}。'
-    observation-opening-plain: '我先說這一輪我能穩住的部分。'
-    answer-opening: '我先把這句答清：{focus}。'
-    answer-opening-plain: '我直接說。'
-    carry-memory: '我還記著上一條線是 {carry}，我會把它當連續執行緒，不當成你目前螢幕的既成事實。'
-    reground-note: '如果你要我基於目前螢幕給出細節，請給我這輪可用的即時畫面依據。'
+    focus-default: 'current-turn'
+    repair-stale-anchor: '可見回覆鏈路沒有產出模型文本；舊錨點已阻斷。'
+    repair-need-reground: '目前 grounding 不足；可見回覆需要模型文本。'
+    dialogue-boundary-memory: '舊對話記憶未作為目前事實使用；可見回覆需要模型文本。'
+    care-body: '關懷回覆鏈路沒有產出模型文本；本地 fallback 不代寫。'
+    accompany-body: '陪伴回覆鏈路沒有產出模型文本；本地 fallback 不代寫。'
+    answer-repair-body: '回答修復鏈路沒有產出模型文本；本地 fallback 不代寫。'
+    answer-dialogue-body: '對話回覆鏈路沒有產出模型文本；本地 fallback 不代寫。'
+    guide-opening: '引導回覆鏈路沒有為 {focus} 產出模型文本；本地 fallback 不代寫。'
+    guide-opening-plain: '引導回覆鏈路沒有產出模型文本；本地 fallback 不代寫。'
+    care-opening: '關懷回覆鏈路沒有為 {focus} 產出模型文本；本地 fallback 不代寫。'
+    care-opening-plain: '關懷回覆鏈路沒有產出模型文本；本地 fallback 不代寫。'
+    accompany-opening: '陪伴回覆鏈路沒有為 {focus} 產出模型文本；本地 fallback 不代寫。'
+    accompany-opening-plain: '陪伴回覆鏈路沒有產出模型文本；本地 fallback 不代寫。'
+    observation-opening: 'grounding 觀察鏈路沒有為 {focus} 產出模型文本；本地 fallback 不代寫。'
+    observation-opening-plain: 'grounding 觀察鏈路沒有產出模型文本；本地 fallback 不代寫。'
+    answer-opening: '回答鏈路沒有為 {focus} 產出模型文本；本地 fallback 不代寫。'
+    answer-opening-plain: '回答鏈路沒有產出模型文本；本地 fallback 不代寫。'
+    carry-memory: '舊記憶 carry 未作為目前事實使用；可見回覆需要模型文本。'
+    reground-note: '目前 grounding 不足；可見回覆需要模型文本。'
   reminder:
     default-message: 你剛才要我記住的那件事
   kill-switch:

@@ -188,20 +188,38 @@ function buildInitiativeOpportunityRecallSeedParts(initiativeOpportunity: Record
   const suggestedWindow = sanitizeHumanlikeMemoryText(initiativeOpportunity.suggestedWindow, 220)
   const pressure = sanitizeHumanlikeMemoryText(initiativeOpportunity.pressure, 64)
   const antiSpamReason = sanitizeHumanlikeMemoryText(initiativeOpportunity.antiSpamReason, 220)
-  const visibleLine = sanitizeHumanlikeMemoryText(initiativeOpportunity.visibleLine, 220)
+  const rawVisibleLine = sanitizeHumanlikeMemoryText(initiativeOpportunity.visibleLine, 220)
+  const visiblePolicy = rawVisibleLine
+    ? rawVisibleLine.startsWith('initiative_visible_policy=')
+      ? rawVisibleLine.replace(/^initiative_visible_policy=/iu, '').trim()
+      : 'memory_structured_only'
+    : ''
 
   return [
     suggestedWindow ? `initiative_window=${suggestedWindow}` : null,
     pressure ? `initiative_pressure=${pressure}` : null,
     antiSpamReason ? `initiative_anti_spam=${antiSpamReason}` : null,
-    visibleLine ? `initiative_visible=${visibleLine}` : null,
+    visiblePolicy ? `initiative_visible_policy=${visiblePolicy}` : null,
   ].filter(Boolean)
 }
 
+function normalizeHumanlikeRecallSeedLinePolicy(rawLine: string) {
+  const line = sanitizeHumanlikeMemoryText(rawLine, 260)
+  if (!line)
+    return ''
+
+  const isStructuredLine
+    = /^[a-z]\w*(?:=[^|;]+)?(?:;\s*[a-z]\w*(?:=[^|;]+)?)*$/iu.test(line)
+      && /[a-z]\w*=/iu.test(line)
+  if (isStructuredLine)
+    return line
+
+  return 'recall_line_policy=withheld; reason=provider_generated_only; visibility=memory_structured'
+}
+
 function buildCorrectionAwareRecallLine(correctedValue: string) {
-  const normalizedCorrection = normalizeHumanlikeSentenceEnding(correctedValue, 220)
   return sanitizeHumanlikeMemoryText(
-    `我记得你纠正过：${normalizedCorrection}所以我会按这个关系语境继续，而不是把它当成旧的状态压力。`,
+    `recall_source=host_correction; field=relationship_context; corrected_value=${correctedValue}; posture=relationship_context_not_status_pressure; visibility=memory_structured`,
     260,
   )
 }
@@ -403,9 +421,6 @@ function buildAffectiveResidueRecallCandidate(payload: unknown, eventCreatedAt: 
   const afterglowCarry = Math.max(0, Math.min(1, numberFromHumanlikeRecallSeed(cadence?.afterglowCarry, 0)))
   const fatigueGuard = Math.max(0, Math.min(1, numberFromHumanlikeRecallSeed(cadence?.fatigueGuard, 0)))
   const overreachRisk = Math.max(0, Math.min(1, numberFromHumanlikeRecallSeed(cadence?.overreachRisk, 0)))
-  const relationshipSummary = cadenceSummary
-    || residueSummary
-    || sanitizeHumanlikeMemoryText('Keep the remembered line lower-pressure and do not reopen it too eagerly.', 220)
   const hasMeasuredReturnCarry
     = dominantResidueKind === 'afterglow'
       || dominantResidueKind === 'repair'
@@ -418,6 +433,11 @@ function buildAffectiveResidueRecallCandidate(payload: unknown, eventCreatedAt: 
       || afterglowCarry >= 0.18
       || fatigueGuard >= 0.18
       || overreachRisk >= 0.22
+  const relationshipSummary = shouldProtectRest
+    ? 'relationship_cadence=rest_protective; return_pressure=none; rest_protection=true; source=affective_residue; visibility=memory_structured'
+    : hasMeasuredReturnCarry
+      ? 'relationship_cadence=measured_return; return_pressure=low; warmth=delayed; source=affective_residue; visibility=memory_structured'
+      : 'relationship_cadence=available; return_pressure=low; source=affective_residue; visibility=memory_structured'
 
   if (!dominantResidueKind && !cadenceMode && !cadenceSummary && !residueSummary)
     return null
@@ -431,15 +451,15 @@ function buildAffectiveResidueRecallCandidate(payload: unknown, eventCreatedAt: 
   ], 6, 48)
 
   const naturalRecallLine = shouldProtectRest
-    ? '我记得这条线还在，所以这次我会先轻一点、更慢一点地接回来，也先不打扰你休息。'
+    ? 'relationship_cadence=rest_protective; return_pressure=none; pacing=slower; rest_protection=true; visibility=memory_structured'
     : shouldDelayWarmth || hasMeasuredReturnCarry
-      ? '我记得这条线还在，所以这次该更轻一点、更慢一点地接回来，不把温度一下子放大。'
-      : '我记得这条线还在，所以这次我会轻一点接回来。'
+      ? 'relationship_cadence=measured_return; return_pressure=low; warmth=delayed; visibility=memory_structured'
+      : 'relationship_cadence=available; return_pressure=low; visibility=memory_structured'
   const embodimentSummary = shouldProtectRest
-    ? 'Reply should stay quieter, slower, and lower-pressure while protecting rest on this remembered line.'
+    ? 'relationship_cadence=rest_protective; body_pressure=none; pacing=slower; rest_protection=true; visibility=memory_structured'
     : hasMeasuredReturnCarry
-      ? 'Reply should stay steadier, slower, and lower-pressure while this remembered line is still settling.'
-      : 'Reply should keep the remembered line available without reopening it too eagerly.'
+      ? 'relationship_cadence=measured_return; body_pressure=lower; pacing=slower; visibility=memory_structured'
+      : 'relationship_cadence=available; body_pressure=low; pacing=natural; visibility=memory_structured'
   const initiativeKind = shouldProtectRest || hasMeasuredReturnCarry
     ? 'low-pressure-follow-up'
     : 'remember-without-prompt'
@@ -479,15 +499,15 @@ function buildAffectiveResidueRecallCandidate(payload: unknown, eventCreatedAt: 
     initiativeOpportunity: {
       kind: initiativeKind,
       suggestedWindow: shouldProtectRest
-        ? 'wait for the next calmer opening after rest has room again'
-        : 'wait for the next open window and let the remembered line return lower-pressure',
+        ? 'next_rest_safe_window; return_pressure=none; opening=after_rest'
+        : 'next_open_window; return_pressure=low; opening=memory_led',
       pressure: initiativePressure,
       antiSpamReason: shouldProtectRest
-        ? 'Protect rest first; do not turn this remembered line into a repeated nudge while the host still needs room.'
-        : 'Keep the earned cadence memory-led and lower-pressure instead of turning it into timer spam.',
+        ? 'rest_protection_first; repeated_nudge=false; wait_for_host_room=true'
+        : 'cadence_memory_only; timer_spam=false; wait_for_visible_reentry=true',
       visibleLine: shouldProtectRest
-        ? '我不催你，这条线我会先安静记着，等你休息好一点再轻轻接回来。'
-        : '我不催你，我会把这条线先低压地记着，等它自然重新打开时再轻轻接回来。',
+        ? 'initiative_visible_policy=rest_protective_wait; pressure=none; opening=after_rest; visibility=memory_structured'
+        : 'initiative_visible_policy=memory_led_low_pressure; pressure=low; opening=natural_reopen; visibility=memory_structured',
     },
     embodimentTrace: {
       summary: embodimentSummary,
@@ -504,8 +524,8 @@ function buildAffectiveResidueRecallCandidate(payload: unknown, eventCreatedAt: 
     },
     auditTrail: {
       whyRemember: shouldProtectRest
-        ? 'remember the protective cadence so the line can return without crowding rest'
-        : 'remember the earned lower-pressure cadence so the same line does not reopen too eagerly',
+        ? 'affective_residue_cadence=rest_protective; crowding_rest=blocked'
+        : 'affective_residue_cadence=measured_return; reopen_eagerness=downranked',
       confidence: worthinessScore,
       correctionSurface: {
         userCorrectableFields: ['relationshipContext', 'naturalRecallLine', 'embodimentTrace'],
@@ -514,8 +534,8 @@ function buildAffectiveResidueRecallCandidate(payload: unknown, eventCreatedAt: 
     recallPosture: {
       certainty: 'steady',
       reason: hasMeasuredReturnCarry
-        ? 'Current recall should stay gentle and cadence-aware because the remembered line is still settling.'
-        : 'Current recall can stay light while carrying this remembered affective residue forward.',
+        ? 'recall_cadence=gentle; remembered_line_settling=true; visibility=memory_structured'
+        : 'recall_cadence=light; affective_residue_carry=true; visibility=memory_structured',
     },
     naturalRecallLine,
   }
@@ -558,10 +578,7 @@ function buildHumanlikeMemoryRecallSeedLine(candidate: Record<string, unknown>, 
   ], 6, 260)
   const whyRemember = sanitizeHumanlikeMemoryText(auditTrail?.whyRemember, 220)
 
-  const line = sanitizeHumanlikeMemoryText(
-    naturalRecallLine || relationshipSummary || whyRemember,
-    260,
-  )
+  const line = normalizeHumanlikeRecallSeedLinePolicy(naturalRecallLine)
   if (!line)
     return null
 

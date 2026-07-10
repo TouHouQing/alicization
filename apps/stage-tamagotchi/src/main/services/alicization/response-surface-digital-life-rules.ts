@@ -20,7 +20,7 @@ export function buildAlicizationResponseSurfaceDigitalLifeRules(
     pushUniqueAlicizationResponseSurfaceRule(mustNotDo, 'Do not present remembered continuity as a fresh live read.')
   }
   if (digitalLifeArchitecture?.dominantSystem === 'proactive')
-    pushUniqueAlicizationResponseSurfaceRule(mustNotDo, 'Do not let internal urge-to-speak or unsolicited initiative outrank the host’s current ask.')
+    pushUniqueAlicizationResponseSurfaceRule(mustNotDo, 'internal_urge_to_speak_or_unsolicited_initiative_outranks_host_ask=blocked')
 
   return { mustDo, mustNotDo }
 }

@@ -3,8 +3,8 @@ import type {
   AlicizationMemoryFact,
   AlicizationMemoryReflectionRecord,
 } from '../../../shared/eventa'
-import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { LongTermMemoryEvidenceCandidate } from './long-term-memory-recall'
+import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 
 function normalizeText(raw: unknown, maxChars = 320) {
   if (typeof raw !== 'string')
@@ -55,6 +55,7 @@ export function memoryReflectionToLongTermEvidenceCandidate(reflection: Alicizat
     summary: normalizeText(`${reflection.summary} ${reflection.lesson}`, 360),
     source: 'memory_reflections',
     confidence: reflection.confidence,
+    reviewStatus: reflection.status,
     salience: reflection.status === 'confirmed' ? 0.82 : 0.64,
     updatedAt: reflection.updatedAt,
     cues: uniqueTexts([

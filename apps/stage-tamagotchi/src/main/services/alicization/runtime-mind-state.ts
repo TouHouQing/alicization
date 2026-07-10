@@ -1114,7 +1114,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       'short_term_owner=WorkingMemory',
       'long_term_recall_owner=LongTermMemoryRecall',
       'project_state_policy=withheld_for_turn_semantics_unless_explicitly_requested',
-      'Classify the current user move before any project-status framing. Do not let turn interpretation collapse into a generic task router, detached assistant intent classifier, or screen-first control shell.',
+      'turn_semantics_policy=current_user_move_first; project_status_framing=withheld; generic_task_router=blocked; detached_intent_classifier=blocked; screen_first_control_shell=blocked',
     ].join('\n')
   }
 
@@ -1125,7 +1125,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       'short_term_owner=WorkingMemory',
       'long_term_recall_owner=LongTermMemoryRecall',
       'project_state_policy=withheld_for_subjective_inference_unless_explicitly_requested',
-      'Interpret the current scene from coherent personhood and current evidence first. Do not let scene appraisal collapse into generic productivity guessing, detached surveillance-style interpretation, or assistant utility heuristics.',
+      'scene_appraisal_policy=current_evidence_first; coherent_personhood=preserve; productivity_guessing=blocked; detached_surveillance_interpretation=blocked; assistant_utility_heuristics=blocked',
     ].join('\n')
   }
 

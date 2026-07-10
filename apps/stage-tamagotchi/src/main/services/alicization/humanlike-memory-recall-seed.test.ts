@@ -43,8 +43,9 @@ describe('humanlike memory recall seed', () => {
     }])
 
     expect(seed).toContain('humanlike_memory_recall:')
-    expect(seed).toContain('我记得你纠正过')
-    expect(seed).toContain('不是催进度')
+    expect(seed).toContain('line=recall_line_policy=withheld; reason=provider_generated_only; visibility=memory_structured')
+    expect(seed).toContain('relationship=Host corrected this memory meaning: 我是在测试她是不是持续的人，不是催进度。')
+    expect(seed).not.toContain('我记得你纠正过')
     expect(seed).toContain('protective-continuity')
     expect(seed).toContain('low-pressure-follow-up')
     expect(seed).toContain('gaze stable')
@@ -89,10 +90,11 @@ describe('humanlike memory recall seed', () => {
       },
     ])
 
-    expect(seed).toContain('我记得你纠正过：你是在测试她是不是持续的人，不是催进度。')
+    expect(seed).toContain('line=recall_source=host_correction; field=relationship_context; corrected_value=你是在测试她是不是持续的人，不是催进度。; posture=relationship_context_not_status_pressure; visibility=memory_structured')
     expect(seed).toContain('relationship=Host corrected this memory meaning: 你是在测试她是不是持续的人，不是催进度。')
     expect(seed).toContain('why=old interpretation | progress pressure | host correction | same-person continuity was at stake')
     expect(seed).not.toContain('我记得你那次是在催进度')
+    expect(seed).not.toContain('我记得你纠正过')
     expect(seed).not.toContain('不是催进度。。')
     expect(seed).not.toContain('不是催进度。.')
     expect(seed).toContain('created=43000')
@@ -152,11 +154,12 @@ describe('humanlike memory recall seed', () => {
       },
     ])
 
-    expect(seed).toContain('我记得你纠正过：你是在测试她是不是持续的人，不是催进度。')
+    expect(seed).toContain('line=recall_source=host_correction; field=relationship_context; corrected_value=你是在测试她是不是持续的人，不是催进度。; posture=relationship_context_not_status_pressure; visibility=memory_structured')
     expect(seed).toContain('initiative_window=next corrected continuity reopening when the host is already re-entering the same line')
     expect(seed).toContain('initiative_pressure=low')
     expect(seed).toContain('initiative_anti_spam=Do not turn same-person continuity into timer spam; wait until the line is visibly reopening on its own.')
-    expect(seed).toContain('initiative_visible=I am not pushing you, but I still remember the same-person continuity seam we have not fully closed yet.')
+    expect(seed).toContain('initiative_visible_policy=memory_structured_only')
+    expect(seed).not.toContain('我记得你纠正过')
   })
 
   it('carries tentative recall posture and downranked older memory ids into the next reply seed instead of leaving metabolism inside audit only', () => {
@@ -217,7 +220,8 @@ describe('humanlike memory recall seed', () => {
     expect(seed).toContain('certainty=tentative')
     expect(seed).toContain('reason=Current recall is tentative because conflicting newer meaning meets older memory.')
     expect(seed).toContain('downrank=old-progress-status')
-    expect(seed).toContain('我不完全确定')
+    expect(seed).toContain('line=relationship_continuity=present; source_template=excluded; visibility=memory_structured')
+    expect(seed).not.toContain('我不完全确定')
   })
 
   it('carries structured embodiment recall strength and expression state into the next reply seed instead of leaving them buried inside the candidate trace', () => {
@@ -675,7 +679,8 @@ describe('humanlike memory recall seed', () => {
     expect(seed).toContain('initiative_window=next corrected continuity reopening when the host is already re-entering the same line')
     expect(seed).toContain('initiative_pressure=low')
     expect(seed).toContain('initiative_anti_spam=Do not turn same-person continuity into timer spam; wait until the line is visibly reopening on its own.')
-    expect(seed).toContain('initiative_visible=I am not pushing you, but I still remember the same-person continuity seam we have not fully closed yet.')
+    expect(seed).toContain('initiative_visible_policy=memory_structured_only')
+    expect(seed).not.toContain('initiative_visible=I am not pushing')
   })
 
   it('turns persisted affective residue cadence into a natural recall seed even when no explicit humanlike memory candidate was written for the turn', () => {
@@ -713,12 +718,18 @@ describe('humanlike memory recall seed', () => {
     }])
 
     expect(seed).toContain('humanlike_memory_recall:')
-    expect(seed).toContain('我记得这条线还在')
-    expect(seed).toContain('轻一点')
-    expect(seed).toContain('慢一点')
-    expect(seed).toContain('不把温度一下子放大')
+    expect(seed).toContain('line=relationship_cadence=measured_return; return_pressure=low; warmth=delayed; visibility=memory_structured')
+    expect(seed).toContain('initiative_visible_policy=memory_led_low_pressure; pressure=low; opening=natural_reopen; visibility=memory_structured')
+    expect(seed).not.toContain('我记得这条线还在')
+    expect(seed).not.toContain('轻一点')
     expect(seed).toContain('emotion=afterglow-carry')
-    expect(seed).toContain('relationship=Keep the same proactive line settling lower-pressure before warming wider.')
+    expect(seed).toContain('relationship=relationship_cadence=measured_return; return_pressure=low; warmth=delayed; source=affective_residue; visibility=memory_structured')
+    expect(seed).toContain('embodiment=relationship_cadence=measured_return; body_pressure=lower; pacing=slower; visibility=memory_structured')
+    expect(seed).toContain('initiative_window=next_open_window; return_pressure=low; opening=memory_led')
+    expect(seed).toContain('initiative_anti_spam=cadence_memory_only; timer_spam=false; wait_for_visible_reentry=true')
+    expect(seed).toContain('why=affective_residue_cadence=measured_return; reopen_eagerness=downranked')
+    expect(seed).toContain('reason=recall_cadence=gentle; remembered_line_settling=true; visibility=memory_structured')
+    expect(seed).not.toMatch(/Reply should|Keep the same proactive line|timer spam|same line does not reopen|remembered line/iu)
     expect(seed).toContain('embodiment_gaze=stable')
     expect(seed).toContain('embodiment_voice=lower-pressure')
     expect(seed).toContain('embodiment_pacing=slower')
@@ -809,7 +820,7 @@ describe('humanlike memory recall seed', () => {
     ], 1)
 
     expect(seed).toContain('same-person continuity check')
-    expect(seed).toContain('不要变成工具壳')
+    expect(seed).toContain('tool shell')
     expect(seed).not.toContain('最新进度')
     expect(seed).not.toContain('recent progress recap')
   })

@@ -22,9 +22,10 @@ import {
   assertAlicizationCanonicalProjectState,
   carriesAlicizationCanonicalProjectState,
 } from './main-chat-project-state-guard'
+import { shouldIncludeProjectStateProviderContext } from './main-chat-project-state-injection-policy'
 import { resolveAlicizationChatStartPayloadPreDialogueSendIdentity } from './main-chat-start-awareness'
 import { emptyAlicizationExecutionLedgerContext } from './memory-ledger-runtime'
-import { buildAlicizationProjectStateExtraSystemBlocks } from './project-state-brief'
+import { buildAlicizationProviderFacingProjectStateExtraSystemBlocks } from './project-state-brief'
 import { preserveLatestUserMultimodalContent } from './runtime-transport-content'
 
 interface CreateAlicizationMainChatPreludeRuntimeOptions {
@@ -131,13 +132,21 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
           },
         }
     messages = perceptionAugmentation.messages
-    if (!carriesAlicizationCanonicalProjectState(messages)) {
+    const shouldIncludeProviderProjectStateContext = shouldIncludeProjectStateProviderContext({
+      answerSubject: perceptionAugmentation.chatGovernance.mindTurnGovernance?.answerSubject ?? null,
+      executionCapabilityInquiry,
+      executionRoutingIntent: explicitExecutionRoutingIntent,
+      latestUserText,
+      messages,
+    })
+    if (shouldIncludeProviderProjectStateContext && !carriesAlicizationCanonicalProjectState(messages)) {
       messages = [
-        ...buildAlicizationProjectStateExtraSystemBlocks().map(content => ({ role: 'system', content }) as Message),
+        ...buildAlicizationProviderFacingProjectStateExtraSystemBlocks().map(content => ({ role: 'system', content }) as Message),
         ...messages,
       ]
     }
-    assertAlicizationCanonicalProjectState(messages, 'stream')
+    if (shouldIncludeProviderProjectStateContext)
+      assertAlicizationCanonicalProjectState(messages, 'stream')
     const actionObligation = deriveMainChatActionObligation({
       userText: latestUserText || '',
       capabilityInquiry: executionCapabilityInquiry,

@@ -125,12 +125,6 @@ function stripTrailingPunctuation(text: string) {
   return text.replace(/[.。!！?？;；:：]+$/u, '').trim()
 }
 
-function lowerFirst(text: string) {
-  if (!text)
-    return ''
-  return text.slice(0, 1).toLowerCase() + text.slice(1)
-}
-
 function joinFallbackText(values: Array<string | null | undefined>, maxChars = 420) {
   return sanitizeText(values.filter(Boolean).join(' '), maxChars)
 }
@@ -817,11 +811,8 @@ export function reduceRuntimeConsciousFrame(input: RuntimeConsciousFrameReducerI
           projectStateGrounding.primaryOpenLoop
             ? `open_loop=${stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop)}`
             : null,
-          projectStateGrounding.identity
-            ? `project_identity=${stripTrailingPunctuation(projectStateGrounding.identity)}`
-            : null,
-          projectStateGrounding.currentPhase
-            ? `project_phase=${stripTrailingPunctuation(projectStateGrounding.currentPhase)}`
+          projectStateGrounding.identity || projectStateGrounding.currentPhase
+            ? 'project_state_owner=ProjectStateGovernance; visible_governance_entry=MemoryWorkbench; template_policy=no_fixed_persona_templates'
             : null,
           restProtectiveClosureCue
             ? 'rest_protection=first; companionship=quiet; closeness=widen_later'
@@ -839,7 +830,7 @@ export function reduceRuntimeConsciousFrame(input: RuntimeConsciousFrameReducerI
         ? 'rest_protection=first; wording=inward; companionship=quiet; closeness=widen_later'
         : null,
       projectStateGrounding.identity
-        ? `continuity_anchor=local_desktop_life_loop; project_identity=${stripTrailingPunctuation(projectStateGrounding.identity)}`
+        ? 'continuity_owner=ProjectStateGovernance; visible_governance_entry=MemoryWorkbench; template_policy=no_fixed_persona_templates'
         : null,
       projectStateGrounding.sameHerSelfLine
         ? `continuity_anchor=${sanitizeAlicizationProviderFacingText(stripTrailingPunctuation(projectStateGrounding.sameHerSelfLine), 220)}`
@@ -1041,11 +1032,8 @@ export function reduceRuntimeConsciousFrame(input: RuntimeConsciousFrameReducerI
     projectStateGrounding.primaryOpenLoop
       ? `open_loop=${stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop)}`
       : '',
-    projectStateGrounding.identity
-      ? `project_identity=${stripTrailingPunctuation(projectStateGrounding.identity)}`
-      : '',
-    projectStateGrounding.currentPhase
-      ? `project_phase=${stripTrailingPunctuation(projectStateGrounding.currentPhase)}`
+    projectStateGrounding.identity || projectStateGrounding.currentPhase
+      ? 'project_state_owner=ProjectStateGovernance; visible_governance_entry=MemoryWorkbench; template_policy=no_fixed_persona_templates'
       : '',
     restProtectiveClosureCue
       ? 'rest_protection=first; companionship=quiet; closeness=widen_later'
@@ -1062,7 +1050,7 @@ export function reduceRuntimeConsciousFrame(input: RuntimeConsciousFrameReducerI
       ? 'rest_protection=first; wording=inward; companionship=quiet; closeness=widen_later'
       : '',
     projectStateGrounding.identity
-      ? `continuity_anchor=local_desktop_life_loop; project_identity=${stripTrailingPunctuation(projectStateGrounding.identity)}`
+      ? 'continuity_owner=ProjectStateGovernance; visible_governance_entry=MemoryWorkbench; template_policy=no_fixed_persona_templates'
       : '',
     projectStateGrounding.sameHerSelfLine
       ? `continuity_anchor=${sanitizeAlicizationProviderFacingText(stripTrailingPunctuation(projectStateGrounding.sameHerSelfLine), 220)}`

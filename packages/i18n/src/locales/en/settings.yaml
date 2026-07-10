@@ -446,9 +446,9 @@ pages:
           neutral: Neutral
           custom: Custom
         defaults:
-          owner_name: Commander
-          host_name: Master
-          relationship: Maid
+          owner_name: Host
+          host_name: ''
+          relationship: Companion
         temperament:
           eyebrow: Temperament Axes
           title: Temperament baseline
@@ -608,7 +608,30 @@ pages:
         source_ids: Source IDs
         candidate_status: Candidate Status
         kind: Kind
+      filters:
+        kind:
+          all: All Types
+          fact: Fact
+          episode: Episode
+          reflection: Reflection
+          consolidation: Consolidated Memory
+        sensitivity:
+          all: All Sensitivity
+          public: Public
+          personal: Personal
+          private: Private
+          secret: Secret
+        visibility:
+          all: All Visibility
+          explicit: Available in Chat
+          inward_only: Inward Only
+        training:
+          all: All Training
+          allowed: Training Allowed
+          blocked: No Training
       placeholders:
+        long_term_search: Search summaries, evidence, or source IDs...
+        long_term_source: Filter by source, for example memory_reflections
         embedding_provider: openai-compatible
         embedding_base_url: https://api.siliconflow.cn
         embedding_api_key: sk-...

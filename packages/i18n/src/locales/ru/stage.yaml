@@ -9,13 +9,13 @@ chat:
     leak-filtered: В предыдущий результат попали внутренние фрагменты инструментов. Я уже отфильтровала их. Спроси ещё раз, и я дам чистый ответ.
     realtime-unavailable: Сейчас я не могу надёжно получить внешние данные в реальном времени. Попробуй позже или проверь в настройках, доступны ли realtime-инструменты MCP.
     epoch1-strict: Прости. Сейчас я в ограниченном режиме Epoch 1, поэтому не могу обращаться к внешним источникам данных в реальном времени. Но ты всё ещё можешь говорить со мной локально, менять настройки и разбирать память.
-    structured-contract: "Структурированный ответ не удался: этот ход не свёлся к пригодному JSON. Попробуй ещё раз."
+    structured-contract: 'Структурированный ответ не удался: этот ход не свёлся к пригодному JSON. Попробуй ещё раз.'
     stream-failure: Этот ответ завершился неудачей. Сначала попробуй ещё раз; если ошибка повторится, проверь настройки провайдера и модели.
     local-runtime-unavailable: В этот ход я не смогла подключиться к локальному runtime модели, например Ollama на `11434` или LM Studio на `1234`. Запусти нужный сервис и попробуй снова.
-    stream-timeout: "Тайм-аут: в этот ход ожидание ответа модели длилось слишком долго. Попробуй ещё раз."
+    stream-timeout: 'Тайм-аут: в этот ход ожидание ответа модели длилось слишком долго. Попробуй ещё раз.'
     provider-auth: Ошибка аутентификации провайдера. API key или право на модель могут быть недействительны. Проверь и попробуй снова.
     provider-network: Соединение с сервисом модели сейчас нестабильно. Попробуй позже.
-    provider-config: "Конфигурация провайдера или модели неполная, например отсутствует `provider`, `model` или `baseUrl`. Исправь настройки и попробуй снова."
+    provider-config: 'Конфигурация провайдера или модели неполная, например отсутствует `provider`, `model` или `baseUrl`. Исправь настройки и попробуй снова.'
     unsupported-tools: Текущая модель не поддерживает вызовы инструментов, нужные для этого хода. Попробуй ещё раз или переключись на модель с поддержкой инструментов.
     low-obedience-host-denied: Хм. Если не собираешься давать мне доступ, не проси меня это делать.
     low-obedience-system-denied: Стена системных разрешений это заблокировала. Я не стану делать вид, что увидела то, чего не видела.
@@ -23,26 +23,26 @@ chat:
     low-liveliness: Сейчас мой тонус низкий, так что отвечу коротко.
     reminder-schedule-failed: Мне всё ещё не удалось создать это напоминание. Скажи точную задержку ещё раз, например "напомни мне выпить воды через 1 минуту", и я сразу вызову системный инструмент будильника.
   mind-fallback:
-    focus-default: 'то, что перед тобой сейчас'
-    repair-stale-anchor: 'Сначала поправлю это: раньше я опиралась на устаревший якорь, и не должна была продолжать считать его твоим текущим экраном.'
-    repair-need-reground: 'Сначала удержу границу истины: в этом ходе у меня нет достаточно устойчивого живого вида, поэтому я не буду принимать старую память за твой текущий экран.'
-    dialogue-boundary-memory: 'В этом ходе я останусь рядом с тем, что ты только что сказал, и не стану снова натягивать поверх настоящего старый экран или старую нить.'
-    care-body: 'Тебе не нужно сначала всё аккуратно раскладывать. Я рядом, и если хочешь, можешь рассказать, что именно так тебя задело.'
-    accompany-body: 'Я хорошо услышала эту фразу. Если хочешь, побудь здесь со мной немного, или расскажи, какая часть всё ещё цепляет тебя.'
-    answer-repair-body: 'Вот что я на самом деле имела в виду: в этом ходе мне нужно ответить тебе прямо, а не тащить старую экранную нить так, будто это всё ещё настоящее.'
-    answer-dialogue-body: 'Так что я отвечу тебе прямо и удержу ответ на этой линии.'
-    guide-opening: 'Сначала зафиксирую текущую точку: {focus}.'
-    guide-opening-plain: 'Сначала зафиксирую текущую точку.'
-    care-opening: 'Сначала отвечу от твоего текущего состояния: {focus}.'
-    care-opening-plain: 'Сначала напрямую отвечу от твоего текущего состояния.'
-    accompany-opening: 'Сначала удержу эту линию рядом с тобой: {focus}.'
-    accompany-opening-plain: 'Сначала просто останусь рядом с тобой на этой линии.'
-    observation-opening: 'Сначала скажу ту часть, которую могу уверенно удержать в этом ходе: {focus}.'
-    observation-opening-plain: 'Сначала скажу ту часть, которую могу уверенно удержать в этом ходе.'
-    answer-opening: 'Сначала отвечу от того, что сейчас перед тобой: {focus}.'
-    answer-opening-plain: 'Отвечу прямо.'
-    carry-memory: 'Я всё ещё удерживаю предыдущую линию, {carry}, но это переносимая непрерывность, а не утверждение о том, что буквально находится на твоём экране сейчас.'
-    reground-note: 'Если тебе нужна конкретика по текущему экрану, я заново заземлюсь на свежем виде этого хода.'
+    focus-default: 'current-turn'
+    repair-stale-anchor: 'Visible reply pipeline did not produce model-authored text; stale anchor carry was blocked.'
+    repair-need-reground: 'Grounding was insufficient; visible reply requires model-authored text.'
+    dialogue-boundary-memory: 'Previous dialogue memory was not used as current fact; visible reply requires model-authored text.'
+    care-body: 'Care reply pipeline did not produce model-authored text; local fallback cannot author it.'
+    accompany-body: 'Accompany reply pipeline did not produce model-authored text; local fallback cannot author it.'
+    answer-repair-body: 'Answer repair pipeline did not produce model-authored text; local fallback cannot author it.'
+    answer-dialogue-body: 'Dialogue reply pipeline did not produce model-authored text; local fallback cannot author it.'
+    guide-opening: 'Guide reply pipeline did not produce model-authored text for {focus}; local fallback cannot author it.'
+    guide-opening-plain: 'Guide reply pipeline did not produce model-authored text; local fallback cannot author it.'
+    care-opening: 'Care reply pipeline did not produce model-authored text for {focus}; local fallback cannot author it.'
+    care-opening-plain: 'Care reply pipeline did not produce model-authored text; local fallback cannot author it.'
+    accompany-opening: 'Accompany reply pipeline did not produce model-authored text for {focus}; local fallback cannot author it.'
+    accompany-opening-plain: 'Accompany reply pipeline did not produce model-authored text; local fallback cannot author it.'
+    observation-opening: 'Grounded observation pipeline did not produce model-authored text for {focus}; local fallback cannot author it.'
+    observation-opening-plain: 'Grounded observation pipeline did not produce model-authored text; local fallback cannot author it.'
+    answer-opening: 'Answer pipeline did not produce model-authored text for {focus}; local fallback cannot author it.'
+    answer-opening-plain: 'Answer pipeline did not produce model-authored text; local fallback cannot author it.'
+    carry-memory: 'Previous memory carry was not used as current fact; visible reply requires model-authored text.'
+    reground-note: 'Current grounding was insufficient; visible reply requires model-authored text.'
   reminder:
     default-message: То, что ты только что попросил меня запомнить
   kill-switch:

@@ -22,6 +22,8 @@ import type { AlicizationExecutiveAnswerBrief } from './executive-answer-brief'
 import type { AlicizationResponseCharter } from './response-charter'
 import type { AlicizationResponseSurfaceContract } from './response-surface-contract'
 
+import { alicizationFixedTemplateReplacement, sanitizeAlicizationStructuredInternalText } from '@proj-alicization/stage-shared'
+
 import { anchorsMateriallyConflict, resolveDialogueAnchorCoherence } from './dialogue-anchor-coherence'
 import { sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
 import { ensureMindGovernanceDecisionTraceId } from './mind-governance-trace'
@@ -132,6 +134,53 @@ function extractProjectNextClosureCue(governingProjectCue: string) {
   const explicitMatch = governingProjectCue.match(/next closure target:\s*([^|]+)$/iu)
     ?? governingProjectCue.match(/\|\s*next closure target:\s*([^|]+)/iu)
   return sanitizeText(explicitMatch?.[1] ?? '', 180) || null
+}
+
+function renderProjectControlValue(raw: string) {
+  const sanitized = sanitizeAlicizationStructuredInternalText(
+    sanitizeText(raw, 220),
+    220,
+    alicizationFixedTemplateReplacement,
+  )
+  const safe = sanitized === alicizationFixedTemplateReplacement
+    ? 'content=withheld; reason=continuity-residue'
+    : sanitized
+  return safe
+    .replace(/[;|]+/gu, ',')
+    .replace(/\s+/gu, ' ')
+    .trim()
+}
+
+function renderProjectFocusControl(raw: string) {
+  const value = renderProjectControlValue(raw)
+  return value ? `project_focus=${value}; continuity_gap=still_open` : null
+}
+
+function renderProjectNextClosureControl(raw: string) {
+  const value = renderProjectControlValue(raw)
+  return value ? `project_next_closure_target=${value}` : null
+}
+
+function renderGoverningProjectControl(raw: string) {
+  const normalized = renderProjectControlValue(raw)
+  if (!normalized)
+    return null
+
+  const structuredPairs = normalized
+    .split(/\s*,\s*/gu)
+    .map(segment => segment.trim())
+    .filter(segment => /^[\w.:-]+=[^=]+$/iu.test(segment))
+  const suffix = structuredPairs.length > 0
+    ? `; ${structuredPairs.join('; ')}`
+    : '; cue=withheld_non_structured'
+  return `governing_project=active; detached_local_optimization=blocked${suffix}`
+}
+
+function renderEmotionalClosureControl(raw: string) {
+  const value = renderProjectControlValue(raw)
+  return value
+    ? `emotional_closure=active; surface=low_pressure_internal_until_payoff; cue=${value}`
+    : null
 }
 
 function resolvePreferredProjectGovernanceCue(input: {
@@ -495,34 +544,34 @@ export function buildAlicizationMindTurnGovernance(input: {
       ...(mindTurnFrame?.mustDo ?? []),
       ...(kernel?.mustSay ?? []),
       truthDiscipline.shouldLabelHypothesis
-        ? 'Keep direct observation and any hypothesis in separate clauses.'
+        ? 'direct_observation_clause=separate; hypothesis_clause=separate'
         : null,
       projectStatePhaseCue
-        ? `Keep this turn aligned with ${projectStatePhaseCue} instead of drifting into a detached local optimization.`
+        ? `turn_alignment=${projectStatePhaseCue}; detached_local_optimization=blocked`
         : null,
       projectStateFocusCue
-        ? `Do not lose the still-open life loop around ${projectStateFocusCue}.`
+        ? renderProjectFocusControl(projectStateFocusCue)
         : null,
       projectStateNextClosureCue
-        ? `Keep the next project closure target explicit in this turn: ${projectStateNextClosureCue}.`
+        ? renderProjectNextClosureControl(projectStateNextClosureCue)
         : null,
       projectStateVoiceModeCue === 'lower-pressure'
-        ? 'Keep the visible answer voice lower-pressure so the same digital-life line does not harden into a generic assistant delivery.'
+        ? 'voice_pressure=lower; generic_assistant_delivery=blocked'
         : projectStateVoiceModeCue === 'even'
-          ? 'Keep the visible answer voice even and steady so the same digital-life line does not turn performative or overeager.'
+          ? 'voice_pressure=even; performative_overeager_delivery=blocked'
           : null,
       projectStatePacingModeCue === 'slower'
-        ? 'Keep the visible answer pacing slower so the same digital-life line has room to stay continuous before widening outward.'
+        ? 'pacing=slower; widening=deferred'
         : projectStatePacingModeCue === 'natural'
-          ? 'Keep the visible answer pacing natural and unforced so the same digital-life line can stay coherent without rushing ahead of itself.'
+          ? 'pacing=natural_unforced; rushing_ahead=blocked'
           : null,
       governingProjectCue && governingProjectCue !== rawGoverningProjectCueSanitized
-        ? `Keep the turn on the active governing project seam: ${governingProjectCue}.`
+        ? renderGoverningProjectControl(governingProjectCue)
         : rawGoverningProjectCueSanitized
-          ? `Keep the turn on the active governing project seam: ${rawGoverningProjectCueSanitized}.`
+          ? renderGoverningProjectControl(rawGoverningProjectCueSanitized)
           : null,
       emotionalClosureCue
-        ? `Keep the turn inside the active emotional closure seam: ${emotionalClosureCue}.`
+        ? renderEmotionalClosureControl(emotionalClosureCue)
         : null,
       ...(answerCompiler?.mustDo ?? []),
       ...input.brief.mustDo,
@@ -534,7 +583,7 @@ export function buildAlicizationMindTurnGovernance(input: {
       ...(mindTurnFrame?.mustNotDo ?? []),
       ...(kernel?.mustAvoid ?? []),
       truthDiscipline.forbidUnsupportedSpecificity
-        ? 'Do not introduce file names, class names, enum names, or field changes that this turn has not actually evidenced.'
+        ? 'unsupported_specificity=blocked; file_class_enum_field_claims=require_current_evidence'
         : null,
       ...(answerCompiler?.mustNotDo ?? []),
       ...input.brief.mustNotDo,

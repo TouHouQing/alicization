@@ -4402,10 +4402,13 @@ export function buildAlicizationProjectStateSystemBlock(input?: {
   const nextFocusSummary = deriveCompactProjectStateNextFocusSummary(brief.nextClosureTarget)
   const lines = [
     '[ALICIZATION_PROJECT_STATE]',
-    sanitizeProjectStateIdentityText(brief.identity, 220),
-    `current_phase=${sanitizeProjectStatePhaseText(brief.currentPhase, 160)}`,
-    'current_objective=phase1_local_companion; continuity=required; memory=required; initiative=restrained; embodiment=unified; dialogue=natural',
-    `preflight_summary=${sanitizeProjectStateSnapshotText(brief.preflightSummary ?? '', 320)}`,
+    'context_role=memory_governance_status',
+    'runtime_context=local_runtime',
+    'short_term_owner=WorkingMemory',
+    'long_term_recall_owner=LongTermMemoryRecall',
+    'visible_governance_entry=MemoryWorkbench',
+    'failure_surface=transparent_errors_only',
+    'template_policy=no_fixed_persona_templates',
     `latest_landed_progress=${compactProjectLatestProgressForSystemBlock(brief.latestProgress, 360)}`,
     `continuity_anchor=${sanitizeProjectStateSnapshotText(brief.sameHerSelfLine, 220)}`,
     `continuity_drift_risk=${sanitizeProjectStateSnapshotText(brief.sameHerDriftRisk, 220)}`,
@@ -4416,18 +4419,10 @@ export function buildAlicizationProjectStateSystemBlock(input?: {
     brief.preferredLipsyncMode ? `preferred_lipsync_mode=${sanitizeProjectStateSnapshotText(brief.preferredLipsyncMode, 32)}` : '',
     brief.preferredVoiceMode ? `preferred_voice_mode=${sanitizeProjectStateSnapshotText(brief.preferredVoiceMode, 32)}` : '',
     brief.preferredPacingMode ? `preferred_pacing_mode=${sanitizeProjectStateSnapshotText(brief.preferredPacingMode, 32)}` : '',
-    'closed_foundations:',
-    ...brief.closedFoundations.slice(0, 5).map(item => `- ${sanitizeProjectStateSnapshotText(item, 220)}`),
-    'memory_anthropomorphism_progress:',
-    ...(brief.continuityProgressSummary
-      ? [`- ${sanitizeProjectStateSnapshotText(brief.continuityProgressSummary, 7200)}`]
-      : []),
-    ...brief.memoryAnthropomorphismProgress.slice(0, brief.continuityProgressSummary ? 4 : 5).map(item => `- ${sanitizeProjectStateSnapshotText(item, 220)}`),
-    'open_life_loops:',
-    ...brief.openLoops.slice(0, 5).map(item => `- ${sanitizeProjectStateSnapshotText(item, 220)}`),
     `next_closure_target=${sanitizeProjectStateSnapshotText(brief.nextClosureTarget, 220)}`,
     nextFocusSummary ? `next_focus=${sanitizeProjectStateSnapshotText(nextFocusSummary, 220)}` : '',
-    'action_policy=preserve_project_identity_and_memory_continuity | visibility=internal-structured',
+    'remaining_focus=semantic_recall,production_embedding,paginated_long_term_search,review_policy_persistence,persona_candidate_review',
+    'action_policy=memory_owner_boundaries_and_transparent_failure_surface | visibility=internal-structured',
   ]
 
   return lines.filter(Boolean).join('\n')
@@ -4510,7 +4505,7 @@ export function buildAlicizationProjectStateClosureDashboard(input?: {
     .slice(0, 5)
 
   const lines = [
-    '[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]',
+    '[ALICIZATION_PROJECT_GOVERNANCE_DASHBOARD]',
     `identity=${sanitizeProjectStateIdentityText(brief.identity, 220)}`,
     `phase=${sanitizeProjectStatePhaseText(brief.currentPhase, 160)}`,
     `awareness_summary=${sanitizeProjectStateSnapshotText(brief.preDialogueAwarenessLine ?? '', 720)}`,

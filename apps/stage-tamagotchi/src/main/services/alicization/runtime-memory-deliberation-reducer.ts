@@ -1264,11 +1264,8 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     repairFirstProjectClosureAuthority
       ? `emotional_closure_pressure=low; authority=${stripTrailingPunctuation(repairFirstProjectClosureAuthority)}`
       : null,
-    projectStateGrounding.identity
-      ? `project_identity=${stripTrailingPunctuation(projectStateGrounding.identity)}`
-      : null,
-    projectStateGrounding.currentPhase
-      ? `project_phase=${stripTrailingPunctuation(projectStateGrounding.currentPhase)}`
+    projectStateGrounding.identity || projectStateGrounding.currentPhase
+      ? 'project_state_owner=ProjectStateGovernance; visible_governance_entry=MemoryWorkbench; template_policy=no_fixed_persona_templates'
       : null,
     projectStateGrounding.latestProgress
       ? `project_landed_progress=${stripTrailingPunctuation(projectStateGrounding.latestProgress)}`

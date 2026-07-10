@@ -31,6 +31,8 @@ import type {
   AlicizationSoulUpdatePayload,
   AlicizationSubconsciousFragment,
   AlicizationSubconsciousFragmentSourceKind,
+  AlicizationVisibleReplyPublicClosureSummary,
+  AlicizationVisibleReplyPublicCriticSummary,
   AlicizationVisualPresenceStateSnapshot,
   CharacterPerformanceCapabilitiesManifest,
 } from './alicization-bridge'
@@ -148,8 +150,8 @@ interface BrowserConversationTurnRecord extends Required<Pick<AlicizationConvers
   userText: string
   assistantText: string
   structured?: Record<string, unknown>
-  visibleReplyCritic?: Record<string, unknown> | null
-  visibleReplyClosure?: Record<string, unknown> | null
+  visibleReplyCritic?: AlicizationConversationTurnInput['visibleReplyCritic'] | null
+  visibleReplyClosure?: AlicizationConversationTurnInput['visibleReplyClosure'] | null
 }
 
 interface BrowserSessionContinuitySummary {
@@ -258,6 +260,104 @@ function sanitizeMultilineText(raw: unknown, fallback = '') {
   if (typeof raw !== 'string')
     return fallback
   return raw.replace(/\r\n/g, '\n').trim()
+}
+
+function isBrowserRecordPayload(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function compactBrowserStringList(value: unknown, limit = 16) {
+  if (!Array.isArray(value))
+    return []
+
+  const result: string[] = []
+  for (const item of value) {
+    if (typeof item !== 'string')
+      continue
+    const trimmed = item.trim()
+    if (!trimmed || result.includes(trimmed))
+      continue
+    result.push(trimmed)
+    if (result.length >= limit)
+      break
+  }
+  return result
+}
+
+function countBrowserArray(value: unknown) {
+  return Array.isArray(value) ? value.length : 0
+}
+
+function readBrowserCount(raw: Record<string, unknown>, key: string, fallback: number) {
+  const value = raw[key]
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? value
+    : fallback
+}
+
+function summarizeBrowserVisibleReplyCritic(
+  raw: AlicizationConversationTurnInput['visibleReplyCritic'] | null | undefined,
+): AlicizationVisibleReplyPublicCriticSummary | null {
+  if (!isBrowserRecordPayload(raw))
+    return null
+
+  const reasonCodes = compactBrowserStringList(raw.reasonCodes)
+  const summary: AlicizationVisibleReplyPublicCriticSummary = {
+    version: 'visible-reply-critic-public-summary-v1',
+    reasonCodes: reasonCodes.length > 0 ? reasonCodes : compactBrowserStringList(raw.reasons),
+    repairReasonCodes: compactBrowserStringList(raw.repairReasonCodes),
+    mustPreserveCount: readBrowserCount(raw, 'mustPreserveCount', countBrowserArray(raw.mustPreserve)),
+    mustDropCount: readBrowserCount(raw, 'mustDropCount', countBrowserArray(raw.mustDrop)),
+  }
+
+  if (typeof raw.providerMindRequired === 'boolean')
+    summary.providerMindRequired = raw.providerMindRequired
+  if (typeof raw.semanticLoopClosed === 'boolean')
+    summary.semanticLoopClosed = raw.semanticLoopClosed
+  if (typeof raw.status === 'string' && raw.status.trim())
+    summary.status = raw.status.trim()
+
+  return summary
+}
+
+function readBrowserCriticPreserveCount(raw: unknown) {
+  return isBrowserRecordPayload(raw)
+    ? readBrowserCount(raw, 'mustPreserveCount', countBrowserArray(raw.mustPreserve))
+    : 0
+}
+
+function readBrowserCriticDropCount(raw: unknown) {
+  return isBrowserRecordPayload(raw)
+    ? readBrowserCount(raw, 'mustDropCount', countBrowserArray(raw.mustDrop))
+    : 0
+}
+
+function summarizeBrowserVisibleReplyClosure(
+  raw: AlicizationConversationTurnInput['visibleReplyClosure'] | null | undefined,
+): AlicizationVisibleReplyPublicClosureSummary | null {
+  if (!isBrowserRecordPayload(raw))
+    return null
+
+  const initialCritic = isBrowserRecordPayload(raw.initialCritic) ? raw.initialCritic : null
+  const finalCritic = isBrowserRecordPayload(raw.finalCritic) ? raw.finalCritic : null
+  const summary: AlicizationVisibleReplyPublicClosureSummary = {
+    version: 'visible-reply-closure-public-summary-v1',
+    reasonCodes: compactBrowserStringList(raw.reasonCodes),
+    repairReasonCodes: compactBrowserStringList(raw.repairReasonCodes),
+    initialCriticMustPreserveCount: readBrowserCount(raw, 'initialCriticMustPreserveCount', readBrowserCriticPreserveCount(initialCritic)),
+    initialCriticMustDropCount: readBrowserCount(raw, 'initialCriticMustDropCount', readBrowserCriticDropCount(initialCritic)),
+    finalCriticMustPreserveCount: readBrowserCount(raw, 'finalCriticMustPreserveCount', readBrowserCriticPreserveCount(finalCritic)),
+    finalCriticMustDropCount: readBrowserCount(raw, 'finalCriticMustDropCount', readBrowserCriticDropCount(finalCritic)),
+  }
+
+  if (typeof raw.status === 'string' && raw.status.trim())
+    summary.status = raw.status.trim()
+  if (typeof raw.providerMindRequired === 'boolean')
+    summary.providerMindRequired = raw.providerMindRequired
+  if (typeof raw.semanticLoopClosed === 'boolean')
+    summary.semanticLoopClosed = raw.semanticLoopClosed
+
+  return summary
 }
 
 function stageChatText(path: string, params?: Record<string, unknown>) {
@@ -2829,8 +2929,8 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
         userText: sanitizeMultilineText(payload.userText, ''),
         assistantText: sanitizeMultilineText(payload.assistantText, ''),
         structured: normalizedStructured,
-        visibleReplyCritic: payload.visibleReplyCritic ? { ...payload.visibleReplyCritic } : null,
-        visibleReplyClosure: payload.visibleReplyClosure ? { ...payload.visibleReplyClosure } : null,
+        visibleReplyCritic: summarizeBrowserVisibleReplyCritic(payload.visibleReplyCritic),
+        visibleReplyClosure: summarizeBrowserVisibleReplyClosure(payload.visibleReplyClosure),
         createdAt: currentTs,
       }
       turns.push(record)

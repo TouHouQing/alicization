@@ -4,8 +4,8 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { mergePersonaCandidateReviewState } from './memory-workbench-persona-candidates'
 import { setupAlicizationDb } from './db'
+import { mergePersonaCandidateReviewState } from './memory-workbench-persona-candidates'
 
 const sandboxDirs: string[] = []
 
@@ -70,6 +70,32 @@ describe('memory workbench persona candidates', () => {
     })
   })
 
+  it('keeps approved candidate reviews blocked from automatic training', () => {
+    expect(mergePersonaCandidateReviewState({
+      candidate: {
+        id: 'persona-candidate:reflection-1',
+        sourceMemoryIds: ['reflection-1'],
+        behaviorLesson: '失败时先透明说明。',
+        positiveExample: '我会先说明失败面。',
+        negativeExample: '不要把失败包装成陪伴。',
+        privacyClass: 'personal-redacted',
+        status: 'candidate',
+      },
+      review: {
+        candidateId: 'persona-candidate:reflection-1',
+        status: 'approved',
+        allowTraining: true,
+        reason: 'approved for policy only',
+        updatedAt: 20,
+      },
+      now: 30,
+    })).toMatchObject({
+      status: 'approved',
+      allowTraining: false,
+      rejectionReason: 'approved for policy only',
+    })
+  })
+
   it('lists candidates from cleaned long-term reflections and persists no-training decisions', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     try {
@@ -87,14 +113,14 @@ describe('memory workbench persona candidates', () => {
           updatedAt: 20,
         },
         {
-          id: 'reflection-low-confidence',
+          id: 'reflection-pending-high-confidence',
           cardId: 'card-1',
           sourceKind: 'reply',
           targetScope: 'habit',
-          summary: '低置信反思。',
-          lesson: '这条还不该进入 persona 候选。',
+          summary: '待审核反思。',
+          lesson: '这条置信度很高但仍然不能进入 persona 候选。',
           status: 'pending',
-          confidence: 0.4,
+          confidence: 0.98,
           createdAt: 11,
           updatedAt: 21,
         },

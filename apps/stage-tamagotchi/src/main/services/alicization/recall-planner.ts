@@ -733,10 +733,10 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
         unsafeDetails: [
           ...unsafeDetails,
           ...(suppressionReasons.includes('stale-self-model')
-            ? ['Do not let the older self-story surface as settled identity before the newer self line stabilizes.']
+            ? ['older_self_story_as_settled_identity=blocked_until_newer_self_line_stabilizes']
             : []),
           ...(suppressionReasons.includes('relationship-era-confusion')
-            ? ['Do not let competing relationship eras surface as if they belonged to the same repair phase.']
+            ? ['competing_relationship_eras_as_same_repair_phase=blocked']
             : []),
         ],
         selectedProcedures: candidateDeliberation?.selectedProcedures ?? [],

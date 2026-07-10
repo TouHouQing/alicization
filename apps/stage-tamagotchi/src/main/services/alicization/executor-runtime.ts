@@ -25,7 +25,6 @@ import {
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
-import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import { locateAlicizationExecutionBinary } from './execution-command-env'
 import { readExecutionOutcome, readLatestExecutionEvent, readTaskThreadActivityAt, sanitizeExecutionLedgerText } from './execution-ledger-shared'
 import { expandOpenClawBackedCapabilities } from './executor-adapters/embodied-channel'
@@ -87,27 +86,6 @@ interface AlicizationExecutorRuntimeOptions {
 }
 
 const executionCapabilityProbeTtlMs = 45_000
-
-function preferExecutionResumeSameHerHoldDetail(input: {
-  current?: unknown
-  continuityCue?: unknown
-  fallback?: unknown
-  sanitizeText: (raw: unknown, fallback?: string) => string
-}) {
-  const current = input.sanitizeText(input.current)
-  const continuityCue = input.sanitizeText(input.continuityCue)
-  const fallback = input.sanitizeText(input.fallback)
-  const preferredPrimary = preferStrongerContinuityClosureAuthority(current, continuityCue)
-    ?? current
-    ?? continuityCue
-    ?? ''
-  const preferredFinal = preferStrongerContinuityClosureAuthority(preferredPrimary, fallback)
-    ?? preferredPrimary
-    ?? fallback
-    ?? ''
-
-  return input.sanitizeText(preferredFinal)
-}
 function normalizePlanningCapability(capability: AlicizationChannelCapability): AlicizationChannelCapability {
   return {
     channel: capability.channel,
@@ -1069,17 +1047,6 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         : options.sanitizeText(normalizedProjectBriefing.nextClosureTarget)
     ) || fallbackProjectBrief.nextClosureTarget
     const sameHerSelfLine = options.sanitizeText(normalizedProjectBriefing.sameHerSelfLine) || fallbackProjectBrief.sameHerSelfLine
-    const sameHerHoldDetail = preferExecutionResumeSameHerHoldDetail({
-      current: storedProjectBriefing?.sameHerHoldDetail,
-      continuityCue: storedProjectBriefing?.continuityCue ?? normalizedProjectBriefing.continuityCue,
-      fallback: normalizedProjectBriefing.sameHerHoldDetail ?? fallbackProjectBrief.sameHerHoldDetail,
-      sanitizeText: options.sanitizeText,
-    })
-    const sameHerDriftRisk = (
-      !explicitSameHerDriftRiskInput && summarySameHerDriftRiskInput
-        ? summarySameHerDriftRiskInput
-        : options.sanitizeText(normalizedProjectBriefing.sameHerDriftRisk)
-    ) || fallbackProjectBrief.sameHerDriftRisk
     const continuityArcStage = options.sanitizeText(normalizedProjectBriefing.continuityArcStage)
       || options.sanitizeText(storedProjectBriefing?.continuityArcStage)
       || ''
@@ -1179,7 +1146,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     const providerExecutionContinuity = sanitizeExecutorProviderContextText(projectContinuity)
     const providerExecutionEmotionalContext = sanitizeExecutorProviderContextText(emotionalClosureSummary)
     const projectBriefingLines = [
-      'runtime_context=alicization_phase1',
+      'runtime_context=local_runtime',
       providerLatestLandedProgress ? `latest_landed_progress=${providerLatestLandedProgress}` : '',
       providerPrimaryOpenLoop ? `primary_open_loop=${providerPrimaryOpenLoop}` : '',
       providerNextClosureTarget ? `next_closure_target=${providerNextClosureTarget}` : '',

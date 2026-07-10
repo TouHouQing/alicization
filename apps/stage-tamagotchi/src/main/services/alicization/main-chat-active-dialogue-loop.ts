@@ -617,16 +617,16 @@ function readPreparedExecutionLedgerCarryText(messages: Message[] | undefined) {
       const channel = readLedgerField('channel', 48)
       const summary = readLedgerField('summary', 180)
       const outcome = readLedgerField('outcome', 220)
-      const projectIdentity = readLedgerField('project_identity', 220)
-      const projectPhase = readLedgerField('project_phase', 160)
 
       return [
         '[ALICIZATION_EXECUTION_LEDGER]',
+        'runtime_context=local_runtime',
+        'short_term_owner=WorkingMemory',
+        'long_term_recall_owner=LongTermMemoryRecall',
+        'template_policy=no_fixed_persona_templates',
         channel ? `channel=${channel}` : '',
         summary ? `summary=${summary}` : '',
         outcome ? `outcome=${outcome}` : '',
-        projectIdentity ? `project_identity=${projectIdentity}` : '',
-        projectPhase ? `project_phase=${projectPhase}` : '',
       ].filter(Boolean).join(' | ')
     })
     .filter(Boolean)

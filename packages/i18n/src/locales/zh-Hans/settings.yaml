@@ -437,9 +437,9 @@ pages:
           neutral: 中性
           custom: 自定义
         defaults:
-          owner_name: 指挥官
-          host_name: 主人
-          relationship: 女仆
+          owner_name: 宿主
+          host_name: ''
+          relationship: 陪伴者
         temperament:
           eyebrow: 气质轴
           title: 气质基线
@@ -599,7 +599,30 @@ pages:
         source_ids: 来源 ID
         candidate_status: 候选状态
         kind: 类型
+      filters:
+        kind:
+          all: 全部类型
+          fact: 事实
+          episode: 事件片段
+          reflection: 反思
+          consolidation: 凝练记忆
+        sensitivity:
+          all: 全部敏感度
+          public: 普通
+          personal: 个人
+          private: 私密
+          secret: 高敏
+        visibility:
+          all: 全部可见策略
+          explicit: 可进入对话
+          inward_only: 只内在使用
+        training:
+          all: 全部训练策略
+          allowed: 允许训练
+          blocked: 禁止训练
       placeholders:
+        long_term_search: 搜索长期记忆摘要、证据、来源 ID...
+        long_term_source: 按来源筛选，例如 memory_reflections
         embedding_provider: openai-compatible
         embedding_base_url: https://api.siliconflow.cn
         embedding_api_key: sk-...

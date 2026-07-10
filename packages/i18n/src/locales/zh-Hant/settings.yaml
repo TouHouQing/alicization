@@ -327,8 +327,8 @@ pages:
           neutral: 中性
           custom: 自訂
         defaults:
-          owner_name: 主人
-          host_name: 主人
+          owner_name: 宿主
+          host_name: 宿主
           relationship: 數位共生體
         temperament:
           eyebrow: 氣質軸

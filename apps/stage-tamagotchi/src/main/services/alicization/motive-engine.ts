@@ -499,7 +499,7 @@ export function buildMotiveEngine(input: {
       kind: 'return-open-loop',
       anchor,
       weight: drives.unfinishedThreadReturn,
-      summary: 'Do not let the unfinished thread dissolve; return to it deliberately.',
+      summary: 'unfinished_thread_return=deliberate; dissolve=blocked',
       sourceTags: ['unfinished-thread-return', 'open-loop'],
       worldModel: input.worldModel,
       context: input.context,

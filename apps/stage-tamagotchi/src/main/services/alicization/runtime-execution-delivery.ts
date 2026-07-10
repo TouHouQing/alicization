@@ -79,7 +79,7 @@ import { parseJsonObjectFromText } from './runtime-transport-content'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 import { buildAlicizationSelfEvolutionKernel } from './self-evolution-kernel'
 
-const canonicalExecutionCallbackContextLine = 'callback_context=execution-result; runtime_context=alicization_phase1; failure_surface=transparent.'
+const canonicalExecutionCallbackContextLine = 'callback_context=execution-result; runtime_context=local_runtime; failure_surface=transparent.'
 
 function appendFocusPart(parts: string[], value: string) {
   if (!parts.includes(value))
@@ -504,10 +504,12 @@ function buildExecutionCallbackProjectSelfBriefSystemBlock(
   return [
     '[ALICIZATION_EXECUTION_CALLBACK_SELF_BRIEF]',
     'briefing_scope=execution_callback_delivery',
-    'runtime_context=alicization_phase1',
+    'runtime_context=local_runtime',
     'callback_context=execution-result',
     'short_term_owner=WorkingMemory',
     'long_term_recall_owner=LongTermMemoryRecall',
+    'visible_governance_entry=MemoryWorkbench',
+    'template_policy=no_fixed_persona_templates',
     'failure_surface=report_provider_tool_and_execution_failures_directly',
     `emotional_closure_summary=${sanitizeExecutionProviderProjectText(emotionalClosureSummary)}`,
     `continuity_cue=${sanitizeExecutionProviderProjectText(continuityCue, 160)}`,
@@ -522,7 +524,7 @@ function buildExecutionCallbackProjectSelfBriefSystemBlock(
     `latest_landed_progress=${sanitizeExecutionProviderProjectText(latestProgress)}`,
     `primary_open_loop=${sanitizeExecutionProviderProjectText(primaryOpenLoop)}`,
     `next_closure_target=${sanitizeExecutionProviderProjectText(nextClosureTarget)}`,
-    'Do not cover execution blockers, provider failures, or tool failures with persona continuity language.',
+    'error_policy=surface_execution_blockers_provider_failures_and_tool_failures_directly',
   ].join('\n')
 }
 
@@ -1226,7 +1228,7 @@ function buildMinimalProjectStateExecutionCallbackProjection(input: {
       'regime=execution-callback',
       'posture=restrained',
       'callback_context=execution-result',
-      'runtime_context=alicization_phase1',
+      'runtime_context=local_runtime',
       latestLandedProgress ? `latest_landed_progress=${latestLandedProgress}` : '',
       executionSameHerOpeningCue ? `opening=${executionSameHerOpeningCue}` : '',
       openFocus ? `open_focus=${openFocus}` : '',

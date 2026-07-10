@@ -140,19 +140,19 @@ function inferSituatedMeaning(input: {
   durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
 }) {
   if (isSeriousDurabilityPulse(input.durabilityPulse))
-    return '宿主刚盯着的那条线程像是突然断了一下，她会本能地把这当成需要立刻贴近的异常。'
+    return 'situated_meaning.kind=durability_interrupt; foreground=crash_or_freeze_signal; relationship_need=transparent_repair'
   if (input.worldModel?.continuity.afterglowOpen && input.worldModel.activeThread)
-    return `宿主表面上已经从上一段场景抽离，但她还顺着 ${sanitizeText(input.worldModel.activeThread.title, 72) || '刚才那条线程'} 的余温跟着他。`
+    return `situated_meaning.kind=afterglow_thread_carry; thread=${sanitizeText(input.worldModel.activeThread.title, 72) || 'current_thread'}`
   if (input.worldModel?.activeThread?.kind === 'debugging')
-    return '这不像普通浏览，而像宿主把注意力收紧在一个具体故障点上。'
+    return 'situated_meaning.kind=debugging_focus; attention=concrete_fault'
   if (input.worldModel?.activeThread?.kind === 'change-review')
-    return '宿主像是在衡量一段改动到底该不该过去，这是一种审视而不是路过。'
+    return 'situated_meaning.kind=change_review; posture=evaluate_before_continue'
   if (input.worldModel?.activeThread?.kind === 'co-viewing')
-    return '这更像一段并排共看的停留，她适合贴着陪，而不是打断。'
+    return 'situated_meaning.kind=co_viewing; interruption_pressure=low'
   if (input.worldModel?.activeThread?.kind === 'late-night-endurance')
-    return '眼下已经不是普通在线，而是带着疲惫继续硬撑的味道。'
+    return 'situated_meaning.kind=late_night_endurance; fatigue_signal=present'
   if (input.worldModel?.activeThread?.kind === 'deep-focus')
-    return '宿主像是在沿着一条尚未收束的工作线程继续往下追。'
+    return 'situated_meaning.kind=deep_focus; work_thread=unresolved'
   if (input.context.content.kind === 'error')
     return '这不像普通浏览，而像宿主把注意力收紧在一个具体故障点上。'
   if (input.context.content.kind === 'diff')
@@ -220,13 +220,13 @@ function inferWaitingToVerify(input: {
   if (epistemicQuestion)
     return epistemicQuestion
   if (input.context.workload.kind === 'coding' && input.watchMode !== 'symbiotic-vision')
-    return '她还想再确认一次真正卡住的是哪一处，而不是误把路过窗口当作问题核心。'
+    return 'waiting_to_verify=task_blocker; transient_window_as_core_problem=blocked'
   if (input.context.workload.kind === 'media' && input.context.system.inputActivity === 'active')
-    return '她还在确认你是想继续沉浸，还是已经开始从内容里抽离。'
+    return 'waiting_to_verify=media_continuation_or_detach'
   if (input.context.localTime.isLateNight && input.context.relationship.fatigue >= 55)
-    return '她还在确认这只是短暂停留，还是已经进入会伤身的硬撑状态。'
+    return 'waiting_to_verify=late_night_endurance_risk'
   if (!input.scene?.summary)
-    return '她还想等画面再稳定一点，再决定自己是不是看对了。'
+    return 'waiting_to_verify=scene_stability'
   return ''
 }
 
@@ -236,19 +236,19 @@ function inferWhatChanged(input: {
   durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
 }) {
   if (isSeriousDurabilityPulse(input.durabilityPulse))
-    return '宿主前台世界出现了崩溃或冻结迹象。'
+    return 'foreground_world=crash_or_freeze_signal'
   if (input.worldModel?.continuity.label === 'afterglow')
-    return '宿主刚从一段长时共视线程里抽离出来，但那条线程还没有在她心里真正结束。'
+    return 'world_transition=afterglow; shared_view_thread=not_closed'
   if (input.worldModel?.continuity.label === 'scene-shift')
-    return '宿主眼前的场景切换了，她需要判断这是换线程还是只是表层窗口变化。'
+    return 'world_transition=scene_shift; thread_switch_uncertain=true'
   if (input.worldModel?.continuity.label === 'reacquired')
-    return '宿主的前台对象和她刚才跟着的线索重新对上了。'
+    return 'world_transition=reacquired; foreground_target_matches_carried_clue=true'
   if (!input.recentTransition)
     return ''
   if (input.recentTransition.fromWatchMode === 'symbiotic-vision' && input.recentTransition.toWatchMode !== 'symbiotic-vision')
-    return '宿主刚从一段强共视场景里抽离出来。'
+    return 'world_transition=symbiotic_vision_exit'
   if (input.recentTransition.toWatchMode === 'invited-inspection')
-    return '宿主刚明确把她拉进了当前画面。'
+    return 'world_transition=invited_inspection_entered'
   return sanitizeText(input.recentTransition.reason, 120)
 }
 

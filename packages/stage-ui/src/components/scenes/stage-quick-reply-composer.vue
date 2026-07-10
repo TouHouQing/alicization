@@ -10,7 +10,6 @@ import { useAlicizationSelfEvolutionInspectorStore } from '../../stores/alicizat
 import { useChatTextComposerStore } from '../../stores/chat/text-composer-store'
 import { buildStageQuickReplyClosureDiagnosticEntry } from './stage-quick-reply-closure'
 import { resolveStageQuickReplyClosureSummary } from './stage-quick-reply-closure-summary'
-import { buildStageQuickReplyProjectBriefLines } from './stage-quick-reply-project-brief'
 
 const composerStore = useChatTextComposerStore()
 const { draft, isComposing } = storeToRefs(composerStore)
@@ -36,11 +35,6 @@ const closureSummaryLine = computed(() => resolveStageQuickReplyClosureSummary(
     ],
   },
 ))
-const projectSelfBriefLines = computed(() => buildStageQuickReplyProjectBriefLines(
-  preDialogueAwarenessSnapshot.value,
-  preDialogueClosureSnapshot.value,
-))
-
 async function handleSubmit() {
   await composerStore.sendCurrentMessage()
 }
@@ -65,16 +59,15 @@ async function handleActionButtonClick() {
 <template>
   <div class="stage-quick-reply">
     <details
-      v-if="preDialogueClosureSnapshot"
+      v-if="closureDiagnosticEntry.visible"
       class="stage-quick-reply__closure"
-      open
     >
       <summary class="stage-quick-reply__closure-toggle">
         <span class="stage-quick-reply__closure-label">
-          Digital Life Closure
+          运行诊断
         </span>
         <span class="stage-quick-reply__closure-pill">
-          {{ preDialogueClosureSnapshot.status }}
+          {{ preDialogueClosureSnapshot?.status ?? '待检查' }}
         </span>
       </summary>
       <div
@@ -95,42 +88,6 @@ async function handleActionButtonClick() {
       >
         {{ closureDiagnosticEntry.nextClosureLine }}
       </div>
-      <ul
-        v-if="projectSelfBriefLines.length > 0"
-        class="stage-quick-reply__closure-project-brief"
-      >
-        <li
-          v-for="(line, index) in projectSelfBriefLines"
-          :key="`project-self-brief:${index}:${line}`"
-          class="stage-quick-reply__closure-project-brief-line"
-        >
-          {{ line }}
-        </li>
-      </ul>
-      <ul
-        v-if="preDialogueClosureSnapshot.briefingLines?.length"
-        class="stage-quick-reply__closure-briefing"
-      >
-        <li
-          v-for="(line, index) in preDialogueClosureSnapshot.briefingLines"
-          :key="`briefing:${index}:${line}`"
-          class="stage-quick-reply__closure-briefing-line"
-        >
-          {{ line }}
-        </li>
-      </ul>
-      <ul
-        v-if="preDialogueClosureSnapshot.reasons.length > 0"
-        class="stage-quick-reply__closure-reasons"
-      >
-        <li
-          v-for="(reason, index) in preDialogueClosureSnapshot.reasons"
-          :key="`${index}:${reason}`"
-          class="stage-quick-reply__closure-reason"
-        >
-          {{ reason }}
-        </li>
-      </ul>
       <div class="stage-quick-reply__closure-hint">
         {{ closureDiagnosticEntry.hint }}
       </div>

@@ -26,6 +26,8 @@ describe('alicization chat failure surface', () => {
     })
 
     expect(isAlicizationDecorativePersonaTemplateContamination(contaminated)).toBe(true)
+    expect(isAlicizationDecorativePersonaTemplateContamination('你要是只是想随便聊聊，我就安静陪着你，沿着同一条线慢慢长成更完整的自己。')).toBe(true)
+    expect(isAlicizationDecorativePersonaTemplateContamination('The same local digital life thread is still here.')).toBe(true)
     expect(surface.reply).toContain('固定模板')
     expect(surface.reply).not.toContain('同一条本地数字生命')
     expect(surface.excludeFromPersonaLearning).toBe(true)

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Button } from '@proj-alicization/ui'
 import { useAlicizationMemoryWorkbenchStore } from '@proj-alicization/stage-ui/stores/alicization-memory-workbench'
+import { Button } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -44,6 +44,34 @@ const kindOptions = ['all', 'fact', 'episode', 'reflection', 'consolidation'] as
 const sensitivityOptions = ['all', 'public', 'personal', 'private', 'secret'] as const
 const visibilityOptions = ['all', 'explicit', 'inward-only'] as const
 const trainingOptions = ['all', 'allowed', 'blocked'] as const
+type LongTermFilterGroup = 'kind' | 'sensitivity' | 'visibility' | 'training'
+
+const longTermFilterLabelKeys = {
+  kind: {
+    all: 'settings.pages.memory.workbench.filters.kind.all',
+    fact: 'settings.pages.memory.workbench.filters.kind.fact',
+    episode: 'settings.pages.memory.workbench.filters.kind.episode',
+    reflection: 'settings.pages.memory.workbench.filters.kind.reflection',
+    consolidation: 'settings.pages.memory.workbench.filters.kind.consolidation',
+  },
+  sensitivity: {
+    all: 'settings.pages.memory.workbench.filters.sensitivity.all',
+    public: 'settings.pages.memory.workbench.filters.sensitivity.public',
+    personal: 'settings.pages.memory.workbench.filters.sensitivity.personal',
+    private: 'settings.pages.memory.workbench.filters.sensitivity.private',
+    secret: 'settings.pages.memory.workbench.filters.sensitivity.secret',
+  },
+  visibility: {
+    'all': 'settings.pages.memory.workbench.filters.visibility.all',
+    'explicit': 'settings.pages.memory.workbench.filters.visibility.explicit',
+    'inward-only': 'settings.pages.memory.workbench.filters.visibility.inward_only',
+  },
+  training: {
+    all: 'settings.pages.memory.workbench.filters.training.all',
+    allowed: 'settings.pages.memory.workbench.filters.training.allowed',
+    blocked: 'settings.pages.memory.workbench.filters.training.blocked',
+  },
+} as const
 
 const healthStatusClass = computed(() => {
   if (health.value?.status === 'ok')
@@ -61,6 +89,10 @@ function formatTimestamp(value: number | null | undefined) {
   if (!value)
     return '-'
   return new Date(value).toLocaleString()
+}
+
+function formatLongTermFilterLabel(group: LongTermFilterGroup, value: string) {
+  return t(longTermFilterLabelKeys[group][value as keyof typeof longTermFilterLabelKeys[typeof group]] ?? value)
 }
 
 function resetLongTermFilters() {
@@ -204,32 +236,50 @@ onMounted(() => {
         <input
           v-model="longTermFilters.query"
           :aria-label="t('settings.pages.memory.workbench.actions.search')"
+          :placeholder="t('settings.pages.memory.workbench.placeholders.long_term_search')"
           :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
           @keydown.enter.prevent="store.refreshLongTerm()"
         >
-        <select v-model="longTermFilters.kind" :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']">
+        <select
+          v-model="longTermFilters.kind"
+          :aria-label="t('settings.pages.memory.workbench.fields.kind')"
+          :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+        >
           <option v-for="option in kindOptions" :key="option" :value="option">
-            {{ option }}
+            {{ formatLongTermFilterLabel('kind', option) }}
           </option>
         </select>
-        <select v-model="longTermFilters.sensitivity" :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']">
+        <select
+          v-model="longTermFilters.sensitivity"
+          :aria-label="t('settings.pages.memory.workbench.fields.sensitivity')"
+          :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+        >
           <option v-for="option in sensitivityOptions" :key="option" :value="option">
-            {{ option }}
+            {{ formatLongTermFilterLabel('sensitivity', option) }}
           </option>
         </select>
-        <select v-model="longTermFilters.visibility" :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']">
+        <select
+          v-model="longTermFilters.visibility"
+          :aria-label="t('settings.pages.memory.workbench.fields.visibility')"
+          :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+        >
           <option v-for="option in visibilityOptions" :key="option" :value="option">
-            {{ option }}
+            {{ formatLongTermFilterLabel('visibility', option) }}
           </option>
         </select>
-        <select v-model="longTermFilters.training" :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']">
+        <select
+          v-model="longTermFilters.training"
+          :aria-label="t('settings.pages.memory.workbench.fields.training')"
+          :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+        >
           <option v-for="option in trainingOptions" :key="option" :value="option">
-            {{ option }}
+            {{ formatLongTermFilterLabel('training', option) }}
           </option>
         </select>
         <input
           v-model="longTermFilters.source"
           :aria-label="t('settings.pages.memory.workbench.fields.source')"
+          :placeholder="t('settings.pages.memory.workbench.placeholders.long_term_source')"
           :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
         >
       </div>
@@ -254,10 +304,10 @@ onMounted(() => {
       </div>
       <article v-for="item in longTermItems" :key="item.id" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
         <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2', 'text-xs', 'text-neutral-500']">
-          <span>{{ item.kind }}</span>
-          <span>{{ item.sensitivity }}</span>
-          <span>{{ item.visibility }}</span>
-          <span>{{ item.training }}</span>
+          <span>{{ t('settings.pages.memory.workbench.fields.kind') }}: {{ formatLongTermFilterLabel('kind', item.kind) }}</span>
+          <span>{{ t('settings.pages.memory.workbench.fields.sensitivity') }}: {{ formatLongTermFilterLabel('sensitivity', item.sensitivity) }}</span>
+          <span>{{ t('settings.pages.memory.workbench.fields.visibility') }}: {{ formatLongTermFilterLabel('visibility', item.visibility) }}</span>
+          <span>{{ t('settings.pages.memory.workbench.fields.training') }}: {{ formatLongTermFilterLabel('training', item.training) }}</span>
         </div>
         <div :class="['mt-2', 'text-sm', 'font-medium']">
           {{ item.summary }}

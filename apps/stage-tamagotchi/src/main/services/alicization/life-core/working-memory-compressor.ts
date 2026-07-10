@@ -1,5 +1,7 @@
 import type { WorkingMemoryEpisodelet, WorkingMemorySnapshot } from './working-memory'
 
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
+
 import { normalizeWorkingMemoryText, uniqueWorkingMemoryTexts } from './working-memory'
 
 export interface CompressWorkingMemoryOptions {
@@ -7,9 +9,27 @@ export interface CompressWorkingMemoryOptions {
   now: number
 }
 
+function looksLikeFixedFallbackTemplate(text: string) {
+  return containsAlicizationFixedTemplateResidue(text)
+    || /随便聊聊|安静陪着|在这里陪着你的那一个|沿着同一条线慢慢长成/u.test(text)
+}
+
+function summarizeTurn(turn: WorkingMemorySnapshot['recentRawTurns'][number]) {
+  if (turn.failureKind)
+    return `${turn.role}:[failure:${turn.failureKind}]`
+
+  const text = normalizeWorkingMemoryText(turn.text, 120)
+  if (!text)
+    return ''
+  if (looksLikeFixedFallbackTemplate(text))
+    return `${turn.role}:[fallback-template-excluded]`
+
+  return `${turn.role}:${text}`
+}
+
 function summarizeTurns(turns: WorkingMemorySnapshot['recentRawTurns']) {
   return turns
-    .map(turn => `${turn.role}:${normalizeWorkingMemoryText(turn.text, 120)}`)
+    .map(summarizeTurn)
     .filter(Boolean)
     .join(' | ')
     .slice(0, 700)

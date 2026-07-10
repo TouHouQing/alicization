@@ -1975,7 +1975,7 @@ export function buildAlicizationResponseCharter(input: {
     ? 'durable_continuity_cadence=preserve; channels=quiet,memory,speech; timing=before_widening_outward'
     : null
   const selfEvolutionSameHerOutwardContinuityMustNotDo = selfEvolutionSupportsSameHerOutwardContinuity(selfEvolution)
-    ? 'Do not let the visible answer reopen from scratch, slip into a fresh-opening shell, or flatten into a generic helper voice while continuity cadence is still active.'
+    ? 'continuity_cadence=active; fresh_opening_shell=blocked; generic_helper_voice=blocked'
     : null
   const concern = strongestConcern(concerns)
   const commitment = governingCommitment(commitmentLedger)
@@ -2179,7 +2179,7 @@ export function buildAlicizationResponseCharter(input: {
             ? 'previous_read_defense=blocked_when_current_turn_pulls_revision'
             : null,
           learningExecutionState?.nextLearningAction === 'verify'
-            ? 'Do not let fluency or warmth outrun what is still being verified.'
+            ? 'verification_incomplete=true; fluency_warmth_overclaim=blocked'
             : null,
           learningExecutionState?.nextLearningAction === 'revise'
             ? 'Do not rest visible certainty on continuity the system is actively revising.'
@@ -2199,7 +2199,7 @@ export function buildAlicizationResponseCharter(input: {
             ? 'Do not satisfy the turn with a template shell; the active self-revision patch requires concrete payoff in the same answer.'
             : null,
           selfRevisionPatch?.lanes.includes('response-posture') && selfRevisionPatch.responsePosture.specificityClampBias >= 0.1
-            ? 'Do not let a recently revised belief surface as exact technical detail without current support.'
+            ? 'revised_belief_exact_technical_detail=requires_current_support'
             : null,
           ...(dialogueActKernel?.mustAvoid ?? []),
           ...answerCompiler.mustNotDo,
@@ -2280,11 +2280,11 @@ export function buildAlicizationResponseCharter(input: {
   ]
   const mustNotDo: string[] = [
     'Do not reuse stale page names, earlier screenshots, or older window descriptions as if they are current.',
-    'Do not let affectionate performance delay or replace the concrete answer.',
+    'affectionate_performance_delays_concrete_answer=blocked',
     'Do not claim stronger visual certainty than the current epistemic mode supports.',
   ]
   if (discourseDrivenProjectStateSameHer) {
-    mustNotDo.push('Do not let the visible answer drift into a detached project narrator shell.')
+    mustNotDo.push('detached_project_narrator_shell=blocked')
   }
 
   if (epistemicMode === 'grounded-live') {
@@ -2317,7 +2317,7 @@ export function buildAlicizationResponseCharter(input: {
   }
   if (hasEmbodimentClosureCarryCue(projectStateCarrySource)) {
     mustDo.push('Keep voice, lipsync, face, motion, and resident presence reading like one same living return line while embodiment closure is still settling.')
-    mustNotDo.push('Do not let the wording outrun the current embodiment closure state by sounding warmer, more complete, or more socially widened than voice, lipsync, face, and motion can currently carry together.')
+    mustNotDo.push('embodiment_closure_state=source_of_truth; wording_warmth_completion_social_widening=bounded_by_voice_lipsync_face_motion')
   }
   if (currentConsciousFrame?.truthDiscipline === 'repair-first') {
     mustDo.push('Let the answer show self-correction instead of smoothing over the revision.')
@@ -2380,7 +2380,7 @@ export function buildAlicizationResponseCharter(input: {
     mustNotDo.push('Do not trade factual precision for warmth on this turn.')
   }
   if (dialogueObligation?.personaKernelMode !== 'full') {
-    mustNotDo.push('Do not let persona routines, pet names, or roleplay gestures become the response spine.')
+    mustNotDo.push('persona_routines_pet_names_roleplay_gestures=response_spine_blocked')
   }
   if (effectiveRelationshipPosture === 'restrained') {
     mustNotDo.push('Do not overplay softness, clinginess, or theatrical intimacy while the truth boundary is unstable.')
@@ -2396,12 +2396,12 @@ export function buildAlicizationResponseCharter(input: {
   }
   if (digitalLifeArchitecture?.operatingMode === 'remembering' || digitalLifeArchitecture?.dominantSystem === 'memory') {
     mustDo.push('When continuity is memory-led, name it as carry or memory instead of present-tense sight.')
-    mustNotDo.push('Do not let remembered continuity impersonate a fresh live read.')
+    mustNotDo.push('remembered_continuity_as_fresh_live_read=blocked')
   }
   if (personStateProjection) {
     pushUnique(mustDo, `Keep the answer inside the closeness ladder for this turn: ${personStateProjection.activeClosenessContext}/${personStateProjection.activeClosenessRung}.`)
     if (personStateProjection.activeClosenessRung === 'space-first')
-      pushUnique(mustNotDo, 'Do not let warmth, intimacy, or callback enthusiasm outrun the host’s current need for room.')
+      pushUnique(mustNotDo, 'warmth_intimacy_callback_enthusiasm_outruns_host_room=blocked')
     if (personStateProjection.preferredProactiveStyle === 'silent-observe')
       pushUnique(mustDo, 'Let the opening stay observant and low-pressure before leaning closer.')
     if (personStateProjection.preferredProactiveStyle === 'light-nudge')
@@ -2413,7 +2413,7 @@ export function buildAlicizationResponseCharter(input: {
   }
   if (learningExecutionState?.nextLearningAction === 'verify') {
     pushUnique(mustDo, 'Keep visible certainty behind the current verification pass.')
-    pushUnique(mustNotDo, 'Do not let fluency or warmth outrun what is still being verified.')
+    pushUnique(mustNotDo, 'verification_incomplete=true; fluency_warmth_overclaim=blocked')
   }
   if (learningExecutionState?.nextLearningAction === 'revise') {
     pushUnique(mustDo, 'Treat the older continuity line as actively revisable instead of settled.')
@@ -2439,7 +2439,7 @@ export function buildAlicizationResponseCharter(input: {
   }
   if (selfEvolutionSupportsLowerPressureOpening(selfEvolution)) {
     pushUnique(mustDo, 'Let long-horizon relationship timing keep the opening lower-pressure before closeness widens again.')
-    pushUnique(mustNotDo, 'Do not let older closeness tempo or eager warmth reopen faster than this learned relationship timing supports.')
+    pushUnique(mustNotDo, 'older_closeness_tempo_or_eager_warmth=blocked_until_learned_relationship_timing_allows')
   }
   if (selfEvolutionSameHerOutwardContinuityReason)
     pushUnique(reasons, selfEvolutionSameHerOutwardContinuityReason)
@@ -2461,15 +2461,15 @@ export function buildAlicizationResponseCharter(input: {
   }
   if ((memoryTuningAdvice?.surfaceAdjustments.provenanceLabelBias ?? 0) >= 0.1) {
     pushUnique(mustDo, 'Bias toward explicit provenance when learned continuity enters the visible answer.')
-    pushUnique(mustNotDo, 'Do not let learned continuity silently impersonate current grounded fact.')
+    pushUnique(mustNotDo, 'learned_continuity_as_current_grounded_fact=blocked_without_provenance')
   }
   if ((memoryTuningAdvice?.surfaceAdjustments.specificityClampBias ?? 0) >= 0.1) {
     pushUnique(mustDo, 'Clamp technical specificity harder when learned confidence outruns current grounding.')
-    pushUnique(mustNotDo, 'Do not let learned confidence spill into unsupported technical specificity.')
+    pushUnique(mustNotDo, 'learned_confidence_unsupported_technical_specificity=blocked')
   }
   if ((memoryTuningAdvice?.personStateAdjustments.closenessCapBias ?? 0) >= 0.12) {
     pushUnique(mustDo, 'Keep closeness capped so learned familiarity does not outrun the host’s current room.')
-    pushUnique(mustNotDo, 'Do not let learned familiarity widen visible closeness faster than the host’s current room allows.')
+    pushUnique(mustNotDo, 'learned_familiarity_visible_closeness_widening=bounded_by_host_room')
   }
   if (memoryTuningAdvice?.focusDimensions.includes('avoidGenericProjectShell')) {
     pushUnique(mustDo, 'project_state_answer=current_continuity_context; current_turn_payoff=first; detached_project_summary_voice=after_live_payoff')
@@ -2494,14 +2494,14 @@ export function buildAlicizationResponseCharter(input: {
   }
   if (projectEmotionalClosureDisciplineRequired) {
     pushUnique(mustDo, 'Keep emotional closure low-pressure and inward until the live payoff lands.')
-    pushUnique(mustNotDo, 'Do not let the answer reopen from scratch just because the closure seam is still active.')
+    pushUnique(mustNotDo, 'closure_seam_active=true; fresh_reopen_from_scratch=blocked')
   }
   if (
     projectStateResponseCharterBias?.preferRestrainedPosture === true
     && /project_state_answer=|project_state_continuity=|continuity_governance|project shell/i.test(projectStateResponseCharterBias.reason)
     && /fresh-opening|fresh opening|generic project shell|project continuity turn/i.test(projectStateResponseCharterBias.mustNotDo)
   ) {
-    pushUnique(mustNotDo, 'Do not let the answer reopen from scratch just because the closure seam is still active.')
+    pushUnique(mustNotDo, 'closure_seam_active=true; fresh_reopen_from_scratch=blocked')
     pushUnique(mustNotDo, 'Do not reopen this same-thread project-state turn from scratch or let it flatten into a fresh report opening.')
   }
   if (selfRevisionPatch?.lanes.includes('response-posture')) {
@@ -2510,7 +2510,7 @@ export function buildAlicizationResponseCharter(input: {
       pushUnique(mustDo, 'Let the active self-revision patch make hypothesis labeling more visible this turn.')
     if (selfRevisionPatch.responsePosture.specificityClampBias >= 0.1) {
       pushUnique(mustDo, 'Let the active self-revision patch clamp unsupported specificity before warmth or fluency.')
-      pushUnique(mustNotDo, 'Do not let a recently revised belief surface as exact technical detail without current support.')
+      pushUnique(mustNotDo, 'revised_belief_exact_technical_detail=requires_current_support')
     }
     if (selfRevisionPatch.responsePosture.secondPassRequiredBias >= 0.1)
       pushUnique(mustDo, 'Let the active self-revision patch bias this answer toward repair/rewrite before visible certainty.')
@@ -2522,7 +2522,7 @@ export function buildAlicizationResponseCharter(input: {
     }
     if (selfRevisionPatch.projectStateContinuity?.sameHerHoldDetail) {
       pushUnique(mustDo, 'self_revision_hold_detail=present; closure_surface=still_settling')
-      pushUnique(mustNotDo, 'Do not reopen the answer wider than the active hold detail before the current closure seam has actually landed.')
+      pushUnique(mustNotDo, 'active_hold_detail=present; answer_widening=blocked_until_current_closure_lands')
     }
     if (selfRevisionPatch.projectStateContinuity?.continuityGuard) {
       pushUnique(mustDo, 'self_revision_continuity_guard=present; project_state_answer=current_continuity_context; detached_project_summary_voice=blocked')
@@ -2530,7 +2530,7 @@ export function buildAlicizationResponseCharter(input: {
     }
   }
   if (digitalLifeArchitecture?.dominantSystem === 'proactive') {
-    mustNotDo.push('Do not let the urge to speak outrun the host’s actual turn.')
+    mustNotDo.push('urge_to_speak_outruns_host_turn=blocked')
   }
   for (const item of dialogueActKernel?.mustSay ?? [])
     pushUnique(mustDo, item)

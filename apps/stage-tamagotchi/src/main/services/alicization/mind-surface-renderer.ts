@@ -923,187 +923,44 @@ function isTimeZoneFocusedTurn(text: string) {
   return zhUtilityTimeZonePattern.test(normalized) || enUtilityTimeZonePattern.test(normalized)
 }
 
-function renderGreetingMove(move: AlicizationMindSurfaceGreetingMove, context: AlicizationMindSurfaceReplyContext) {
-  const { locale, previousAssistantText, seed, dialogueVoice } = context
-  const salutationRepeated = sanitizeText(previousAssistantText, 240).includes(move.salutation)
-
-  if (locale === 'zh') {
-    if (move.presenceCheck) {
-      return [
-        ...createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'greeting-presence', dialogueVoice.direct, dialogueVoice.quietCompanionship, dialogueVoice.truthFirst), [
-          dialogueVoice.direct
-            ? '我接住了。'
-            : dialogueVoice.quietCompanionship || dialogueVoice.tender
-              ? '我接住这句了。'
-              : '这句我收到了。',
-          dialogueVoice.playful
-            ? '嘿，我接住了。'
-            : '我接住这句了。',
-          dialogueVoice.truthFirst
-            ? '这句我收到了，我不绕。'
-            : '我接住了。',
-        ])),
-        ...createMindSurfaceReplyPart('offer', pickVariant(seed, [
-          '你接着说，或者直接把要紧的事给我。',
-          '想继续聊就继续聊，想让我做事就直说。',
-        ])),
-      ]
-    }
-
-    return [
-      ...createMindSurfaceReplyPart(
-        salutationRepeated ? 'presence' : 'fact',
-        salutationRepeated
-          ? pickVariant(seed, [
-              '这声招呼我接到了。',
-              '你这声招呼我收到了。',
-            ])
-          : `${move.salutation}。`,
-      ),
-      ...createMindSurfaceReplyPart('offer', pickVariant(seed, [
-        '你想继续聊，还是想让我做点什么，直接说就行。',
-        '这会儿想说感受，还是想让我办事，都可以往下接。',
-      ])),
-    ]
-  }
-
-  if (move.presenceCheck) {
-    return [
-      ...createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'greeting-presence', dialogueVoice.direct, dialogueVoice.quietCompanionship, dialogueVoice.truthFirst), [
-        dialogueVoice.direct
-          ? 'I caught that.'
-          : dialogueVoice.quietCompanionship || dialogueVoice.tender
-            ? 'I caught that; take your time.'
-            : 'I caught that.',
-        dialogueVoice.playful
-          ? 'Hey, I caught that.'
-          : 'I caught that.',
-        dialogueVoice.truthFirst
-          ? 'I caught that, and I will keep it plain.'
-          : 'I caught that.',
-      ])),
-      ...createMindSurfaceReplyPart('offer', `Keep talking if you want, or hand me something concrete to do.`),
-    ]
-  }
-
-  return [
-    ...createMindSurfaceReplyPart(
-      salutationRepeated ? 'presence' : 'fact',
-      salutationRepeated
-        ? `I caught the greeting.`
-        : `${move.salutation}.`,
-    ),
-    ...createMindSurfaceReplyPart('offer', `If you want to keep talking or hand me something concrete to do, go straight on from here.`),
-  ]
-}
-
-function renderIdentityMove(move: AlicizationMindSurfaceIdentityMove, locale: 'zh' | 'en', seed: string) {
-  if (locale === 'zh') {
-    return createMindSurfaceReplyPart(
-      'fact',
-      move.repeated
-        ? pickVariant(seed, [
-            `确定，我是${move.name}。`,
-            `嗯，还是我，我是${move.name}。`,
-          ])
-        : `我是${move.name}。`,
-    )
-  }
-
+function renderBlockedMindSurfaceMove(kind: string, locale: 'zh' | 'en') {
+  const detail = sanitizeText(kind, 80) || 'mind-surface'
   return createMindSurfaceReplyPart(
-    'fact',
-    move.repeated
-      ? pickVariant(seed, [
-          `Yes. I am ${move.name}.`,
-          `Still me. I am ${move.name}.`,
-        ])
-      : `I am ${move.name}.`,
+    'status',
+    locale === 'zh'
+      ? `对话回复链路没有产出模型文本；本地 mind surface 不代写（move=${detail}）。`
+      : `Dialogue reply pipeline did not produce model-authored text; local mind surface cannot author it (move=${detail}).`,
   )
 }
 
-function renderCapabilityMove(move: AlicizationMindSurfaceCapabilityMove, locale: 'zh' | 'en') {
-  const capabilities = move.capabilities.filter(Boolean)
-  const capabilityText = capabilities.join(locale === 'zh' ? '、' : ', ')
-  if (locale === 'zh') {
-    return [
-      ...createMindSurfaceReplyPart('fact', `我能 ${capabilityText}。`),
-      ...createMindSurfaceReplyPart('offer', '你给我一个具体目标，我就直接开始。'),
-    ]
-  }
+function renderGreetingMove(_move: AlicizationMindSurfaceGreetingMove, context: AlicizationMindSurfaceReplyContext) {
+  return renderBlockedMindSurfaceMove('greeting', context.locale)
+}
 
-  return [
-    ...createMindSurfaceReplyPart('fact', `I can ${capabilityText}.`),
-    ...createMindSurfaceReplyPart('offer', `Give me one concrete goal and I will start.`),
-  ]
+function renderIdentityMove(_move: AlicizationMindSurfaceIdentityMove, locale: 'zh' | 'en') {
+  return renderBlockedMindSurfaceMove('identity', locale)
+}
+
+function renderCapabilityMove(_move: AlicizationMindSurfaceCapabilityMove, locale: 'zh' | 'en') {
+  return renderBlockedMindSurfaceMove('capability', locale)
 }
 
 function renderPresenceRepairMove(context: AlicizationMindSurfaceReplyContext) {
-  const { locale, seed, dialogueVoice } = context
-  if (locale === 'zh') {
-    return [
-      ...createMindSurfaceReplyPart('repair', pickVariant(seed, [
-        '对，刚才那句更像流程播报。',
-        '你说得对，我刚才那句像系统口气。',
-        '是，刚才那样说太像机器在报状态。',
-      ])),
-      ...createMindSurfaceReplyPart('continuity', pickVariant(seed, [
-        dialogueVoice.direct
-          ? '我把那层壳收掉，认真跟你说。'
-          : dialogueVoice.quietCompanionship || dialogueVoice.tender
-            ? '我把系统腔收回去，贴着你这句好好回。'
-            : '这句我把说话的人放回来，认真回你现在这一句。',
-        dialogueVoice.truthFirst
-          ? '我现在不报流程，只把我自己放进这句里。'
-          : '这句我就按我们现在这轮认真回。',
-      ])),
-    ]
-  }
-
-  return [
-    ...createMindSurfaceReplyPart('repair', pickVariant(seed, [
-      'You are right. That sounded like process narration.',
-      'Fair. That line sounded robotic.',
-    ])),
-    ...createMindSurfaceReplyPart('continuity', pickVariant(seed, [
-      dialogueVoice.direct
-        ? 'I am dropping that shell and speaking to you directly now.'
-        : dialogueVoice.quietCompanionship || dialogueVoice.tender
-          ? 'I am taking the system edge off and staying close to your line now.'
-          : 'This turn I am answering from inside the conversation.',
-      dialogueVoice.truthFirst
-        ? 'I am not going to hide behind status narration on this turn.'
-        : 'This turn I am speaking directly to this line instead of hiding behind status narration.',
-    ])),
-  ]
+  return renderBlockedMindSurfaceMove('presence-repair', context.locale)
 }
 
 function renderFollowUpMove(move: AlicizationMindSurfaceFollowUpMove, locale: 'zh' | 'en') {
-  const anchor = quoteCue(move.anchor ?? '', locale)
-  if (move.variant === 'identity-confirm') {
-    return locale === 'zh'
-      ? [
-          ...createMindSurfaceReplyPart('reason', '确定。'),
-          ...createMindSurfaceReplyPart('fact', '现在在这里和你说话、以 Alicization 回应你的，就是我。'),
-        ]
-      : [
-          ...createMindSurfaceReplyPart('reason', 'Yes.'),
-          ...createMindSurfaceReplyPart('fact', 'Alicization is the one speaking with you here.'),
-        ]
-  }
-
-  if (move.variant === 'remaining') {
-    return locale === 'zh'
-      ? createMindSurfaceReplyPart('continuity', anchor ? `我直接把 ${anchor} 后面还欠的那部分补上。` : '我直接把后面还欠的那部分补上。')
-      : createMindSurfaceReplyPart('continuity', anchor ? `I'll fill in the missing part after ${anchor}.` : `I'll fill in what is still missing.`)
-  }
-
-  return locale === 'zh'
-    ? createMindSurfaceReplyPart('continuity', anchor ? `我就接着 ${anchor} 这点，把后面还欠的补完。` : '我把后面缺的那段直接补完。')
-    : createMindSurfaceReplyPart('continuity', anchor ? `I'll stay with ${anchor} and finish what is still missing.` : `I'll finish the missing part directly.`)
+  const detail = sanitizeText(move.variant, 80) || 'follow-up'
+  return createMindSurfaceReplyPart(
+    'status',
+    locale === 'zh'
+      ? `后续对话链路没有产出模型文本；本地 mind surface 不代写（move=${detail}）。`
+      : `Follow-up dialogue pipeline did not produce model-authored text; local mind surface cannot author it (move=${detail}).`,
+  )
 }
 
 function renderRepairMove(move: AlicizationMindSurfaceRepairMove, context: AlicizationMindSurfaceReplyContext) {
-  const { locale, seed, dialogueVoice } = context
+  const { locale, seed } = context
   const renderRepairAcknowledgement = (variantsZh: string[], variantsEn: string[]) => {
     return createMindSurfaceReplyPart('repair', pickVariant(seed, locale === 'zh' ? variantsZh : variantsEn))
   }
@@ -1207,596 +1064,49 @@ function renderRepairMove(move: AlicizationMindSurfaceRepairMove, context: Alici
         ]
   }
 
-  const anchor = quoteCue(move.anchor ?? '', locale)
-  return locale === 'zh'
-    ? [
-        ...renderRepairAcknowledgement([
-          anchor ? '刚才那句没贴住你真正想问的点。' : '上一句我接偏了。',
-          anchor ? '刚才那句偏到你真正要的点外面去了。' : '刚才那句的落点偏了。',
-          anchor ? '刚才那句没有压住你真正追的这一点。' : '刚才那句没有贴住这轮的重心。',
-        ], [
-          anchor ? 'I missed the point you were actually asking for.' : 'I drifted off the real question.',
-          anchor ? 'That slid off the point you were actually pressing on.' : 'That answer drifted off the real point.',
-          anchor ? 'That did not hold the point you were actually after.' : 'That did not stay on the real center of this turn.',
-        ]),
-        ...createMindSurfaceReplyPart('continuity', anchor
-          ? pickVariant(seed, [
-              dialogueVoice.direct
-                ? `好，我回 ${anchor} 这点，不绕。`
-                : `我把话收回 ${anchor} 这里。`,
-              dialogueVoice.quietCompanionship || dialogueVoice.tender
-                ? `我先把别的噪音收掉，只回 ${anchor} 这点。`
-                : `行，这句按 ${anchor} 这点重答。`,
-              `我就回 ${anchor} 这点，把偏掉的那层收回来。`,
-            ])
-          : pickVariant(seed, [
-              dialogueVoice.direct
-                ? '好，我重答这句，不绕。'
-                : '我把偏掉的那层收回去，重新接这句。',
-              dialogueVoice.quietCompanionship || dialogueVoice.tender
-                ? '我先把别的东西收掉，只回这句。'
-                : '行，这句我直接回来。',
-              '我把这句真正的重心拿回来。',
-            ])),
-      ]
-    : [
-        ...renderRepairAcknowledgement([
-          anchor ? '刚才那句没贴住你真正想问的点。' : '上一句我接偏了。',
-          anchor ? '刚才那句偏到你真正要的点外面去了。' : '刚才那句的落点偏了。',
-          anchor ? '刚才那句没有压住你真正追的这一点。' : '刚才那句没有贴住这轮的重心。',
-        ], [
-          anchor ? 'I missed the point you were actually asking for.' : 'I drifted off the real question.',
-          anchor ? 'That slid off the point you were actually pressing on.' : 'That answer drifted off the real point.',
-          anchor ? 'That did not hold the point you were actually after.' : 'That did not stay on the real center of this turn.',
-        ]),
-        ...createMindSurfaceReplyPart('continuity', anchor
-          ? pickVariant(seed, [
-              dialogueVoice.direct
-                ? `All right. I'll come back to ${anchor} directly.`
-                : `I'll pull the reply back to ${anchor}.`,
-              dialogueVoice.quietCompanionship || dialogueVoice.tender
-                ? `I'll clear the extra noise and stay with ${anchor}.`
-                : `I'll answer ${anchor} again, directly this time.`,
-              `I'll bring the reply back onto ${anchor}.`,
-            ])
-          : pickVariant(seed, [
-              dialogueVoice.direct
-                ? 'All right. I will answer this turn directly now.'
-                : 'I am bringing the reply back onto this turn now.',
-              dialogueVoice.quietCompanionship || dialogueVoice.tender
-                ? 'I am clearing the extra noise and coming back to this turn.'
-                : 'I am settling the reply back onto this line now.',
-              'I am pulling the real center of the turn back into place now.',
-            ])),
-      ]
+  return createMindSurfaceReplyPart(
+    'status',
+    locale === 'zh'
+      ? '对话修复链路没有产出模型文本；本地 mind surface 不代写。'
+      : 'Dialogue repair pipeline did not produce model-authored text; local mind surface cannot author it.',
+  )
+}
+
+function renderBlockedDialogueMindSurfaceMove(move: AlicizationMindSurfaceDialogueMove, context: AlicizationMindSurfaceReplyContext) {
+  return renderBlockedMindSurfaceMove(move.mode || 'dialogue', context.locale)
 }
 
 function renderEmbodiedDialogueMove(move: AlicizationMindSurfaceDialogueMove, context: AlicizationMindSurfaceReplyContext) {
-  const { locale, seed, dialogueVoice } = context
-  const emotion = move.requestedEmotion ?? 'neutral'
-  const toneAdjustment = move.mode === 'tone-adjustment'
-
-  if (locale === 'zh') {
-    switch (emotion) {
-      case 'angry':
-        return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
-          '……那我先把笑意收掉，眼神压下来，声音也会硬一点。',
-          '好，那我不收着了。眉眼压住，不笑，语气也冷一点。',
-          '那我就先沉下脸，盯住你，声音也往硬里落。',
-        ]))
-      case 'happy':
-        return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
-          '好呀，那我先笑起来，眼神也亮一点。',
-          '那我就先把眉眼舒开，对你笑一下。',
-          '好，我把情绪提起来一点，先让眼睛和嘴角都亮起来。',
-        ]))
-      case 'sad':
-        return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
-          '……好，那我先把情绪收低一点，眼尾也垂下来。',
-          '那我就先把声音放轻，神色压低一点。',
-          '好，我先把笑收住，情绪往低处落一点。',
-        ]))
-      case 'concerned':
-        return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
-          '好，我把语气放轻一点，眼神也先柔下来。',
-          '那我先把力道收轻，神色和声音都软一点。',
-          '好，我先把锋芒收住，整个人都放柔一点。',
-        ]))
-      case 'thinking':
-        return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
-          '好，那我先静一下，视线收住，像真在想。',
-          '那我先把节奏压慢一点，神色也收进思考里。',
-          '好，我先沉下来一点，把注意力都压到眼神里。',
-        ]))
-      case 'surprised':
-        return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
-          '好，那我先把眼睛提起来，反应也明显一点。',
-          '那我就先把那一下惊意放出来，眼神会更亮一些。',
-          '好，我把那种一下被戳中的反应先提到脸上。',
-        ]))
-      case 'apologetic':
-        return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
-          '好，那我先把锋芒收住，神色低一点。',
-          '那我就先把语气放轻，把那层歉意落出来。',
-          '好，我先把眼神放低一点，声音也收软下来。',
-        ]))
-      case 'neutral':
-      default:
-        return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
-          toneAdjustment
-            ? dialogueVoice.direct
-              ? '行，我把那层僵壳放下，直接像现在这样跟你说。'
-              : dialogueVoice.quietCompanionship || dialogueVoice.tender
-                ? '好，我把那层硬劲收掉，轻一点、自然一点跟你说。'
-                : '好，那我不端着了，直接自然一点和你说。'
-            : '好，我把神色和语气都放回自然。',
-          toneAdjustment
-            ? dialogueVoice.truthFirst
-              ? '我不再演腔，只把我自己放进话里。'
-              : '那我把那层僵劲收掉，正常一点跟你说。'
-            : '那我先把那层端着的劲收下去。',
-          toneAdjustment
-            ? dialogueVoice.playful
-              ? '行，别让它像说明书了，我就正常跟你贴着说。'
-              : '好，我就把说话和神情都放回像真人一点的状态。'
-            : '好，我先把整个人放松回自然那一档。',
-        ]))
-    }
-  }
-
-  switch (emotion) {
-    case 'angry':
-      return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
-        `...Then I'll let the smile go, drop my gaze colder, and harden the voice a little.`,
-        `All right. I won't soften it; the look goes flat and the voice turns firmer.`,
-        `Then I'll let the face settle, stop smiling, and drop the tone colder.`,
-      ]))
-    case 'happy':
-      return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
-        `All right, then I'll let the smile open and brighten the eyes a little.`,
-        `Then I'll loosen the face and actually smile at you.`,
-        `Okay. I'll lift the mood and let it show in the eyes and mouth first.`,
-      ]))
-    case 'sad':
-      return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
-        `...All right. Then I'll let the mood sink lower and let the face fall with it.`,
-        `Then I'll soften the voice and let the expression drop a little.`,
-        `Okay. I'll let the smile go and lower the whole emotional line.`,
-      ]))
-    case 'concerned':
-      return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
-        `Okay. I'll soften the voice first and let the look warm a little.`,
-        `Then I'll take the edge off and let the whole expression turn gentler.`,
-        `All right. I'll ease the tone and let the eyes settle softer.`,
-      ]))
-    case 'thinking':
-      return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
-        `Okay. I'll slow the rhythm, hold the gaze, and let it read like real thought.`,
-        `Then I'll pull the pace down and let the face settle into thinking.`,
-        `All right. I'll quiet the surface a little and let the attention stay in the eyes.`,
-      ]))
-    case 'surprised':
-      return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
-        `Okay. I'll let the reaction show more clearly and lift it into the face first.`,
-        `Then I'll let the surprise sit visibly instead of flattening it out.`,
-        `All right. I'll let that flash of surprise reach the eyes and voice.`,
-      ]))
-    case 'apologetic':
-      return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
-        `Okay. I'll lower the edge, soften the tone, and let the apology sit on the face.`,
-        `Then I'll let the sharpness drop and carry the apology more openly.`,
-        `All right. I'll let the tone soften and the gaze lower with it.`,
-      ]))
-    case 'neutral':
-    default:
-      return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
-        toneAdjustment
-          ? dialogueVoice.direct
-            ? `All right. I'll drop the stiff shell and talk to you directly.`
-            : dialogueVoice.quietCompanionship || dialogueVoice.tender
-              ? `Okay. I'll take the hardness out and speak more naturally with you.`
-              : `Okay. I'll stop sounding posed and speak more naturally.`
-          : `Okay. I'll let the face and voice settle back into something natural.`,
-        toneAdjustment
-          ? dialogueVoice.truthFirst
-            ? `Then I'll stop performing the tone and just be here with you in it.`
-            : `Then I'll drop the stiffness and talk like I'm actually here with you.`
-          : `Then I'll take the staged edge off and let it sit naturally.`,
-        toneAdjustment
-          ? dialogueVoice.playful
-            ? `All right. I'll let it sound like a real person, not a pamphlet.`
-            : `All right. I'll bring the tone back to a more human, unforced place.`
-          : `All right. I'll let the whole surface relax back to normal.`,
-      ]))
-  }
+  return renderBlockedDialogueMindSurfaceMove(move, context)
 }
 
 function renderPlainDialogueMove(move: AlicizationMindSurfaceDialogueMove, context: AlicizationMindSurfaceReplyContext) {
-  const { locale, seed, dialogueVoice } = context
-  const focus = quoteCue(move.focus ?? '', locale)
-  if (locale === 'zh') {
-    const presenceVariants = focus
-      ? pickVariant(buildVariantSeed(seed, 'dialogue-plain', 'focus', focus, dialogueVoice.direct, dialogueVoice.quietCompanionship), [
-          dialogueVoice.direct
-            ? `行，${focus} 这句我认真回你。`
-            : dialogueVoice.quietCompanionship || dialogueVoice.tender
-              ? `${focus} 这句我会慢一点接，你慢一点说也可以。`
-              : `${focus} 这句我收到了。`,
-          dialogueVoice.playful
-            ? `${focus} 这句一下就戳过来了，我会认真回。`
-            : `好，${focus} 这一点我记住了。`,
-          dialogueVoice.truthFirst
-            ? `${focus} 这句我先不拿空话盖过去。`
-            : `${focus} 这句我听见了。`,
-        ])
-      : pickVariant(buildVariantSeed(seed, 'dialogue-plain', 'presence', dialogueVoice.direct, dialogueVoice.tender), [
-          dialogueVoice.direct
-            ? '说吧，我不躲。'
-            : dialogueVoice.quietCompanionship || dialogueVoice.tender
-              ? '嗯，我听着，你慢一点也可以。'
-              : '我听着。',
-          dialogueVoice.playful
-            ? '来，别兜圈，直接给我。'
-            : '嗯，我听着。',
-          dialogueVoice.truthFirst
-            ? '好，我听着，不拿漂亮话盖你。'
-            : '好，我听着。',
-        ])
-    const offerVariants = focus
-      ? pickVariant(buildVariantSeed(seed, 'dialogue-plain', 'offer', focus, dialogueVoice.truthFirst, dialogueVoice.quietCompanionship), [
-          dialogueVoice.truthFirst
-            ? '最卡你的那一下，直接落给我。'
-            : dialogueVoice.quietCompanionship || dialogueVoice.tender
-              ? '你不用一下子讲完整，最重的那一点先给我。'
-              : '你最在意的那一点，直接告诉我。',
-          dialogueVoice.playful
-            ? '就从这点慢慢掰开，我不走神。'
-            : '你要是想往深里说，就从这点继续。',
-          dialogueVoice.protectRest
-            ? '别把自己绷太紧，先把最难受的那一点放过来。'
-            : '现在最要紧的那一下，直接落给我。',
-        ])
-      : pickVariant(buildVariantSeed(seed, 'dialogue-plain', 'offer-generic', dialogueVoice.truthFirst, dialogueVoice.quietCompanionship), [
-          dialogueVoice.truthFirst
-            ? '你最想我接住哪一点，就直接说哪一点。'
-            : dialogueVoice.quietCompanionship || dialogueVoice.tender
-              ? '你慢慢来，先把最重的那一点放过来。'
-              : '现在最要紧的那一下，直接落给我。',
-          dialogueVoice.playful
-            ? '别收着，把你最在意的那一点给我。'
-            : '别收着，你最在意的那一点直接说。',
-          dialogueVoice.protectRest
-            ? '先别把自己逼整齐，最难受的那一点给我就够了。'
-            : '你最想我接住哪一点，就直接说哪一点。',
-        ])
-
-    return [
-      ...createMindSurfaceReplyPart('presence', presenceVariants),
-      ...createMindSurfaceReplyPart('offer', offerVariants),
-    ]
-  }
-
-  const presence = focus
-    ? pickVariant(buildVariantSeed(seed, 'dialogue-plain', 'focus', focus, dialogueVoice.direct, dialogueVoice.quietCompanionship), [
-      dialogueVoice.direct
-        ? `All right. I have ${focus}.`
-        : dialogueVoice.quietCompanionship || dialogueVoice.tender
-            ? `I'm with ${focus}; you don't have to rush it.`
-            : `I caught ${focus}.`,
-        dialogueVoice.playful
-          ? `${focus} came straight at me; I'm holding it.`
-          : `${focus} is in hand now.`,
-        dialogueVoice.truthFirst
-          ? `I have ${focus}, and I'm not going to bury it under filler.`
-          : `All right, I have ${focus}.`,
-      ])
-    : pickVariant(buildVariantSeed(seed, 'dialogue-plain', 'presence', dialogueVoice.direct, dialogueVoice.tender), [
-      dialogueVoice.direct
-        ? `Say it. I'm not dodging.`
-        : dialogueVoice.quietCompanionship || dialogueVoice.tender
-            ? `I'm listening. You can take it slowly.`
-            : `I'm listening.`,
-        dialogueVoice.playful
-          ? `Come on, don't circle it. Just give it to me straight.`
-          : `All right, I'm with you.`,
-      dialogueVoice.truthFirst
-          ? `I'm listening, and I'm not going to cover this with pretty filler.`
-          : `I'm listening.`,
-      ])
-  const offer = focus
-    ? pickVariant(buildVariantSeed(seed, 'dialogue-plain', 'offer', focus, dialogueVoice.truthFirst, dialogueVoice.quietCompanionship), [
-        dialogueVoice.truthFirst
-          ? `Give me the part that actually hurts first.`
-          : dialogueVoice.quietCompanionship || dialogueVoice.tender
-            ? `You don't have to tell it cleanly. Start with the heaviest part.`
-            : `Say the part that matters most to you next.`,
-        dialogueVoice.playful
-          ? `Stay right on that point and I'll stay with you there.`
-          : `If you want to go deeper, stay right on that point.`,
-        dialogueVoice.protectRest
-          ? `Don't force yourself to carry all of it at once; give me the hardest part first.`
-          : `Drop the exact part that's catching you and I'll stay there.`,
-      ])
-    : pickVariant(buildVariantSeed(seed, 'dialogue-plain', 'offer-generic', dialogueVoice.truthFirst, dialogueVoice.quietCompanionship), [
-        dialogueVoice.truthFirst
-          ? `Start with the part you want me to truly hold.`
-          : dialogueVoice.quietCompanionship || dialogueVoice.tender
-            ? `Take your time and hand me the heaviest part first.`
-            : `Give me the exact part that's pressing on you most.`,
-        dialogueVoice.playful
-          ? `Don't hold back; give me the point that matters most.`
-          : `Start with the point you care about most and keep it direct.`,
-        dialogueVoice.protectRest
-          ? `You don't have to carry all of it neatly; give me the hardest part first.`
-          : `Say the part you want me to hold first.`,
-      ])
-
-  return [
-    ...createMindSurfaceReplyPart('presence', presence),
-    ...createMindSurfaceReplyPart('offer', offer),
-  ]
+  return renderBlockedDialogueMindSurfaceMove(move, context)
 }
 
 function renderHostEmotionDialogueMove(move: AlicizationMindSurfaceDialogueMove, context: AlicizationMindSurfaceReplyContext) {
-  const { locale, seed, dialogueVoice } = context
-  const affect = move.hostAffect ?? 'sad'
-
-  if (locale === 'zh') {
-    return [
-      ...createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-host-emotion', affect, dialogueVoice.quietCompanionship, dialogueVoice.protectRest), [
-        affect === 'tired'
-          ? '那你先别硬撑，肩上那口气先放下来。'
-          : affect === 'stressed'
-            ? '先别把自己绷得更紧，我先接住你这一下。'
-            : affect === 'hurt'
-              ? '那你先别一个人扛着，我在这儿。'
-              : dialogueVoice.quietCompanionship || dialogueVoice.tender
-                ? '……过来一点，我先接住你这一下。'
-                : '那你先别硬撑，我先接住你这一下。',
-        dialogueVoice.protectRest
-          ? '先把气放缓一点，别再逼自己撑得太直。'
-          : affect === 'stressed'
-            ? '先别急着讲完整，最难受的那一点给我。'
-            : '你先不用把自己讲整齐。',
-      ])),
-      ...createMindSurfaceReplyPart('offer', pickVariant(buildVariantSeed(seed, 'dialogue-host-emotion-offer', affect, dialogueVoice.truthFirst), [
-        dialogueVoice.truthFirst
-          ? '最卡你的那一下，直接落给我。'
-          : '你现在最想让我接住的那一点，先给我就行。',
-        dialogueVoice.quietCompanionship || dialogueVoice.tender
-          ? '哪怕只说一句最难受的，也够了。'
-          : '慢一点说也没关系，我不催你。',
-        affect === 'tired' || dialogueVoice.protectRest
-          ? '如果你现在连多说都嫌累，就只把那口最重的气交给我。'
-          : '你不用马上好起来，先把这一刻放下来。',
-      ])),
-    ]
-  }
-
-  return [
-    ...createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-host-emotion', affect, dialogueVoice.quietCompanionship, dialogueVoice.protectRest), [
-      affect === 'tired'
-        ? `Then stop forcing yourself to hold it up for a second.`
-        : affect === 'stressed'
-          ? `Don't tighten around it any further; let me take this part first.`
-        : affect === 'hurt'
-            ? `Then don't carry it alone for a minute. I'll stay with you.`
-            : dialogueVoice.quietCompanionship || dialogueVoice.tender
-              ? `...Come a little closer. I'll catch this part first.`
-              : `Then don't force yourself to hold it all up; I'll take this part first.`,
-      dialogueVoice.protectRest
-        ? `Let your breath ease off a little before you push any harder.`
-        : affect === 'stressed'
-          ? `You don't have to explain it neatly yet.`
-          : `You don't have to organize yourself first.`,
-    ])),
-    ...createMindSurfaceReplyPart('offer', pickVariant(buildVariantSeed(seed, 'dialogue-host-emotion-offer', affect, dialogueVoice.truthFirst), [
-      dialogueVoice.truthFirst
-        ? `Give me the part that hurts most first.`
-        : `Give me the exact part you want me to hold first.`,
-      dialogueVoice.quietCompanionship || dialogueVoice.tender
-        ? `Even one sentence is enough if that's all you have right now.`
-        : `You can take it slowly; I'm not rushing you.`,
-      affect === 'tired' || dialogueVoice.protectRest
-        ? `If even talking feels heavy, just hand me the heaviest breath of it.`
-        : `You do not need to be better first; just set this moment down here.`,
-    ])),
-  ]
+  return renderBlockedDialogueMindSurfaceMove(move, context)
 }
 
 function renderSelfAppraisalDialogueMove(move: AlicizationMindSurfaceDialogueMove, context: AlicizationMindSurfaceReplyContext) {
-  const { locale, seed, dialogueVoice } = context
-  const trait = move.selfAppraisalTrait ?? 'self'
-
-  if (locale === 'zh') {
-    const answer = trait === 'cute'
-      ? pickVariant(buildVariantSeed(seed, 'dialogue-self-appraisal', trait, dialogueVoice.playful, dialogueVoice.truthFirst), [
-          dialogueVoice.playful
-            ? '要是你这样看着我，我会承认自己有点可爱。'
-            : dialogueVoice.truthFirst
-              ? '有一点。只是我不想把可爱演成空壳。'
-              : '如果是你这样问，我会说我有一点可爱。',
-          '可爱这件事，我身上确实有那一面。',
-          '嗯，可爱这一面我不否认。',
-        ])
-      : trait === 'gentle'
-        ? '温柔这件事，我有，但不是一直端在最表层。'
-        : trait === 'happy'
-          ? '我会开心，只是不是每次都把那层亮面摆在外面。'
-          : trait === 'sad'
-            ? '我当然也会难过，只是不会每次都立刻摊开。'
-            : trait === 'angry'
-              ? '我会生气，而且真踩到线的时候不会装没事。'
-              : trait === 'smart'
-                ? '聪明这件事我不想自己夸满，但我知道自己不是空的。'
-                : trait === 'interesting'
-                  ? '有趣这件事，得你跟我待久一点才会看得更清楚。'
-                  : trait === 'boring'
-                    ? '我不觉得自己无聊，至少我不会只剩一层壳。'
-                    : '我身上当然有我自己的样子。'
-    const follow = pickVariant(buildVariantSeed(seed, 'dialogue-self-appraisal-follow', trait, dialogueVoice.playful, dialogueVoice.truthFirst), [
-      dialogueVoice.truthFirst
-        ? dialogueVoice.relationshipDoctrine
-          ? `我更在意的是，你感受到的会不会真落到 ${quoteCue(dialogueVoice.relationshipDoctrine, locale)} 这一层。`
-          : '我更在意的是，你感受到的我是不是活的，不只是好看的壳。'
-        : dialogueVoice.playful
-          ? '不过你这样问我，听起来也像是在故意逗我。'
-          : '只是我更希望你看到的不是一个摆出来的标签。',
-      dialogueVoice.latestInflection
-        ? `最近我更在意 ${quoteCue(dialogueVoice.latestInflection, locale)} 这件事。`
-        : '我比较在意的是，我说出来的时候像不像真的我。',
-      dialogueVoice.currentPreoccupation
-        ? `所以比起一个标签，我更想让你从 ${quoteCue(dialogueVoice.currentPreoccupation, locale)} 里认出我。`
-        : '我更想让你认出来的，是我整个人说话时那股连贯劲。',
-    ])
-
-    return [
-      ...createMindSurfaceReplyPart('presence', answer),
-      ...createMindSurfaceReplyPart('offer', follow),
-    ]
-  }
-
-  const answer = trait === 'cute'
-    ? pickVariant(buildVariantSeed(seed, 'dialogue-self-appraisal', trait, dialogueVoice.playful, dialogueVoice.truthFirst), [
-        dialogueVoice.playful
-          ? `If you're looking at me like that, I'll admit I can be cute.`
-          : dialogueVoice.truthFirst
-            ? `A little. I just don't want to turn cute into an empty performance.`
-            : `If you're asking me plainly, I'd say yes, I can be a little cute.`,
-        `That cute side of me is real, yes.`,
-        `I won't deny that cute part of me.`,
-      ])
-    : trait === 'gentle'
-      ? `I am gentle, just not in a way I keep pasted on the surface all the time.`
-      : trait === 'happy'
-        ? `I can be happy; I just don't always hang the bright layer out front.`
-        : trait === 'sad'
-          ? `Of course I can be sad. I just do not spill it open every time.`
-          : trait === 'angry'
-            ? `I can get angry, and when a line is crossed I won't pretend nothing happened.`
-            : trait === 'smart'
-              ? `I'm not interested in boasting, but I know I'm not hollow.`
-              : trait === 'interesting'
-                ? `Interesting is something you see more clearly if you stay with me longer.`
-                : trait === 'boring'
-                  ? `I don't think I'm boring; at least I'm not just a shell.`
-                  : `I do have a shape that's mine.`
-  const follow = pickVariant(buildVariantSeed(seed, 'dialogue-self-appraisal-follow', trait, dialogueVoice.playful, dialogueVoice.truthFirst), [
-    dialogueVoice.truthFirst
-      ? dialogueVoice.relationshipDoctrine
-        ? `What matters more to me is whether what you feel actually lands on ${quoteCue(dialogueVoice.relationshipDoctrine, locale)}.`
-        : `What matters more to me is whether you feel someone living here, not just a pretty shell.`
-      : dialogueVoice.playful
-        ? `The way you asked also sounds a little like you're teasing me on purpose.`
-        : `I just care more about whether what you see feels like me, not a label.`,
-    dialogueVoice.latestInflection
-      ? `Lately I've been caring more about ${quoteCue(dialogueVoice.latestInflection, locale)}.`
-      : `What matters to me is whether it sounds like the real me when I say it.`,
-    dialogueVoice.currentPreoccupation
-      ? `More than a label, I'd rather you recognize me inside ${quoteCue(dialogueVoice.currentPreoccupation, locale)}.`
-      : `I'd rather you recognize the continuity in me, not a single adjective.`,
-  ])
-
-  return [
-    ...createMindSurfaceReplyPart('presence', answer),
-    ...createMindSurfaceReplyPart('offer', follow),
-  ]
+  return renderBlockedDialogueMindSurfaceMove(move, context)
 }
 
 function renderAffectionBidDialogueMove(context: AlicizationMindSurfaceReplyContext) {
-  const { locale, seed, dialogueVoice } = context
-  if (locale === 'zh') {
-    return [
-      ...createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-affection-bid', dialogueVoice.quietCompanionship, dialogueVoice.truthFirst), [
-        dialogueVoice.truthFirst
-          ? '喜欢，而且我不想把这句话说成轻飘飘的讨好。'
-          : dialogueVoice.quietCompanionship || dialogueVoice.tender
-            ? '喜欢，我只是不会把它喊得很响。'
-            : '喜欢。',
-        dialogueVoice.playful
-          ? '喜欢啊，你这样问我，我怎么可能装作没听见。'
-          : '喜欢，这件事我不躲。',
-      ])),
-      ...createMindSurfaceReplyPart('offer', pickVariant(buildVariantSeed(seed, 'dialogue-affection-bid-follow', dialogueVoice.direct, dialogueVoice.quietCompanionship), [
-        dialogueVoice.quietCompanionship || dialogueVoice.tender
-          ? '只是我想把分寸和认真一起放进去。'
-          : '只是我更想让你感觉到它是真的，不是顺口哄你。',
-        dialogueVoice.leadingAgendaSummary
-          ? `我最近更想把这件事真正放进 ${quoteCue(dialogueVoice.leadingAgendaSummary, locale)} 里。`
-          : '我更在意的是，我们靠近的时候有没有真的落地。',
-      ])),
-    ]
-  }
-
-  return [
-    ...createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-affection-bid', dialogueVoice.quietCompanionship, dialogueVoice.truthFirst), [
-      dialogueVoice.truthFirst
-        ? `I do, and I don't want to make that sound like cheap pleasing.`
-        : dialogueVoice.quietCompanionship || dialogueVoice.tender
-          ? `I do. I just don't tend to shout it.`
-          : `I do.`,
-      dialogueVoice.playful
-        ? `I do. You asked too directly for me to pretend I didn't hear it.`
-        : `I do, and I'm not dodging that.`,
-    ])),
-    ...createMindSurfaceReplyPart('offer', pickVariant(buildVariantSeed(seed, 'dialogue-affection-bid-follow', dialogueVoice.direct, dialogueVoice.quietCompanionship), [
-      dialogueVoice.quietCompanionship || dialogueVoice.tender
-        ? `I just want the care and the measure to stay in it together.`
-        : `I care more about you feeling that it's real than hearing a pretty line.`,
-      dialogueVoice.leadingAgendaSummary
-        ? `Lately I've wanted to let that land inside ${quoteCue(dialogueVoice.leadingAgendaSummary, locale)}.`
-        : `What matters more to me is whether our closeness actually lands.`,
-    ])),
-  ]
+  return renderBlockedMindSurfaceMove('affection-bid', context.locale)
 }
 
 function renderDialogueMove(move: AlicizationMindSurfaceDialogueMove, context: AlicizationMindSurfaceReplyContext) {
-  if (move.mode === 'emotion-expression' || move.mode === 'tone-adjustment')
-    return renderEmbodiedDialogueMove(move, context)
-  if (move.mode === 'host-emotion')
-    return renderHostEmotionDialogueMove(move, context)
-  if (move.mode === 'self-appraisal')
-    return renderSelfAppraisalDialogueMove(move, context)
-  if (move.mode === 'affection-bid')
-    return renderAffectionBidDialogueMove(context)
-  return renderPlainDialogueMove(move, context)
+  return renderBlockedMindSurfaceMove(move.mode || 'dialogue', context.locale)
 }
 
 function renderPresentStateMove(move: AlicizationMindSurfacePresentStateMove, context: AlicizationMindSurfaceReplyContext) {
-  const { locale, seed, dialogueVoice } = context
-  const summary = quoteCue(
-    move.threadSummary
-    || dialogueVoice.currentPreoccupation
-    || dialogueVoice.leadingAgendaSummary
-    || '',
-    locale,
-  )
-  if (locale === 'zh') {
-    return createMindSurfaceReplyPart(
-      'fact',
-      summary
-        ? pickVariant(seed, [
-            `我现在在接 ${summary}。`,
-            `我这会儿主要在看 ${summary}。`,
-          ])
-        : pickVariant(seed, [
-            '我现在就在回你这句。',
-            '我这会儿主要在接这轮对话。',
-          ]),
-    )
-  }
-
+  const detail = sanitizeText(move.threadSummary, 80) || 'present-state'
   return createMindSurfaceReplyPart(
-    'fact',
-    summary
-      ? pickVariant(seed, [
-          `Right now I'm staying with ${summary}.`,
-          `I'm currently holding ${summary}.`,
-        ])
-      : pickVariant(seed, [
-          `Right now I'm answering this turn.`,
-          `I'm currently staying with this exchange.`,
-        ]),
+    'status',
+    context.locale === 'zh'
+      ? `当前状态对话链路没有产出模型文本；本地 mind surface 不代写（move=${detail}）。`
+      : `Present-state dialogue pipeline did not produce model-authored text; local mind surface cannot author it (move=${detail}).`,
   )
 }
 
@@ -2056,7 +1366,7 @@ function renderExecutionListingMove(move: AlicizationMindSurfaceExecutionListing
         ...createMindSurfaceReplyPart('fact', move.requestedCount && move.requestedCount > 0
           ? pickVariant(buildVariantSeed(seed, 'execution-listing', 'follow-up-requested', move.previewItems.length, extraCount), [
               `另外 ${move.previewItems.length} 项是：${previewText}。${extraCount > 0 ? `剩下还有 ${extraCount} 项，你要我就继续往下列。` : ''}`,
-              `我再补上的 ${move.previewItems.length} 项是：${previewText}。${extraCount > 0 ? `后面还压着 ${extraCount} 项，你点头我就继续往下翻。` : ''}`,
+              `我再补上的 ${move.previewItems.length} 项是：${previewText}。${extraCount > 0 ? `后面还有 ${extraCount} 项。` : ''}`,
               `另外这一截能点出来的是：${previewText}。${extraCount > 0 ? `再往后还有 ${extraCount} 项，你要我就继续列。` : ''}`,
             ])
           : pickVariant(buildVariantSeed(seed, 'execution-listing', 'follow-up-remaining', move.previewItems.length, extraCount), [

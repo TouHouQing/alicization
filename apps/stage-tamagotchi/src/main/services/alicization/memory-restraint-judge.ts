@@ -151,26 +151,26 @@ export function buildAlicizationMemoryRestraintJudge(input: {
 
   const whyWithheld = sanitizeText((() => {
     if (!input.shouldRecall)
-      return 'The turn should stay present-facing, so recollection does not need to surface.'
+      return 'withheld_reason=present_facing_turn; recollection_surface=false'
     if (input.shouldStayInward) {
       if (input.followUpAffordance?.intrusionRisk === 'high')
-        return 'The recollection is still too intrusive to surface before the host has room for it.'
+        return 'withheld_reason=intrusion_risk_high; host_room_required=true'
       if (socialBoundarySummary?.roomFirstSignal || socialBoundarySummary?.boundaryFirstSignal)
-        return 'The host boundary line still asks for room first, so recollection should contour the answer without pressing forward.'
+        return 'withheld_reason=host_boundary_room_first; recollection_role=contour_only'
       if (unsafeDetails.length > 0)
-        return 'The stable core can shape the answer, but unstable remembered detail should stay inward.'
-      return 'The recollection should contour the answer from the inside instead of becoming visible.'
+        return 'withheld_reason=unstable_detail; stable_core=internal_only'
+      return 'withheld_reason=inward_recollection; visible_memory=false'
     }
     if (socialBoundarySummary?.repairFirstSignal)
-      return 'The remembered repair line should land through present payoff first; only the stable core may surface before the bond line widens.'
+      return 'withheld_reason=repair_first_payoff; stable_core_only=true; bond_widening=deferred'
     if (socialBoundarySummary?.roomFirstSignal || socialBoundarySummary?.boundaryFirstSignal)
-      return 'The remembered bond line still asks for room-first boundaries, so only the stable core should surface for now.'
+      return 'withheld_reason=bond_room_first; stable_core_only=true'
     if (contradictionPressure > validationRelief + 1)
-      return 'The remembered knowledge is still contradiction-heavy, so recollection should stay compressed until it stabilizes.'
+      return 'withheld_reason=contradiction_pressure; recollection_compression=required'
     if (shouldDelayUntilAfterPayoff)
-      return 'The recollection should not outrun the live payoff; only the stable core may surface now.'
+      return 'withheld_reason=live_payoff_first; stable_core_only=true'
     if (unsafeDetails.length > 0)
-      return 'Only the stable remembered core should surface; unstable remembered detail stays inward.'
+      return 'withheld_reason=unstable_detail; stable_core_only=true'
     return ''
   })(), 220) || null
 

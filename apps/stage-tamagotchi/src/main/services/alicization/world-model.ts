@@ -146,30 +146,30 @@ function buildThreadSummary(input: {
 }) {
   const title = sanitizeText(input.title, 140) || '这一刻'
   if (input.kind === 'debugging')
-    return `宿主正把注意力压在 ${title} 这个故障点上。`
+    return `thread=debugging; target=${title}`
   if (input.kind === 'change-review')
-    return `宿主正在审视 ${title} 这段改动到底该不该过去。`
+    return `thread=change_review; target=${title}`
   if (input.kind === 'deep-focus')
-    return `宿主还在沿着 ${title} 这条工作线程往下追。`
+    return `thread=deep_focus; target=${title}`
   if (input.kind === 'co-viewing') {
     return input.afterglowOpen
-      ? `宿主刚从 ${title} 这段共视里回神。`
-      : `宿主正在和她停留在 ${title} 这段内容里。`
+      ? `thread=co_viewing; target=${title}; afterglow=open`
+      : `thread=co_viewing; target=${title}; shared_view=active`
   }
   if (input.kind === 'late-night-endurance')
-    return `宿主在深夜里还没有从 ${title} 这段线程上松开。`
+    return `thread=late_night_endurance; target=${title}`
   if (input.kind === 'chatting')
-    return `宿主把当前注意力放在 ${title} 这段交流上。`
+    return `thread=chatting; target=${title}`
   if (input.kind === 'browsing') {
     return input.carriedFromPrevious
-      ? `宿主已经切回表层页面，但她心里还挂着刚才那条线程。`
-      : `宿主现在更像是在浏览 ${title}。`
+      ? `thread=browsing; target=${title}; carried_previous_thread=true`
+      : `thread=browsing; target=${title}`
   }
   if (input.kind === 'recovery')
-    return '宿主刚盯着的前台线程出现了崩溃或冻结迹象。'
+    return 'thread=recovery; foreground=crash_or_freeze_signal'
   return input.scene?.summary
-    ? `宿主停留在 ${sanitizeText(input.scene.summary, 140)} 这一刻。`
-    : '她正在维持当前场景的连续理解。'
+    ? `thread=scene; target=${sanitizeText(input.scene.summary, 140)}`
+    : 'thread=current_scene; continuity_understanding=active'
 }
 
 function coarseTargetSignature(target: AlicizationVisualTarget | null | undefined) {

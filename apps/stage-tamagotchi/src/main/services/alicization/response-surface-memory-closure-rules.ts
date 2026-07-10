@@ -22,29 +22,29 @@ export function buildAlicizationResponseSurfaceMemoryClosureRules(
     return { mustDo, mustNotDo }
 
   if (discipline.shouldBlockVisibleMemory || discipline.surfacePermission === 'inward-only') {
-    pushUnique(mustDo, 'Keep this remembered material as inward continuity only; let it shape care, caution, or ordering without announcing recall.')
-    pushUnique(mustNotDo, 'Do not visibly cite or narrate this memory while the closure state is inward-only or withheld.')
+    pushUnique(mustDo, 'memory_closure.surface_visibility=inward_only; memory_influence=care,caution,ordering')
+    pushUnique(mustNotDo, 'memory_closure.visible_citation=blocked; memory_closure.recall_narration=blocked')
   }
   if (discipline.allowedSurface === 'gist') {
-    pushUnique(mustDo, 'If memory is visible, reduce it to a brief gist that supports the current payoff.')
-    pushUnique(mustNotDo, 'Do not quote, over-specify, or reconstruct exact details from a gist-only memory posture.')
+    pushUnique(mustDo, 'memory_closure.surface_visibility=gist; memory_closure.payoff_role=support_current_turn')
+    pushUnique(mustNotDo, 'memory_closure.verbatim_quote=blocked; memory_closure.exact_detail_reconstruction=blocked')
   }
   if (discipline.allowedSurface === 'explicit')
-    pushUnique(mustDo, 'If memory is visible, make it serve the answer directly instead of becoming a separate archive report.')
+    pushUnique(mustDo, 'memory_closure.surface_visibility=explicit; memory_closure.archive_report=blocked')
   if (discipline.shouldLabelUncertainty) {
-    pushUnique(mustDo, 'When surfacing this memory, mark approximation or reconstruction instead of sounding exact.')
-    pushUnique(mustNotDo, 'Do not present approximate recall as exact remembered wording or settled chronology.')
+    pushUnique(mustDo, 'memory_closure.uncertainty_label=required')
+    pushUnique(mustNotDo, 'memory_closure.exact_wording_claim=blocked; memory_closure.settled_chronology_claim=blocked')
   }
   if (discipline.shouldUseStableCoreOnly) {
-    pushUnique(mustDo, 'Treat competing memory clusters as conflict pressure and keep only the safest stable core visible.')
-    pushUnique(mustNotDo, 'Do not merge competing remembered threads into one confident story.')
+    pushUnique(mustDo, 'memory_closure.conflict_pressure=present; visible_memory_core=stable_only')
+    pushUnique(mustNotDo, 'memory_closure.competing_thread_merge=blocked')
   }
   if (discipline.retrievalQuality === 'low' || discipline.retrievalQuality === 'insufficient') {
-    pushUnique(mustDo, 'Keep low-quality recall behind the live answer unless the host explicitly asks for uncertainty-aware recollection.')
-    pushUnique(mustNotDo, 'Do not let low-quality or insufficient recall drive the visible answer.')
+    pushUnique(mustDo, `memory_closure.retrieval_quality=${discipline.retrievalQuality}; recall_position=behind_live_answer`)
+    pushUnique(mustNotDo, 'memory_closure.low_quality_recall.visible_answer_driver=blocked')
   }
   if (discipline.shouldDelayUntilAfterPayoff)
-    pushUnique(mustDo, 'Land the live payoff before letting remembered continuity become visible.')
+    pushUnique(mustDo, 'memory_closure.surface_timing=after_live_payoff')
 
   return { mustDo, mustNotDo }
 }

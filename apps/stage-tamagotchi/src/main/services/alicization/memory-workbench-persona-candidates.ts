@@ -1,15 +1,15 @@
+import type sqlite3 from 'sqlite3'
+
 import type {
   AlicizationMemoryReflectionRecord,
-  AlicizationPersonaCandidateWorkbenchItem,
-  AlicizationPersonaCandidateWorkbenchDecision,
   AlicizationPersonaCandidateListResult,
+  AlicizationPersonaCandidateWorkbenchDecision,
+  AlicizationPersonaCandidateWorkbenchItem,
   AlicizationPersonaCandidateWorkbenchStatus,
   AlicizationPersonaReinforcementEventRecord,
 } from '../../../shared/eventa'
-import type { PersonaTrainingCandidate } from './persona-training-candidate'
 import type { MemoryWorkbenchPolicyStoreRuntime } from './memory-workbench-policy-store'
-
-import sqlite3 from 'sqlite3'
+import type { PersonaTrainingCandidate } from './persona-training-candidate'
 
 import { buildPersonaTrainingCandidatesFromLongTermMemory } from './persona-training-candidate'
 
@@ -98,14 +98,14 @@ export function mergePersonaCandidateReviewState(input: {
     negativeExample: normalizeText(input.candidate.negativeExample, 420) || null,
     privacyClass: input.candidate.privacyClass,
     status,
-    allowTraining: status === 'approved' && input.review?.allowTraining === true,
+    allowTraining: false,
     rejectionReason: normalizeText(input.review?.reason ?? input.candidate.rejectionReason, 240) || null,
     createdAt: Number.isFinite(input.now) ? Math.max(0, Math.floor(input.now)) : Date.now(),
     updatedAt: Number.isFinite(input.review?.updatedAt)
       ? Math.max(0, Math.floor(input.review!.updatedAt))
       : Number.isFinite(input.now)
         ? Math.max(0, Math.floor(input.now))
-      : Date.now(),
+        : Date.now(),
   }
 }
 
@@ -118,7 +118,7 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
   enqueueWrite: <T>(task: () => Promise<T>) => Promise<T>
   runInTransaction: <T>(database: sqlite3.Database, task: () => Promise<T>) => Promise<T>
   policyStore: MemoryWorkbenchPolicyStoreRuntime
-  listMemoryReflections: (payload: { cardId: string, limit?: number }) => Promise<AlicizationMemoryReflectionRecord[]>
+  listMemoryReflections: (payload: { cardId: string, limit?: number, status?: AlicizationMemoryReflectionRecord['status'] }) => Promise<AlicizationMemoryReflectionRecord[]>
   listPersonaReinforcementEvents: (payload: { cardId: string, limit?: number }) => Promise<AlicizationPersonaReinforcementEventRecord[]>
   listTombstonedLongTermMemorySourceIds: (sourceIds: string[]) => Promise<Set<string>>
 }) {
@@ -138,7 +138,7 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
 
   async function buildCandidates(cardId: string) {
     const [reflections, reinforcements] = await Promise.all([
-      input.listMemoryReflections({ cardId, limit: 200 }).catch(() => []),
+      input.listMemoryReflections({ cardId, limit: 200, status: 'confirmed' }).catch(() => []),
       input.listPersonaReinforcementEvents({ cardId, limit: 200 }).catch(() => []),
     ])
     const tombstonedSourceIds = await input.listTombstonedLongTermMemorySourceIds([
@@ -246,7 +246,7 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
       return null
 
     const status = statusForDecision(payload.decision)
-    const allowTraining = status === 'approved'
+    const allowTraining = false
     const reason = normalizeText(payload.reason, 240) || null
     const updatedAt = input.now()
     await input.enqueueWrite(async () => {
@@ -285,7 +285,8 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
     })
 
     return (await listPersonaCandidates({ cardId, status: 'all', limit: 100 }))
-      .items.find(item => item.id === candidateId) ?? null
+      .items
+      .find(item => item.id === candidateId) ?? null
   }
 
   return {

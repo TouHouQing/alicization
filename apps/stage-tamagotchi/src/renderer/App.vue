@@ -98,8 +98,8 @@ import {
   electronAlicizationMemoryWorkbenchApplyReviewAction,
   electronAlicizationMemoryWorkbenchGetSnapshot,
   electronAlicizationMemoryWorkbenchListEmbeddingModels,
-  electronAlicizationMemoryWorkbenchListPersonaCandidates,
   electronAlicizationMemoryWorkbenchListLongTerm,
+  electronAlicizationMemoryWorkbenchListPersonaCandidates,
   electronAlicizationMemoryWorkbenchRecallProbe,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
   electronAlicizationMemoryWorkbenchTestEmbeddingConnection,
@@ -149,6 +149,8 @@ import { normalizeChatStructuredRecord, resolveVisibleReasoning } from './aliciz
 import { initializeStageThreeRuntimeTraceBridge } from './bridges/stage-three-runtime-trace'
 import { useServerChannelSettingsStore } from './stores/settings/server-channel'
 import { useStageWindowLifecycleStore } from './stores/stage-window-lifecycle'
+
+type AlicizationBridgeChatFinishEvent = Extract<AlicizationBridgeChatStreamEvent, { type: 'finish' }>
 
 const { isDark: dark } = useTheme()
 const i18n = useI18n()
@@ -265,8 +267,8 @@ const llmConfigHydrated = ref(false)
 const pendingAlicizationChatStreams = new Map<string, {
   onStreamEvent?: (event: AlicizationBridgeChatStreamEvent) => Promise<void> | void
   visibleReplyExecution?: AlicizationChatFinishEvent['visibleReplyExecution']
-  visibleReplyCritic?: AlicizationChatFinishEvent['visibleReplyCritic']
-  visibleReplyClosure?: AlicizationChatFinishEvent['visibleReplyClosure']
+  visibleReplyCritic?: AlicizationBridgeChatFinishEvent['visibleReplyCritic']
+  visibleReplyClosure?: AlicizationBridgeChatFinishEvent['visibleReplyClosure']
   resolve: () => void
   reject: (error: unknown) => void
 }>()
@@ -312,6 +314,104 @@ function estimateJsonPayloadBytes(value: unknown) {
   catch {
     return null
   }
+}
+
+function isAlicizationRecordPayload(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function compactAlicizationStringList(value: unknown, limit = 16) {
+  if (!Array.isArray(value))
+    return []
+
+  const result: string[] = []
+  for (const item of value) {
+    if (typeof item !== 'string')
+      continue
+    const trimmed = item.trim()
+    if (!trimmed || result.includes(trimmed))
+      continue
+    result.push(trimmed)
+    if (result.length >= limit)
+      break
+  }
+  return result
+}
+
+function countAlicizationArray(value: unknown) {
+  return Array.isArray(value) ? value.length : 0
+}
+
+function readAlicizationCount(raw: Record<string, unknown>, key: string, fallback: number) {
+  const value = raw[key]
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? value
+    : fallback
+}
+
+function summarizeAlicizationVisibleReplyCriticForRenderer(
+  raw: AlicizationChatFinishEvent['visibleReplyCritic'] | AlicizationBridgeChatFinishEvent['visibleReplyCritic'] | null | undefined,
+): AlicizationBridgeChatFinishEvent['visibleReplyCritic'] | null {
+  if (!isAlicizationRecordPayload(raw))
+    return null
+
+  const rawReasonCodes = compactAlicizationStringList(raw.reasonCodes)
+  const summary: Record<string, unknown> = {
+    version: 'visible-reply-critic-public-summary-v1',
+    reasonCodes: rawReasonCodes.length > 0 ? rawReasonCodes : compactAlicizationStringList(raw.reasons),
+    repairReasonCodes: compactAlicizationStringList(raw.repairReasonCodes),
+    mustPreserveCount: readAlicizationCount(raw, 'mustPreserveCount', countAlicizationArray(raw.mustPreserve)),
+    mustDropCount: readAlicizationCount(raw, 'mustDropCount', countAlicizationArray(raw.mustDrop)),
+  }
+
+  if (typeof raw.providerMindRequired === 'boolean')
+    summary.providerMindRequired = raw.providerMindRequired
+  if (typeof raw.semanticLoopClosed === 'boolean')
+    summary.semanticLoopClosed = raw.semanticLoopClosed
+  if (typeof raw.status === 'string' && raw.status.trim())
+    summary.status = raw.status.trim()
+
+  return summary
+}
+
+function readAlicizationCriticPreserveCount(raw: unknown) {
+  return isAlicizationRecordPayload(raw)
+    ? readAlicizationCount(raw, 'mustPreserveCount', countAlicizationArray(raw.mustPreserve))
+    : 0
+}
+
+function readAlicizationCriticDropCount(raw: unknown) {
+  return isAlicizationRecordPayload(raw)
+    ? readAlicizationCount(raw, 'mustDropCount', countAlicizationArray(raw.mustDrop))
+    : 0
+}
+
+function summarizeAlicizationVisibleReplyClosureForRenderer(
+  raw: AlicizationChatFinishEvent['visibleReplyClosure'] | AlicizationBridgeChatFinishEvent['visibleReplyClosure'] | null | undefined,
+): AlicizationBridgeChatFinishEvent['visibleReplyClosure'] | null {
+  if (!isAlicizationRecordPayload(raw))
+    return null
+
+  const initialCritic = isAlicizationRecordPayload(raw.initialCritic) ? raw.initialCritic : null
+  const finalCritic = isAlicizationRecordPayload(raw.finalCritic) ? raw.finalCritic : null
+  const summary: Record<string, unknown> = {
+    version: 'visible-reply-closure-public-summary-v1',
+    reasonCodes: compactAlicizationStringList(raw.reasonCodes),
+    repairReasonCodes: compactAlicizationStringList(raw.repairReasonCodes),
+    initialCriticMustPreserveCount: readAlicizationCount(raw, 'initialCriticMustPreserveCount', readAlicizationCriticPreserveCount(initialCritic)),
+    initialCriticMustDropCount: readAlicizationCount(raw, 'initialCriticMustDropCount', readAlicizationCriticDropCount(initialCritic)),
+    finalCriticMustPreserveCount: readAlicizationCount(raw, 'finalCriticMustPreserveCount', readAlicizationCriticPreserveCount(finalCritic)),
+    finalCriticMustDropCount: readAlicizationCount(raw, 'finalCriticMustDropCount', readAlicizationCriticDropCount(finalCritic)),
+  }
+
+  if (typeof raw.status === 'string' && raw.status.trim())
+    summary.status = raw.status.trim()
+  if (typeof raw.providerMindRequired === 'boolean')
+    summary.providerMindRequired = raw.providerMindRequired
+  if (typeof raw.semanticLoopClosed === 'boolean')
+    summary.semanticLoopClosed = raw.semanticLoopClosed
+
+  return summary
 }
 
 async function readLatestRendererProjectStateObservation() {
@@ -812,8 +912,8 @@ function handleAlicizationChatStreamFinish(payload?: AlicizationChatFinishEvent)
   if (!pending)
     return
   pending.visibleReplyExecution = payload.visibleReplyExecution ?? null
-  pending.visibleReplyCritic = payload.visibleReplyCritic ?? null
-  pending.visibleReplyClosure = payload.visibleReplyClosure ?? null
+  pending.visibleReplyCritic = summarizeAlicizationVisibleReplyCriticForRenderer(payload.visibleReplyCritic)
+  pending.visibleReplyClosure = summarizeAlicizationVisibleReplyClosureForRenderer(payload.visibleReplyClosure)
   if (payload.status === 'completed') {
     void pending.onStreamEvent?.({
       type: 'finish',

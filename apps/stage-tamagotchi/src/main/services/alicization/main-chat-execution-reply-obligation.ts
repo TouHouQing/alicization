@@ -207,9 +207,9 @@ export function buildMainChatExecutionReplyVisibleSurfaceRules(
     'Keep the execution-result payoff tied to the current Alicization life-loop boundary instead of reopening as detached task reporting.',
   )
 
-  pushUnique(mustNotDo, 'Do not bury the executor result behind scene narration, comfort language, or persona-preface.')
-  pushUnique(mustNotDo, 'Do not imply the task re-ran in this exact turn unless new tool output appears now.')
-  pushUnique(mustNotDo, 'Do not let the callback reopen as generic task-shell or project-status narration detached from the current life-loop boundary.')
+  pushUnique(mustNotDo, 'execution_result_payoff=front_load; scene_narration=defer; persona_preface=blocked')
+  pushUnique(mustNotDo, 'execution_rerun_claim=requires_new_tool_output')
+  pushUnique(mustNotDo, 'callback_surface=execution_result; generic_task_shell=blocked; detached_project_narration=blocked')
 
   return {
     mustDo,
@@ -274,14 +274,14 @@ export function buildMainChatExecutionReplyObligationSystemBlock(obligation: Ali
   const visibleSurfaceRules = buildMainChatExecutionReplyVisibleSurfaceRules(obligation)
   return [
     '[ALICIZATION_EXECUTION_REPLY_OBLIGATION]',
-    'This turn is following up on a recent executor result and must pay that result off directly.',
+    'turn_intent=execution_result_followup; payoff=direct; owner=ExecutionReplyObligation',
     'execution_context_scope=alicization-local-life-loop; owner=ExecutionReplyObligation; detached_task_shell=false.',
-    'runtime_context=alicization_phase1',
+    'runtime_context=local_runtime',
     'short_term_owner=WorkingMemory',
     'long_term_recall_owner=LongTermMemoryRecall',
     'template_awareness=withheld_from_execution_result_followup',
-    'Use the first sentence to answer the execution-result follow-up before any new planning, comfort language, or persona flourish.',
-    'Treat this result as already settled in prior runtime continuity. Do not imply the task re-ran in this exact turn unless a tool is called again now.',
+    'opening_policy=execution_result_first; planning=after_payoff; comfort_preface=blocked; persona_flourish=blocked',
+    'execution_replay_policy=prior_result_settled; rerun_claim=requires_new_tool_output',
     buildStatusInstruction(obligation.status),
     'Visible-surface must do:',
     ...visibleSurfaceRules.mustDo.map(item => `- ${item}`),

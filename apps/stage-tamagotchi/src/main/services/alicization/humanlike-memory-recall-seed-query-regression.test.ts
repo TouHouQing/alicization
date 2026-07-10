@@ -74,9 +74,10 @@ describe('humanlike memory recall seed query regression', () => {
       [{ kind: 'person-state-updated', limit: 24 }],
       [{ kind: 'humanlike-memory-corrected', limit: 24 }],
     ])
-    expect(seed).toContain('我记得你纠正过：你是在测试她是不是持续的人，不是催进度。')
+    expect(seed).toContain('line=recall_source=host_correction; field=relationship_context; corrected_value=你是在测试她是不是持续的人，不是催进度。; posture=relationship_context_not_status_pressure; visibility=memory_structured')
     expect(seed).toContain('relationship=Host corrected this memory meaning: 你是在测试她是不是持续的人，不是催进度。')
     expect(seed).toContain('why=old interpretation | progress pressure | host correction | same-person continuity was at stake')
+    expect(seed).not.toContain('我记得你纠正过')
   })
 
   it('turns persisted affective residue events into recall seed text through the query path even without an explicit humanlike candidate', async () => {
@@ -132,10 +133,11 @@ describe('humanlike memory recall seed query regression', () => {
       [{ kind: 'humanlike-memory-corrected', limit: 24 }],
     ])
     expect(seed).toContain('humanlike_memory_recall:')
-    expect(seed).toContain('我记得这条线还在')
-    expect(seed).toContain('不把温度一下子放大')
-    expect(seed).toContain('emotion=afterglow-carry,protective-continuity,unfinishedness')
+    expect(seed).toContain('line=relationship_cadence=measured_return; return_pressure=low; warmth=delayed; visibility=memory_structured')
+    expect(seed).toContain('emotion=afterglow-carry,unfinishedness')
     expect(seed).toContain('embodiment_voice=lower-pressure')
-    expect(seed).toContain('initiative_visible=我不催你，我会把这条线先低压地记着，等它自然重新打开时再轻轻接回来。')
+    expect(seed).toContain('initiative_visible_policy=memory_led_low_pressure; pressure=low; opening=natural_reopen; visibility=memory_structured')
+    expect(seed).not.toContain('我记得这条线还在')
+    expect(seed).not.toContain('我不催你')
   })
 })

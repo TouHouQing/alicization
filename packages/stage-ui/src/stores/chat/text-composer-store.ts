@@ -8,6 +8,7 @@ import { useAlicizationSelfEvolutionInspectorStore } from '../alicization-self-e
 import { useChatOrchestratorStore } from '../chat'
 import { useConsciousnessStore } from '../modules/consciousness'
 import { useProvidersStore } from '../providers'
+import { shouldAttachProjectStatePreDialogueIdentity } from './pre-dialogue-project-state-intent'
 import { buildPreDialogueSendIdentityFromSnapshots } from './pre-dialogue-send-identity'
 import { useChatSessionStore } from './session-store'
 
@@ -50,7 +51,10 @@ export const useChatTextComposerStore = defineStore('chat-text-composer', () => 
     return (errorMessageFrom(error) ?? '').includes('Alicization turn aborted (manual)')
   }
 
-  function buildPreDialogueSendIdentity(): PreDialogueSendIdentity {
+  function buildPreDialogueSendIdentity(userText: string): PreDialogueSendIdentity {
+    if (!shouldAttachProjectStatePreDialogueIdentity({ latestUserText: userText, origin: 'ui-user' }))
+      return null
+
     return buildPreDialogueSendIdentityFromSnapshots({
       projectStateContinuitySnapshot: projectStateContinuitySnapshot.value,
       preDialogueClosureSnapshot: preDialogueClosureSnapshot.value,
@@ -75,7 +79,7 @@ export const useChatTextComposerStore = defineStore('chat-text-composer', () => 
 
     try {
       const providerConfig = providersStore.getProviderConfig(providerId)
-      const preDialogueSendIdentity = buildPreDialogueSendIdentity()
+      const preDialogueSendIdentity = buildPreDialogueSendIdentity(textToSend)
       await chatOrchestrator.ingest(rawDraft, {
         providerId,
         chatProvider: await providersStore.getProviderInstance(providerId) as ChatProvider,

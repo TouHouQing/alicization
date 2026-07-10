@@ -1114,6 +1114,9 @@ describe('mergeLoadedSessionMessages', () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
+            latestLandedProgress: null,
+            primaryOpenLoop: null,
+            nextClosureTarget: '',
             sameHerSelfLine: 'Before answering, remember 同一个她 and 数字生命主线.',
             sameHerHoldDetail: 'same-her hold: keep the same living line inward.',
             continuitySummary: 'same-her=Same Phase 1 digital life. 同一个她沿着数字生命主线继续。',
@@ -1147,6 +1150,9 @@ describe('mergeLoadedSessionMessages', () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
+            latestLandedProgress: null,
+            primaryOpenLoop: null,
+            nextClosureTarget: '',
             sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
             sameHerDriftRisk: 'If this becomes a generic same-her shell, treat it as drift.',
           },

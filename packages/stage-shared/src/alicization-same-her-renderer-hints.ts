@@ -1,4 +1,5 @@
 const audibleSameHerCarryTokens = [
+  'embodiment:audible_continuity_line',
   'embodiment:audible_same_her_line',
   'embodiment:body_lipsync_voice_rejoin',
 ] as const

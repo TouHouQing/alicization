@@ -16,6 +16,8 @@ import type {
   WorkingMemoryThread,
 } from './working-memory'
 
+import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
+
 import {
   normalizeWorkingMemoryText,
   uniqueWorkingMemoryTexts,
@@ -69,7 +71,7 @@ export interface WorkingMemoryPromptView {
 }
 
 function sanitizePromptText(raw: unknown, maxChars = 220) {
-  return normalizeWorkingMemoryText(raw, maxChars)
+  return sanitizeAlicizationProviderFacingText(normalizeWorkingMemoryText(raw, maxChars), maxChars)
 }
 
 function numberOrNull(raw: unknown) {
@@ -187,11 +189,19 @@ function renderAuditLine(audit: WorkingMemoryAuditState) {
 }
 
 function normalizeQuestions(questions: WorkingMemoryQuestion[]) {
-  return uniqueWorkingMemoryTexts(questions.map(item => item.text), 8, 220)
+  return uniqueItems(
+    questions.map(item => sanitizePromptText(item.text, 220)).filter(Boolean),
+    item => item,
+    8,
+  )
 }
 
 function normalizeCommitments(commitments: WorkingMemoryCommitment[]) {
-  return uniqueWorkingMemoryTexts(commitments.map(item => item.text), 8, 220)
+  return uniqueItems(
+    commitments.map(item => sanitizePromptText(item.text, 220)).filter(Boolean),
+    item => item,
+    8,
+  )
 }
 
 function normalizeCorrections(corrections: WorkingMemoryCorrection[]) {
@@ -243,7 +253,11 @@ function normalizeAudit(audit: WorkingMemoryAuditState): WorkingMemoryAuditState
   return {
     failureTurnIds: uniqueWorkingMemoryTexts(audit.failureTurnIds, 20, 120),
     excludedLongTermCandidateTurnIds: uniqueWorkingMemoryTexts(audit.excludedLongTermCandidateTurnIds, 20, 120),
-    notes: uniqueWorkingMemoryTexts(audit.notes, 8, 220),
+    notes: uniqueItems(
+      audit.notes.map(note => sanitizePromptText(note, 220)).filter(Boolean),
+      note => note,
+      8,
+    ),
   }
 }
 
@@ -279,7 +293,11 @@ export function buildWorkingMemoryPromptView(snapshot: WorkingMemorySnapshot): W
     },
     compressedTimeline: normalizeCompressedTimeline(snapshot.compressedTimeline),
     unresolvedQuestions: normalizeQuestions(snapshot.unresolvedQuestions),
-    memoryQueryHints: uniqueWorkingMemoryTexts(snapshot.memoryQueryHints, 8, 120),
+    memoryQueryHints: uniqueItems(
+      snapshot.memoryQueryHints.map(hint => sanitizePromptText(hint, 120)).filter(Boolean),
+      hint => hint,
+      8,
+    ),
     commitments: normalizeCommitments(snapshot.commitments),
     corrections: normalizeCorrections(snapshot.userCorrections),
     relationshipPosture: snapshot.relationshipPosture
@@ -330,7 +348,7 @@ export function buildWorkingMemoryPromptView(snapshot: WorkingMemorySnapshot): W
     rendering: {
       blockLines: uniqueBlockLines([
         '[ALICIZATION_WORKING_MEMORY]',
-        'Compact short-term memory for the current local dialogue. Use as inward state, not visible wording.',
+        'owner=WorkingMemory; scope=short_term_dialogue; visible_wording=false',
         rangeLine,
         renderThreadLine(modules.thread),
         renderTaskLine(modules.task),
@@ -359,6 +377,10 @@ export function buildWorkingMemoryPromptBlock(snapshot: WorkingMemorySnapshot) {
 
 export function injectWorkingMemorySystemBlock(messages: Message[], systemBlock: string | null | undefined): Message[] {
   const normalizedBlock = normalizeWorkingMemoryText(systemBlock, 5000)
+    .split('\n')
+    .map(line => sanitizePromptText(line, 5000))
+    .filter(Boolean)
+    .join('\n')
   if (!normalizedBlock)
     return messages
   if (messages.some(message => message.role === 'system' && typeof message.content === 'string' && message.content.trim() === normalizedBlock))

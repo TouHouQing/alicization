@@ -3,7 +3,10 @@ import type {
   AlicizationChatEntryPreDialogueSendIdentity,
 } from '@proj-alicization/stage-shared/alicization-chat-entry-dispatch'
 
-import { assertAlicizationChatEntryPreDialogueSendIdentity } from '@proj-alicization/stage-shared/alicization-chat-entry-dispatch'
+import {
+  assertAlicizationChatEntryPreDialogueSendIdentity,
+  sanitizeAlicizationChatEntryPreDialogueSendIdentity,
+} from '@proj-alicization/stage-shared/alicization-chat-entry-dispatch'
 
 export interface DesktopMouseCaptureStateInput {
   fadeOnHoverEnabled: boolean
@@ -53,7 +56,7 @@ export interface DesktopVoiceTurnDispatchInput<
   providerConfig: Record<string, unknown>
   preDialogueSendIdentity: TPreDialogueSendIdentity
   origin?: DesktopVoiceTurnOrigin
-  ingest: AlicizationChatEntryIngest<TPreDialogueSendIdentity, TChatProvider>
+  ingest: AlicizationChatEntryIngest<AlicizationChatEntryPreDialogueSendIdentity, TChatProvider>
 }
 
 export function resolveDesktopMouseCaptureState(input: DesktopMouseCaptureStateInput) {
@@ -109,13 +112,16 @@ export async function dispatchDesktopVoiceTurn<TPreDialogueSendIdentity, TChatPr
     input.preDialogueSendIdentity as AlicizationChatEntryPreDialogueSendIdentity | null | undefined,
     'dispatchDesktopVoiceTurn',
   )
+  const preDialogueSendIdentity = sanitizeAlicizationChatEntryPreDialogueSendIdentity(
+    input.preDialogueSendIdentity as AlicizationChatEntryPreDialogueSendIdentity,
+  )
 
   return input.ingest(input.text, {
     providerId: input.providerId,
     model: input.model,
     chatProvider: input.chatProvider,
     providerConfig: input.providerConfig,
-    preDialogueSendIdentity: input.preDialogueSendIdentity,
+    preDialogueSendIdentity,
     origin: input.origin,
   })
 }

@@ -1929,16 +1929,16 @@ function resolveCoordinatorSameHerContinuityRendererHints(input: {
   if (quieterBodyLipsyncLine)
     reasonTags.push('embodiment:body+lipsync-only')
   if (bodyVoiceLine) {
-    signature = 'embodiment:audible_same_her_line'
+    signature = 'embodiment:audible_continuity_line'
     reasonTags.push(
-      'embodiment:audible_same_her_line',
+      'embodiment:audible_continuity_line',
       'embodiment:body+voice-only',
     )
   }
   if (audibleBodyLine) {
-    signature = 'embodiment:audible_same_her_line'
+    signature = 'embodiment:audible_continuity_line'
     reasonTags.push(
-      'embodiment:audible_same_her_line',
+      'embodiment:audible_continuity_line',
       'embodiment:body_lipsync_voice_rejoin',
     )
   }

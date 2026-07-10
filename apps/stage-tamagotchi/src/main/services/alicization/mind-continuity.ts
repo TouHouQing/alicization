@@ -2,15 +2,35 @@ import type { AlicizationVisualPresenceStateSnapshot } from '../../../shared/eve
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 import {
+  sanitizeAlicizationProviderFacingText,
+  sanitizeAlicizationStructuredInternalText,
+} from '@proj-alicization/stage-shared'
+
+import {
   buildAutobiographicalContinuityLines,
   pickDominantAutobiographicalGoal,
 } from './autobiographical-self'
 import { buildMindEcology } from './mind-ecology'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
-  if (typeof raw !== 'string')
+  return sanitizeAlicizationProviderFacingText(raw, maxChars)
+}
+
+function sanitizeLabel(raw: unknown, maxChars = 96) {
+  return sanitizeAlicizationStructuredInternalText(raw, maxChars)
+}
+
+function continuityField(name: string, raw: unknown, maxChars = 96) {
+  const value = sanitizeLabel(raw, maxChars)
+  return value ? `${name}:${value}` : ''
+}
+
+function continuityPairField(name: string, first: unknown, second: unknown, maxChars = 96) {
+  const left = sanitizeLabel(first, maxChars)
+  const right = sanitizeLabel(second, maxChars)
+  if (!left)
     return ''
-  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  return `${name}:${right ? `${left}/${right}` : left}`
 }
 
 function asArray<T>(value: T[] | null | undefined) {
@@ -348,44 +368,44 @@ export function buildMindContinuityFragment(input: {
     return ''
 
   return [
-    nextState.livingWorldState?.focusObjectId ? `living_world_focus:${nextState.livingWorldState.focusObjectId}` : '',
-    nextState.livingWorldState?.stability ? `living_world_stability:${nextState.livingWorldState.stability}` : '',
-    nextState.selfGovernor?.dominantDrive ? `governor_drive:${nextState.selfGovernor.dominantDrive}` : '',
-    dominantIntention?.kind ? `governor_intention:${dominantIntention.kind}` : '',
-    thoughtThread?.kind ? `thought_thread:${thoughtThread.kind}/${thoughtThread.status}` : '',
+    continuityField('living_world_focus', nextState.livingWorldState?.focusObjectId),
+    continuityField('living_world_stability', nextState.livingWorldState?.stability),
+    continuityField('governor_drive', nextState.selfGovernor?.dominantDrive),
+    continuityField('governor_intention', dominantIntention?.kind),
+    continuityPairField('thought_thread', thoughtThread?.kind, thoughtThread?.status),
     nextState.beliefRevision?.stability ? `belief_stability:${nextState.beliefRevision.stability}` : '',
-    nextState.deliberationState?.dominantNeed ? `mind_need:${nextState.deliberationState.dominantNeed}` : '',
-    activeHypothesis?.kind ? `hypothesis:${activeHypothesis.kind}` : '',
-    nextState.threadRuntime?.foregroundThreadId ? `runtime_thread:${nextState.threadRuntime.foregroundThreadId}` : '',
-    governingCommitment?.kind ? `commitment:${governingCommitment.kind}` : '',
-    activePlan?.kind ? `inquiry_plan:${activePlan.kind}` : '',
-    governingConcernContinuity?.kind ? `concern_continuity:${governingConcernContinuity.kind}/${governingConcernContinuity.status}` : '',
-    governingRepair?.kind ? `repair_ledger:${governingRepair.kind}/${governingRepair.status}` : '',
-    dominantProject?.kind ? `mind_project:${dominantProject.kind}/${dominantProject.status}` : '',
-    latestReflection?.outcome ? `reflection:${latestReflection.outcome}` : '',
-    nextState.executiveCycle?.phase ? `executive_phase:${nextState.executiveCycle.phase}` : '',
-    nextState.mindKernel?.dominantMode ? `mind_kernel:${nextState.mindKernel.dominantMode}` : '',
-    nextState.conversationState?.continuityPolicy ? `conversation_policy:${nextState.conversationState.continuityPolicy}` : '',
-    nextState.conversationState?.memoryMode ? `conversation_memory:${nextState.conversationState.memoryMode}` : '',
-    nextState.dialogueWorldThread?.lastOutcome ? `dialogue_outcome:${nextState.dialogueWorldThread.lastOutcome}` : '',
-    nextState.dialogueWorldThread?.relationDrift ? `dialogue_relation:${nextState.dialogueWorldThread.relationDrift}` : '',
-    nextState.replyDeliberation?.selectedMotive ? `reply_motive:${nextState.replyDeliberation.selectedMotive}` : '',
-    nextState.replyDeliberation?.speakingFrom ? `reply_from:${nextState.replyDeliberation.speakingFrom}` : '',
-    nextState.recallGovernor?.mode ? `recall_mode:${nextState.recallGovernor.mode}` : '',
-    nextState.answerPlanner?.act ? `answer_act:${nextState.answerPlanner.act}` : '',
-    nextState.answerPlanner?.evidenceMode ? `answer_evidence:${nextState.answerPlanner.evidenceMode}` : '',
-    nextState.actionEcology?.mode ? `action_ecology:${nextState.actionEcology.mode}` : '',
-    nextState.emotionalKernel?.dominantEmotion ? `emotional_kernel:${nextState.emotionalKernel.dominantEmotion}` : '',
-    nextState.emotionalKernel?.initiativeMode ? `kernel_initiative:${nextState.emotionalKernel.initiativeMode}` : '',
-    nextState.emotionalKernel?.memoryRecallMode ? `kernel_recall:${nextState.emotionalKernel.memoryRecallMode}` : '',
-    nextState.emotionalKernel?.embodimentTone ? `kernel_embodiment:${nextState.emotionalKernel.embodimentTone}` : '',
-    reasonTags[0] ? `kernel_reason:${sanitizeText(reasonTags.join('|'), 120)}` : '',
-    nextState.privateThought?.emotionalTension ? `emotional_tension:${nextState.privateThought.emotionalTension}` : '',
+    continuityField('mind_need', nextState.deliberationState?.dominantNeed),
+    continuityField('hypothesis', activeHypothesis?.kind),
+    continuityField('runtime_thread', nextState.threadRuntime?.foregroundThreadId),
+    continuityField('commitment', governingCommitment?.kind),
+    continuityField('inquiry_plan', activePlan?.kind),
+    continuityPairField('concern_continuity', governingConcernContinuity?.kind, governingConcernContinuity?.status),
+    continuityPairField('repair_ledger', governingRepair?.kind, governingRepair?.status),
+    continuityPairField('mind_project', dominantProject?.kind, dominantProject?.status),
+    continuityField('reflection', latestReflection?.outcome),
+    continuityField('executive_phase', nextState.executiveCycle?.phase),
+    continuityField('mind_kernel', nextState.mindKernel?.dominantMode),
+    continuityField('conversation_policy', nextState.conversationState?.continuityPolicy),
+    continuityField('conversation_memory', nextState.conversationState?.memoryMode),
+    continuityField('dialogue_outcome', nextState.dialogueWorldThread?.lastOutcome),
+    continuityField('dialogue_relation', nextState.dialogueWorldThread?.relationDrift),
+    continuityField('reply_motive', nextState.replyDeliberation?.selectedMotive),
+    continuityField('reply_from', nextState.replyDeliberation?.speakingFrom),
+    continuityField('recall_mode', nextState.recallGovernor?.mode),
+    continuityField('answer_act', nextState.answerPlanner?.act),
+    continuityField('answer_evidence', nextState.answerPlanner?.evidenceMode),
+    continuityField('action_ecology', nextState.actionEcology?.mode),
+    continuityField('emotional_kernel', nextState.emotionalKernel?.dominantEmotion),
+    continuityField('kernel_initiative', nextState.emotionalKernel?.initiativeMode),
+    continuityField('kernel_recall', nextState.emotionalKernel?.memoryRecallMode),
+    continuityField('kernel_embodiment', nextState.emotionalKernel?.embodimentTone),
+    reasonTags[0] ? `kernel_reason:${sanitizeLabel(reasonTags.join('|'), 120)}` : '',
+    continuityField('emotional_tension', nextState.privateThought?.emotionalTension),
     nextState.autobiographicalSelf?.stability != null ? `autobio_stability:${nextState.autobiographicalSelf.stability.toFixed(2)}` : '',
-    dominantAutobiographicalGoal?.kind ? `autobio_goal:${dominantAutobiographicalGoal.kind}/${dominantAutobiographicalGoal.status}` : '',
-    nextState.autobiographicalSelf?.personaDrift.attachmentStyle ? `autobio_bond:${nextState.autobiographicalSelf.personaDrift.attachmentStyle}` : '',
-    nextState.autobiographicalSelf?.personaDrift.conflictStyle ? `autobio_conflict:${nextState.autobiographicalSelf.personaDrift.conflictStyle}` : '',
-    nextState.autobiographicalSelf?.personaDrift.agencyStyle ? `autobio_agency:${nextState.autobiographicalSelf.personaDrift.agencyStyle}` : '',
+    continuityPairField('autobio_goal', dominantAutobiographicalGoal?.kind, dominantAutobiographicalGoal?.status),
+    continuityField('autobio_bond', nextState.autobiographicalSelf?.personaDrift.attachmentStyle),
+    continuityField('autobio_conflict', nextState.autobiographicalSelf?.personaDrift.conflictStyle),
+    continuityField('autobio_agency', nextState.autobiographicalSelf?.personaDrift.agencyStyle),
     behaviorSignatures[0] ? `autobio_signature:${sanitizeText(behaviorSignatures[0], 96)}` : '',
     nextState.autobiographicalSelf?.latestInflection ? `autobio_inflection:${sanitizeText(nextState.autobiographicalSelf.latestInflection, 120)}` : '',
     nextState.longHorizonMemory?.rememberedPlanSummary ? `durable_plan:${sanitizeText(nextState.longHorizonMemory.rememberedPlanSummary, 120)}` : '',
@@ -394,13 +414,13 @@ export function buildMindContinuityFragment(input: {
     backgroundAgendas[0]?.summary ? `motive_agenda:${sanitizeText(backgroundAgendas[0].summary, 120)}` : '',
     projectStateCarryLine ? `project_state_carry:${projectStateCarryLine}` : '',
     autobiographicalContinuityLines[0] ? `autobio_line:${sanitizeText(autobiographicalContinuityLines[0], 120)}` : '',
-    ecology?.moodLabel ? `ecology_mood:${ecology.moodLabel}` : '',
-    ecology?.replyHabit ? `ecology_reply:${ecology.replyHabit}` : '',
-    ecology?.relationshipHabit ? `ecology_relationship:${ecology.relationshipHabit}` : '',
-    ecology?.explorationHabit ? `ecology_exploration:${ecology.explorationHabit}` : '',
-    ecology?.regulationHabit ? `ecology_regulation:${ecology.regulationHabit}` : '',
-    threadKindLabel(thread) ? `thread_kind:${threadKindLabel(thread)}` : '',
-    runtimeNeedLabel(thread) ? `runtime_need:${runtimeNeedLabel(thread)}` : '',
+    continuityField('ecology_mood', ecology?.moodLabel),
+    continuityField('ecology_reply', ecology?.replyHabit),
+    continuityField('ecology_relationship', ecology?.relationshipHabit),
+    continuityField('ecology_exploration', ecology?.explorationHabit),
+    continuityField('ecology_regulation', ecology?.regulationHabit),
+    continuityField('thread_kind', threadKindLabel(thread)),
+    continuityField('runtime_need', runtimeNeedLabel(thread)),
     `summary:${summary}`,
   ]
     .filter(Boolean)
@@ -465,46 +485,46 @@ export function buildMindContinuityRecallSeed(
   })
   return [
     sanitizeText(thread?.summary ?? '', 180),
-    state?.livingWorldState?.focusObjectId ? `living_world_focus:${state.livingWorldState.focusObjectId}` : '',
-    state?.livingWorldState?.stability ? `living_world_stability:${state.livingWorldState.stability}` : '',
-    state?.selfGovernor?.dominantDrive ? `governor_drive:${state.selfGovernor.dominantDrive}` : '',
-    dominantIntention?.kind ? `governor_intention:${dominantIntention.kind}` : '',
-    thoughtThread?.kind ? `thought_thread:${thoughtThread.kind}/${thoughtThread.status}` : '',
-    state?.deliberationState?.dominantNeed ? `mind_need:${state.deliberationState.dominantNeed}` : '',
-    activeHypothesis?.kind ? `hypothesis:${activeHypothesis.kind}` : '',
-    state?.threadRuntime?.foregroundThreadId ? `runtime_thread:${state.threadRuntime.foregroundThreadId}` : '',
-    governingCommitment?.kind ? `commitment:${governingCommitment.kind}` : '',
-    activePlan?.kind ? `inquiry_plan:${activePlan.kind}` : '',
-    governingConcernContinuity?.kind ? `concern_continuity:${governingConcernContinuity.kind}/${governingConcernContinuity.status}` : '',
-    governingRepair?.kind ? `repair_ledger:${governingRepair.kind}/${governingRepair.status}` : '',
-    dominantProject?.kind ? `mind_project:${dominantProject.kind}/${dominantProject.status}` : '',
-    latestReflection?.outcome ? `reflection:${latestReflection.outcome}` : '',
-    state?.executiveCycle?.phase ? `executive_phase:${state.executiveCycle.phase}` : '',
+    continuityField('living_world_focus', state?.livingWorldState?.focusObjectId),
+    continuityField('living_world_stability', state?.livingWorldState?.stability),
+    continuityField('governor_drive', state?.selfGovernor?.dominantDrive),
+    continuityField('governor_intention', dominantIntention?.kind),
+    continuityPairField('thought_thread', thoughtThread?.kind, thoughtThread?.status),
+    continuityField('mind_need', state?.deliberationState?.dominantNeed),
+    continuityField('hypothesis', activeHypothesis?.kind),
+    continuityField('runtime_thread', state?.threadRuntime?.foregroundThreadId),
+    continuityField('commitment', governingCommitment?.kind),
+    continuityField('inquiry_plan', activePlan?.kind),
+    continuityPairField('concern_continuity', governingConcernContinuity?.kind, governingConcernContinuity?.status),
+    continuityPairField('repair_ledger', governingRepair?.kind, governingRepair?.status),
+    continuityPairField('mind_project', dominantProject?.kind, dominantProject?.status),
+    continuityField('reflection', latestReflection?.outcome),
+    continuityField('executive_phase', state?.executiveCycle?.phase),
     state?.conversationState?.jointThread ? sanitizeText(state.conversationState.jointThread, 180) : '',
     state?.conversationState?.unansweredQuestion ? sanitizeText(state.conversationState.unansweredQuestion, 180) : '',
-    state?.conversationState?.memoryMode ? `conversation_memory:${state.conversationState.memoryMode}` : '',
+    continuityField('conversation_memory', state?.conversationState?.memoryMode),
     state?.dialogueWorldThread?.activeThread ? sanitizeText(state.dialogueWorldThread.activeThread, 180) : '',
     state?.dialogueWorldThread?.currentQuestion ? sanitizeText(state.dialogueWorldThread.currentQuestion, 180) : '',
-    state?.dialogueWorldThread?.lastOutcome ? `dialogue_outcome:${state.dialogueWorldThread.lastOutcome}` : '',
-    state?.replyDeliberation?.selectedMotive ? `reply_motive:${state.replyDeliberation.selectedMotive}` : '',
-    state?.replyDeliberation?.speakingFrom ? `reply_from:${state.replyDeliberation.speakingFrom}` : '',
-    state?.recallGovernor?.mode ? `recall_mode:${state.recallGovernor.mode}` : '',
-    state?.answerPlanner?.act ? `answer_act:${state.answerPlanner.act}` : '',
-    state?.answerPlanner?.evidenceMode ? `answer_evidence:${state.answerPlanner.evidenceMode}` : '',
-    state?.mindKernel?.dominantMode ? `mind_kernel:${state.mindKernel.dominantMode}` : '',
-    state?.actionEcology?.mode ? `action_ecology:${state.actionEcology.mode}` : '',
-    state?.emotionalKernel?.dominantEmotion ? `emotional_kernel:${state.emotionalKernel.dominantEmotion}` : '',
-    state?.emotionalKernel?.initiativeMode ? `kernel_initiative:${state.emotionalKernel.initiativeMode}` : '',
-    state?.emotionalKernel?.memoryRecallMode ? `kernel_recall:${state.emotionalKernel.memoryRecallMode}` : '',
-    state?.emotionalKernel?.embodimentTone ? `kernel_embodiment:${state.emotionalKernel.embodimentTone}` : '',
-    reasonTags[0] ? `kernel_reason:${sanitizeText(reasonTags.join('|'), 120)}` : '',
+    continuityField('dialogue_outcome', state?.dialogueWorldThread?.lastOutcome),
+    continuityField('reply_motive', state?.replyDeliberation?.selectedMotive),
+    continuityField('reply_from', state?.replyDeliberation?.speakingFrom),
+    continuityField('recall_mode', state?.recallGovernor?.mode),
+    continuityField('answer_act', state?.answerPlanner?.act),
+    continuityField('answer_evidence', state?.answerPlanner?.evidenceMode),
+    continuityField('mind_kernel', state?.mindKernel?.dominantMode),
+    continuityField('action_ecology', state?.actionEcology?.mode),
+    continuityField('emotional_kernel', state?.emotionalKernel?.dominantEmotion),
+    continuityField('kernel_initiative', state?.emotionalKernel?.initiativeMode),
+    continuityField('kernel_recall', state?.emotionalKernel?.memoryRecallMode),
+    continuityField('kernel_embodiment', state?.emotionalKernel?.embodimentTone),
+    reasonTags[0] ? `kernel_reason:${sanitizeLabel(reasonTags.join('|'), 120)}` : '',
     state?.beliefRevision?.stability ? `belief_stability:${state.beliefRevision.stability}` : '',
-    state?.privateThought?.emotionalTension ? `emotional_tension:${state.privateThought.emotionalTension}` : '',
+    continuityField('emotional_tension', state?.privateThought?.emotionalTension),
     state?.autobiographicalSelf?.stability != null ? `autobio_stability:${state.autobiographicalSelf.stability.toFixed(2)}` : '',
-    dominantAutobiographicalGoal?.kind ? `autobio_goal:${dominantAutobiographicalGoal.kind}/${dominantAutobiographicalGoal.status}` : '',
-    state?.autobiographicalSelf?.personaDrift.attachmentStyle ? `autobio_bond:${state.autobiographicalSelf.personaDrift.attachmentStyle}` : '',
-    state?.autobiographicalSelf?.personaDrift.conflictStyle ? `autobio_conflict:${state.autobiographicalSelf.personaDrift.conflictStyle}` : '',
-    state?.autobiographicalSelf?.personaDrift.agencyStyle ? `autobio_agency:${state.autobiographicalSelf.personaDrift.agencyStyle}` : '',
+    continuityPairField('autobio_goal', dominantAutobiographicalGoal?.kind, dominantAutobiographicalGoal?.status),
+    continuityField('autobio_bond', state?.autobiographicalSelf?.personaDrift.attachmentStyle),
+    continuityField('autobio_conflict', state?.autobiographicalSelf?.personaDrift.conflictStyle),
+    continuityField('autobio_agency', state?.autobiographicalSelf?.personaDrift.agencyStyle),
     behaviorSignatures[0] ? `autobio_signature:${sanitizeText(behaviorSignatures[0], 96)}` : '',
     state?.autobiographicalSelf?.identityNarrative ? sanitizeText(state.autobiographicalSelf.identityNarrative, 180) : '',
     state?.autobiographicalSelf?.latestInflection ? sanitizeText(state.autobiographicalSelf.latestInflection, 180) : '',
@@ -514,9 +534,9 @@ export function buildMindContinuityRecallSeed(
     backgroundAgendas[0]?.summary ? sanitizeText(backgroundAgendas[0].summary, 180) : '',
     projectStateCarryLine ? `project_state_carry:${projectStateCarryLine}` : '',
     ...autobiographicalContinuityLines.map(line => sanitizeText(line, 180)),
-    ecology?.moodLabel ? `ecology_mood:${ecology.moodLabel}` : '',
-    ecology?.replyHabit ? `ecology_reply:${ecology.replyHabit}` : '',
-    ecology?.relationshipHabit ? `ecology_relationship:${ecology.relationshipHabit}` : '',
+    continuityField('ecology_mood', ecology?.moodLabel),
+    continuityField('ecology_reply', ecology?.replyHabit),
+    continuityField('ecology_relationship', ecology?.relationshipHabit),
     ecology?.currentPreoccupation ? sanitizeText(ecology.currentPreoccupation, 180) : '',
   ]
     .filter(Boolean)

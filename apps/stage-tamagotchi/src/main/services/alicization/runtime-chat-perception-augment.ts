@@ -36,6 +36,7 @@ import { buildDialogueWorldThreadSystemBlock } from './dialogue-world-thread'
 import { commitAlicizationDigitalLifeSpine } from './digital-life-spine'
 import { buildDiscourseStateSystemBlock } from './discourse-state'
 import { resolveHumanlikeMemoryRecallSeedFromEventHistory } from './humanlike-memory-recall-seed'
+import { shouldIncludeProjectStateProviderContext } from './main-chat-project-state-injection-policy'
 import { buildMemorySearchGovernorSystemBlock } from './memory-search-runtime'
 import { buildMindContinuityRecallSeed } from './mind-continuity'
 import { buildMindSynthesisSystemBlock } from './mind-synthesizer'
@@ -44,8 +45,8 @@ import {
   inferScenarioFromContext,
 } from './proactive-layered-context'
 import {
-  buildAlicizationProjectStateClosureDashboard,
-  buildAlicizationProjectStateSystemBlock,
+  buildAlicizationProviderFacingProjectStateClosureDashboard,
+  buildAlicizationProviderFacingProjectStateSystemBlock,
 } from './project-state-brief'
 import { buildReplyDeliberationSystemBlock } from './reply-deliberator'
 import {
@@ -272,6 +273,10 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
     const chatRuntimeSurface = committedChatDigitalLifeSpine.current.runtimeSurface
     const chatDigitalLifeArchitecture = committedChatDigitalLifeSpine.current.architecture
     const activeSelfRevisionPatch = await getActiveSelfRevisionStatePatch?.().catch(() => null) ?? null
+    const includePreludeProjectStateContext = shouldIncludeProjectStateProviderContext({
+      latestUserText: input.userText,
+      messages,
+    })
     const visibleReplySurfacePlan = buildAlicizationVisibleReplySurfacePlan({
       now,
       context: chatLayeredContext,
@@ -291,6 +296,7 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
       answerCompiler: chatMindState.answerCompiler ?? undefined,
       currentConsciousFrame: chatMindState.currentConsciousFrame ?? undefined,
       claimEvidenceLedger: chatMindState.claimEvidenceLedger ?? undefined,
+      includeProjectStateFacts: includePreludeProjectStateContext,
       selfRevisionPatch: activeSelfRevisionPatch,
     })
     const responseCharter = visibleReplySurfacePlan.responseCharter
@@ -338,13 +344,15 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
       spine: committedChatDigitalLifeSpine.current,
     })
     const chatRuntimeSystemBlock = buildAlicizationRuntimeSystemBlock(chatRuntimeSnapshot)
-    const projectStateClosureDashboard = buildAlicizationProjectStateClosureDashboard({
-      architecture: chatDigitalLifeArchitecture,
-      runtimeDigest: chatRuntimeSnapshot,
-    })
+    const projectStateClosureDashboard = includePreludeProjectStateContext
+      ? buildAlicizationProviderFacingProjectStateClosureDashboard({
+          architecture: chatDigitalLifeArchitecture,
+          runtimeDigest: chatRuntimeSnapshot,
+        })
+      : ''
 
     const systemBlocks = [
-      buildAlicizationProjectStateSystemBlock(),
+      includePreludeProjectStateContext ? buildAlicizationProviderFacingProjectStateSystemBlock() : '',
       projectStateClosureDashboard,
       visualPresenceState.dialogueActKernel
         ? buildDialogueActKernelSystemBlock(visualPresenceState.dialogueActKernel)
@@ -365,7 +373,9 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
         ? buildAnswerCompilerSystemBlock(visualPresenceState.answerCompiler)
         : '',
       visualPresenceState.currentConsciousFrame
-        ? buildCurrentConsciousFrameSystemBlock(visualPresenceState.currentConsciousFrame)
+        ? buildCurrentConsciousFrameSystemBlock(visualPresenceState.currentConsciousFrame, {
+            includeProjectStateFacts: includePreludeProjectStateContext,
+          })
         : '',
       visualPresenceState.claimEvidenceLedger
         ? buildClaimEvidenceLedgerSystemBlock(visualPresenceState.claimEvidenceLedger)

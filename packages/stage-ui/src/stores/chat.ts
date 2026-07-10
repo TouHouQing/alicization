@@ -19,6 +19,8 @@ import type {
   AlicizationPreDialogueSendIdentity,
   AlicizationProjectStateContinuitySnapshot,
   AlicizationRuntimeDigest,
+  AlicizationVisibleReplyPublicClosureSummary,
+  AlicizationVisibleReplyPublicCriticSummary,
   CharacterPerformanceCapabilitiesManifest,
 } from './alicization-bridge'
 import type { RealtimeEvidenceItem } from './alicization-execution-engine'
@@ -293,7 +295,7 @@ function normalizeVisibleReplyCriticForPersistence(
     ? compactStringList(raw.reasonCodes)
     : compactStringList(raw.reasons)
   const repairReasonCodes = compactStringList(raw.repairReasonCodes)
-  const summary: Record<string, unknown> = {
+  const summary: AlicizationVisibleReplyPublicCriticSummary = {
     version: 'visible-reply-critic-public-summary-v1',
     reasonCodes,
     repairReasonCodes,
@@ -327,7 +329,7 @@ function normalizeVisibleReplyClosureForPersistence(
 
   const initialCritic = isRecordPayload(raw.initialCritic) ? raw.initialCritic : null
   const finalCritic = isRecordPayload(raw.finalCritic) ? raw.finalCritic : null
-  const summary: Record<string, unknown> = {
+  const summary: AlicizationVisibleReplyPublicClosureSummary = {
     version: 'visible-reply-closure-public-summary-v1',
     reasonCodes: compactStringList(raw.reasonCodes),
     repairReasonCodes: compactStringList(raw.repairReasonCodes),

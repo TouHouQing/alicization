@@ -1,19 +1,27 @@
-export type LongTermMemoryRecallMode =
-  | 'none'
-  | 'episodic'
-  | 'relationship'
-  | 'preference'
-  | 'procedure'
-  | 'task'
-  | 'mixed'
+import {
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
 
-export type LongTermMemoryTemporalFocus =
-  | 'current'
-  | 'recent'
-  | 'recent-or-mid'
-  | 'cross-session'
-  | 'distant'
-  | 'unspecified'
+import { rankLongTermMemoryHybridEvidence } from './long-term-memory-hybrid-retrieval'
+import { expandLongTermMemoryQuery } from './long-term-memory-query-expansion'
+
+export type LongTermMemoryRecallMode
+  = | 'none'
+    | 'episodic'
+    | 'relationship'
+    | 'preference'
+    | 'procedure'
+    | 'task'
+    | 'mixed'
+
+export type LongTermMemoryTemporalFocus
+  = | 'current'
+    | 'recent'
+    | 'recent-or-mid'
+    | 'cross-session'
+    | 'distant'
+    | 'unspecified'
 
 export interface LongTermMemoryRecallIntent {
   mode: LongTermMemoryRecallMode
@@ -44,11 +52,11 @@ export interface LongTermMemoryQueryPlan {
   targetKinds: LongTermMemoryEvidenceKind[]
 }
 
-export type LongTermMemoryEvidenceKind =
-  | 'fact'
-  | 'reflection'
-  | 'episode'
-  | 'consolidation'
+export type LongTermMemoryEvidenceKind
+  = | 'fact'
+    | 'reflection'
+    | 'episode'
+    | 'consolidation'
 
 export interface LongTermMemoryEvidenceCandidate {
   id: string
@@ -56,6 +64,7 @@ export interface LongTermMemoryEvidenceCandidate {
   summary: string
   source: string
   confidence: number
+  reviewStatus?: 'confirmed' | 'candidate' | 'review-needed' | 'rejected' | 'pending' | string | null
   salience?: number | null
   updatedAt?: number | null
   occurredAt?: number | null
@@ -304,10 +313,15 @@ export function buildLongTermMemoryEvidenceBundle(input: {
   }
 
   const limit = Math.max(1, Math.min(8, Math.floor(input.limit ?? 5)))
+  const candidates = input.candidates.filter((candidate) => {
+    if (candidate.reviewStatus != null && candidate.reviewStatus !== 'confirmed')
+      return false
+    return !containsAlicizationFixedTemplateResidue(candidate.summary)
+  })
   const ranked = rankLongTermMemoryHybridEvidence({
     intent: input.intent,
     plan: input.plan,
-    candidates: input.candidates,
+    candidates,
     now: input.now,
     limit,
     semanticScores: input.semanticScores,
@@ -339,6 +353,7 @@ export function buildLongTermMemoryRecallBlock(input: {
 
     return [
       '[ALICIZATION_RECALLED_MEMORY]',
+      'owner=LongTermMemoryRecall',
       `intent=${input.bundle.intent.mode}`,
       `confidence=${input.bundle.confidence.toFixed(2)}`,
       `budget=${input.bundle.budgetClass}`,
@@ -350,6 +365,7 @@ export function buildLongTermMemoryRecallBlock(input: {
 
   const lines = [
     '[ALICIZATION_RECALLED_MEMORY]',
+    'owner=LongTermMemoryRecall',
     `intent=${input.bundle.intent.mode}`,
     `confidence=${input.bundle.confidence.toFixed(2)}`,
     `budget=${input.bundle.budgetClass}`,
@@ -362,10 +378,8 @@ export function buildLongTermMemoryRecallBlock(input: {
         : item.visibleMode === 'inward-only'
           ? 'inward'
           : 'memory'
-      return `- ${prefix}:${normalizeText(item.candidate.summary, 260)} source=${item.candidate.source}:${item.candidate.id} confidence=${item.candidate.confidence.toFixed(2)} score=${item.score.toFixed(2)}`
+      return `- ${prefix}:${sanitizeAlicizationProviderFacingText(item.candidate.summary, 260)} source=${item.candidate.source}:${item.candidate.id} confidence=${item.candidate.confidence.toFixed(2)} score=${item.score.toFixed(2)}`
     }),
   ]
   return lines.join('\n')
 }
-import { expandLongTermMemoryQuery } from './long-term-memory-query-expansion'
-import { rankLongTermMemoryHybridEvidence } from './long-term-memory-hybrid-retrieval'

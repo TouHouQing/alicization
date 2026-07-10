@@ -1,6 +1,9 @@
 import type { AlicizationDialogueAnswerSubject } from '../../../shared/eventa'
 
-import { isWeakAlicizationScreenSurfaceCue } from '@proj-alicization/stage-shared'
+import {
+  containsAlicizationFixedTemplateResidue,
+  isWeakAlicizationScreenSurfaceCue,
+} from '@proj-alicization/stage-shared'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -33,7 +36,7 @@ export function sanitizeDialogueSurfaceText(raw: unknown, maxChars = 220) {
   const normalized = sanitizeText(raw, maxChars)
   if (!normalized)
     return ''
-  if (isInternalDialogueSurfaceText(normalized))
+  if (isInternalDialogueSurfaceText(normalized) || containsAlicizationFixedTemplateResidue(normalized))
     return ''
   return normalized
 }
@@ -51,8 +54,13 @@ export function sanitizeDialogueSemanticAnchorText(raw: unknown, maxChars = 180)
   const normalized = sanitizeText(raw, maxChars)
   if (!normalized)
     return ''
-  if (isInternalDialogueSurfaceText(normalized) || isDialogueControlDirectiveText(normalized))
+  if (
+    isInternalDialogueSurfaceText(normalized)
+    || isDialogueControlDirectiveText(normalized)
+    || containsAlicizationFixedTemplateResidue(normalized)
+  ) {
     return ''
+  }
   return normalized
 }
 

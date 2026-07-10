@@ -19,10 +19,6 @@ import {
 import { buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
 import { buildAlicizationActiveDialogueGovernedReply } from './main-chat-active-dialogue-loop'
 import { resolveAlicizationOpeningGuidanceViolationReason } from './proactive-opening-guidance'
-import {
-  buildAlicizationProjectStateClosureDashboard,
-  buildAlicizationProjectStateSystemBlock,
-} from './project-state-brief'
 import { buildRelationshipDoctrineGuidance } from './relationship-doctrine-guidance'
 import { parseJsonObjectFromText } from './runtime-transport-content'
 
@@ -96,30 +92,6 @@ function sanitizeText(raw: unknown, maxLength: number) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxLength)
-}
-
-function readExecutionFeedbackReplyPosture(input: {
-  personStateProjection?: AlicizationPersonStateProjection | null
-  hostPersonModel?: AlicizationHostPersonModelSnapshot | null
-}) {
-  const text = [
-    input.personStateProjection?.openingGuidance,
-    input.personStateProjection?.trustRationale,
-    input.personStateProjection?.relationshipDoctrine,
-    input.personStateProjection?.sensitivityText,
-    input.hostPersonModel?.summary,
-    ...(input.hostPersonModel?.sensitivities ?? []),
-    ...(input.hostPersonModel?.repairTriggers ?? []),
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-
-  return {
-    needsRoom: /space|room|lighter|pressure|intrusive|留空间|更轻|太紧|太近|lower-pressure|even and steady|natural and unforced|steady voice|unforced pacing|performative|rushed tempo|太快|别把气氛推高/.test(text),
-    trustOpen: /trust is warming|trust|接得住|有用|落稳|warming|grounded/.test(text),
-    repairFirst: /repair before closeness|repair the seam|先修正|repair-first/.test(text),
-  }
 }
 
 function normalizeChannelLabel(channelRaw: string) {
@@ -199,70 +171,7 @@ function applyExecutionResultDeliveryPolicyToReply(input: {
   goal?: string
   memorySurfaceRestraint?: AlicizationExecutionMemorySurfaceRestraint | null
 }) {
-  const policy = input.policy ?? null
-  const personStateProjection = input.personStateProjection ?? null
-  const contexts = personStateProjection?.contexts ?? inferHostSocialContextsFromText(input.goal ?? '')
-  const hostGuidance = personStateProjection
-    ? {
-        cautious: personStateProjection.cautious,
-        restrained: personStateProjection.restrained,
-      }
-    : buildHostSocialGuidance({
-        hostPersonModel: input.hostPersonModel ?? null,
-        contexts,
-      })
-  const doctrineGuidance = personStateProjection
-    ? {
-        cautious: personStateProjection.cautious,
-        restrained: personStateProjection.restrained,
-      }
-    : buildRelationshipDoctrineGuidance({
-        authority: input.selfContinuityAuthority ?? null,
-        contexts,
-      })
-  const replyPosture = readExecutionFeedbackReplyPosture({
-    personStateProjection,
-    hostPersonModel: input.hostPersonModel ?? null,
-  })
-  const memorySurfaceRestraint = input.memorySurfaceRestraint ?? null
-  const memoryBoundaryNeedsRoom = Boolean(
-    memorySurfaceRestraint?.shouldStayInward
-    || memorySurfaceRestraint?.shouldDelayUntilAfterPayoff
-    || memorySurfaceRestraint?.stableCoreOnly
-    || memorySurfaceRestraint?.visibleCarryMode === 'withhold',
-  )
-  const normalizedStatus = normalizeOutcomeSurfaceStatus(input.status)
-  if ((!policy || policy.mode === 'deliver-now') && !hostGuidance.cautious && !doctrineGuidance.cautious) {
-    return memoryBoundaryNeedsRoom && normalizedStatus === 'completed'
-      ? sanitizeText(`你现在要是方便，我就把这条结果轻一点地接回来：${sanitizeText(input.reply, 220)}`, 220)
-      : input.reply
-  }
-
   const baseReply = sanitizeText(input.reply, 220)
-  if (!baseReply)
-    return ''
-
-  if (policy?.mode === 'check-availability-first' || hostGuidance.cautious || doctrineGuidance.cautious || memoryBoundaryNeedsRoom) {
-    if (normalizedStatus === 'completed') {
-      if ((replyPosture.needsRoom || memoryBoundaryNeedsRoom) && (policy?.tone === 'cautious' || hostGuidance.cautious || doctrineGuidance.cautious || memoryBoundaryNeedsRoom))
-        return sanitizeText(`你现在要是方便，我就把这条结果轻一点地接回来：${baseReply}`, 220)
-      if (policy?.companionshipFraming === 'close-carry' && replyPosture.trustOpen)
-        return sanitizeText(`你现在要是能接，我把这条结果轻轻接回来给你：${baseReply}`, 220)
-      if (policy?.tone === 'direct')
-        return sanitizeText(`你要是现在能接结果，我就直接说：${baseReply}`, 220)
-      if (policy?.tone === 'cautious' || hostGuidance.cautious || doctrineGuidance.cautious || personStateProjection?.relationshipPosture === 'restrained')
-        return sanitizeText(`你现在要是方便，我再把结果直接摊给你：${baseReply}`, 220)
-      return sanitizeText(`你现在要是方便，我把结果直接接给你：${baseReply}`, 220)
-    }
-
-    if (policy?.tone === 'cautious' || hostGuidance.cautious || doctrineGuidance.cautious || personStateProjection?.relationshipPosture === 'restrained')
-      return sanitizeText(`你现在要是方便，我把卡住的地方直接交代给你：${baseReply}`, 220)
-    return sanitizeText(`你现在要是能接，我把这条执行状态直接说清：${baseReply}`, 220)
-  }
-
-  if (policy?.resultLeadStyle === 'soft-handoff' && normalizedStatus === 'completed' && replyPosture.trustOpen)
-    return sanitizeText(`我把这条结果接回来了：${baseReply}`, 220)
-
   return baseReply
 }
 
@@ -812,13 +721,13 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
         kind: 'detail',
         detail,
       }
-  const projectStateSystemBlock = buildAlicizationProjectStateSystemBlock()
-  const projectStateClosureDashboard = buildAlicizationProjectStateClosureDashboard()
-
   const system = [
     '[ALICIZATION_EXECUTION_PAYOFF]',
-    projectStateSystemBlock,
-    projectStateClosureDashboard,
+    'payoff_scope=execution_result_delivery',
+    'runtime_context=local_runtime',
+    'short_term_owner=WorkingMemory',
+    'long_term_recall_owner=LongTermMemoryRecall',
+    'failure_surface=report_provider_tool_and_execution_failures_directly',
     input.mode === 'inline-execution'
       ? 'The required execution for the current user turn has already finished in this same turn.'
       : 'A background execution callback from the current conversation has already settled and must now be paid off naturally.',

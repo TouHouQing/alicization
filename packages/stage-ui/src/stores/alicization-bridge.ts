@@ -254,16 +254,16 @@ export interface AlicizationMemoryMigrationResult {
 }
 
 export type AlicizationMemoryWorkbenchStatus = 'ok' | 'degraded' | 'error'
-export type AlicizationMemoryWorkbenchKind =
-  | 'fact'
-  | 'episode'
-  | 'reflection'
-  | 'consolidation'
-  | 'procedure'
-  | 'relationship'
-  | 'preference'
-  | 'correction'
-  | 'candidate'
+export type AlicizationMemoryWorkbenchKind
+  = | 'fact'
+    | 'episode'
+    | 'reflection'
+    | 'consolidation'
+    | 'procedure'
+    | 'relationship'
+    | 'preference'
+    | 'correction'
+    | 'candidate'
 
 export type AlicizationMemoryWorkbenchSensitivity = 'public' | 'personal' | 'private' | 'secret'
 export type AlicizationMemoryWorkbenchVisibility = 'explicit' | 'inward-only'
@@ -648,6 +648,34 @@ export interface AlicizationCoreIncarnationReforgePayload {
   core_incarnation: string
 }
 
+export interface AlicizationVisibleReplyPublicCriticSummary extends Record<string, unknown> {
+  version: 'visible-reply-critic-public-summary-v1'
+  status?: string | null
+  providerMindRequired?: boolean | null
+  semanticLoopClosed?: boolean | null
+  reasonCodes: string[]
+  repairReasonCodes: string[]
+  mustDropCount: number
+  mustPreserveCount: number
+}
+
+export interface AlicizationVisibleReplyPublicClosureSummary extends Record<string, unknown> {
+  version: 'visible-reply-closure-public-summary-v1'
+  status?: string | null
+  providerMindRequired?: boolean | null
+  semanticLoopClosed?: boolean | null
+  rewriteAttempted?: boolean | null
+  rewriteSucceeded?: boolean | null
+  reasonCodes: string[]
+  repairReasonCodes?: string[]
+  initialCriticStatus?: string | null
+  finalCriticStatus?: string | null
+  initialCriticMustPreserveCount?: number
+  initialCriticMustDropCount?: number
+  finalCriticMustPreserveCount?: number
+  finalCriticMustDropCount?: number
+}
+
 export interface AlicizationConversationTurnInput {
   turnId?: string
   sessionId?: string
@@ -656,8 +684,8 @@ export interface AlicizationConversationTurnInput {
   assistantText?: string
   structured?: Record<string, unknown>
   visibleReplyExecution?: AlicizationVisibleReplyExecution | null
-  visibleReplyCritic?: Record<string, unknown> | null
-  visibleReplyClosure?: Record<string, unknown> | null
+  visibleReplyCritic?: AlicizationVisibleReplyPublicCriticSummary | null
+  visibleReplyClosure?: AlicizationVisibleReplyPublicClosureSummary | null
   governance?: AlicizationMindTurnGovernance | null
   createdAt?: number
 }

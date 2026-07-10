@@ -23,8 +23,8 @@ export const alicizationProjectStateRemoteMainPushReadinessMustNotDo = [
 ] as const
 
 export const alicizationProjectStateAnswerBaseMustDo = [
-  'project_identity=answer_first; tone_metaphor_adjacent_status=secondary',
-  'phase1_latest_landed_progress=explicit; aspiration_only_answer=blocked',
+  'project_state_answer=answer_first; tone_metaphor_adjacent_status=secondary',
+  'latest_landed_progress=explicit; aspiration_only_answer=blocked',
   'still_open_closure_work=explicit',
   'next_closure_target=explicit; current_status_only=blocked',
   'project_state_answer_source=structured_project_state_context; detached_project_narrator_shell=blocked',
