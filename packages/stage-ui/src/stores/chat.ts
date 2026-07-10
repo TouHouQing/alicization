@@ -60,6 +60,7 @@ import { detectRealtimeQueryIntent } from '../composables/alicization-realtime-q
 import {
   enforceGovernedMindTurn,
   normalizeStructuredOutput,
+  normalizeStructuredPreDialogueClosurePayload,
   normalizeStructuredProjectStatePayload,
   repairStructuredContractLocally,
   sanitizeStructuredReplySurface,
@@ -780,6 +781,45 @@ function toAlicizationPreDialogueClosureSnapshot(
     briefingLines: [...(input.briefingLines ?? [])],
     reasons: [...(input.reasons ?? [])],
   }
+}
+
+function normalizeProjectStateContinuitySnapshotForChat(
+  snapshot: AlicizationProjectStateContinuitySnapshot | Record<string, unknown> | null | undefined,
+): AlicizationProjectStateContinuitySnapshot | null {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot))
+    return null
+
+  const record = snapshot as Record<string, unknown>
+  const normalizedProjectState = normalizeStructuredProjectStatePayload(record) ?? null
+  if (!normalizedProjectState)
+    return null
+
+  const preDialogueAwareness = normalizeStructuredPreDialogueAwarenessPayload(
+    (record.preDialogueAwareness ?? null) as Record<string, unknown> | null,
+  ) ?? null
+  const normalizedPreDialogueClosure = normalizeStructuredPreDialogueClosurePayload(
+    (record.preDialogueClosure ?? null) as Record<string, unknown> | null,
+  ) ?? null
+  const preDialogueClosure = normalizedPreDialogueClosure
+    ? toAlicizationPreDialogueClosurePayload(normalizedPreDialogueClosure)
+    : null
+
+  return {
+    ...record,
+    identity: normalizedProjectState.identity || null,
+    currentPhase: normalizedProjectState.currentPhase || null,
+    latestLandedProgress: normalizedProjectState.latestLandedProgress ?? null,
+    primaryOpenLoop: normalizedProjectState.primaryOpenLoop ?? null,
+    nextClosureTarget: normalizedProjectState.nextClosureTarget || null,
+    continuitySummary: normalizedProjectState.continuitySummary ?? null,
+    sameHerSelfLine: normalizedProjectState.sameHerSelfLine ?? null,
+    sameHerHoldDetail: normalizedProjectState.sameHerHoldDetail ?? null,
+    sameHerDriftRisk: normalizedProjectState.sameHerDriftRisk ?? null,
+    emotionalClosureCue: normalizedProjectState.emotionalClosureCue ?? null,
+    proactiveSameHerGap: normalizedProjectState.proactiveSameHerGap ?? null,
+    preDialogueAwareness,
+    preDialogueClosure,
+  } as AlicizationProjectStateContinuitySnapshot
 }
 
 function stageChatText(path: string, params?: Record<string, unknown>) {
@@ -2571,47 +2611,19 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     const normalizedAwareness = normalizeStructuredPreDialogueAwarenessPayload(
       (input.preDialogueAwarenessSnapshot ?? null) as Record<string, unknown> | null,
     )
-    const normalizedClosure = input.preDialogueClosureSnapshot && typeof input.preDialogueClosureSnapshot === 'object'
-      ? toAlicizationPreDialogueClosurePayload(input.preDialogueClosureSnapshot as {
-          status: 'grounded' | 'partial' | 'drift'
-          summaryLine: string | null
-          companionHeadlineLine?: string | null
-          sameHerDriftRiskLine?: string | null
-          companionBriefingLine?: string | null
-          companionNextClosureLine?: string | null
-          emotionalClosureCue?: string | null
-          briefingLines?: string[]
-          reasons: string[]
-        })
+    const normalizedClosurePayload = normalizeStructuredPreDialogueClosurePayload(
+      (input.preDialogueClosureSnapshot ?? null) as Record<string, unknown> | null,
+    ) ?? null
+    const normalizedClosure = normalizedClosurePayload
+      ? toAlicizationPreDialogueClosurePayload(normalizedClosurePayload)
       : null
-    const normalizedContinuity = input.projectStateContinuitySnapshot && typeof input.projectStateContinuitySnapshot === 'object'
-      ? input.projectStateContinuitySnapshot as {
-        identity?: string | null
-        currentPhase?: string | null
-        continuitySummary?: string | null
-        sameHerSelfLine?: string | null
-        sameHerHoldDetail?: string | null
-        sameHerDriftRisk?: string | null
-        proactiveSameHerGap?: string | null
-        emotionalClosureCue?: string | null
-        latestLandedProgress?: string | null
-        latestProgress?: string | null
-        landedProgressSummary?: string | null
-        primaryOpenLoop?: string | null
-        nextClosureTarget?: string | null
-        preDialogueAwareness?: Record<string, unknown> | null
-      }
-      : null
+    const normalizedContinuity = normalizeProjectStateContinuitySnapshotForChat(
+      input.projectStateContinuitySnapshot,
+    )
     const continuityAwareness = normalizeStructuredPreDialogueAwarenessPayload(
       (normalizedContinuity?.preDialogueAwareness ?? null) as Record<string, unknown> | null,
     )
-    const latestLandedProgress = normalizedContinuity
-      ? [
-          normalizedContinuity.latestLandedProgress,
-          normalizedContinuity.latestProgress,
-          normalizedContinuity.landedProgressSummary,
-        ].map(value => typeof value === 'string' ? value.trim() : '').find(value => value.length > 0) ?? null
-      : null
+    const latestLandedProgress = normalizedContinuity?.latestLandedProgress ?? null
     const rebuiltIdentity = buildSharedPreDialogueSendIdentityFromSnapshots({
       projectStateContinuitySnapshot: normalizedContinuity
         ? {
@@ -2653,14 +2665,17 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       = inspectorProjectStateContinuitySnapshot
         ? null
         : deriveFallbackProjectStateContinuitySnapshotFromSessionMessages(input.sessionMessages ?? [])
-    const effectiveProjectStateContinuitySnapshot = input.preferInspectorSnapshots === false
+    const rawEffectiveProjectStateContinuitySnapshot = input.preferInspectorSnapshots === false
       ? fallbackProjectStateContinuitySnapshot ?? inspectorProjectStateContinuitySnapshot
       : inspectorProjectStateContinuitySnapshot ?? fallbackProjectStateContinuitySnapshot
+    const effectiveProjectStateContinuitySnapshot = normalizeProjectStateContinuitySnapshotForChat(
+      rawEffectiveProjectStateContinuitySnapshot,
+    )
     const shouldTreatContinuityAwarenessAsExplicitSnapshot = Boolean(
       !inspectorPreDialogueAwarenessSnapshot
       && inspectorProjectStateContinuitySnapshot
       && effectiveProjectStateContinuitySnapshot
-      && effectiveProjectStateContinuitySnapshot === inspectorProjectStateContinuitySnapshot,
+      && rawEffectiveProjectStateContinuitySnapshot === inspectorProjectStateContinuitySnapshot,
     )
     const effectivePreDialogueClosureSnapshot = inspectorPreDialogueClosureSnapshot
       ?? effectiveProjectStateContinuitySnapshot?.preDialogueClosure
@@ -4624,33 +4639,39 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           const preDialogueAwarenessSnapshot = allowPromptProjectStateContinuity
             ? selfEvolutionInspector.preDialogueAwarenessSnapshot
             : null
-          turnPreDialogueClosure = preDialogueClosureSnapshot
-            ? toAlicizationPreDialogueClosurePayload(preDialogueClosureSnapshot)
+          const normalizedPreDialogueClosureSnapshot = preDialogueClosureSnapshot
+            ? normalizeStructuredPreDialogueClosurePayload(preDialogueClosureSnapshot as unknown as Record<string, unknown>)
             : null
-          turnPreDialogueAwareness = preDialogueAwarenessSnapshot
+          const normalizedPreDialogueAwarenessSnapshot = preDialogueAwarenessSnapshot
             ? normalizeStructuredPreDialogueAwarenessPayload(preDialogueAwarenessSnapshot)
-            ?? turnPreDialogueAwareness
-            : turnPreDialogueAwareness
+            : null
+          turnPreDialogueClosure = normalizedPreDialogueClosureSnapshot
+            ? toAlicizationPreDialogueClosurePayload(normalizedPreDialogueClosureSnapshot)
+            : null
+          turnPreDialogueAwareness = normalizedPreDialogueAwarenessSnapshot || turnPreDialogueAwareness
           const fallbackProjectStateContinuitySnapshot
             = !allowPromptProjectStateContinuity || selfEvolutionInspector.projectStateContinuitySnapshot
               ? null
               : deriveFallbackProjectStateContinuitySnapshotFromSessionMessages(
                   assistantSessionMessagesForSend,
                 )
-          const effectiveProjectStateContinuitySnapshot
+          const rawEffectiveProjectStateContinuitySnapshot
             = allowPromptProjectStateContinuity
               ? selfEvolutionInspector.projectStateContinuitySnapshot
               ?? fallbackProjectStateContinuitySnapshot
               : null
+          const effectiveProjectStateContinuitySnapshot = normalizeProjectStateContinuitySnapshotForChat(
+            rawEffectiveProjectStateContinuitySnapshot,
+          )
           const shouldTreatContinuityAwarenessAsExplicitPromptSnapshot = Boolean(
             allowPromptProjectStateContinuity
             && !preDialogueAwarenessSnapshot
             && selfEvolutionInspector.projectStateContinuitySnapshot
             && effectiveProjectStateContinuitySnapshot
-            && effectiveProjectStateContinuitySnapshot === selfEvolutionInspector.projectStateContinuitySnapshot,
+            && rawEffectiveProjectStateContinuitySnapshot === selfEvolutionInspector.projectStateContinuitySnapshot,
           )
           const effectivePreDialogueAwarenessSnapshot
-            = preDialogueAwarenessSnapshot
+            = normalizedPreDialogueAwarenessSnapshot
               ?? (
                 shouldTreatContinuityAwarenessAsExplicitPromptSnapshot
                   ? normalizeStructuredPreDialogueAwarenessPayload(
@@ -4707,7 +4728,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             contextsSnapshot,
             projectStateContinuitySnapshot: effectiveProjectStateContinuitySnapshot,
             preDialogueAwarenessSnapshot: effectivePromptPreDialogueAwarenessSnapshot,
-            preDialogueClosureSnapshot,
+            preDialogueClosureSnapshot: normalizedPreDialogueClosureSnapshot,
           })
           newMessages = composed.messages as any
 
@@ -4745,7 +4766,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             })
           }
 
-          if (preDialogueClosureSnapshot) {
+          if (normalizedPreDialogueClosureSnapshot) {
             await appendAlicizationAuditLog({
               level: 'notice',
               category: 'alicization.prompt',
@@ -4754,14 +4775,14 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               details: {
                 turnId,
                 sessionId,
-                status: preDialogueClosureSnapshot.status,
-                summaryLine: preDialogueClosureSnapshot.summaryLine,
-                sameHerDriftRiskLine: preDialogueClosureSnapshot.sameHerDriftRiskLine ?? null,
-                companionBriefingLine: preDialogueClosureSnapshot.companionBriefingLine ?? null,
-                companionNextClosureLine: preDialogueClosureSnapshot.companionNextClosureLine ?? null,
-                emotionalClosureCue: preDialogueClosureSnapshot.emotionalClosureCue ?? null,
-                briefingLines: preDialogueClosureSnapshot.briefingLines ?? [],
-                reasons: preDialogueClosureSnapshot.reasons ?? [],
+                status: normalizedPreDialogueClosureSnapshot.status,
+                summaryLine: normalizedPreDialogueClosureSnapshot.summaryLine,
+                sameHerDriftRiskLine: normalizedPreDialogueClosureSnapshot.sameHerDriftRiskLine ?? null,
+                companionBriefingLine: normalizedPreDialogueClosureSnapshot.companionBriefingLine ?? null,
+                companionNextClosureLine: normalizedPreDialogueClosureSnapshot.companionNextClosureLine ?? null,
+                emotionalClosureCue: normalizedPreDialogueClosureSnapshot.emotionalClosureCue ?? null,
+                briefingLines: normalizedPreDialogueClosureSnapshot.briefingLines ?? [],
+                reasons: normalizedPreDialogueClosureSnapshot.reasons ?? [],
               },
             })
           }
