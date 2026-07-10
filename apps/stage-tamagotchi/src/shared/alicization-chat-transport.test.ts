@@ -220,10 +220,10 @@ describe('alicization-chat-transport', () => {
       ],
       preDialogueSendIdentity: {
         status: 'grounded',
-        summaryLine: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=none yet',
+        summaryLine: 'Renderer transport is carrying a structured pre-dialogue summary without provider secrets.',
         reasonPreview: [
-          'Alicization is a local-first digital life project building one continuous her on the host computer.',
-          'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+          'Renderer transport summary includes pre-dialogue identity metadata.',
+          'Provider configuration values stay out of the summary payload.',
           'No fresh closure target recorded for this transport summary.',
         ],
       },
