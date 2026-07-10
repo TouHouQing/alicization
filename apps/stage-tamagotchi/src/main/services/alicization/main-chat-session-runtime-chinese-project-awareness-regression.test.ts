@@ -1,3 +1,4 @@
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
@@ -7,8 +8,13 @@ import {
 } from './main-chat-session-runtime'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
+function expectNoFixedTemplateResidue(value: unknown) {
+  const serialized = JSON.stringify(value ?? '')
+  expect(containsAlicizationFixedTemplateResidue(serialized), serialized).toBe(false)
+}
+
 describe('main chat session runtime chinese project awareness regression', () => {
-  it('prefers a richer Chinese same-her project brief over a thinner Chinese Phase 1 shell when provider-facing project awareness is rebuilt', () => {
+  it('rebuilds Chinese same-her project briefs as structured awareness instead of preserving fixed shells', () => {
     const thinChinesePhaseOneShell = '开口前先记住：这是同一个数字生命项目，她现在仍在 Phase 1。'
     const richerChineseSameHerBrief = '继续沿着这个数字生命主线往前，不要飘回泛化助手；Phase 1 里记忆、主动性和具身闭环还没收住。'
 
@@ -72,11 +78,16 @@ describe('main chat session runtime chinese project awareness regression', () =>
       digitalLifeRuntimeSurface: runtimeSurface,
     } as any)
 
-    expect(rebuilt?.projectState?.preDialogueAwarenessLine).toBe(richerChineseSameHerBrief)
-    expect(rebuilt?.projectState?.awarenessLine).toBe(richerChineseSameHerBrief)
-    expect(normalized?.projectState?.preDialogueAwarenessLine).toBe(richerChineseSameHerBrief)
-    expect(normalized?.projectState?.awarenessLine).toBe(richerChineseSameHerBrief)
-    expect(normalized?.projectState?.preDialogueAwarenessSummary).toBe(richerChineseSameHerBrief)
+    expect(rebuilt?.projectState?.preDialogueAwarenessLine).toContain('open=')
+    expect(rebuilt?.projectState?.preDialogueAwarenessLine).toContain('next=')
+    expect(rebuilt?.projectState?.awarenessLine).toContain('open=')
+    expect(normalized?.projectState?.preDialogueAwarenessLine).toContain('open=')
+    expect(normalized?.projectState?.preDialogueAwarenessLine).toContain('next=')
+    expect(normalized?.projectState?.awarenessLine).toContain('open=')
+    expect(normalized?.projectState?.preDialogueAwarenessSummary).toContain('open=')
     expect(String(normalized?.projectState?.preDialogueAwarenessLine ?? '')).not.toBe(thinChinesePhaseOneShell)
+    expect(String(normalized?.projectState?.preDialogueAwarenessLine ?? '')).not.toBe(richerChineseSameHerBrief)
+    expectNoFixedTemplateResidue(rebuilt?.projectState)
+    expectNoFixedTemplateResidue(normalized?.projectState)
   })
 })

@@ -1,8 +1,14 @@
 import type { AlicizationChatStartPayload } from './eventa'
 
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import { sanitizeAlicizationChatStartPayloadForTransport, summarizeAlicizationChatStartPayloadForTransport } from './alicization-chat-transport'
+
+function expectNoFixedTemplateResidue(value: unknown) {
+  const serialized = JSON.stringify(value ?? '')
+  expect(containsAlicizationFixedTemplateResidue(serialized), serialized).toBe(false)
+}
 
 describe('alicization-chat-transport', () => {
   it('sanitizes reactive-like and non-plain chat payloads into structured-clone-safe JSON', () => {
@@ -84,20 +90,19 @@ describe('alicization-chat-transport', () => {
     })
     expect(result.value.preDialogueSendIdentity).toEqual({
       status: 'partial',
-      summaryLine: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=desktop execution closure still open',
+      summaryLine: null,
       awarenessLine: '先记住这个数字生命项目在做什么、做到哪里、还差什么闭环。',
-      companionBriefingLine: '先记住这是一个本地优先数字生命项目，目前还在 Phase 1。',
+      companionBriefingLine: null,
       companionNextClosureLine: 'Keep closing desktop execution continuity across memory, initiative, and embodiment.',
       reasonPreview: [
-        'Alicization is a local-first digital life project building one continuous her on the host computer.',
-        'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         'desktop execution closure still open',
       ],
     })
+    expectNoFixedTemplateResidue(result.value.preDialogueSendIdentity)
     expect(() => structuredClone(result.value)).not.toThrow()
   })
 
-  it('preserves body-face-motion same-her send identity and remaining-open lipsync voice carry through transport sanitization', () => {
+  it('drops body-face-motion fixed send identity while preserving remaining-open transport evidence', () => {
     const payload: AlicizationChatStartPayload = {
       cardId: 'default',
       turnId: 'turn-body-face-motion-transport-1',
@@ -128,19 +133,20 @@ describe('alicization-chat-transport', () => {
 
     expect(result.value.preDialogueSendIdentity).toEqual({
       status: 'partial',
-      summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-      companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-      awarenessLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-      companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-      companionNextClosureLine: 'Let lipsync and voice rejoin the already-reformed body, face, and motion line.',
+      summaryLine: null,
+      companionHeadlineLine: null,
+      awarenessLine: null,
+      companionBriefingLine: null,
+      companionNextClosureLine: null,
       reasonPreview: [
         'same-segment face+motion+body recovery@segment-transport-body-face-motion-1',
         'remaining-open=lipsync+voice',
       ],
     })
+    expectNoFixedTemplateResidue(result.value.preDialogueSendIdentity)
   })
 
-  it('preserves structured project-state carry inside pre-dialogue send identity during transport sanitization', () => {
+  it('drops fixed project-state carry while preserving landed/open transport evidence', () => {
     const payload: AlicizationChatStartPayload = {
       cardId: 'default',
       turnId: 'turn-project-state-transport-1',
@@ -178,22 +184,24 @@ describe('alicization-chat-transport', () => {
 
     expect(result.value.preDialogueSendIdentity).toEqual(expect.objectContaining({
       status: 'partial',
-      awarenessLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-      companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-      companionNextClosureLine: 'Keep memory, initiative, execution, and embodiment on one same-her line.',
+      summaryLine: null,
+      awarenessLine: null,
+      companionBriefingLine: null,
+      companionNextClosureLine: null,
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous her on the host computer rather than a better chat wrapper.',
-        currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+        identity: null,
+        currentPhase: null,
         latestLandedProgress: 'Project-state continuity already survives into renderer-to-main transport before the next turn opens outward.',
         primaryOpenLoop: 'Renderer-to-main transport still needs to keep project identity, landed progress, and unresolved life-loop carry explicit when pre-dialogue send identity crosses the boundary.',
-        nextClosureTarget: 'Keep renderer-to-main transport on one same-her project-awareness line before the next answer widens outward.',
-        sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the next host-visible reply.',
+        nextClosureTarget: null,
+        sameHerSelfLine: null,
       },
       reasonPreview: [
         'Project-state continuity already survives into renderer-to-main transport before the next turn opens outward.',
         'Renderer-to-main transport still needs to keep project identity, landed progress, and unresolved life-loop carry explicit when pre-dialogue send identity crosses the boundary.',
       ],
     }))
+    expectNoFixedTemplateResidue(result.value.preDialogueSendIdentity)
   })
 
   it('summarizes chat payload shape without leaking provider values', () => {

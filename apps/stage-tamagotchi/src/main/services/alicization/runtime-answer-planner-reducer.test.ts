@@ -86,7 +86,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
     expectNoFixedTemplateResidue(reduced?.raw?.runtimeDigest?.projectState)
     expectNoFixedTemplateResidue(reduced?.dialogue.replyDeliberation?.mustInclude)
     expectNoFixedTemplateResidue(reduced?.dialogue.replyDeliberation?.mustAvoid)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=Project-state continuity already survives into runtime preparation.')
   })
 
   it('keeps fallback conscious-frame project state alive in answer planning instead of dropping back to a thinner generic seam', () => {
@@ -134,15 +134,64 @@ describe('reduceRuntimeAnswerPlanner', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('open_loop=memory+initiative+embodiment')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('continuity-residue')
+    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=Project-state continuity already survives into runtime preparation.')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(reduced?.dialogue.answerPlanner?.mustDo.some(item =>
       item.includes('project_closure_constraint='),
     )).toBe(true)
     expect(JSON.stringify(reduced?.dialogue.answerPlanner?.mustDo ?? [])).not.toMatch(fixedRuntimeAnswerPlannerTemplatePattern)
     expect(reduced?.dialogue.answerPlanner?.narrative).toContain('project-state-answer-planner')
     expect(reduced?.dialogue.replyDeliberation?.narrative).toContain('project-state-answer-planner')
+  })
+
+  it('does not inject internal local desktop life loop fallback as a provider-facing planner rule', () => {
+    const reduced = reduceRuntimeAnswerPlanner({
+      now: 1_000,
+      governance: {
+        answerAct: 'answer',
+        answerIntent: 'Answer from current dialogue and memory evidence.',
+        openingMove: 'Continue from the live user question.',
+        focusAnchor: 'memory-grounded dialogue',
+        liveSurface: '',
+        screenReferenceMode: 'avoid',
+        suppressAssociativeRecall: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        relationshipPosture: 'restrained',
+        evidenceMode: 'dialogue-grounded',
+        mustDo: [],
+        mustNotDo: [],
+      } as any,
+      surface: {
+        version: 'digital-life-runtime-surface-v1',
+        perception: {} as any,
+        world: {} as any,
+        cognition: {} as any,
+        memory: {} as any,
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              identity: null,
+              currentPhase: null,
+              latestProgress: null,
+              primaryOpenLoop: null,
+              nextClosureTarget: null,
+              emotionalClosureCue: null,
+              continuityPreferredTiming: null,
+              continuityCadence: null,
+            },
+          },
+          replyDeliberation: null,
+          answerPlanner: null,
+        } as any,
+        agency: {} as any,
+      } as any,
+    })
+
+    expect(JSON.stringify(reduced?.dialogue.answerPlanner?.mustDo ?? [])).not.toContain('local_desktop_life_loop')
+    expect(JSON.stringify(reduced?.dialogue.answerPlanner?.mustDo ?? [])).not.toContain('project_closure_constraint=local_desktop_life_loop')
+    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.mustDo)
   })
 
   it('prefers a richer Chinese same-her companion headline over a thinner Chinese reminder before answer planning starts', () => {
@@ -193,9 +242,11 @@ describe('reduceRuntimeAnswerPlanner', () => {
     })
 
     expectNoFixedTemplateResidue(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary)
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary).toContain('local_desktop_life_loop')
+    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary).toContain('landed=连续性、记忆和执行已经接得更稳了。')
+    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary).toContain('open=主动性、具身和对话闭环还没有完全收住。')
     expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=连续性、记忆和执行已经接得更稳了。')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('open=主动性、具身和对话闭环还没有完全收住。')
     expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain(thinnerChineseReminder)
   })
 
@@ -247,7 +298,8 @@ describe('reduceRuntimeAnswerPlanner', () => {
     })
 
     expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=连续性、记忆和执行已经接得更稳了。')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('open=主动性、具身和对话闭环还没有完全收住。')
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('第一阶段：本地数字生命。')
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('主动性、具身和对话闭环还没有完全收住。')
     expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain(thinnerChineseReminder)
@@ -297,7 +349,9 @@ describe('reduceRuntimeAnswerPlanner', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.answerPlanner?.narrative).toContain('emotional_closure:content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect((reduced?.dialogue.answerPlanner?.narrative ?? []).some(item =>
+      item.startsWith('emotional_closure:'),
+    )).toBe(false)
     expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.narrative)
   })
 
@@ -347,8 +401,12 @@ describe('reduceRuntimeAnswerPlanner', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.answerPlanner?.narrative).toContain('emotional_closure:content=excluded; reason=continuity-residue; visibility=internal-structured')
-    expect(reduced?.dialogue.replyDeliberation?.narrative).toContain('emotional_closure:content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect((reduced?.dialogue.answerPlanner?.narrative ?? []).some(item =>
+      item.startsWith('emotional_closure:'),
+    )).toBe(false)
+    expect((reduced?.dialogue.replyDeliberation?.narrative ?? []).some(item =>
+      item.startsWith('emotional_closure:'),
+    )).toBe(false)
     expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.narrative)
     expectNoFixedTemplateResidue(reduced?.dialogue.replyDeliberation?.narrative)
   })
@@ -398,18 +456,14 @@ describe('reduceRuntimeAnswerPlanner', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.answerPlanner?.mustDo).toContain(
-      'provider_instruction_status=withheld; reason=continuity-residue; visibility=internal-structured',
-    )
-    expect(reduced?.dialogue.answerPlanner?.mustNotDo).toContain(
-      'provider_instruction_status=withheld; reason=continuity-residue; visibility=internal-structured',
-    )
+    expect(JSON.stringify(reduced?.dialogue.answerPlanner?.mustDo ?? [])).not.toContain('provider_instruction_status=withheld')
+    expect(JSON.stringify(reduced?.dialogue.answerPlanner?.mustNotDo ?? [])).not.toContain('provider_instruction_status=withheld')
     expect((reduced?.dialogue.answerPlanner?.narrative ?? []).some(item =>
       item.startsWith('emotional_closure:'),
-    )).toBe(true)
+    )).toBe(false)
     expect((reduced?.dialogue.replyDeliberation?.narrative ?? []).some(item =>
       item.startsWith('emotional_closure:'),
-    )).toBe(true)
+    )).toBe(false)
     expect(JSON.stringify({
       answerPlanner: reduced?.dialogue.answerPlanner?.narrative ?? [],
       replyDeliberation: reduced?.dialogue.replyDeliberation?.narrative ?? [],
@@ -517,7 +571,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(brief.currentPhase)
+    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(brief.openLoops[0] ?? '')
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(brief.nextClosureTarget)
     expect(reduced?.dialogue.answerPlanner?.mustDo.some(item =>
@@ -574,10 +628,9 @@ describe('reduceRuntimeAnswerPlanner', () => {
     })
 
     expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=Project-state continuity already survives into runtime preparation.')
     expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain('Before answering, keep this same digital life project in view, but do not widen into a detached project shell.')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('continuity-residue')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('open_loop=memory+initiative+embodiment')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
   })
 
   it('carries a broader same-her phase-1 closure headline into governingProject when the plain awareness line is only a thin shell', () => {
@@ -629,9 +682,9 @@ describe('reduceRuntimeAnswerPlanner', () => {
     })
 
     expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=Project-state continuity already survives into runtime preparation.')
     expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain('Before answering, keep this same digital life project in view, but do not widen into a detached project shell.')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('continuity-residue')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
   })
 
   it('prefers a richer runtime-digest same-her headline over a thin conscious-frame reminder shell during answer planning rebuild', () => {
@@ -699,11 +752,11 @@ describe('reduceRuntimeAnswerPlanner', () => {
     })
 
     expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=Project-state continuity already survives into runtime preparation.')
     expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain(
       'Before answering, keep this same digital life project in view, but do not widen into a detached project shell.',
     )
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('continuity-residue')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
   })
 
   it('preserves a non-thin before-answering project awareness carry instead of collapsing it into a broad project-status summary inside answer planning', () => {
@@ -775,7 +828,6 @@ describe('reduceRuntimeAnswerPlanner', () => {
     expectNoFixedTemplateResidue(reduced?.dialogue.currentConsciousFrame?.projectState?.awarenessLine)
     expectNoFixedTemplateResidue(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary)
     expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('same-life seam')
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('current project-state awareness explicit')
   })
@@ -838,13 +890,13 @@ describe('reduceRuntimeAnswerPlanner', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
+    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(projectState.openLoops[0] ?? '')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(projectState.nextClosureTarget)
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(projectState.proactiveSameHerGap)
     expect(reduced?.dialogue.answerPlanner?.mustDo).toEqual(expect.arrayContaining([
       expect.stringContaining('project_closure_constraint=open_loop'),
       expect.stringContaining('continuity_constraint=anti_restart'),
-      expect.stringContaining('provider_instruction_status=withheld'),
     ]))
     expect(reduced?.dialogue.replyDeliberation?.mustInclude).toEqual(expect.arrayContaining([
       expect.stringContaining('continuity_constraint=anti_restart'),
@@ -965,15 +1017,10 @@ describe('reduceRuntimeAnswerPlanner', () => {
     }
 
     expectNoFixedTemplateResidue(dialogueMeta)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('local_desktop_life_loop')
-    expect(reduced?.dialogue.answerPlanner?.mustDo).toEqual(expect.arrayContaining([
-      expect.stringContaining('provider_instruction_status=withheld'),
-    ]))
-    expect(reduced?.dialogue.replyDeliberation?.mustInclude).toEqual(expect.arrayContaining([
-      expect.stringContaining('provider_instruction_status=withheld'),
-    ]))
-    expect(reduced?.dialogue.dialogueActKernel?.mustSay).toEqual(expect.arrayContaining([
-      expect.stringContaining('provider_instruction_status=withheld'),
-    ]))
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(projectState.openLoops[0] ?? '')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(projectState.nextClosureTarget)
+    expect(JSON.stringify(reduced?.dialogue.answerPlanner?.mustDo ?? [])).not.toContain('provider_instruction_status=withheld')
+    expect(JSON.stringify(reduced?.dialogue.replyDeliberation?.mustInclude ?? [])).not.toContain('provider_instruction_status=withheld')
+    expect(JSON.stringify(reduced?.dialogue.dialogueActKernel?.mustSay ?? [])).not.toContain('provider_instruction_status=withheld')
   })
 })

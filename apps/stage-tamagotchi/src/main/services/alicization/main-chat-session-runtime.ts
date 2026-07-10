@@ -1346,6 +1346,35 @@ function isBlockedFixedTemplateEvidence(value: unknown) {
     )
 }
 
+function sanitizeProviderFacingProjectStateRecord<T extends Record<string, unknown> | null | undefined>(
+  projectState: T,
+): T {
+  if (!projectState)
+    return projectState
+
+  const sanitized: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(projectState)) {
+    if (value == null) {
+      sanitized[key] = null
+      continue
+    }
+    if (typeof value !== 'string') {
+      sanitized[key] = value
+      continue
+    }
+
+    const maxChars = /latest|progress|open|next|summary|awareness|headline|briefing/iu.test(key)
+      ? 12000
+      : 1600
+    const text = sanitizeAlicizationProviderFacingText(value, maxChars, '')
+    sanitized[key] = text && !isBlockedFixedTemplateEvidence(text)
+      ? text
+      : null
+  }
+
+  return sanitized as T
+}
+
 function looksLikeNarrowContinuityCadenceAwarenessLine(value: unknown) {
   const normalized = normalizeProviderFacingProjectText(value, 420)
   if (!normalized)
@@ -5647,7 +5676,7 @@ export function rebuildProviderFacingMindTurnContract(input: {
     ? payloadProjectState.explicitPayloadNextClosureTarget ?? runtimeProjectState.nextClosureTarget ?? ''
     : runtimeProjectState.nextClosureTarget ?? payloadProjectState.explicitPayloadNextClosureTarget ?? ''
 
-  const projectState: ProviderFacingProjectState | null = runtimeProjectState
+  const rawProjectState: ProviderFacingProjectState | null = runtimeProjectState
     ? ({
         ...baseContract.projectState,
         identity: runtimeProjectState.identity,
@@ -5719,6 +5748,7 @@ export function rebuildProviderFacingMindTurnContract(input: {
         preferredPacingMode: normalizeProviderFacingPacingMode(runtimeProjectState.preferredPacingMode),
       } satisfies ProviderFacingProjectState)
     : baseContract.projectState ?? null
+  const projectState = sanitizeProviderFacingProjectStateRecord(rawProjectState)
 
   const nextClosureTarget = normalizeProviderFacingProjectText(projectState?.nextClosureTarget, 1600) ?? null
 
@@ -6524,7 +6554,7 @@ export function normalizeProviderFacingMindTurnContract(
     !currentAwarenessLine
     || isThinProjectAwarenessAuthorityLine(currentAwarenessLine)
     || isCompactProjectStatePreflightSummary(currentAwarenessLine)
-    || !currentAwarenessLine.startsWith('Before answering, remember:'),
+    || isLegacyProjectAwarenessTemplateShell(currentAwarenessLine),
   )
   const effectiveFinalAwarenessCarriesBroadPhase1ProjectClosureFrame = Boolean(
     effectiveFinalAwarenessLine
@@ -6580,7 +6610,6 @@ export function normalizeProviderFacingMindTurnContract(
     && payloadThinPreflightSummaryRequested
     && currentAwarenessNeedsProjectStatePreflightRescue
     && effectiveFinalAwarenessLine
-    && !effectiveFinalAwarenessLine.startsWith('Before answering, remember:')
     && !carriesSpecificSameHerAuthorityLine(effectiveFinalAwarenessLine)
     && !hasModalitySpecificEmbodimentCue(effectiveFinalAwarenessLine)
     && shouldCarryPhase1ProjectStateAnswerGovernance
@@ -6880,6 +6909,13 @@ export function normalizeProviderFacingMindTurnContract(
   })
 
   return normalizedContract
+    ? {
+        ...normalizedContract,
+        projectState: sanitizeProviderFacingProjectStateRecord(
+          normalizedContract.projectState as Record<string, unknown> | null,
+        ) as AlicizationMindTurnContractSnapshot['projectState'],
+      }
+    : normalizedContract
 }
 
 function readDirectPayloadPreflightSummary(
@@ -6942,8 +6978,8 @@ function preferPreparedRuntimeSpecificMindTurnContractAwareness(input: {
     !payloadProjectState.hasDirectPayloadProjectAwarenessLine
     && !payloadProjectState.hasDirectPayloadProjectHeadline
     && directPayloadPreflightSummaryLooksThin
-    && normalizedAwarenessLine.startsWith('Before answering, remember:')
-    && !rebuiltAwarenessLine.startsWith('Before answering, remember:')
+    && isLegacyProjectAwarenessTemplateShell(normalizedAwarenessLine)
+    && !isLegacyProjectAwarenessTemplateShell(rebuiltAwarenessLine)
     && !carriesSpecificSameHerAuthorityLine(rebuiltAwarenessLine)
     && !hasModalitySpecificEmbodimentCue(rebuiltAwarenessLine)
     && /phase 1/iu.test(rebuiltAwarenessLine)
@@ -8220,10 +8256,10 @@ function rescueReturnedProviderFacingProjectAwareness(input: {
   })
   const currentSummaryNeedsRescue = Boolean(
     currentAwarenessSummary
-    && !currentAwarenessSummary.startsWith('Before answering')
     && (
-      !currentAwarenessLine
-      || currentAwarenessLine.startsWith('Before answering')
+      isLegacyProjectAwarenessTemplateShell(currentAwarenessSummary)
+      || !currentAwarenessLine
+      || isLegacyProjectAwarenessTemplateShell(currentAwarenessLine)
       || currentAwarenessMissesRuntimeClosure
     ),
   )
@@ -8231,7 +8267,7 @@ function rescueReturnedProviderFacingProjectAwareness(input: {
     !currentAwarenessLine
     || isThinProjectAwarenessAuthorityLine(currentAwarenessLine)
     || isCompactProjectStatePreflightSummary(currentAwarenessLine)
-    || !currentAwarenessLine.startsWith('Before answering')
+    || isLegacyProjectAwarenessTemplateShell(currentAwarenessLine)
     || (
       currentAwarenessMissesRuntimeClosure
       && rebuiltAwarenessCarriesRuntimeClosure
@@ -9903,7 +9939,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     ], 1600)
     const preferredSeedAwarenessIsHoldOnlyDetail = Boolean(
       preferredSeedAwarenessLine
-      && !preferredSeedAwarenessLine.startsWith('Before answering')
+      && !isLegacyProjectAwarenessTemplateShell(preferredSeedAwarenessLine)
       && (
         carriesLivedInSameHerAuthorityLine(preferredSeedAwarenessLine)
         || looksLikeNarrowContinuityCadenceAwarenessLine(preferredSeedAwarenessLine)
@@ -9913,18 +9949,18 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const shouldPreferMirrorContinuityPreflightOverStructuredSeedAwareness = Boolean(
       !preferredSeedPayloadProjectState.hasDirectPayloadProjectAwarenessLine
       && preferredSeedMirrorPreflightAwarenessLine
-      && preferredSeedMirrorPreflightAwarenessLine.startsWith('Before answering')
+      && !isLegacyProjectAwarenessTemplateShell(preferredSeedMirrorPreflightAwarenessLine)
       && !isThinProjectAwarenessAuthorityLine(preferredSeedMirrorPreflightAwarenessLine)
       && !isCompactProjectStatePreflightSummary(preferredSeedMirrorPreflightAwarenessLine)
       && preferredSeedAwarenessLine
-      && !preferredSeedAwarenessLine.startsWith('Before answering')
+      && !isLegacyProjectAwarenessTemplateShell(preferredSeedAwarenessLine)
       && (
         awarenessCarriesBroaderProjectFrame(preferredSeedAwarenessLine)
         || preferredSeedAwarenessIsHoldOnlyDetail
       )
       && (
         !preferredSeedAwarenessCandidate
-        || !preferredSeedAwarenessCandidate.startsWith('Before answering')
+        || !isLegacyProjectAwarenessTemplateShell(preferredSeedAwarenessCandidate)
         || isCanonicalStructuredProjectAwareness(preferredSeedAwarenessCandidate)
       )
       && shouldPreserveProjectAwarenessLineVerbatim(

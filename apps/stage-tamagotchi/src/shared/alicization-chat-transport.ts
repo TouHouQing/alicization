@@ -1,5 +1,10 @@
 import type { AlicizationChatStartPayload } from './eventa'
 
+import {
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
+
 type JsonSafeValue
   = | null
     | string
@@ -17,6 +22,15 @@ export interface AlicizationChatTransportSanitizationReport {
 }
 
 const maxReportedPaths = 12
+
+const preDialogueSendIdentityTextKeys = [
+  'summaryLine',
+  'awarenessLine',
+  'companionHeadlineLine',
+  'companionBriefingLine',
+  'companionNextClosureLine',
+  'emotionalClosureCue',
+] as const
 
 function recordPath(target: string[], path: string) {
   if (target.length < maxReportedPaths)
@@ -182,6 +196,93 @@ function sanitizeToCloneSafeJson<T>(value: T, path: string): { value: T, report:
   }
 }
 
+function sanitizeProviderFacingTransportText(
+  value: unknown,
+  path: string,
+  report: AlicizationChatTransportSanitizationReport,
+  maxChars = 12000,
+) {
+  if (typeof value !== 'string')
+    return value
+
+  const sanitized = sanitizeAlicizationProviderFacingText(value, maxChars, '')
+  if (sanitized && !containsAlicizationFixedTemplateResidue(sanitized))
+    return sanitized
+
+  report.changed = true
+  report.droppedCount += 1
+  recordPath(report.droppedPaths, path)
+  return null
+}
+
+function sanitizeProviderFacingTransportTextArray(
+  value: unknown,
+  path: string,
+  report: AlicizationChatTransportSanitizationReport,
+) {
+  if (!Array.isArray(value))
+    return value
+
+  const next: JsonSafeValue[] = []
+  value.forEach((entry, index) => {
+    const sanitized = sanitizeProviderFacingTransportText(entry, `${path}[${index}]`, report)
+    if (sanitized != null)
+      next.push(sanitized as JsonSafeValue)
+  })
+  if (next.length !== value.length)
+    report.changed = true
+  return next
+}
+
+function sanitizePreDialogueSendIdentityForTransport(
+  payload: AlicizationChatStartPayload,
+  report: AlicizationChatTransportSanitizationReport,
+) {
+  const identity = payload.preDialogueSendIdentity
+  if (!identity || typeof identity !== 'object' || Array.isArray(identity))
+    return payload
+
+  const sanitizedIdentity = {
+    ...identity,
+  } as Record<string, unknown>
+
+  for (const key of preDialogueSendIdentityTextKeys) {
+    if (key in sanitizedIdentity) {
+      sanitizedIdentity[key] = sanitizeProviderFacingTransportText(
+        sanitizedIdentity[key],
+        `payload.preDialogueSendIdentity.${key}`,
+        report,
+      )
+    }
+  }
+
+  if ('reasonPreview' in sanitizedIdentity) {
+    sanitizedIdentity.reasonPreview = sanitizeProviderFacingTransportTextArray(
+      sanitizedIdentity.reasonPreview,
+      'payload.preDialogueSendIdentity.reasonPreview',
+      report,
+    )
+  }
+
+  const projectState = sanitizedIdentity.projectState
+  if (projectState && typeof projectState === 'object' && !Array.isArray(projectState)) {
+    const sanitizedProjectState: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(projectState)) {
+      sanitizedProjectState[key] = sanitizeProviderFacingTransportText(
+        value,
+        `payload.preDialogueSendIdentity.projectState.${key}`,
+        report,
+      )
+    }
+    sanitizedIdentity.projectState = sanitizedProjectState
+  }
+
+  return {
+    ...payload,
+    preDialogueSendIdentity: sanitizedIdentity as unknown as AlicizationChatStartPayload['preDialogueSendIdentity'],
+  }
+}
+
 function describeContentKind(value: unknown): string {
   if (value == null)
     return 'null'
@@ -302,5 +403,9 @@ export function summarizeAlicizationChatStartPayloadForTransport(payload: Aliciz
 // NOTICE: Electron IPC uses structured clone, which rejects Vue/Pinia proxies and other non-plain objects.
 // We normalize chat-start payloads into plain JSON-compatible data before crossing the renderer -> main boundary.
 export function sanitizeAlicizationChatStartPayloadForTransport(payload: AlicizationChatStartPayload) {
-  return sanitizeToCloneSafeJson(payload, 'payload')
+  const result = sanitizeToCloneSafeJson(payload, 'payload')
+  return {
+    value: sanitizePreDialogueSendIdentityForTransport(result.value, result.report),
+    report: result.report,
+  }
 }

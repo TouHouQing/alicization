@@ -50,16 +50,7 @@ function sanitizeRuntimeAnswerPlannerText(raw: unknown, maxChars = 360) {
   if (replacementCheck !== alicizationFixedTemplateReplacement)
     return ''
 
-  if (/local-first digital life project|phase\s*1|same[- ]her|same living line|one continuous her|同一个她|同一个\s*her|数字生命主线/u.test(normalized)) {
-    return [
-      'local_desktop_life_loop',
-      'visibility=internal-structured',
-      'content=excluded',
-      'reason=continuity-residue',
-    ].join('; ')
-  }
-
-  return alicizationFixedTemplateReplacement
+  return ''
 }
 
 function sanitizeRuntimeAnswerPlannerRule(raw: unknown) {
@@ -70,7 +61,7 @@ function sanitizeRuntimeAnswerPlannerRule(raw: unknown) {
   if (!normalized)
     return ''
   if (sanitizeAlicizationProviderFacingText(normalized, 360, alicizationFixedTemplateReplacement) === alicizationFixedTemplateReplacement)
-    return 'provider_instruction_status=withheld; reason=continuity-residue; visibility=internal-structured'
+    return ''
   return ''
 }
 
@@ -84,7 +75,7 @@ function sanitizeRuntimeAnswerPlannerMetaRules(values: unknown[] | null | undefi
   return mergeUniqueRules(sanitizeRuntimeAnswerPlannerRules(values), values?.length ?? 16)
 }
 
-function sanitizeRuntimeAnswerPlannerProjectState<T extends Record<string, unknown> | null | undefined>(
+function sanitizeRuntimeAnswerPlannerProjectState<T extends object | null | undefined>(
   projectState: T,
 ) {
   if (!projectState)
@@ -255,10 +246,11 @@ export function reduceRuntimeAnswerPlanner(input: RuntimeAnswerPlannerReducerInp
   )
   const shouldPreservePreparedPreDialogueAwarenessCarry = Boolean(
     rawPreDialogueAwarenessLine
-    && rawPreDialogueAwarenessLine.startsWith('Before answering')
+    && !/^Before answering\b/iu.test(rawPreDialogueAwarenessLine)
+    && !containsAlicizationFixedTemplateResidue(rawPreDialogueAwarenessLine)
     && !isThinProjectAwarenessLine(rawPreDialogueAwarenessLine)
     && preDialogueAwarenessLine
-    && !preDialogueAwarenessLine.startsWith('Before answering')
+    && !/^Before answering\b/iu.test(preDialogueAwarenessLine)
     && /local-first digital life project|phase 1|same[- ]life seam|still-open closure|same[- ]her/iu.test(
       preDialogueAwarenessLine,
     ),
@@ -326,7 +318,7 @@ export function reduceRuntimeAnswerPlanner(input: RuntimeAnswerPlannerReducerInp
     .join(' | ')
   const projectConstraintLine = primaryOpenLoop
     ? `project_closure_constraint=open_loop; open=${primaryOpenLoop}`
-    : 'project_closure_constraint=local_desktop_life_loop'
+    : null
   const emotionalClosureCue = [
     consciousProjectState?.emotionalClosureCue,
     governance.emotionalClosureCue,
