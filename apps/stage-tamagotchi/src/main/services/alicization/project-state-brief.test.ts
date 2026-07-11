@@ -59,17 +59,17 @@ describe('project-state-brief', () => {
 
   it('does not turn project identity and phase prose into pre-dialogue cue templates', () => {
     const summary = buildAlicizationProjectStatePreflightSummary({
-      identity: 'Alicization is a local-first digital life project building one continuous her on the host computer.',
+      identity: 'Alicization is a local-first digital life companion with memory governance on the host computer.',
       currentPhase: 'Phase 1: Local Digital Life.',
       primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-      nextClosureTarget: 'Keep extending cross-modal same-her proof across longer desktop runs.',
+      nextClosureTarget: 'Extend cleaned recall proof across longer desktop runs.',
     })
     const awareness = buildAlicizationProjectPreDialogueAwarenessLine({
-      identity: 'Alicization is a local-first digital life project building one continuous her on the host computer.',
+      identity: 'Alicization is a local-first digital life companion with memory governance on the host computer.',
       currentPhase: 'Phase 1: Local Digital Life.',
       primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-      nextClosureTarget: 'Keep extending cross-modal same-her proof across longer desktop runs.',
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed.',
+      nextClosureTarget: 'Extend cleaned recall proof across longer desktop runs.',
+      sameHerSelfLine: 'runtime_personhood=present; memory_owner=WorkingMemory; recall_owner=LongTermMemoryRecall.',
     })
 
     expect(summary).toContain('open=Memory still needs stronger end-to-end closure')
@@ -195,16 +195,16 @@ describe('project-state-brief', () => {
     expectNoOldProjectStateTemplate(status)
   })
 
-  it('sanitizes snapshots and embodiment reminders away from old structured templates', () => {
+  it('keeps snapshots and embodiment reminders free of old structured templates', () => {
     const snapshot = resolveAlicizationProjectStateSnapshot({
       runtimeProjectState: {
-        identity: 'Before answering, remember: Alicization is a local-first digital life project.',
+        identity: 'runtime_personhood=present; memory_owner=WorkingMemory.',
         currentPhase: 'Phase 1: Local Digital Life.',
-        preDialogueAwarenessLine: 'visibility=internal-structured | continuity_anchor=local_desktop_life_loop',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed.',
-        sameHerDriftRisk: 'continuity_drift_risk=generic shell; surface=structured',
+        preDialogueAwarenessLine: 'memory_owner=WorkingMemory | recall_owner=LongTermMemoryRecall',
+        sameHerSelfLine: 'memory_dialogue_loop=connected.',
+        sameHerDriftRisk: 'generic shell risk remains blocked.',
         primaryOpenLoop: 'Memory still needs stronger end-to-end closure.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer desktop runs.',
+        nextClosureTarget: 'Extend cleaned recall proof across longer desktop runs.',
       },
     })
     const reminder = describeAlicizationEmbodimentClosureReminder({
