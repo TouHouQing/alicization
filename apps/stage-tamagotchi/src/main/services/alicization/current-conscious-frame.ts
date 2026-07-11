@@ -736,11 +736,11 @@ function resolveContinuityBehaviorMode(input: {
 
 function deriveSameHerHoldDetailFromContinuityBehavior(mode: string | null) {
   if (mode === 'repair-before-closeness')
-    return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens'
+    return 'cadence=repair_before_closeness; timing=before_closeness_widens'
   if (mode === 'rest-protective')
-    return 'continuity_hold=rest_protective; timing=fatigue_aware'
+    return 'cadence=rest_protective; timing=fatigue_aware'
   if (mode === 'measured-return')
-    return 'continuity_hold=measured_return; pressure=lower'
+    return 'cadence=measured_return; pressure=lower'
   return ''
 }
 

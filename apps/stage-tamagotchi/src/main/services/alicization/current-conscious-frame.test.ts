@@ -3388,7 +3388,7 @@ describe('buildCurrentConsciousFrame', () => {
     })
 
     expect(frame?.reasonTags).toContain('remembered-seam:reinterpret-with-more-room')
-    expect(frame?.projectState?.sameHerHoldDetail).toContain('continuity_hold=measured_return')
+    expect(frame?.projectState?.sameHerHoldDetail).toContain('cadence=measured_return')
     expect(frame?.projectState?.sameHerHoldDetail).toContain('pressure=lower')
     expectNoFixedTemplateResidue(frame?.projectState?.sameHerHoldDetail)
     expect(frame?.projectState?.sameHerHoldDetail).not.toBe('same-her hold: quiet-companionship still owns this line before closeness widens again.')
@@ -3629,7 +3629,7 @@ describe('buildCurrentConsciousFrame', () => {
     const systemBlock = buildCurrentConsciousFrameSystemBlock(frame)
 
     expect(frame?.projectState?.emotionalClosureSummary ?? null).toBeNull()
-    expect(frame?.projectState?.sameHerHoldDetail).toContain('continuity_hold=measured_return')
+    expect(frame?.projectState?.sameHerHoldDetail).toContain('cadence=measured_return')
     expect(frame?.projectState?.sameHerHoldDetail).toContain('pressure=lower')
     expectNoFixedTemplateResidue(frame?.projectState?.emotionalClosureSummary)
     expectNoFixedTemplateResidue(frame?.projectState?.sameHerHoldDetail)
@@ -3721,7 +3721,7 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.consciousNeed).toContain('repair-before-closeness')
     expect(frame?.speakingIntention).toContain('repair_before_closeness')
     expect(systemBlock).toContain('project_continuity_cue=continuity_cue=repair_before_closeness')
-    expect(systemBlock).toContain('project_continuity_hold=continuity_hold=repair_before_closeness')
+    expect(systemBlock).toContain('project_continuity_hold=cadence=repair_before_closeness')
     expectNoFixedTemplateResidue(systemBlock)
   })
 
