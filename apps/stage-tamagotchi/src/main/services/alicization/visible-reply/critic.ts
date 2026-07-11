@@ -504,10 +504,10 @@ function collectMindContractMustPreserve(input: {
     contract.projectState?.primaryOpenLoop ? 'preserve_field=project_state.primary_open_loop; rewritten_answer_visibility=explicit; project_slogans=blocked' : null,
     contract.projectState?.nextClosureTarget ? 'preserve_field=project_state.next_closure_target; rewritten_answer_visibility=explicit; project_slogans=blocked' : null,
     hasFixedTemplateContinuityControl
-      ? 'continuity_governance=template_residue_blocked; owner=mind_turn_contract; evidence_id=contract_controls; visible_wording=false'
+      ? 'continuity_governance=template_residue_blocked; owner=mind_turn_contract; evidence_id=contract_controls; visible_surface=answer_payoff'
       : null,
     hasRestartResetControl
-      ? 'continuity_governance=restart_reset_helper_shell_blocked; owner=mind_turn_contract; evidence_id=contract_controls; visible_wording=false'
+      ? 'continuity_governance=restart_reset_helper_shell_blocked; owner=mind_turn_contract; evidence_id=contract_controls; visible_surface=answer_payoff'
       : null,
   ].filter(Boolean) as string[]
 }
@@ -956,7 +956,7 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
     for (const item of selectedRelationshipLines)
       pushProviderSafeMustPreserve(mustPreserve, item)
     if (unsafeDetails.length > 0)
-      pushUnique(mustPreserve, 'unsafe_detail=present; visible_wording=false; provider_source_text=withheld')
+      pushUnique(mustPreserve, 'unsafe_detail=present; visible_surface=answer_payoff; provider_source_text=withheld')
   }
   if (reasonCodes.includes('same-thread-restart-shell')) {
     pushUnique(mustPreserve, 'project_state_answer_reopen=blocked; callback_line=preserve; fresh_report_shell=blocked')

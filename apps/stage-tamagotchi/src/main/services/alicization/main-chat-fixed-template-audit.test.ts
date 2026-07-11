@@ -752,6 +752,46 @@ describe('main chat fixed template audit', () => {
     expect(failures).toEqual([])
   })
 
+  it('keeps generated prompt and memory governance metadata free of legacy visible_wording flags', () => {
+    const auditedFiles = [
+      'apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-projection.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-owner-context.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-prompt-view.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-loop.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/proactive-opening-guidance.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/runtime-organic-memory-prompt-blocks.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/runtime.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/critic.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.ts',
+    ] as const
+    const forbidden = [
+      'visible_wording=false',
+      'fixed_visible_wording=false',
+      'internal_control_visible_wording=false',
+      'visibility=internal_structured',
+    ] as const
+    const failures: string[] = []
+
+    for (const relativePath of auditedFiles) {
+      const lines = readFileSync(`${repoRoot}${relativePath}`, 'utf8').split('\n')
+      lines.forEach((line, index) => {
+        if (
+          line.includes('.includes(')
+          || line.includes('.test(')
+          || line.includes('RegExp')
+          || /Pattern|pattern|regex|legacy|detector|forbidden|blacklist/iu.test(line)
+        ) {
+          return
+        }
+        const matched = forbidden.find(fragment => line.includes(fragment))
+        if (matched)
+          failures.push(`${relativePath}:${index + 1} ${matched}: ${line.trim()}`)
+      })
+    }
+
+    expect(failures).toEqual([])
+  })
+
   it('keeps raw visible-reply critic and closure internals out of public chat transport and debug payloads', () => {
     const auditedFiles = [
       'apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.ts',

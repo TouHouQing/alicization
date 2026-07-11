@@ -46,7 +46,7 @@ function buildMemoryTuningCausalityLines(context: OrganicMemoryPromptContext) {
 
   return [
     '[ALICIZATION_MEMORY_TUNING_CAUSALITY]',
-    'source_role=nightly_replay; issue=runtime_continuity_closure_can_split_after_memory_recall; usage=next_turn_memory_governance; visible_wording=false',
+    'source_role=nightly_replay; issue=runtime_continuity_closure_can_split_after_memory_recall; usage=next_turn_memory_governance; visible_surface=answer_payoff',
     `source=${tuningAdvice.source}`,
     ...lines,
     'continuity_rule=one_memory_identity_across_recall_initiative_execution_feedback_emotional_residue_embodied_expression',
@@ -486,7 +486,7 @@ export function buildOrganicMemorySystemBlocks(
     blocks.push([
       '[ALICIZATION_MEMORY_CLOSURE_STATE]',
       'closure_role=final_current_turn_memory_posture',
-      'governance_scope=recall_accuracy,uncertainty_labeling,visible_carry; fixed_visible_wording=false',
+      'governance_scope=recall_accuracy,uncertainty_labeling,visible_carry; fixed_visible_surface=answer_payoff',
       `closure_state=${context.memoryResolutionLedger.closureState}`,
       `visible_carry_mode=${context.memoryResolutionLedger.visibleCarryMode}`,
       `allowed_surface=${closureDiscipline.allowedSurface}`,

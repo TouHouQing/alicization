@@ -148,7 +148,7 @@ function formatSecondPassProviderEvidenceContext(label: string, raw: unknown, ma
     return `${label}=${structured}`
   const sanitized = sanitizeSecondPassProviderText(raw, maxChars)
   return sanitized
-    ? `${label}=present; source_text=withheld_non_structured_instruction; visible_wording=false`
+    ? `${label}=present; source_text=withheld_non_structured_instruction; visible_surface=answer_payoff`
     : ''
 }
 
@@ -300,7 +300,7 @@ function formatRelationshipTruthDoctrineForRewrite(raw: unknown) {
       ? 'relationship_boundary=closeness_must_not_outrun_truth'
       : '',
     'source_text=withheld_non_structured_instruction',
-    'visible_wording=false',
+    'visible_surface=answer_payoff',
   ].filter(Boolean).join('; ')
 }
 
@@ -1462,7 +1462,7 @@ function buildSecondPassProviderMindTurnContractPrompt(raw: unknown) {
     ? contract.projectState as Record<string, unknown>
     : null
   const emotionalClosurePolicy = sanitizeBoundedText(contract.emotionalClosureCue, 400)
-    ? 'emotional_closure=active; source_text=withheld_non_structured_instruction; visible_wording=false'
+    ? 'emotional_closure=active; source_text=withheld_non_structured_instruction; visible_surface=answer_payoff'
     : null
 
   return {
@@ -1487,7 +1487,7 @@ function buildSecondPassProviderMindTurnContractPrompt(raw: unknown) {
     governingFocus: sanitizeSecondPassProviderList([contract.governingFocus], 260).at(0) ?? null,
     relationshipTruthPolicy: formatRelationshipTruthDoctrineForRewrite(contract.relationshipTruthDoctrine),
     emotionalClosurePolicy,
-    memorySurfacePolicy: 'memory_evidence_only; visible_wording=false',
+    memorySurfacePolicy: 'memory_evidence_only; visible_surface=answer_payoff',
     mustDo: sanitizeSecondPassProviderList(contract.mustDo, 260),
     mustNotDo: sanitizeSecondPassProviderList(contract.mustNotDo, 260),
     reasons: sanitizeSecondPassProviderList(contract.reasons, 260),
@@ -1652,10 +1652,10 @@ function buildCorrectedSamePersonRewriteGuidance(input: {
     'first_sentence=status_first_narration_blocked',
     'local_implementation_progress=after_current_answer_only',
     correctedContinuityAuthorityLine
-      ? 'corrected_continuity_authority=present; source_text=withheld_non_structured_instruction; visible_wording=false'
+      ? 'corrected_continuity_authority=present; source_text=withheld_non_structured_instruction; visible_surface=answer_payoff'
       : '',
     correctedContinuityCarryLine
-      ? 'corrected_continuity_carry=present; source_text=withheld_non_structured_instruction; visible_wording=false'
+      ? 'corrected_continuity_carry=present; source_text=withheld_non_structured_instruction; visible_surface=answer_payoff'
       : '',
     input.projectStateCarryInwardLine
       ? formatSecondPassProviderEvidenceContext('project_state_carry_inward', input.projectStateCarryInwardLine, 520)
@@ -1721,13 +1721,13 @@ function resolveOutwardContinuityRewriteGuidance(input: {
   return [
     'outward_continuity_evidence=present; restart_reset_helper_shell=blocked',
     outwardContinuityReason
-      ? 'outward_continuity_reason=present; source_text=withheld_non_structured_instruction; visible_wording=false'
+      ? 'outward_continuity_reason=present; source_text=withheld_non_structured_instruction; visible_surface=answer_payoff'
       : '',
     outwardContinuityMustDo
-      ? 'outward_continuity_must_do=continue_current_context; source_text=withheld_non_structured_instruction; visible_wording=false'
+      ? 'outward_continuity_must_do=continue_current_context; source_text=withheld_non_structured_instruction; visible_surface=answer_payoff'
       : '',
     outwardContinuityMustNotDo
-      ? 'outward_continuity_must_not_do=restart_or_fresh_shell_blocked; source_text=withheld_non_structured_instruction; visible_wording=false'
+      ? 'outward_continuity_must_not_do=restart_or_fresh_shell_blocked; source_text=withheld_non_structured_instruction; visible_surface=answer_payoff'
       : '',
     'first_sentence=current_context_answer; fresh_narrator_opening=blocked',
   ].filter(Boolean).join('\n')
@@ -2101,7 +2101,7 @@ function buildSecondPassRewriteMessages(input: {
       ? 'project_state_context=sanitized_facts_only; project_slogans=blocked'
       : 'ordinary_dialogue_rewrite=true; current_user_obligation_and_memory_owner_evidence=primary; project_status_unless_explicit=blocked',
     `project_state_question=${includeFullProjectStateContext ? 'true' : 'false'}`,
-    'internal_control_visible_wording=false',
+    'internal_control_scope=governance_only',
     'output_contract=json_object; allowed_keys=format,thought,emotion,reply,performance; extra_keys=blocked',
     'required_field=format; required_value=mind-turn-v1',
     'reply_authority=provider_authored; policy_explanation=blocked; template_shell=blocked.',
@@ -2264,8 +2264,8 @@ function buildSecondPassRewriteMessages(input: {
       ? sanitizeSecondPassProviderBlock([
           'emotional_closure=active',
           providerSafeEmotionalClosureCue
-            ? 'emotional_closure_context=present; source_text=withheld_non_structured_instruction; visible_wording=false'
-            : 'emotional_context=present; source_text=withheld_non_structured_instruction; visible_wording=false.',
+            ? 'emotional_closure_context=present; source_text=withheld_non_structured_instruction; visible_surface=answer_payoff'
+            : 'emotional_context=present; source_text=withheld_non_structured_instruction; visible_surface=answer_payoff.',
           emotionalClosurePrefersLowPressure
             ? 'pressure=low'
             : '',

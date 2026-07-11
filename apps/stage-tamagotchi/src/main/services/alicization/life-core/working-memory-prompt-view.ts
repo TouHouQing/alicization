@@ -348,7 +348,7 @@ export function buildWorkingMemoryPromptView(snapshot: WorkingMemorySnapshot): W
     rendering: {
       blockLines: uniqueBlockLines([
         '[ALICIZATION_WORKING_MEMORY]',
-        'owner=WorkingMemory; scope=short_term_dialogue; visible_wording=false',
+        'owner=WorkingMemory; scope=short_term_dialogue; visible_surface=answer_payoff',
         rangeLine,
         renderThreadLine(modules.thread),
         renderTaskLine(modules.task),

@@ -158,23 +158,23 @@ export function describeAlicizationOpeningGuidanceRewriteGuidance(input: {
   const lines: string[] = []
 
   if (input.blockedReason === 'opening-guidance:lower-pressure') {
-    lines.push('opening_guidance_repair=lower_pressure; visible_closeness_widening=blocked_until_current_turn_reentered; visible_wording=false')
+    lines.push('opening_guidance_repair=lower_pressure; visible_closeness_widening=blocked_until_current_turn_reentered; visible_surface=answer_payoff')
   }
 
   if (input.openingGuidanceHoldDetail === 'memory-familiarity-closeness-cap') {
-    lines.push('remembered_familiarity_surface=memory_label; closeness_reopen_speed=bounded_by_host_current_room; visible_wording=false')
+    lines.push('remembered_familiarity_surface=memory_label; closeness_reopen_speed=bounded_by_host_current_room; visible_surface=answer_payoff')
   }
   if (input.openingGuidanceHoldDetail === 'generic-availability-shell') {
-    lines.push('generic_availability_shell=blocked; lower_pressure_timing=explicit; reentry_source=current_turn_thread; visible_wording=false')
+    lines.push('generic_availability_shell=blocked; lower_pressure_timing=explicit; reentry_source=current_turn_thread; visible_surface=answer_payoff')
   }
   if (input.openingGuidanceHoldDetail === 'same-thread-restart-shell') {
-    lines.push('fresh_opening_restart=blocked; current_thread_continuation=required; visible_wording=false')
+    lines.push('fresh_opening_restart=blocked; current_thread_continuation=required; visible_surface=answer_payoff')
   }
   if (input.openingGuidanceHoldDetail === 'even-natural-cadence') {
-    lines.push('reentry_cadence=even_steady; pacing=natural_unforced; performative_or_rushed_reopen=blocked; visible_wording=false')
+    lines.push('reentry_cadence=even_steady; pacing=natural_unforced; performative_or_rushed_reopen=blocked; visible_surface=answer_payoff')
   }
   if (input.openingGuidanceHoldDetail === 'hover-first-live-seam') {
-    lines.push('opening_mode=hover_first; reentry_source=current_turn_thread; reminder_like_framing=defer; service_availability_shell=blocked; visible_wording=false')
+    lines.push('opening_mode=hover_first; reentry_source=current_turn_thread; reminder_like_framing=defer; service_availability_shell=blocked; visible_surface=answer_payoff')
   }
 
   return lines

@@ -347,7 +347,7 @@ function sanitizeActiveDialogueProviderBlock(raw: unknown, maxChars = 4000) {
         return line
       const sanitized = sanitizeActiveDialogueProviderText(line, 320)
       return sanitized === alicizationFixedTemplateReplacement
-        ? 'source_text=withheld_template_contamination; visible_wording=false'
+        ? 'source_text=withheld_template_contamination; visible_surface=answer_payoff'
         : sanitized
     })
     .filter(Boolean)
@@ -489,7 +489,7 @@ function resolveRememberedSeamReinterpretationLines(digitalLifeSpine: unknown) {
 
   return {
     compactGuidance:
-      'opening_pressure=measured_return; room_before_closeness=true; visible_wording=false',
+      'opening_pressure=measured_return; room_before_closeness=true; visible_surface=answer_payoff',
     answerIntent:
       'remembered_seam=recognized; prior_eagerness_lesson=apply; pressure=lower',
     relationNeed:
@@ -1165,7 +1165,7 @@ function buildCompactDialogueEvidenceBlock(decision: AlicizationActiveDialogueFa
         const rememberedSeamReinterpretation = resolveRememberedSeamReinterpretationLines(decision.digitalLifeSpine)
         lines.push('follow_up_reopen_reason=remembered_relationship_seam')
         lines.push(rememberedSeamReinterpretation?.compactGuidance
-          ? 'remembered_seam_reinterpretation=present; visible_wording=false'
+          ? 'remembered_seam_reinterpretation=present; visible_surface=answer_payoff'
           : 'opening_pressure=measured_return; widening=after_recognition')
       }
       if (decision.reasonCodes.includes('held-autonomy-carry')) {
@@ -1276,7 +1276,7 @@ function buildCompactDialogueMindBlock(decision: AlicizationActiveDialogueFastPa
     digitalLifeSpine.outcomeLearning?.summary
       ? `outcome_learning=${sanitizeActiveDialogueProviderText(digitalLifeSpine.outcomeLearning.summary, 220)}`
       : '',
-    'generic_fallback_shell=blocked; visible_wording=false; durable_self_fields=style_context_only',
+    'generic_fallback_shell=blocked; visible_surface=answer_payoff; durable_self_fields=style_context_only',
   ].filter(Boolean).join('\n')
 }
 
@@ -1364,10 +1364,10 @@ function buildCompactDialogueGovernanceBlock(decision: AlicizationActiveDialogue
     .map((rule, index) => {
       const sanitized = sanitizeActiveDialogueProviderText(rule, 180)
       if (!sanitized || sanitized === alicizationFixedTemplateReplacement)
-        return `governance_extra_rule_${index + 1}=withheld_non_structured_instruction; visible_wording=false`
+        return `governance_extra_rule_${index + 1}=withheld_non_structured_instruction; visible_surface=answer_payoff`
       return /^[\w.:-]+=/iu.test(sanitized)
         ? `governance_extra_rule_${index + 1}=${sanitized}`
-        : `governance_extra_rule_${index + 1}=present; source_text=withheld_non_structured_instruction; visible_wording=false`
+        : `governance_extra_rule_${index + 1}=present; source_text=withheld_non_structured_instruction; visible_surface=answer_payoff`
     })
 
   return [

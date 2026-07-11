@@ -7062,7 +7062,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `primary_open_loop=${facts.primaryOpenLoop}`,
       `next_closure_target=${facts.nextClosureTarget}`,
       `template_residue_risk=${facts.continuityDriftRisk}`,
-      'visibility=internal_structured',
+      'visibility=governance_only',
     ].join('\n')
   }
 
@@ -7082,7 +7082,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `primary_open_loop=${facts.primaryOpenLoop}`,
       `next_closure_target=${facts.nextClosureTarget}`,
       `template_residue_risk=${facts.continuityDriftRisk}`,
-      'visibility=internal_structured',
+      'visibility=governance_only',
     ].join('\n')
   }
 
@@ -7102,7 +7102,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `primary_open_loop=${facts.primaryOpenLoop}`,
       `next_closure_target=${facts.nextClosureTarget}`,
       `template_residue_risk=${facts.continuityDriftRisk}`,
-      'visibility=internal_structured',
+      'visibility=governance_only',
     ].join('\n')
   }
 
@@ -7122,7 +7122,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `primary_open_loop=${facts.primaryOpenLoop}`,
       `next_closure_target=${facts.nextClosureTarget}`,
       `template_residue_risk=${facts.continuityDriftRisk}`,
-      'visibility=internal_structured',
+      'visibility=governance_only',
     ].join('\n')
   }
 
@@ -7142,7 +7142,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `primary_open_loop=${facts.primaryOpenLoop}`,
       `next_closure_target=${facts.nextClosureTarget}`,
       `template_residue_risk=${facts.continuityDriftRisk}`,
-      'visibility=internal_structured',
+      'visibility=governance_only',
     ].join('\n')
   }
 
