@@ -658,11 +658,11 @@ function resolveProjectContinuityBehaviorMode(input: {
 
 function deriveSameHerHoldDetailFromProjectContinuityBehavior(mode: string | null) {
   if (mode === 'repair-before-closeness')
-    return 'continuity_hold=repair-before-closeness; owner=project_state_review; pace=settle-before-closeness.'
+    return 'cadence=repair-before-closeness; owner=project_state_review; pace=settle-before-closeness.'
   if (mode === 'rest-protective')
-    return 'continuity_hold=rest-protective; owner=project_state_review; pace=fatigue-aware.'
+    return 'cadence=rest-protective; owner=project_state_review; pace=fatigue-aware.'
   if (mode === 'measured-return')
-    return 'continuity_hold=measured-return; owner=project_state_review; pace=lower-pressure.'
+    return 'cadence=measured-return; owner=project_state_review; pace=lower-pressure.'
   return ''
 }
 
@@ -949,7 +949,7 @@ function compactProjectProactiveSameHerGap(text: string, maxChars = 220) {
     && /noisy desktop runs/iu.test(normalized)
   ) {
     return sanitizeProjectStateSnapshotText(
-      'proactive_continuity_loop=partial; long_run_noisy_desktop_proof=needed; visibility=internal_until_user_asks_project_state',
+      'proactive_continuity_loop=partial; long_run_noisy_desktop_proof=needed',
       maxChars,
     )
   }

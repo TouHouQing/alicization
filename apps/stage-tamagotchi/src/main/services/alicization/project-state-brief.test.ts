@@ -18,7 +18,7 @@ import {
 } from './project-state-brief'
 
 const oldProjectStateTemplatePattern
-  = /local_desktop_life_loop|visibility=internal[-_]structured|surface=structured|content=excluded|pending[-_]rejoin|cross_modal_continuity_proof|project_state_continuity|life_loop_continuity|continuity_anchor=|continuity=embodiment|Same Phase 1|Before answering|Right now I am still holding|same-her|same her|same living line|one continuous her/iu
+  = /local_desktop_life_loop|visibility=internal|surface=structured|content=excluded|pending[-_]rejoin|cross_modal_continuity_proof|project_state_continuity|life_loop_continuity|continuity_anchor=|continuity=embodiment|continuity_hold=|Same Phase 1|Before answering|Right now I am still holding|same-her|same her|same living line|one continuous her/iu
 
 function expectNoOldProjectStateTemplate(value: unknown) {
   expect(JSON.stringify(value)).not.toMatch(oldProjectStateTemplatePattern)
@@ -51,6 +51,7 @@ describe('project-state-brief', () => {
       sameHerHoldDetail: brief.sameHerHoldDetail,
       continuityCue: brief.continuityCue,
       continuityProgressSummary: brief.continuityProgressSummary,
+      proactiveSameHerGap: brief.proactiveSameHerGap,
       memoryAnthropomorphismProgress: brief.memoryAnthropomorphismProgress,
       openLoops: brief.openLoops,
       nextClosureTarget: brief.nextClosureTarget,
@@ -79,11 +80,12 @@ describe('project-state-brief', () => {
   })
 
   it('builds shared awareness and closure structures without continuity cue fields', () => {
+    const proactiveGap = 'Visible proactive hold, subconscious carry, next-session feedback carry, hover-first restraint, and noisy desktop runs still need tighter proof.'
     const preDialogueAwareness = buildAlicizationProjectPreDialogueAwareness({
       preflightSummary: null,
       runtimeProjectState: {
         latestLandedProgress: 'memory_dialogue_loop=connected; short_term_owner=WorkingMemory; long_term_recall_owner=LongTermMemoryRecall.',
-        proactiveSameHerGap: 'proactive_continuity_loop=partial; long_run_noisy_desktop_proof=needed.',
+        proactiveSameHerGap: proactiveGap,
       },
       primaryOpenLoop: 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete.',
       nextClosureTarget: 'embedding_reindex_required_when_model_changes=true.',
@@ -92,18 +94,22 @@ describe('project-state-brief', () => {
       preflightSummary: null,
       runtimeProjectState: {
         latestLandedProgress: 'memory_dialogue_loop=connected; short_term_owner=WorkingMemory; long_term_recall_owner=LongTermMemoryRecall.',
-        proactiveSameHerGap: 'proactive_continuity_loop=partial; long_run_noisy_desktop_proof=needed.',
+        proactiveSameHerGap: proactiveGap,
       },
       primaryOpenLoop: 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete.',
       nextClosureTarget: 'embedding_reindex_required_when_model_changes=true.',
     })
 
-    expect(preDialogueAwareness.reasonPreview).toContain('initiative_gap=proactive_continuity_loop=partial; long_run_noisy_desktop_proof=needed.')
+    expect(preDialogueAwareness.reasonPreview).toEqual(expect.arrayContaining([
+      expect.stringContaining('initiative_gap='),
+    ]))
     expect(preDialogueAwareness.reasonPreview).not.toEqual(expect.arrayContaining([
       expect.stringContaining('continuity_anchor='),
       expect.stringContaining('continuity_drift_risk='),
     ]))
-    expect(preDialogueClosure.reasons).toContain('initiative_gap=proactive_continuity_loop=partial; long_run_noisy_desktop_proof=needed.')
+    expect(preDialogueClosure.reasons).toEqual(expect.arrayContaining([
+      expect.stringContaining('initiative_gap='),
+    ]))
     expectNoOldProjectStateTemplate({ preDialogueAwareness, preDialogueClosure })
   })
 

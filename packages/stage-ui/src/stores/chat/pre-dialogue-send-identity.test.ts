@@ -16,6 +16,7 @@ function expectNoFixedTemplateResidue(result: unknown) {
   expect(text).not.toMatch(fixedTemplateResiduePattern)
   expect(text).not.toContain('content=excluded')
   expect(text).not.toContain('visibility=internal-structured')
+  expect(text).not.toContain('continuity_hold=')
   expect(text).not.toContain('local_desktop_life_loop')
   expect(text).not.toContain('phase1_local_digital_life')
 }
@@ -254,7 +255,7 @@ describe('buildPreDialogueSendIdentityFromSnapshots', () => {
     expectNoFixedTemplateResidue(result)
     expect(result).toEqual(expect.objectContaining({
       awarenessLine: 'landed=Return-side continuity already survives into browser-local send-identity rebuilding.',
-      companionBriefingLine: 'continuity_hold=repair_before_closeness; timing=before_closeness_widens',
+      companionBriefingLine: 'cadence=repair_before_closeness; timing=before_closeness_widens',
       companionNextClosureLine: null,
       projectState: expect.objectContaining({
         latestLandedProgress: 'Return-side continuity already survives into browser-local send-identity rebuilding.',
@@ -262,12 +263,12 @@ describe('buildPreDialogueSendIdentityFromSnapshots', () => {
         continuityRestraint: 'repair-before-closeness',
         continuityPreferredTiming: 'next-open-window',
         continuityCadence: 'repair-before-closeness',
-        sameHerHoldDetail: 'continuity_hold=repair_before_closeness; timing=before_closeness_widens',
+        sameHerHoldDetail: 'cadence=repair_before_closeness; timing=before_closeness_widens',
         continuityCue: 'continuity_cue=repair_before_closeness; until=repair_settles',
       }),
       reasonPreview: [
         'Return-side continuity already survives into browser-local send-identity rebuilding.',
-        'continuity_hold=repair_before_closeness; timing=before_closeness_widens',
+        'cadence=repair_before_closeness; timing=before_closeness_widens',
         'continuity_cue=repair_before_closeness; until=repair_settles',
       ],
     }))
