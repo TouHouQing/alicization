@@ -557,10 +557,10 @@ const ordinaryDialogueProjectStateTextPattern
   = /Current Phase 1 project context|Some closure already landed|Unfinished closure still needs|Same Phase 1 digital life|Phase 1:\s*Local Digital Life|latest landed Phase 1 progress|still-open closure work explicit|next closure target explicit|when the host asks for project status|phase1_local_digital_life_anchor|memory_dialogue_embodiment|verified_closure_progress|project_context=phase1_local_digital_life|local-first digital life project|same-her|same digital life project|project-state|Project identity carry|Phase 1 route carry|Unresolved closure carry/iu
 
 function isBlockedProviderFacingTemplateLine(line: string) {
-  return line.includes('content=excluded')
+  return line.includes('content_withheld')
     || line.includes('visibility=internal-structured')
     || line.includes('phase1_local_digital_life')
-    || line.includes('local_desktop_life_loop')
+    || line.includes('runtime_personhood')
     || containsAlicizationFixedTemplateResidue(line)
 }
 
@@ -1336,10 +1336,10 @@ function isBlockedFixedTemplateEvidence(value: unknown) {
 
   return containsAlicizationFixedTemplateResidue(normalized)
     || normalized.includes('reason=continuity-residue')
-    || normalized.includes('content=excluded')
+    || normalized.includes('content_withheld')
     || normalized.includes('visibility=internal-structured')
     || normalized.includes('phase1_local_digital_life')
-    || normalized.includes('local_desktop_life_loop')
+    || normalized.includes('runtime_personhood')
     || (
       Boolean(alicizationFixedTemplateReplacement)
       && normalized.includes(alicizationFixedTemplateReplacement.toLowerCase())
@@ -1820,7 +1820,7 @@ function isSpecificCompanionAuthorityLine(value: unknown) {
     return false
 
   const lowerCased = normalized.toLowerCase()
-  const carriesSameHerLivingLine = /continuity_(?:line|identity|thread)|project_state_continuity|living (?:audio )?thread|holding together mainly through/u.test(lowerCased)
+  const carriesSameHerLivingLine = /continuity_(?:line|identity|thread)|project_state_review|living (?:audio )?thread|holding together mainly through/u.test(lowerCased)
   const carriesClosurePressure = hasDistinctEmbodimentClosureCue(normalized)
     || /phase 1|unfinished closure|still active|closure settles|closure work|needs .*rejoin|still needs .*rejoin|cross-modal/u.test(lowerCased)
 
@@ -1836,7 +1836,7 @@ function carriesSpecificSameHerAuthorityLine(value: unknown) {
     || (
       !carriesExplicitProjectClosureTriplet(normalized)
       && !isCanonicalStructuredProjectAwareness(normalized)
-      && /holding together mainly through|living (?:audio )?thread|continuity_(?:line|identity|thread)|project_state_continuity/u.test(
+      && /holding together mainly through|living (?:audio )?thread|continuity_(?:line|identity|thread)|project_state_review/u.test(
         normalized.toLowerCase(),
       )
       && /phase 1|voice|face|motion|lipsync|body|embodiment|initiative|closure|still active|still needs|rejoin/u.test(
@@ -2048,7 +2048,7 @@ function shouldPreserveProjectAwarenessLineVerbatim(candidate: unknown, baseline
     return true
   if (
     hasDistinctEmbodimentClosureCue(candidateText)
-    && /continuity_(?:line|identity|thread)|continuity_anchor=|project_state_continuity|closure/u.test(normalizedCandidate)
+    && /continuity_(?:line|identity|thread)|project_anchor=|project_state_review|closure/u.test(normalizedCandidate)
   ) {
     return true
   }
@@ -2076,7 +2076,7 @@ function scoreRuntimeProjectStateDetailCandidate(
     score -= 5
 
   if (kind === 'identity') {
-    if (/(?:^|\|\s*)identity=|project_state_continuity/u.test(normalized))
+    if (/(?:^|\|\s*)identity=|project_state_review/u.test(normalized))
       score += 8
     if (/fresh shell|not a fresh shell|not a new shell|rebuilt each turn|rebuilt for this turn|fresh assistant restart/u.test(normalized))
       score += 6
@@ -2098,7 +2098,7 @@ function scoreRuntimeProjectStateDetailCandidate(
     score += 4
   if (kind === 'open' && /memory still needs stronger end-to-end closure across turns, initiative, and embodiment/u.test(normalized))
     score -= 4
-  if (kind === 'next' && /keep|next closure|measured-return|return|first answer beat|next=|cross_modal_continuity_proof/u.test(normalized))
+  if (kind === 'next' && /keep|next closure|measured-return|return|first answer beat|next=|embodiment_scale_validation/u.test(normalized))
     score += 4
   if (kind === 'next' && /current project-state awareness explicit|first visible answer beat|provider-facing answer|current conscious frame/u.test(normalized))
     score += 6
@@ -2110,13 +2110,13 @@ function scoreRuntimeProjectStateDetailCandidate(
     score -= 6
   if (kind === 'next' && /generic next target|generic next closure|generic closure shell|generic closure summary|generic callback summary|steadier carry of this project, this phase, and the life loop that remains open/u.test(normalized))
     score -= 10
-  if (kind === 'same-her' && /continuity_anchor=|continuity_(?:identity|line|thread)|project_state_continuity/u.test(normalized))
+  if (kind === 'same-her' && /project_anchor=|continuity_(?:identity|line|thread)|project_state_review/u.test(normalized))
     score += 4
   if (kind === 'drift' && /drift|generic guidance|project shell|detached/u.test(normalized))
     score += 3
   if (kind === 'drift' && /project-summary voice|generic assistant shell|generic task shell|generic callback shell|generic project shell|detached project narration|detached project shell/u.test(normalized))
     score += 6
-  if (kind === 'drift' && /continuity drift|unfinished continuity drift|project_state_continuity drift/u.test(normalized))
+  if (kind === 'drift' && /continuity drift|unfinished continuity drift|project_state_review drift/u.test(normalized))
     score += 4
   if (kind === 'drift' && /summary-only drift risk|live drift risk|remembered same-her drift risk/u.test(normalized))
     score += 2
@@ -2247,7 +2247,7 @@ function carriesProjectIdentityAnchor(value: unknown) {
   if (isBlockedFixedTemplateEvidence(normalized))
     return false
 
-  return /(?:^|\|\s*)identity=|project_state_continuity/u.test(normalized)
+  return /(?:^|\|\s*)identity=|project_state_review/u.test(normalized)
 }
 
 function carriesRichPhase1ProjectAwareness(value: unknown) {
@@ -2258,7 +2258,7 @@ function carriesRichPhase1ProjectAwareness(value: unknown) {
     return false
 
   const carriesPhase1ContinuousLife
-    = /(?:^|\|\s*)phase=|project_state_continuity/u.test(normalized)
+    = /(?:^|\|\s*)phase=|project_state_review/u.test(normalized)
   const carriesLandedProgress
     = /landed farther|already survives|already landed|latest landed|what has already landed/u.test(normalized)
   const carriesStillOpenClosure
@@ -2393,7 +2393,7 @@ function awarenessLineMissesRuntimeCarry(input: {
 
   const normalizedAwarenessLine = awarenessLine.toLowerCase()
   const alreadyCarriesPhase1ClosureSummary
-    = /(?:^|\|\s*)phase=|local_desktop_life_loop|project_state_continuity|continuity_line/u.test(normalizedAwarenessLine)
+    = /(?:^|\|\s*)phase=|runtime_personhood|project_state_review|continuity_line/u.test(normalizedAwarenessLine)
       && /landed|already survive|already landed|have landed farther|landed farther/u.test(normalizedAwarenessLine)
       && /still need|still needs|still-open|need to close|needs to close|unfinished closure/u.test(normalizedAwarenessLine)
       && /initiative|embodiment|memory|execution|closure/u.test(normalizedAwarenessLine)
@@ -2430,7 +2430,7 @@ function scoreProjectContinuitySummary(value: unknown) {
   }
   if (
     /memory, initiative, and embodiment/u.test(normalized)
-    && /continuity_line|open_loop|life_loop_continuity/u.test(normalized)
+    && /continuity_line|open_loop|runtime_loop_validation/u.test(normalized)
   ) {
     score += 3
   }
@@ -6392,7 +6392,7 @@ export function normalizeProviderFacingMindTurnContract(
       && !isCompactProjectStatePreflightSummary(value)
       && (
         shouldPreserveProjectAwarenessLineVerbatim(value, rescuedFinalAwarenessLine)
-        || /(?:^|\|\s*)(identity|phase|landed|open|next|continuity_anchor)=|phase1_local_digital_life|project_state_continuity|life_loop_continuity/iu.test(value)
+        || /(?:^|\|\s*)(identity|phase|landed|open|next|continuity_anchor)=|phase1_local_digital_life|project_state_review|runtime_loop_validation/iu.test(value)
       ),
     )
     ?? null
@@ -11314,7 +11314,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         item.includes('continuity_policy=project_state_required'),
       )) {
         providerFacingAnswerPlannerMustDo.push(
-          'continuity_policy=project_state_required | owner=ProjectStateGovernance | visibility=internal-structured',
+          'continuity_policy=project_state_required | owner=ProjectStateGovernance-structured',
         )
       }
       if (!String(existingAnswerPlanner.governingProject ?? '').trim()) {

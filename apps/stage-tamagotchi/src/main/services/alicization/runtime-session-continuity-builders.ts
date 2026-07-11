@@ -120,8 +120,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     return [
       `embodiment_lanes=${(activeLanes.length ? activeLanes : mentionedLanes).join('+')}`,
       pendingLanes.length ? `pending_lanes=${pendingLanes.join('+')}` : '',
-      `status=${pendingLanes.length ? 'pending_rejoin' : 'partial'}`,
-      'surface=structured',
+      `status=${pendingLanes.length ? 'missing_lanes' : 'partial'}`,
     ].filter(Boolean).join('; ')
   }
 
@@ -161,7 +160,6 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         /lower-pressure|low-pressure|measured-return|measured return|leave room|more room/u.test(lower) ? 'cadence=lower_pressure' : '',
         /repair[_-]before[_-]closeness|repair before closeness|repair-first|repair first|先修复|修复优先/u.test(lower) ? 'carry_mode=repair_before_closeness' : '',
         /memory|initiative|embodiment|dialogue|记忆|主动性|具身|对话/u.test(lower) ? 'life_loop=memory_initiative_embodiment' : '',
-        'surface=structured',
       ].filter(Boolean)
       if (summaryParts.length > 1)
         return summaryParts.join('; ')
@@ -1060,8 +1058,8 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     ?? null
     const repairBeforeClosenessSummaryLead = repairBeforeClosenessProjectAuthority
       ? /same living line|one living her|same line|same-her|同一条线|同一生命线/u.test(repairBeforeClosenessProjectAuthority)
-        ? 'carry_mode=repair_before_closeness; surface=structured'
-        : `carry_mode=repair_before_closeness; source=${sanitizeBriefText(repairBeforeClosenessProjectAuthority, 120)}; surface=structured`
+        ? 'carry_mode=repair_before_closeness'
+        : `carry_mode=repair_before_closeness; source=${sanitizeBriefText(repairBeforeClosenessProjectAuthority, 120)}`
       : null
 
     if (shouldUseDeferredProactiveLine) {

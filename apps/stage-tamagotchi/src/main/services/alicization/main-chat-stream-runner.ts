@@ -234,7 +234,7 @@ function buildProjectStateAuditContinuitySummary(input: {
 }) {
   const projectStateContinuityCarry = buildPrioritizedProjectStateRewritePreserveLines({
     projectStateContinuityAnchors: [
-      input.sameHerSummary ? `continuity_anchor=${input.sameHerSummary}` : '',
+      input.sameHerSummary ? `project_anchor=${input.sameHerSummary}` : '',
       input.sameHerHoldDetail ? `hold=${input.sameHerHoldDetail}` : '',
       input.continuityArcStage ? `arc=${input.continuityArcStage}` : '',
       input.continuityCue ? `cue=${input.continuityCue}` : '',
@@ -372,7 +372,7 @@ function looksLikeResumeConfirmationBoundaryHoldDetail(value: string | null | un
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; visibility=internal-structured'
+  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred'
 }
 
 function resolvePreferredSameHerHoldDetail(input: {
@@ -500,8 +500,8 @@ function resolveRicherPreparedProjectAwarenessSummary(input: {
   sameHerSummary?: string | null | undefined
 }) {
   const currentAwarenessSummary = sanitizeText(input.currentAwarenessSummary, '') || null
-  const identity = sanitizeText(input.identity, '') || 'local_desktop_life_loop'
-  const currentPhase = sanitizeText(input.currentPhase, '') || 'local_desktop_life_loop'
+  const identity = sanitizeText(input.identity, '') || 'runtime_personhood'
+  const currentPhase = sanitizeText(input.currentPhase, '') || 'runtime_personhood'
   const sameHerSummary = sanitizeText(input.sameHerSummary, '') || null
   const openClosureSummary = sanitizeText(input.openClosureSummary, '') || null
   const buildReanchorLine = (caps: {

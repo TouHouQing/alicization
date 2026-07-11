@@ -12,8 +12,8 @@ export function scoreVisibleReplyProjectAwarenessLine(value: string | null | und
   const carriesFixedTemplateSlogan
     = /before (?:answering|speaking|acting)|same phase 1 digital life|same[- ]her|same living line|one living her|one continuous her|local-first digital life project|phase 1:\s*local digital life|同一个她|同一个 her|数字生命主线/u.test(normalized)
   const carriesStructuredProjectFact
-    = /(?:^|\s\|\s)(?:identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|proactive_gap|emotional_closure|status|summary)=/u.test(normalized)
-      || /local_desktop_life_loop|open_loop=|project_state_continuity=|life_loop_continuity=|cross_modal_continuity_proof=|memory_dialogue_embodiment_closure|embedding_recall_reindex/u.test(normalized)
+    = /(?:^|\s\|\s)(?:identity|phase|landed|open|next|initiative_gap|continuity_anchor|continuity_hold|continuity_drift_risk|emotional_closure|status|summary)=/u.test(normalized)
+      || /runtime_personhood|open_loop=|project_state_review=|runtime_loop_validation=|embodiment_scale_validation=|memory_dialogue_embodiment_closure|embedding_recall_reindex/u.test(normalized)
   const carriesConcreteClosureProgress
     = /workingmemory|longtermmemoryrecall|semantic_recall|embedding|reindex|分页|搜索|召回|短期|长期|治理入口|review|memory_review|记忆闭环|语义召回|重建/u.test(normalized)
 

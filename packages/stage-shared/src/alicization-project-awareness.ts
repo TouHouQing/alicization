@@ -44,7 +44,7 @@ type AlicizationProjectAwarenessSource = {
 } | null | undefined
 
 function hasMeaningfulStructuredProjectAwarenessFact(text: string) {
-  return /(?:^|\|\s*)(?:identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|proactive_gap|emotional_closure|project_state_continuity|status|summary|continuity|lane|pending_rejoin|closure|evidence|ref|trace|source|affective_closure|observability|timing)=/iu.test(text)
+  return /(?:^|\|\s*)(?:identity|phase|landed|open|next|initiative_gap|continuity_anchor|continuity_hold|continuity_drift_risk|emotional_closure|project_state_continuity|status|summary|continuity|lane|pending_rejoin|closure|evidence|ref|trace|source|affective_closure|observability|timing)=/iu.test(text)
 }
 
 function preserveStructuredProjectAwarenessFragments(text: string) {
@@ -54,7 +54,7 @@ function preserveStructuredProjectAwarenessFragments(text: string) {
     .filter((fragment) => {
       if (!fragment || !/^[a-z][\w+-]*=/iu.test(fragment))
         return false
-      if (/^(?:same_her|same-her|project_awareness)=/iu.test(fragment))
+      if (/^(?:same_her|same-her|project_awareness|proactive_gap)=/iu.test(fragment))
         return false
       return !containsProjectAwarenessFixedTemplateResidue(fragment)
     })

@@ -25,19 +25,19 @@ function resolveTopLevelSameHerContinuityLaneEvidence(summary: string) {
     || normalized.includes('身体、表情、动作 还没重新接回')
     || normalized.includes('表情、动作、身体 还没重新接回')
   ) {
-    return 'continuity=embodiment:audible-continuity-line | lane=lipsync+voice-only | living audio thread | pending-rejoin=body+face+motion | remaining-open=body+face+motion'
+    return 'embodiment_lanes=lipsync+voice | missing_lanes=body+face+motion | status=partial'
   }
 
   if (normalized.includes('处在 audible-body-carry') || normalized.includes('表情、动作 还没重新接回')) {
-    return 'continuity=embodiment:audible-continuity-line | lane=body+lipsync+voice-only | living audio thread | pending-rejoin=face+motion'
+    return 'embodiment_lanes=body+lipsync+voice | missing_lanes=face+motion | status=partial'
   }
 
   if (normalized.includes('处在 renderer-rejoin-without-body') || normalized.includes('身体 还没重新接回')) {
-    return 'lane=face+motion+lipsync+voice-only | renderer rejoin without body carry | pending-rejoin=body'
+    return 'embodiment_lanes=face+motion+lipsync+voice | missing_lanes=body | status=partial'
   }
 
   if (normalized.includes('处在 body-carried-to-renderer-rejoin') || normalized.includes('口型、声音 还没重新接回')) {
-    return 'lane=body+face+motion-only | body, face, and motion authority have already re-formed on the same segment | remaining-open=lipsync+voice'
+    return 'embodiment_lanes=body+face+motion | missing_lanes=lipsync+voice | status=partial'
   }
 
   return null
@@ -800,15 +800,10 @@ function buildAlicizationStructuredEmbodimentClosureFacts(input: {
   ].filter(Boolean)
 
   return [
-    'continuity=embodiment',
-    `lane=${lane ?? 'unknown'}`,
-    `status=${hasFullLock ? 'closed' : 'pending-rejoin'}`,
-    `pending_rejoin=${pendingLanes.length ? pendingLanes.join('+') : 'none'}`,
-    `closure=${hasFullLock ? 'full-cross-modal-closed' : 'full-cross-modal-open'}`,
+    `embodiment_lanes=${lane ?? 'unknown'}`,
+    `status=${hasFullLock ? 'closed' : 'partial'}`,
+    pendingLanes.length ? `missing_lanes=${pendingLanes.join('+')}` : '',
     evidence.length ? `evidence=${evidence.join('+')}` : '',
-    input.perspective === 'headline'
-      ? 'visibility=renderer-internal'
-      : 'surface=structured',
   ].filter(Boolean).join(' | ')
 }
 
@@ -843,11 +838,9 @@ export function describeAlicizationProjectClosureBriefing(input: {
     return ''
 
   return [
-    'continuity=project-state',
     input.identity ? `identity=${input.identity}` : '',
     input.currentPhase ? `phase=${input.currentPhase}` : '',
     input.primaryOpenLoop ? `open=${input.primaryOpenLoop}` : '',
-    'surface=structured',
   ].filter(Boolean).join(' | ')
 }
 
@@ -861,5 +854,5 @@ export function describeAlicizationProjectNextClosure(input: {
   if (!nextClosureTarget)
     return ''
 
-  return `next=${nextClosureTarget} | surface=structured`
+  return `next=${nextClosureTarget}`
 }

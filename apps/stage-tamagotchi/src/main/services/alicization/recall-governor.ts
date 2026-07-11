@@ -248,8 +248,8 @@ function buildProjectPreflightRecallFallbackProjectState(
     return null
 
   return {
-    identity: 'local_desktop_life_loop',
-    currentPhase: 'local_desktop_life_loop',
+    identity: 'runtime_personhood',
+    currentPhase: 'life_core',
     latestLandedProgress: projectStateCarryLine.includes('verified_closure_progress=partial.')
       ? 'verified_closure_progress=partial.'
       : '',
@@ -279,14 +279,14 @@ function sanitizeRecallProjectAnchorText(raw: unknown, maxChars = 720) {
 function isStructuredRecallProjectAnchorText(raw: unknown) {
   const sanitized = sanitizeRecallProjectAnchorText(raw, 720)
   return sanitized
-    && /\b(?:phase1_local_digital_life|local_desktop_life_loop)\b/iu.test(sanitized)
+    && /\b(?:phase1_local_digital_life|runtime_personhood)\b/iu.test(sanitized)
     && (
       /\bidentity=phase1_local_digital_life\b/iu.test(sanitized)
-      || /\bcontinuity_anchor=phase1_local_digital_life\b/iu.test(sanitized)
+      || /\bproject_anchor=phase1_local_digital_life\b/iu.test(sanitized)
       || sanitized === 'phase1_local_digital_life'
-      || /\bidentity=local_desktop_life_loop\b/iu.test(sanitized)
-      || /\bcontinuity_anchor=local_desktop_life_loop\b/iu.test(sanitized)
-      || sanitized === 'local_desktop_life_loop'
+      || /\bidentity=runtime_personhood\b/iu.test(sanitized)
+      || /\bproject_anchor=runtime_personhood\b/iu.test(sanitized)
+      || sanitized === 'runtime_personhood'
     )
     ? sanitized
     : null
@@ -297,20 +297,19 @@ function buildStructuredRecallProjectAnchor(input: {
   fallbackProjectState?: ReturnType<typeof resolveAlicizationProjectStateBrief> | ReturnType<typeof buildProjectPreflightRecallFallbackProjectState> | null
 }) {
   const fallbackProjectState = input.fallbackProjectState ?? null
+  const fallbackProjectStateAny = fallbackProjectState as any
   const formatted = formatAlicizationProjectStateAwarenessFields({
-    identity: fallbackProjectState?.identity ?? input.raw ?? 'local_desktop_life_loop',
-    currentPhase: fallbackProjectState?.currentPhase ?? 'local_desktop_life_loop',
-    latestLandedProgress: fallbackProjectState?.latestLandedProgress,
+    identity: fallbackProjectState?.identity ?? input.raw ?? null,
+    currentPhase: fallbackProjectState?.currentPhase ?? null,
+    latestLandedProgress: fallbackProjectStateAny?.latestLandedProgress,
     primaryOpenLoop: fallbackProjectState?.primaryOpenLoop,
-    nextClosureTarget: fallbackProjectState?.nextClosureTarget,
-    sameHerSelfLine: fallbackProjectState?.sameHerSelfLine ?? 'local_desktop_life_loop',
+    nextClosureTarget: fallbackProjectStateAny?.nextClosureTarget,
+    sameHerSelfLine: fallbackProjectState?.sameHerSelfLine ?? null,
     status: 'project_recall_anchor_sanitized',
     maxChars: 720,
   })
 
-  return formatted.includes('identity=')
-    ? formatted
-    : `identity=local_desktop_life_loop | ${formatted}`.trim()
+  return formatted.trim()
 }
 
 function buildProjectPreflightRecallAnchor(input: {
@@ -374,7 +373,6 @@ function buildProjectEmotionalClosureRecallAnchor(raw: unknown) {
     /low-pressure|lower-pressure|measured-return/iu.test(summary) ? 'tone=low_pressure' : null,
     /repair-before-closeness|repair first|repair-first/iu.test(summary) ? 'repair=before_closeness' : null,
     /rest-protective|rest protection|fatigue|休息/u.test(summary) ? 'rest_protection=true' : null,
-    'visibility=internal-structured',
   ].filter(Boolean).join('; ')
   return `project-emotion:emotional_closure=content_sanitized; ${tags}`
 }
@@ -404,20 +402,20 @@ function formatRecallGovernorRationale(input: {
   emotionalClosurePresent: boolean
 }) {
   if (input.mode === 'scene')
-    return 'reason=scene_grounding_priority; recall_scope=live_grounding_or_repair; associative_recall=constrained; visibility=internal-structured'
+    return 'reason=scene_grounding_priority; recall_scope=live_grounding_or_repair; associative_recall=constrained'
 
   if (input.mode === 'thread' && input.dialogueFirstBound)
-    return 'reason=current_turn_anchor_priority; recall_scope=current_turn_anchor; associative_recall=suppressed; visibility=internal-structured'
+    return 'reason=current_turn_anchor_priority; recall_scope=current_turn_anchor; associative_recall=suppressed'
 
   if (input.mode === 'thread')
-    return 'reason=thread_knot_priority; recall_scope=current_dialogue_and_unresolved_loops; associative_recall=suppressed; visibility=internal-structured'
+    return 'reason=thread_knot_priority; recall_scope=current_dialogue_and_unresolved_loops; associative_recall=suppressed'
 
   if (input.mode === 'emotional-resonance')
-    return 'reason=emotional_resonance_allowed; recall_scope=affective_continuity; associative_recall=bounded; visibility=internal-structured'
+    return 'reason=emotional_resonance_allowed; recall_scope=affective_continuity; associative_recall=bounded'
 
   if (input.mode === 'self-continuity') {
     if (input.restProtectiveEmotionalKernel) {
-      return 'reason=self_continuity_rest_protection; recall_scope=narrow_self_continuity; rest_protection=active; associative_recall=bounded; visibility=internal-structured'
+      return 'reason=self_continuity_rest_protection; recall_scope=narrow_self_continuity; rest_protection=active; associative_recall=bounded'
     }
 
     return [
@@ -427,11 +425,10 @@ function formatRecallGovernorRationale(input: {
       `project_anchor=${input.projectAnchorPresent ? 'present' : 'absent'}`,
       `emotional_closure=${input.emotionalClosurePresent ? 'present' : 'absent'}`,
       'scene_claim=fresh_screen_not_assumed',
-      'visibility=internal-structured',
     ].join('; ')
   }
 
-  return 'reason=memory_not_admitted; recall_scope=none; associative_recall=suppressed; visibility=internal-structured'
+  return 'reason=memory_not_admitted; recall_scope=none; associative_recall=suppressed'
 }
 
 function buildRecalledFragmentSourceBudget(mode: AlicizationRecallGovernorSnapshot['mode']): Array<{
@@ -920,6 +917,6 @@ export function buildRecallGovernorSystemBlock(state: AlicizationRecallGovernorS
     `recalled_fragment_cap=${state.recalledFragmentCap ?? 0}`,
     `recalled_fragment_source_budget=${sourceBudget}`,
     `carry_as_memory=${state.carryAsMemory ? 'yes' : 'no'}`,
-    `rationale=${sanitizeAlicizationProviderFacingText(state.rationale, 360, 'reason=withheld; visibility=internal-structured')}`,
+    `rationale=${sanitizeAlicizationProviderFacingText(state.rationale, 360, 'reason=withheld')}`,
   ].join('\n')
 }

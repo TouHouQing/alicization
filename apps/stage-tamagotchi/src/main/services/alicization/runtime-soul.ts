@@ -72,7 +72,7 @@ export const defaultFrontmatter: AlicizationSoulFrontmatter = {
   schemaVersion: currentSoulSchemaVersion,
   initialized: false,
   custom_directives: defaultAlicizationCustomDirectives,
-  host_attitude: 'host_attitude=unset; source=default; surface=structured',
+  host_attitude: 'host_attitude=unset; source=default',
   core_incarnation: '',
   profile: { ...defaultAlicizationProfile },
   personality: {

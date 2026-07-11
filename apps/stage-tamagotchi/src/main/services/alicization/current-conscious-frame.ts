@@ -111,73 +111,11 @@ function fixedTemplateResidueStructuredFact(raw: unknown, maxChars = 320) {
   if (!normalized || !containsAlicizationFixedTemplateResidue(normalized))
     return ''
 
-  const lowered = normalized.toLowerCase()
   if (hasExecutionResumeConfirmationBoundary(normalized)) {
-    return 'execution_confirmation=bounded; confirmation=host_confirmed_before_redispatch; audit=resume_before_dispatch; interrupt=process_not_yet_restarted; permission=not_permanent; opening=new_execution_boundary_required; surface=structured'
+    return 'Execution resume already has host confirmation; permission is not permanent and no new process has started yet.'
   }
 
-  if (/project-state carry|already survives|already keeps|closure truth alive|landed progress|some closure already landed|continuity already survives|shared embodiment continuity now carries|host-facing closure surfaces|runtime authority summaries/u.test(lowered)) {
-    return 'continuity_progress=partial; surface=structured'
-  }
-
-  if (
-    /memory, initiative, (?:dialogue, )?and embodiment|memory, initiative, dialogue, and embodiment|reply, initiative, and embodiment|memory still needs|initiative, embodiment|memory_dialogue_embodiment|still-open closure|still needs one .*closure|still need(?:s|ing) .*rejoin|full cross-modal closure settles/u.test(lowered)
-  ) {
-    return 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete; surface=structured'
-  }
-
-  if (/cross[-_ ]modal|cross_modal|longer, noisier real-desktop runs|real-desktop runs|keep extending .*proof|continuity proof/u.test(lowered)) {
-    return 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs; surface=structured'
-  }
-
-  if (/dialogue runtime cue|visible reply formation|visible reply continuity/u.test(lowered)) {
-    return 'continuity_cue=same_thread_continuation; restart_shell_risk=blocked; surface=visible_reply; surface=structured'
-  }
-
-  if (/final visible reply|callback return|callback result/u.test(lowered) && /same living line|same-her|closure/u.test(lowered)) {
-    return 'visible_reply_continuity=callback_return; continuity_closure=preserve; surface=structured'
-  }
-
-  if (/generic guidance|generic assistant shell|generic project narration|generic project shell|detached callback fluency|detached project narration|generic shell|project-summary voice|thin project shell/u.test(lowered)) {
-    return 'continuity_drift_risk=generic_shell; closure_status=unfinished; surface=structured'
-  }
-
-  if (/measured-return|measured return/u.test(lowered)) {
-    return 'continuity_hold=measured_return; pressure=lower; widening=deferred; surface=structured'
-  }
-
-  if (/why (?:this )?recall surfaced|why recall is surfacing|memory closure|initiative\/execution|initiative_execution|recall surfaced/u.test(lowered)) {
-    return 'memory_closure=explain_recall_surface; tied_lanes=initiative_execution+emotion+embodiment; surface=structured'
-  }
-
-  if (/callback afterglow|emotional residue|emotional closure|emotion|情绪|情感/u.test(lowered)) {
-    return 'emotional_closure=repair_before_closeness; residue=callback_afterglow; pressure=low; until=repair_settles; surface=structured'
-  }
-
-  if (/body expression|embodiment lane|body line|body still|具身|身体|口型|表情|动作/u.test(lowered)) {
-    return 'embodied_continuity=repair_before_closeness; body_expression=repair_before_outward_widening; surface=structured'
-  }
-
-  if (/remembered seam|same remembered relationship seam|keep more room|more room this time|reopened too eagerly|too eager|不要重开得太快|留白/u.test(lowered)) {
-    return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; pressure=lower; surface=structured'
-  }
-
-  if (/same her across the pause|same thread|same-line return|quiet pause|held continuity seam/u.test(lowered)) {
-    return 'continuity_anchor=same_thread_continuation; pause=held; room=preserve; surface=structured'
-  }
-
-  if (/repair-before-closeness|repair before closeness|repair settles|repair-first|repair first/u.test(lowered)) {
-    return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens; until=repair_settles; surface=structured'
-  }
-
-  if (/lower-pressure|low-pressure|slower|widening|widen outward|widens again/u.test(lowered)) {
-    return 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred; surface=structured'
-  }
-
-  if (/phase\s*1|local-first|digital life|数字生命/u.test(lowered))
-    return 'continuity_anchor=runtime_personhood; unresolved_closure=memory_dialogue_embodiment; surface=structured'
-
-  return alicizationFixedTemplateReplacement
+  return ''
 }
 
 function sanitizeConsciousFrameStructuredFact(raw: unknown, maxChars = 320) {
@@ -199,12 +137,6 @@ function pickConsciousFrameProjectFact(maxChars: number, ...values: unknown[]) {
       return providerSafe
   }
   return ''
-}
-
-function structuredConsciousFrameCarry(key: string, value: string | null | undefined) {
-  return value
-    ? `${key}=${value}; surface=structured`
-    : ''
 }
 
 function stripTrailingPunctuation(text: string) {
@@ -411,7 +343,7 @@ function isSameHerInwardLowPressureCompanionHeadline(text: string | null | undef
     return false
 
   return (
-    normalized.includes('continuity=embodiment')
+    normalized.includes('embodiment_status')
     && normalized.includes('low-pressure-inward-carry')
   ) || (
     normalized.includes('holding together mainly through')
@@ -429,10 +361,7 @@ function buildCompactSameHerInwardLowPressureAwarenessLine(sameHerSelfLine: stri
   if (!normalized)
     return ''
 
-  return sanitizeText(
-    'continuity=embodiment | status=pending-rejoin | pending_rejoin=lipsync+voice | evidence=low-pressure-inward-carry | surface=structured',
-    420,
-  )
+  return ''
 }
 
 function preferProjectStateSameHerSelfLine(input: {
@@ -588,11 +517,11 @@ function deriveLongHorizonProjectSameHerDriftRisk(runtimeSurface?: AlicizationDi
     return null
 
   if (/detached project status talk|detached status talk|项目总结口气|通用回调壳|通用 callback 壳|脱离项目状态口气/u.test(combined)) {
-    return 'continuity_drift_risk=detached_project_status_talk; closure_status=unfinished; callback_carry=before_landing; surface=structured'
+    return null
   }
 
   if (/generic assistant shell|project-summary voice|generic callback shell|generic project shell|detached project narration|detached project shell|通用助手壳|项目总结口气|通用回调壳|通用项目壳|脱离项目叙述/u.test(combined)) {
-    return 'continuity_drift_risk=generic_assistant_or_callback_shell; closure_status=unfinished; callback_carry=before_landing; surface=structured'
+    return null
   }
 
   return null
@@ -841,10 +770,10 @@ function deriveCadenceAwareSameHerHoldDetail(input: {
   const preferredPacingMode = sanitizeText(input.preferredPacingMode, 32).toLowerCase()
 
   if (preferredVoiceMode === 'lower-pressure' && preferredPacingMode === 'slower')
-    return 'continuity_cadence=lower_pressure; pacing=slower; widening=deferred; surface=structured'
+    return 'continuity_cadence=lower_pressure; pacing=slower; widening=deferred'
 
   if (preferredPauseMode === 'longer' && preferredLipsyncMode === 'restrained')
-    return 'continuity_cadence=remembered_return; pause=longer; lipsync=restrained; widening=deferred; surface=structured'
+    return 'continuity_cadence=remembered_return; pause=longer; lipsync=restrained; widening=deferred'
 
   return ''
 }
@@ -865,10 +794,10 @@ function deriveCadenceAwareContinuityCue(input: {
   const preferredPacingMode = sanitizeText(input.preferredPacingMode, 32).toLowerCase()
 
   if (preferredVoiceMode === 'lower-pressure' && preferredPacingMode === 'slower')
-    return 'continuity_cue=lower_pressure_return; pacing=slower; widening=deferred; surface=structured'
+    return 'continuity_cue=lower_pressure_return; pacing=slower; widening=deferred'
 
   if (preferredPauseMode === 'longer' && preferredLipsyncMode === 'restrained')
-    return 'continuity_cue=remembered_return; pause=longer; lipsync=restrained; widening=deferred; surface=structured'
+    return 'continuity_cue=remembered_return; pause=longer; lipsync=restrained; widening=deferred'
 
   return ''
 }
@@ -1002,7 +931,7 @@ function resolveProjectStateSameHerHoldDetail(input: {
   if (sameHerHoldDetail && !looksLikeGenericSameHerHoldDetail(sameHerHoldDetail))
     return sameHerHoldDetail
 
-  return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; pressure=lower; surface=structured'
+  return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; pressure=lower'
 }
 
 function deriveProjectClosureAuthority(input: {
@@ -1058,14 +987,14 @@ function deriveInitiativeClosureCue(input: {
     || selectedAction === 'wait'
     || /stay close|stay nearby|leave room|lower-pressure|quiet|same living line|same-her|same digital life/u.test(combined)
   ) {
-    return 'initiative_policy=hold_nearby; pressure=lower; closure_lanes=memory+emotion+embodiment; widening=deferred; surface=structured'
+    return 'initiative_policy=hold_nearby; pressure=lower; closure_lanes=memory+emotion+embodiment; widening=deferred'
   }
 
   if (
     selectedAction === 'recheck'
     || /repair-before-closeness|repair first|repair seam|re-ground|reground/u.test(combined)
   ) {
-    return 'initiative_policy=recheck_until_repair_settles; truth_first=true; widening_ahead_of_truth=false; closure_lanes=memory+emotion+embodiment; surface=structured'
+    return 'initiative_policy=recheck_until_repair_settles; truth_first=true; widening_ahead_of_truth=false; closure_lanes=memory+emotion+embodiment'
   }
 
   if (
@@ -1074,7 +1003,7 @@ function deriveInitiativeClosureCue(input: {
     || selectedAction === 'warn'
     || /could help|ready to surface|guidance|speak now/u.test(combined)
   ) {
-    return 'initiative_policy=surface_allowed; anchor=current_self_state; closure_lanes=memory+emotion+embodiment; surface=structured'
+    return 'initiative_policy=surface_allowed; anchor=current_self_state; closure_lanes=memory+emotion+embodiment'
   }
 
   return null
@@ -1150,7 +1079,7 @@ function buildProjectStateShapedSpeakingIntention(input: {
 
   const leadSegments = uniqueList([
     useExplicitSameHerLead && sameHerSelfLine
-      ? `continuity_anchor=${stripTrailingPunctuation(sameHerSelfLine)}`
+      ? `project_anchor=${stripTrailingPunctuation(sameHerSelfLine)}`
       : null,
     buildSameHerAntiShellSpeakingLine(sameHerDriftRisk),
     useExplicitSameHerLead && sameHerDriftRisk && sameHerDriftRisk.length <= 120
@@ -1429,7 +1358,7 @@ function resolveConsciousNeed(input: {
     case 'repair':
       return surfaceNeed
         ? `repair_need=steady_seam; around=${lowerFirst(stripTrailingPunctuation(surfaceNeed))}`
-        : 'repair_need=steady_seam; surface=structured'
+        : 'repair_need=steady_seam'
     case 'guide':
       if (input.personalityContinuityState?.currentRegime === 'execution-callback') {
         return 'guide_need=land_execution_callback; callback_sprawl=false; second_reality=false'
@@ -1448,7 +1377,7 @@ function resolveConsciousNeed(input: {
           input.answerCompiler.nextMove,
           input.mindSynthesis?.commitments?.[0]?.summary,
         )))}.`
-        : 'guide_need=active_knot; speech_around_it=false; surface=structured'
+        : 'guide_need=active_knot; speech_around_it=false'
     case 'care':
       if (
         input.personalityContinuityState?.currentRegime === 'focused-work'
@@ -1469,10 +1398,10 @@ function resolveConsciousNeed(input: {
           input.mindSynthesis?.concerns?.[0]?.summary,
         )))}.`
         : input.growthProfile.companionshipStyle === 'close-hold'
-          ? 'care_need=present_but_room_giving; room=breathe; surface=structured'
+          ? 'care_need=present_but_room_giving; room=breathe'
           : input.growthProfile.autonomyRespect >= 0.58
-            ? 'care_need=host_present_state; pressure=not_too_hard; surface=structured'
-            : 'care_need=host_present_state; drift=blocked; surface=structured'
+            ? 'care_need=host_present_state; pressure=not_too_hard'
+            : 'care_need=host_present_state; drift=blocked'
     case 'attune':
     case 'answer':
       return pickSurfaceText(
@@ -1487,7 +1416,7 @@ function resolveConsciousNeed(input: {
           input.dialogueEncounter?.summary,
           input.answerCompiler.openingClaim,
         )))}.`
-        : 'answer_need=live_dialogue_subject; surface=structured'
+        : 'answer_need=live_dialogue_subject'
     case 'witness':
       return pickSurfaceText(
         input.answerCompiler.supportingReality?.[0],
@@ -1499,9 +1428,9 @@ function resolveConsciousNeed(input: {
           input.answerCompiler.openingClaim,
           input.dialogueEncounter?.summary,
         )))}.`
-        : 'witness_need=visible_first; wider_story=deferred; surface=structured'
+        : 'witness_need=visible_first; wider_story=deferred'
     default:
-      return 'conscious_need=small_true_turn; flooding=false; surface=structured'
+      return 'conscious_need=small_true_turn; flooding=false'
   }
 }
 
@@ -1812,7 +1741,7 @@ function buildProjectStateConsciousFrameGrounding(input?: {
     ? 'runtime embodiment repair keeps body expression repair-before-closeness before the memory line widens again.'
     : ''
   const runtimeSameHerEmbodimentContinuityCue = runtimeSameHerEmbodimentCarryAdvice
-    ? 'embodied_continuity=repair_before_closeness; memory_embodiment_rejoin=before_outward_widening; surface=structured'
+    ? 'embodied_continuity=repair_before_closeness; memory_embodiment_rejoin=before_outward_widening'
     : ''
   const runtimeSameHerEmotionalClosureCue = runtimeSameHerEmotionalCarryAdvice
     ? 'emotional closure: keep callback afterglow and emotional residue low-pressure until repair settles.'
@@ -2458,10 +2387,10 @@ function deriveInwardRecollectionConsciousCue(input: {
       || /current payoff still needs the foreground|keep recollection inward|host has (?:more )?room|live payoff|remembered seam inward|live reunion/u.test(whyWithheld.toLowerCase())
     )
     ? whyWithheld
-    : 'inward_recollection=withhold_until_payoff_lands; host_room=required; surface=structured'
+    : 'inward_recollection=withhold_until_payoff_lands; host_room=required'
   const followUpNeed = followUpSummary
     ? `follow_up_need=payoff_first; summary=${lowerFirst(stripTrailingPunctuation(followUpSummary))}`
-    : 'follow_up_need=payoff_first; remembered_continuity_widening=deferred; surface=structured'
+    : 'follow_up_need=payoff_first; remembered_continuity_widening=deferred'
   const followUpTimingCue = preferredTiming === 'next-open-window'
     ? 'follow_up_timing=next_open_window; recollection_wait=true'
     : preferredTiming === 'after-payoff'
@@ -2475,7 +2404,7 @@ function deriveInwardRecollectionConsciousCue(input: {
       followUpTimingCue,
     ], 320),
     speakingIntention: weaveDistinctText([
-      'recollection_surface=inward_until_live_payoff; remembered_continuity_surface=deferred; surface=structured',
+      'recollection_surface=inward_until_live_payoff; remembered_continuity_surface=deferred',
       followUpTimingCue,
     ], 220),
   }
@@ -2769,7 +2698,7 @@ export function buildCurrentConsciousFrame(input: {
       : 'project_context=digital_life_current'
     : null
   const projectStateProactiveSameHerGapNeed = projectStateGrounding.proactiveSameHerGap
-    ? providerFacingConsciousFrameField('proactive_gap', stripTrailingPunctuation(projectStateGrounding.proactiveSameHerGap), 220)
+    ? providerFacingConsciousFrameField('initiative_gap', stripTrailingPunctuation(projectStateGrounding.proactiveSameHerGap), 220)
     : null
   const projectStateMemoryClosureNeed = projectStateGrounding.memoryClosureSummary
     ? providerFacingConsciousFrameField('memory_closure', stripTrailingPunctuation(projectStateGrounding.memoryClosureSummary), 220)

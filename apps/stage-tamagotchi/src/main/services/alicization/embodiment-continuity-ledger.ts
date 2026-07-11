@@ -139,7 +139,7 @@ function buildReasonCodes(input: {
 }) {
   return uniqueList([
     ...input.droppedLanes.map(lane => `embodiment-lane-dropped:${lane}`),
-    ...input.pendingRejoinLanes.map(lane => `embodiment-pending-rejoin:${lane}`),
+    ...input.pendingRejoinLanes.map(lane => `embodiment-partial:${lane}`),
     ...input.rejoinedLanes.map(lane => `embodiment-lane-rejoined:${lane}`),
     sanitizeText(input.projectStateContinuity?.sameHerSelfLine, 180) ? 'identity-continuity-self-line-active' : null,
     sanitizeText(input.projectStateContinuity?.sameHerDriftRisk, 180) ? 'identity-continuity-drift-risk-active' : null,
@@ -203,7 +203,7 @@ export function buildAlicizationEmbodimentContinuityLedger(input: {
     `phase=${continuityPhase}`,
     `carrying=${carryingLanes.join(',') || 'none'}`,
     `dropped=${droppedLanes.join(',') || 'none'}`,
-    `pending_rejoin=${pendingRejoinLanes.join(',') || 'none'}`,
+    `missing_lanes=${pendingRejoinLanes.join(',') || 'none'}`,
     `rejoined=${rejoinedLanes.join(',') || 'none'}`,
     sourceTags.length > 0 ? `source=${sourceTags.join(',')}` : '',
   ].filter(Boolean).join(' | ')

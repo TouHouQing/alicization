@@ -53,7 +53,7 @@ function sanitizeLearningProjectStateContinuity(
     emotionalClosureCue: sanitizeLearningContinuityText(projectState.emotionalClosureCue, 420),
     sameHerSelfLine: sanitizeLearningContinuityAnchor(projectState.sameHerSelfLine),
     sameHerHoldDetail: sanitizeLearningContinuityText(projectState.sameHerHoldDetail, 420),
-    sameHerDriftRisk: sanitizeLearningContinuityText(projectState.sameHerDriftRisk, 420) ?? 'continuity_drift_risk=tracked',
+    sameHerDriftRisk: sanitizeLearningContinuityText(projectState.sameHerDriftRisk, 420) ?? 'template_residue_risk=tracked',
   }
 }
 
@@ -360,9 +360,9 @@ function buildTaskMessage(input: {
   const sameHerLearningConstraint
     = sameHerDriftRisk
       && /generic assistant shell|project-summary voice|generic project shell|detached project/i.test(sameHerDriftRisk)
-      ? `continuity_anchor=${sameHerSelfLine || 'identity_continuity'} ; guard=${sameHerDriftRisk}`
+      ? `project_anchor=${sameHerSelfLine || 'identity_continuity'} ; guard=${sameHerDriftRisk}`
       : sameHerSelfLine
-        ? `continuity_anchor=${sameHerSelfLine}`
+        ? `project_anchor=${sameHerSelfLine}`
         : ''
   return [
     `learning-action=${input.nextLearningAction}`,
@@ -389,7 +389,7 @@ function deriveSameHerContinuityGuard(projectStateContinuity?: AlicizationLearni
   return {
     sameHerSelfLine: sameHerSelfLine || 'identity_continuity',
     sameHerHoldDetail: sameHerHoldDetail || null,
-    sameHerDriftRisk: sameHerDriftRisk || 'continuity_drift_risk=scheduler_drift_guard_needed',
+    sameHerDriftRisk: sameHerDriftRisk || 'template_residue_risk=scheduler_drift_guard_needed',
     proactiveSameHerGap: proactiveSameHerGap || null,
   }
 }
@@ -405,7 +405,7 @@ function appendSameHerContinuityGuard(input: {
 
   const fragments = [
     base,
-    `continuity_anchor=${continuityGuard.sameHerSelfLine}`,
+    `project_anchor=${continuityGuard.sameHerSelfLine}`,
     continuityGuard.sameHerHoldDetail ? `continuity_hold=${continuityGuard.sameHerHoldDetail}` : '',
     `guard=${continuityGuard.sameHerDriftRisk}`,
     continuityGuard.proactiveSameHerGap ? `continuity_gap=${continuityGuard.proactiveSameHerGap}` : '',

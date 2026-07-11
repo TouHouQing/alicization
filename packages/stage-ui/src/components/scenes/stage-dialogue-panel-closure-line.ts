@@ -6,7 +6,7 @@ import {
 } from '@proj-alicization/stage-shared'
 
 const dialoguePanelInternalResiduePattern
-  = /continuity evidence|renderer continuity|identity-continuity|phase1_local_digital_life|visibility=internal-structured|content=excluded|owner=|source=|continuity_anchor=|continuity=|pending=|pending[_-]rejoin=|recovery@|same[- ]her|same living line|one living her|one continuous her|同一个\s*her|同一个她|同一条数字生命线|数字生命主线|普通项目播报|下一步还要继续收住/iu
+  = /continuity evidence|renderer continuity|identity-continuity|phase1_local_digital_life|visibility=internal-structured|content_withheld|owner=|source=|project_anchor=|continuity_anchor=|continuity=|embodiment_lanes=|missing_lanes=|pending=|pending[_-]rejoin=|recovery@|same[- ]her|same living line|one living her|one continuous her|同一个\s*her|同一个她|同一条数字生命线|数字生命主线|普通项目播报|下一步还要继续收住/iu
 
 function normalizeVisibleClosureLine(line: string | null | undefined) {
   const trimmed = typeof line === 'string' ? line.trim() : ''
@@ -134,7 +134,7 @@ function carriesExplicitSameHerContinuityEvidence(line: string | null | undefine
     && (
       normalized.includes('signature=')
       || normalized.includes('recovery@')
-      || normalized.includes('pending-rejoin=')
+      || normalized.includes('partial=')
     )
 }
 
@@ -191,7 +191,7 @@ function scoreFallbackAwarenessLine(line: string | null | undefined) {
       && (
         normalized.includes('signature=')
         || normalized.includes('recovery@')
-        || normalized.includes('pending-rejoin=')
+        || normalized.includes('partial=')
       )
   if (carriesSameHerMeasuredReturn) {
     score += 3
@@ -275,7 +275,7 @@ function isSameHerFocusedFallbackAwarenessCandidate(line: string | null | undefi
     || normalized.includes('same line inward')
     || normalized.includes('continuity=')
     || normalized.includes('recovery@')
-    || normalized.includes('pending-rejoin=')
+    || normalized.includes('partial=')
     || normalized.includes('pause=')
     || normalized.includes('lipsyncmode=')
     || normalized.includes('voicemode=')

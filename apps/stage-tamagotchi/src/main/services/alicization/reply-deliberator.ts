@@ -489,14 +489,20 @@ function canonicalSameHerProjectStateClosureReason(frame?: AlicizationCurrentCon
     return null
 
   const normalizedProjectState = canonicalizeReplyDeliberatorProjectState(frame)
-  const rawLiveAwareness = sanitizeDialogueSurfaceText(
+  const rawLiveAwarenessCandidate = sanitizeDialogueSurfaceText(
     readLiveProjectPreDialogueAwarenessSignal(frame),
     240,
   )
-  const fallbackAwareness = sanitizeDialogueSurfaceText(
+  const fallbackAwarenessCandidate = sanitizeDialogueSurfaceText(
     normalizedProjectState?.preDialogueAwarenessLine,
     240,
   )
+  const rawLiveAwareness = looksLikeThinProjectContinuityShell(rawLiveAwarenessCandidate)
+    ? ''
+    : rawLiveAwarenessCandidate
+  const fallbackAwareness = looksLikeThinProjectContinuityShell(fallbackAwarenessCandidate)
+    ? ''
+    : fallbackAwarenessCandidate
   const latestProgress = sanitizeDialogueSurfaceText(normalizedProjectState?.latestLandedProgress, 220)
   const primaryOpenLoop = sanitizeDialogueSurfaceText(normalizedProjectState?.primaryOpenLoop, 220)
   const proactiveSameHerGap = sanitizeDialogueSurfaceText(normalizedProjectState?.proactiveSameHerGap, 220)
@@ -513,7 +519,7 @@ function canonicalSameHerProjectStateClosureReason(frame?: AlicizationCurrentCon
       : null
   const explicitDriftRiskPressure = sameHerDriftRisk || 'detached_project_shell_or_generic_guidance'
   const explicitProactiveGapPressure = proactiveSameHerGap
-    ? `proactive_gap=${summarizeProjectStatusFacet('open', proactiveSameHerGap)}`
+    ? `initiative_gap=${summarizeProjectStatusFacet('open', proactiveSameHerGap)}`
     : null
   const explicitCorrectedSamePersonCue
     = projectContinuityCue
@@ -525,7 +531,7 @@ function canonicalSameHerProjectStateClosureReason(frame?: AlicizationCurrentCon
     'project_closure_context=structured_continuity',
     rawLiveAwareness ? `awareness=${summarizeProjectStatusFacet('open', rawLiveAwareness)}` : null,
     !rawLiveAwareness && fallbackAwareness ? `awareness=${summarizeProjectStatusFacet('open', fallbackAwareness)}` : null,
-    sameHerSelfLine ? `continuity_anchor=${summarizeProjectStatusFacet('open', sameHerSelfLine)}` : null,
+    sameHerSelfLine ? `project_anchor=${summarizeProjectStatusFacet('open', sameHerSelfLine)}` : null,
     explicitCorrectedSamePersonAuthority ? `corrected_authority=${summarizeProjectStatusFacet('open', explicitCorrectedSamePersonAuthority)}` : null,
     latestProgress ? `landed=${summarizeProjectStatusFacet('landed', latestProgress)}` : null,
     primaryOpenLoop ? `open=${summarizeProjectStatusFacet('open', primaryOpenLoop)}` : null,
@@ -597,6 +603,14 @@ function summarizeProjectStatusFacet(kind: 'landed' | 'open' | 'next', value: st
     return 'keep identity, progress, and open closure explicit'
 
   return normalized.slice(0, 72)
+}
+
+function looksLikeThinProjectContinuityShell(value: string | null | undefined) {
+  const normalized = sanitizeDialogueSurfaceText(value, 320).toLowerCase()
+  if (!normalized)
+    return false
+
+  return /project continuity exists|project continuity still needs closure|carry project continuity forward/u.test(normalized)
 }
 
 function readLiveProjectPreDialogueAwarenessSignal(frame?: AlicizationCurrentConsciousFrameSnapshot | null) {
@@ -1044,7 +1058,7 @@ export function buildReplyDeliberation(input: {
     }),
     makeMotive({
       kind: 'defer',
-      summary: 'reply_pressure=light; overwhelm_turn=blocked; visibility=internal-structured',
+      summary: 'reply_pressure=light; overwhelm_turn=blocked',
       weight: answerCompiler.recommendedAct === 'defer' || privateThought?.shouldSpeak === false
         ? 0.58
         : 0.08
@@ -1133,11 +1147,11 @@ export function buildReplyDeliberation(input: {
       ? sameHerProjectClosureReason
       : null,
     projectStateAnswerTurn && explicitProjectIdentity
-      ? `visible_reply_anchor=project_identity; identity=${explicitProjectIdentity}; visibility=internal-structured`
+      ? `visible_reply_anchor=project_identity; identity=${explicitProjectIdentity}`
       : null,
     primaryTurnAnchor,
     shouldLabelHypothesis
-      ? 'direct_observation_clause=separate; task_guess_clause=separate; visibility=internal-structured'
+      ? 'direct_observation_clause=separate; task_guess_clause=separate'
       : null,
     claimEvidenceLedger?.observedSurface ?? null,
     currentConsciousFrame?.speakingIntention ?? null,

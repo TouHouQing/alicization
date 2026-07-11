@@ -283,7 +283,7 @@ export function buildDiscourseState(input: {
   })
   const currentTurnSummary = sanitizeText(
     (projectStateContinuityTurn
-      ? 'turn_summary=project_state_continuity_request; facts_requested=identity_progress_open_loops; visibility=internal-structured'
+      ? 'turn_summary=project_state_review_request; facts_requested=identity_progress_open_loops'
       : '')
     || (dialogueFirst
       ? primaryTurnAnchor
@@ -300,9 +300,9 @@ export function buildDiscourseState(input: {
     || dialogueSemantics?.summary
     || worldModel?.activeThread?.summary
     || input.previous?.currentTurnSummary
-    || 'turn_summary=current_turn; visibility=internal-structured',
+    || 'turn_summary=current_turn',
     200,
-  ) || 'turn_summary=current_turn; visibility=internal-structured'
+  ) || 'turn_summary=current_turn'
 
   return {
     currentTurnSubject: subject,

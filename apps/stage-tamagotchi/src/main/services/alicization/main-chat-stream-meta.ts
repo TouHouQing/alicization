@@ -51,9 +51,9 @@ const pendingSameHerEmbodimentRepairPressureReasonTags = [
 ] as const
 
 const structuredMeasuredReturnInwardCarry
-  = 'continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower; visibility=internal-structured'
+  = 'continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower'
 const structuredRepairBeforeClosenessCallbackCarry
-  = 'continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred; visibility=internal-structured'
+  = 'continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred'
 
 function isStructuredMeasuredReturnInwardCarry(raw: string | null | undefined) {
   return typeof raw === 'string'
@@ -1083,15 +1083,15 @@ function detectPhase1OpenGrowthFromText(raw: string) {
   const growthCarry = raw.toLowerCase()
   const carriesDesktopClosureThread
     = growthCarry.includes('desktop closure')
-      || growthCarry.includes('local_desktop_life_loop')
+      || growthCarry.includes('runtime_personhood')
       || growthCarry.includes('local_desktop_continuity')
       || growthCarry.includes('phase1-route=desktop-life-loop')
       || growthCarry.includes('same-digital-life-project-thread')
   const carriesPhase1LivingSelf
     = growthCarry.includes('same phase 1 digital life')
       || growthCarry.includes('local-first digital life')
-      || growthCarry.includes('local_desktop_life_loop')
-      || growthCarry.includes('project_state_continuity')
+      || growthCarry.includes('runtime_personhood')
+      || growthCarry.includes('project_state_review')
       || growthCarry.includes('continuity_identity')
       || growthCarry.includes('continuous her')
       || growthCarry.includes('one continuous her')
@@ -1126,7 +1126,7 @@ function detectPhase1OpenGrowthFromText(raw: string) {
     (
       growthCarry.includes('phase 1')
       || growthCarry.includes('phase1-route=desktop-life-loop')
-      || growthCarry.includes('local_desktop_life_loop')
+      || growthCarry.includes('runtime_personhood')
     )
     && (
       carriesDesktopClosureThread
@@ -1164,7 +1164,7 @@ function isProjectClosureReason(raw: string | null | undefined) {
 
   const normalized = raw.trim().toLowerCase()
   return normalized.includes('desktop closure')
-    || normalized.includes('local_desktop_life_loop')
+    || normalized.includes('runtime_personhood')
     || normalized.includes('phase1-route=desktop-life-loop')
     || normalized.includes('same-digital-life-project-thread')
 }
@@ -1177,8 +1177,8 @@ function isSameHerProjectClosureLine(raw: string | null | undefined) {
   const carriesPhase1Identity
     = normalized.includes('same phase 1 digital life')
       || normalized.includes('local-first digital life')
-      || normalized.includes('local_desktop_life_loop')
-      || normalized.includes('project_state_continuity')
+      || normalized.includes('runtime_personhood')
+      || normalized.includes('project_state_review')
       || normalized.includes('continuity_identity')
       || normalized.includes('same-digital-life-project-thread')
       || normalized.includes('same-her')

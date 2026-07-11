@@ -112,7 +112,7 @@ function normalizeSecondPassProviderTemplateTokens(raw: unknown) {
     .replace(/\bcontinuity_owner\s*=\s*one_her\b/giu, 'owner=project_state_governance')
     .replace(/\bone same-her Phase\s*1 line\b/giu, 'one continuity_line')
     .replace(/\bone same-her line\b/giu, 'one continuity_line')
-    .replace(/\bcross-modal same-her proof\b/giu, 'cross_modal_continuity_proof')
+    .replace(/\bcross-modal same-her proof\b/giu, 'embodiment_scale_validation')
     .replace(/\bsame-her carry alive\b/giu, 'continuity_carry=alive')
     .replace(/\bsame-her carry\b/giu, 'continuity_carry')
     .replace(/\bsame-her closure\b/giu, 'continuity_closure')
@@ -122,8 +122,8 @@ function normalizeSecondPassProviderTemplateTokens(raw: unknown) {
     .replace(/\bsame her\b/giu, 'continuity')
     .replace(/\bsame living line\b/giu, 'continuity_line')
     .replace(/\bsame Phase 1 living line\b/giu, 'phase1_continuity_line')
-    .replace(/\bone continuous "?her"?\b/giu, 'project_state_continuity')
-    .replace(/\bone living her\b/giu, 'project_state_continuity')
+    .replace(/\bone continuous "?her"?\b/giu, 'project_state_review')
+    .replace(/\bone living her\b/giu, 'project_state_review')
     .replace(/\bone continuity continuity\b/giu, 'one continuity')
     .replace(/\bcontinuity continuity\b/giu, 'continuity')
 }
@@ -313,11 +313,11 @@ function looksLikeProjectStateAnswerStancePreserveLine(value: string | null | un
     return false
 
   const namesProjectState
-    = /(?:^|[;|,\s])(?:answer_subject|project_state_answer|project_state_continuity|project_state_question|project_context_follow_through|preserve_field)=/u.test(normalized)
+    = /(?:^|[;|,\s])(?:answer_subject|project_state_answer|project_state_review|project_state_question|project_context_follow_through|preserve_field)=/u.test(normalized)
       || /preserve_field=project_state\./u.test(normalized)
   const carriesStructuredContinuity
-    = /(?:^|[;|,\s])(?:continuity_anchor|continuity_field|continuity_cue|continuity_hold|life_loop_continuity|local_desktop_life_loop)=/u.test(normalized)
-      || /local_desktop_life_loop|memory_dialogue_embodiment_closure|cross_modal_continuity_proof/u.test(normalized)
+    = /(?:^|[;|,\s])(?:continuity_anchor|continuity_field|continuity_cue|continuity_hold|runtime_loop_validation|runtime_personhood)=/u.test(normalized)
+      || /runtime_personhood|memory_dialogue_embodiment_closure|embodiment_scale_validation/u.test(normalized)
 
   return namesProjectState && carriesStructuredContinuity
 }
@@ -334,10 +334,10 @@ function carriesStructuredEmbodimentContinuityProof(value: string | null | undef
   if (!normalized)
     return false
 
-  return /continuity=embodiment:(?:still-voiced-face-motion-line|still-voiced-motion-line|still-voiced-face-line|still-voiced-face-lipsync-line|still-voiced-motion-lipsync-line|audible-same-her-line|body-lipsync-voice-rejoin)(?:\+embodiment:[^|\s]+)?(?:\s*\||$)/i.test(normalized)
+  return /embodiment_status:(?:still-voiced-face-motion-line|still-voiced-motion-line|still-voiced-face-line|still-voiced-face-lipsync-line|still-voiced-motion-lipsync-line|audible-same-her-line|body-lipsync-voice-rejoin)(?:\+embodiment:[^|\s]+)?(?:\s*\||$)/i.test(normalized)
     || /signature=resident\|main-runtime\|accompanying\|quiet-accompaniment\|(?:still-voiced-face-motion-line|still-voiced-motion-line|still-voiced-face-line|still-voiced-face-lipsync-line|still-voiced-motion-lipsync-line)/i.test(normalized)
     || /(?:same-segment\s+)?(?:face\+motion|face\+voice|motion\+voice|face\+lipsync\+voice|motion\+lipsync\+voice|body\+lipsync\+voice)\s+recovery@/i.test(normalized)
-    || /pending-rejoin=body(?:\+face)?(?:\+motion)?(?:\+lipsync)?(?:\+voice)?(?:\s|\||$)/i.test(normalized)
+    || /partial=body(?:\+face)?(?:\+motion)?(?:\+lipsync)?(?:\+voice)?(?:\s|\||$)/i.test(normalized)
 }
 
 function preferRicherProjectStateAuditText(input: {
@@ -913,8 +913,8 @@ function scoreProjectAwarenessLine(value: string | null | undefined) {
   let score = scoreAlicizationProjectAwarenessLine(normalized)
   const carriesFixedTemplateResidue = containsAlicizationFixedTemplateResidue(normalized)
   const carriesStructuredProjectFact
-    = /(?:^|\s\|\s)(?:identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|proactive_gap|emotional_closure|status|summary)=/u.test(normalized)
-      || /local_desktop_life_loop|open_loop=|project_state_continuity=|life_loop_continuity=|cross_modal_continuity_proof=|memory_dialogue_embodiment_closure|embedding_recall_reindex/u.test(normalized)
+    = /(?:^|\s\|\s)(?:identity|phase|landed|open|next|initiative_gap|continuity_anchor|continuity_hold|continuity_drift_risk|emotional_closure|status|summary)=/u.test(normalized)
+      || /runtime_personhood|open_loop=|project_state_review=|runtime_loop_validation=|embodiment_scale_validation=|memory_dialogue_embodiment_closure|embedding_recall_reindex/u.test(normalized)
 
   if (carriesFixedTemplateResidue)
     score -= 8
@@ -1116,7 +1116,7 @@ function resolveExecutionCallbackEmbodimentHandoffForRewrite(input: {
     residentMode === 'repair-before-closeness'
     || (
       projectNextClosureTarget.includes('repair-before-closeness')
-      && /local_desktop_life_loop|owner=project_state_governance|continuity_anchor=local_desktop_life_loop/u.test(projectSameHerSelfLine)
+      && /runtime_personhood|owner=project_state_governance|project_anchor=runtime_personhood/u.test(projectSameHerSelfLine)
     )
   ) {
     return {
@@ -1134,7 +1134,7 @@ function resolveExecutionCallbackEmbodimentHandoffForRewrite(input: {
     residentMode === 'rest-protective'
     || (
       projectNextClosureTarget.includes('rest-protective')
-      && /local_desktop_life_loop|owner=project_state_governance|continuity_anchor=local_desktop_life_loop/u.test(projectSameHerSelfLine)
+      && /runtime_personhood|owner=project_state_governance|project_anchor=runtime_personhood/u.test(projectSameHerSelfLine)
     )
   ) {
     return {
@@ -1157,8 +1157,8 @@ function resolveExecutionCallbackEmbodimentHandoffForRewrite(input: {
     || (
       projectNextClosureTarget.includes('measured-return')
       && (
-        /local_desktop_life_loop|owner=project_state_governance|continuity_anchor=local_desktop_life_loop/u.test(projectAwarenessLine)
-        || /local_desktop_life_loop|owner=project_state_governance|continuity_anchor=local_desktop_life_loop/u.test(projectSameHerSelfLine)
+        /runtime_personhood|owner=project_state_governance|project_anchor=runtime_personhood/u.test(projectAwarenessLine)
+        || /runtime_personhood|owner=project_state_governance|project_anchor=runtime_personhood/u.test(projectSameHerSelfLine)
       )
     )
   ) {

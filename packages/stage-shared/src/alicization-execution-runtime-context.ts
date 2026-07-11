@@ -41,7 +41,7 @@ type ExecutionProjectBriefingField
     | 'continuity_anchor'
     | 'continuity_hold'
     | 'continuity_drift_risk'
-    | 'proactive_gap'
+    | 'initiative_gap'
     | 'emotional_closure'
     | 'awareness'
     | 'generic'
@@ -107,8 +107,8 @@ function sanitizeExecutionProjectBriefingText(
     return formatField('continuity_hold', { sameHerHoldDetail: text })
   if (field === 'continuity_drift_risk')
     return formatField('continuity_drift_risk', { sameHerDriftRisk: text })
-  if (field === 'proactive_gap')
-    return formatField('proactive_gap', { proactiveSameHerGap: text })
+  if (field === 'initiative_gap')
+    return formatField('initiative_gap', { proactiveSameHerGap: text })
   if (field === 'emotional_closure')
     return formatField('emotional_closure', { emotionalClosureCue: text })
 
@@ -373,7 +373,7 @@ function normalizeProjectBriefing(raw: unknown): NonNullable<AlicizationExecutio
   const sameHerSelfLine = sanitizeExecutionProjectBriefingText(value.sameHerSelfLine, 220, 'continuity_anchor') || null
   const sameHerHoldDetail = sanitizeExecutionProjectBriefingText(value.sameHerHoldDetail, 220, 'continuity_hold') || null
   const sameHerDriftRisk = resolveProjectBriefingSameHerDriftRisk(value)
-  const proactiveSameHerGap = sanitizeExecutionProjectBriefingText(value.proactiveSameHerGap, 320, 'proactive_gap') || null
+  const proactiveSameHerGap = sanitizeExecutionProjectBriefingText(value.proactiveSameHerGap, 320, 'initiative_gap') || null
   const companionBriefingLine = sanitizeExecutionProjectBriefingText(value.companionBriefingLine, 320, 'awareness') || null
   const emotionalClosureSummary = sanitizeExecutionProjectBriefingText(value.emotionalClosureSummary, 240, 'emotional_closure') || null
   const continuityRestraint = normalizeProjectBriefingContinuityRestraint(value.continuityRestraint)

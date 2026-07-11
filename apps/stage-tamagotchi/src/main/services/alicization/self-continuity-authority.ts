@@ -97,7 +97,6 @@ function structuredContinuityProjectionLine(raw: unknown, role: string) {
     /repair-before-closeness|repair before closeness/u.test(lower) ? 'repair_policy=before_closeness' : '',
     /rest-protective|protect rest/u.test(lower) ? 'rest_window=protect' : '',
     /wait for confirmation/u.test(lower) ? 'confirmation=required' : '',
-    'surface=structured',
   ].filter(Boolean).join('; ')
 }
 
@@ -303,7 +302,6 @@ function buildDurableSelfCoreLine(input: {
     carriesDigitalLifeIdentity ? 'phase_scope=life_core' : '',
     carriesContinuityAcrossSurfaces ? 'surface_scope=memory_speech_reply' : '',
     carriesLivingSelfRestraint ? 'restart_policy=context_preserving' : '',
-    'surface=structured',
   ].filter(Boolean).join('; '), 220) || null
 }
 
@@ -565,7 +563,6 @@ export function buildRuntimeSurfaceProjectStateContinuityFallback(
     return null
 
   const selfLine = sanitizeText([
-    'surface=structured',
     sameHerSelfLine ? structuredContinuityProjectionLine(sameHerSelfLine, 'continuity_anchor') : '',
     identity && normalizeProjectIdentityField(identity) ? `identity_scope=${normalizeProjectIdentityField(identity)}` : '',
     currentPhase && (normalizeProjectIdentityField(currentPhase) || compactStructuredValue(currentPhase, 80))
@@ -577,7 +574,6 @@ export function buildRuntimeSurfaceProjectStateContinuityFallback(
     || [
       primaryOpenLoop ? `open_loop=${compactStructuredValue(primaryOpenLoop, 120)}; pressure=lower` : '',
       nextClosureTarget ? `next_closure=${compactStructuredValue(nextClosureTarget, 140)}` : '',
-      'surface=structured',
     ].filter(Boolean).join(' '),
     220,
   ) || null
@@ -586,7 +582,6 @@ export function buildRuntimeSurfaceProjectStateContinuityFallback(
     sameHerSelfLine ? structuredContinuityProjectionLine(sameHerSelfLine, 'continuity_anchor') : '',
     latestProgress ? `verified_closure_progress=${compactStructuredValue(latestProgress, 140)}` : '',
     primaryOpenLoop ? `open_loop=${compactStructuredValue(primaryOpenLoop, 120)}` : '',
-    'surface=structured',
   ].filter(Boolean).join(' | '), 220) || null
   const authoritySummary = uniqueList([
     selfLine,
@@ -709,13 +704,13 @@ export function buildSelfContinuityAuthority(input: {
   ) || null
   const habitLine = sanitizeText(
     input.habitPolicy?.requiresGroundingBeforeSurface
-      ? 'habit_policy=ground_first; reply_source=model_authored; surface=structured'
+      ? 'habit_policy=ground_first; reply_source=model_authored'
       : input.habitPolicy?.prefersQuietCompanionship
-        ? 'presence_policy=quiet_companionship; pressure=low; surface=structured'
+        ? 'presence_policy=quiet_companionship; pressure=low'
         : input.habitPolicy?.protectsRestWindow
-          ? 'rest_window=protect; surface=structured'
+          ? 'rest_window=protect'
           : input.habitPolicy?.dominantMode
-            ? `dominant_mode=${compactStructuredValue(input.habitPolicy.dominantMode, 80)}; surface=structured`
+            ? `dominant_mode=${compactStructuredValue(input.habitPolicy.dominantMode, 80)}`
             : '',
     220,
   ) || null

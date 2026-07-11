@@ -37,7 +37,7 @@ const spacePattern = /space|boundary|lighter|light touch|quiet|room|边界|空�
 const positiveMemoryPolarityPattern = /trust up|closer|lighter|gentle|useful|accepted|received|repair|soft|safe|靠近|变轻|被接住|有用|接受|修复|更稳/u
 const negativeMemoryPolarityPattern = /trust down|intrusive|doubted|denied|pressure|heavy|failed|robotic|not this|boundary|down|拒绝|怀疑|压迫|打扰|失败|机械|不是这个|边界/u
 const humanlikeFixedTemplateReplacement = 'relationship_continuity=present; source_template=excluded; visibility=memory_structured'
-const sameHerContinuityPattern = /same[- ]?her|same[- ]?person|continuity line|one continuous|continuous digital life|continuity_anchor=phase1_local_digital_life|tool shell|generic shell|generic task|断线|工具壳|连续性|同一条线|持续的人|持续人格|数字生命/u
+const sameHerContinuityPattern = /same[- ]?her|same[- ]?person|continuity line|one continuous|continuous digital life|project_anchor=phase1_local_digital_life|tool shell|generic shell|generic task|断线|工具壳|连续性|同一条线|持续的人|持续人格|数字生命/u
 const unfinishedLoopPattern = /unfinished|partial|open loop|not complete|closure|没收完|未完成|闭环|还缺|继续推进/u
 const embodimentStatePattern = /embodiment|body|face|gaze|blink|voice|pause|lipsync|motion|身体|表情|视线|眨眼|声音|停顿|动作/u
 const progressPressurePattern = /pressing for progress|pushing progress|progress pressure|催进度|催状态|尽快|推进|推进完|收住|收完/u
@@ -421,7 +421,7 @@ function resolveHumanlikeProjectCadenceCarry(input: {
       ? `learned_return_cadence=${cadenceSummary}; restart_policy=context_preserving`
       : null,
     stablePreferenceLine: cadenceSummary
-      ? `preferred_return_cadence=${cadenceSummary}; visibility=internal-structured`
+      ? `preferred_return_cadence=${cadenceSummary}`
       : null,
     naturalRecallLine: preferredVoiceMode || preferredPacingMode || preferredPauseMode || preferredLipsyncMode
       ? `return_cadence=voice:${preferredVoiceMode || 'unspecified'}; pacing:${preferredPacingMode || 'unspecified'}; pause:${preferredPauseMode || 'unspecified'}; lipsync:${preferredLipsyncMode || 'unspecified'}; avoid_status_recitation=true; visibility=memory_structured`
@@ -732,7 +732,7 @@ function buildHumanlikeAutobiographicalCorrectionProfile(
   const correctedValue = sanitizeHumanlikeMemoryText(correction.correctedValue, 260)
   const normalized = lowerHumanlikeMemoryText(correctedValue, correction.reason)
   const futureFacing = /以后|下次|先|不要|别|prefer|keep|wait|let|again|future/u.test(normalized)
-  const structuredContinuityAnchor = /continuity_anchor=phase1_local_digital_life/u.test(correctedValue)
+  const structuredContinuityAnchor = /project_anchor=phase1_local_digital_life/u.test(correctedValue)
   const inferredPreference = sameHerContinuityPattern.test(normalized)
     ? 'Prefer continuity-first, lower-pressure return before treating this line as raw progress.'
     : vulnerableHostStatePattern.test(normalized) && (gentleCareMemoryPattern.test(normalized) || spacePattern.test(normalized))

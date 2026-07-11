@@ -291,7 +291,6 @@ function buildReminderMessage(input: {
     `target=${target}`,
     `defer_reason=${normalizedDeferReason}`,
     'status=awaiting_opening',
-    'visibility=internal-structured',
   ].join('; '), 220)
 }
 

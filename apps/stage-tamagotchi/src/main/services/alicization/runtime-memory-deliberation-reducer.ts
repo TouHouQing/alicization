@@ -55,10 +55,10 @@ function buildSelfAuthoritySpeakingCue(selfContinuityAuthority?: {
     return ''
 
   if (/space|measured|restrain|repair|room|lower-pressure|bounded/u.test(closenessPosture))
-    return `self_authority_speaking=room_giving; authority=${authoritySummary}; visibility=internal-structured`
+    return `self_authority_speaking=room_giving; authority=${authoritySummary}`
   if (/close|warm/u.test(closenessPosture))
-    return `self_authority_speaking=bond_preserving; authority=${authoritySummary}; visibility=internal-structured`
-  return `self_authority_speaking=continuous_self; authority=${authoritySummary}; visibility=internal-structured`
+    return `self_authority_speaking=bond_preserving; authority=${authoritySummary}`
+  return `self_authority_speaking=continuous_self; authority=${authoritySummary}`
 }
 
 function hasFixedTemplateResidue(value: string | null | undefined) {
@@ -197,7 +197,7 @@ function scoreProjectAwarenessLine(line: string | null | undefined) {
   let score = scoreAlicizationProjectAwarenessLine(normalized)
   if (/holding together mainly through|full cross-modal closure|lipsync|voice|face|motion/u.test(normalized))
     score += 7
-  if (/local_desktop_life_loop|project_state_continuity|continuity_anchor=|open_loop=|memory_dialogue_embodiment_closure|embedding_recall_reindex/u.test(normalized))
+  if (/runtime_personhood|project_state_review|project_anchor=|open_loop=|memory_dialogue_embodiment_closure|embedding_recall_reindex/u.test(normalized))
     score += 5
   if (isCanonicalProjectReminderAwarenessLine(normalized))
     score -= 8
@@ -325,7 +325,7 @@ function deriveDeliberationRelationshipCarry(input: {
     .filter((value): value is string => Boolean(value && !hasFixedTemplateResidue(value)))
 
   return relationshipCandidates.find(candidate =>
-    /same thread|continuity_(?:line|thread|identity)|local_desktop_life_loop|callback|leave room|lower-pressure|measured-return|repair-before-closeness|initiative|embodiment|resident presence|open_loop=|memory_dialogue_embodiment_closure/u.test(candidate),
+    /same thread|continuity_(?:line|thread|identity)|runtime_personhood|callback|leave room|lower-pressure|measured-return|repair-before-closeness|initiative|embodiment|resident presence|open_loop=|memory_dialogue_embodiment_closure/u.test(candidate),
   ) ?? null
 }
 
@@ -589,11 +589,11 @@ function deriveMemoryDeliberationContinuityCue(input: {
     = /vulnerable-care|care-before-analysis|care before analysis/u.test(combined)
       && /analysis-heavy|analysis heavy|lighter|quieter|inward|rest-protective/u.test(combined)
   if (vulnerableCareRestProtective) {
-    return 'memory_cadence=rest_protective; care_before_analysis=true; direction=inward; analysis_pressure=deferred; visibility=internal-structured'
+    return 'memory_cadence=rest_protective; care_before_analysis=true; direction=inward; analysis_pressure=deferred'
   }
 
   if (worriedContinuityCarefulRepair && modalityRiskSettling) {
-    return 'memory_cadence=worried_continuity_repair; pressure=lower; body=steadier; modality_risk_outruns_repair=false; visibility=internal-structured'
+    return 'memory_cadence=worried_continuity_repair; pressure=lower; body=steadier; modality_risk_outruns_repair=false'
   }
 
   if (
@@ -601,13 +601,13 @@ function deriveMemoryDeliberationContinuityCue(input: {
     && /corrected same-person continuity|same-person continuity|same person continuity|同一个她|持续的人/u.test(combined)
   ) {
     return sanitizeGuidanceText(
-      `memory_cadence=corrected_same_person_continuity; resident_hold=${residentMeasuredReturn ? 'measured_return' : 'generic'}; observe_focus=${residentObserveFocus ? 'true' : 'false'}; widening=deferred; visibility=internal-structured`,
+      `memory_cadence=corrected_same_person_continuity; resident_hold=${residentMeasuredReturn ? 'measured_return' : 'generic'}; observe_focus=${residentObserveFocus ? 'true' : 'false'}; widening=deferred`,
       220,
     )
   }
 
   if (correctedSamePersonSettling && quieterEmbodimentSettling) {
-    return 'memory_cadence=corrected_same_person_continuity; newer_meaning=settling; body=quiet_settle; widening=deferred; visibility=internal-structured'
+    return 'memory_cadence=corrected_same_person_continuity; newer_meaning=settling; body=quiet_settle; widening=deferred'
   }
 
   const mergedSameThreadContinuity
@@ -615,7 +615,7 @@ function deriveMemoryDeliberationContinuityCue(input: {
   const fadedTemporaryNoise
     = /forget low-salience temporary noise|temporary noise|stale emotional wobble|temporary wobble|faded noise|older-emotional-spike|older emotional spike|旧的情绪噪声|短暂噪声|情绪波动/u.test(combined)
   if (mergedSameThreadContinuity && fadedTemporaryNoise) {
-    return 'memory_cadence=merged_same_thread_continuity; faded_noise=background; split_echoes=blocked; visibility=internal-structured'
+    return 'memory_cadence=merged_same_thread_continuity; faded_noise=background; split_echoes=blocked'
   }
 
   const correctedSamePersonContinuity = directCueCandidates.find(candidate =>
@@ -625,14 +625,14 @@ function deriveMemoryDeliberationContinuityCue(input: {
     correctedSamePersonContinuity
     && /progress pressure|status recap|progress recap|task-shell continuity/u.test(combined)
   ) {
-    return 'memory_cadence=corrected_same_person_continuity; status_recap=after_continuity; visibility=internal-structured'
+    return 'memory_cadence=corrected_same_person_continuity; status_recap=after_continuity'
   }
 
   const rememberedSeamMoreRoom
     = /remembered seam|same remembered seam|relationship seam/u.test(combined)
       && /more room this time|too eagerly before|before leaning in again|reopened too eagerly/u.test(combined)
   if (rememberedSeamMoreRoom)
-    return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal-structured'
+    return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager'
 
   return null
 }
@@ -656,12 +656,12 @@ function deriveSameHerProjectCarryRule(input: {
     return null
 
   const hasSameHerProjectLine
-    = /local_desktop_life_loop|project_state_continuity|continuity_(?:line|identity|thread)|continuity_anchor=|cross_modal_continuity_proof/u.test(corpus)
+    = /runtime_personhood|project_state_review|continuity_(?:line|identity|thread)|project_anchor=|embodiment_scale_validation/u.test(corpus)
   const hasStillOpenClosure
     = /still-open closure|open loop|open_loop=|initiative|embodiment|dialogue|memory|未闭环|没闭环|还差|still needs|still remains/u.test(corpus)
 
   if (hasSameHerProjectLine && hasStillOpenClosure)
-    return 'project_self_line=active; continuity=project_aware; open_closure=present; visibility=internal-structured'
+    return 'project_self_line=active; continuity=project_aware; open_closure=present'
 
   return null
 }

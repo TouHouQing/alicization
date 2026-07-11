@@ -2626,7 +2626,7 @@ const coverageRows = [
       'responsibility).toContain(\'quick-reply visible surfaces hide fixed templates and internal diagnostic fields\')',
       'responsibility).toContain(\'clean provider/tool failure hints remain visible\')',
       'expect(matrixSource).toContain(\'same-living-self-host-visible-inward-carry-bridge-audit.test.ts\')',
-      'expect(matrixSource).toContain(\'same-living-self host-visible inward-carry bridge\')',
+      'expect(matrixSource).toContain(\'host-visible inward-carry audit\')',
       'expect(matrixSource).toContain(\'quick-reply visible surfaces now hide fixed templates and internal diagnostic fields\')',
       'expect(matrixSource).toContain(\'old project-brief proof surface has been removed\')',
       'expect(auditSource).toContain(\'quick-reply visible surfaces now hide fixed templates and internal diagnostic fields\')',
@@ -5301,14 +5301,14 @@ describe('project awareness coverage matrix', () => {
     expect(feedbackRow?.file).toBe('./desktop-execution-chain-project-awareness-audit.test.ts')
   })
 
-  it('keeps the matrix explicit that proactive same-her gap already survives inside shared pre-dialogue reasons before the turn speaks', () => {
+  it('keeps the matrix explicit that initiative gap survives inside shared pre-dialogue reasons before the turn speaks', () => {
     const matrixSource = readFileSync(new URL('../../../../../../docs/pre-dialogue-project-awareness-matrix.md', import.meta.url), 'utf8')
     const briefSource = readFileSync(new URL('./project-state-brief.test.ts', import.meta.url), 'utf8')
 
-    expect(briefSource).toContain('proactive_gap=${proactiveSameHerGap}')
+    expect(briefSource).toContain('initiative_gap=proactive_continuity_loop')
     expect(briefSource).toContain('reasonPreview')
     expect(briefSource).toContain('reasons')
-    expect(matrixSource).toContain('shared pre-dialogue awareness/closure structures now keep explicit `proactive_gap=` carry inside `reasonPreview` / `reasons`')
+    expect(matrixSource).toContain('shared pre-dialogue awareness/closure structures keep explicit `initiative_gap=` carry inside `reasonPreview` / `reasons`')
     expect(matrixSource).toContain('project-state-brief.test.ts')
   })
 })

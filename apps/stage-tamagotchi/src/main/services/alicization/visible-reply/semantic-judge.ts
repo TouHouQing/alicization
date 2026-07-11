@@ -146,7 +146,7 @@ function resolveProjectStateVisibleEvidenceText(text: string) {
 }
 
 function carriesStructuredProjectStateContinuity(text: string) {
-  return /\b(?:phase1_local_digital_life|continuity_anchor=|project_state_continuity|cross_modal_continuity_proof|life_loop_continuity|runtime_authoritative_send_alignment|memory_dialogue_embodiment|identity\+landed\+open\+next|visibility=internal-structured)\b/iu.test(text)
+  return /\b(?:phase1_local_digital_life|project_anchor=|project_state_review|embodiment_scale_validation|runtime_loop_validation|runtime_authoritative_send_alignment|memory_dialogue_embodiment|identity\+landed\+open\+next|visibility=internal-structured)\b/iu.test(text)
 }
 
 function carriesStructuredSameHerRequirement(text: string) {
@@ -232,7 +232,7 @@ function analyzeSameHerProjectFollowThroughDemand(input: {
 }
 
 function mentionsProjectStateIdentity(text: string) {
-  return /数字生命|digital life|本地优先|local-first|continuous "her"|continuous her|一条.*her|同一个 her|chat wrapper|桌面端本地伴生核心|本地伴生核心|桌面端.*核心|host-resident identity|local_desktop_life_loop/iu.test(text)
+  return /数字生命|digital life|本地优先|local-first|continuous "her"|continuous her|一条.*her|同一个 her|chat wrapper|桌面端本地伴生核心|本地伴生核心|桌面端.*核心|host-resident identity|runtime_personhood/iu.test(text)
 }
 
 function mentionsProjectStateSameHer(text: string) {

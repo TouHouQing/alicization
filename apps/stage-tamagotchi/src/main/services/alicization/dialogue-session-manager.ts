@@ -125,28 +125,28 @@ function fixedMirrorTemplateStructuredFact(raw: unknown, maxChars = 320) {
       ? `runtime_personhood${/apps\/stage-tamagotchi|proving ground/u.test(lowered) ? '; proving_ground=apps/stage-tamagotchi' : ''}`
       : null,
     /landed|already|progress|survive|落地|已/u.test(lowered)
-      ? 'continuity_progress=partial; surface=structured'
+      ? 'continuity_progress=partial'
       : null,
     /memory|initiative|embodiment|dialogue|open loop|still need|unresolved|closure|记忆|主动|具身|闭环/u.test(lowered)
-      ? 'unresolved_closure=memory_dialogue_embodiment; surface=structured'
+      ? 'unresolved_closure=memory_dialogue_embodiment'
       : null,
     /cross[-_ ]modal|voice|face|motion|lipsync|resident|next|proof|表情|动作|口型|声音/u.test(lowered)
-      ? 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs; surface=structured'
+      ? 'embodiment_scale_validation=extend_on_longer_noisy_desktop_runs'
       : null,
     /right now|holding together|body|face|motion|lipsync|voice|embodiment|具身/u.test(lowered)
-      ? 'continuity=embodiment; lane=unknown; status=pending-rejoin; pending_rejoin=body+face+motion+lipsync+voice; closure=full-cross-modal-open; visibility=renderer-internal'
+      ? 'embodiment_status; lane=unknown; status=partial; missing_lanes=body+face+motion+lipsync+voice; closure=full-cross-modal-open; visibility=renderer-internal'
       : null,
     /same phase 1|same digital life|same[- ]her|same living|one continuous|one living|同一个/u.test(lowered)
-      ? 'continuity_anchor=runtime_personhood; landed_closure=partial; unresolved_closure=memory_dialogue_embodiment; owner=project_state_governance'
+      ? 'project_anchor=runtime_personhood; landed_closure=partial; unresolved_closure=memory_dialogue_embodiment; owner=project_state_governance'
       : null,
     /generic guidance|generic project|thin project|detached|drift|漂|模板/u.test(lowered)
-      ? 'continuity_drift_risk=generic_shell; closure_status=unfinished; surface=structured'
+      ? 'template_residue_risk=generic_shell; closure_status=unfinished'
       : null,
     /repair-before-closeness|repair first|repair settles|修复/u.test(lowered)
-      ? 'continuity_hold=repair_before_closeness; timing=before_closeness_widens; surface=structured'
+      ? 'continuity_hold=repair_before_closeness; timing=before_closeness_widens'
       : null,
     /measured-return|lower-pressure|low-pressure|leave room|留白|放轻/u.test(lowered)
-      ? 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred; surface=structured'
+      ? 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred'
       : null,
   ])
 
@@ -451,7 +451,7 @@ function summarizeContinuityProjectFromPreparedRuntimeSurface(
     projectState.landed ? `landed=${projectState.landed}` : '',
     projectState.unresolved ? `unresolved=${projectState.unresolved}` : '',
     projectState.next ? `next=${projectState.next}` : '',
-    projectState.sameHerSelfLine ? `continuity_anchor=${projectState.sameHerSelfLine}` : '',
+    projectState.sameHerSelfLine ? `project_anchor=${projectState.sameHerSelfLine}` : '',
     projectState.preDialogueAwarenessLine ? `awareness_summary=${projectState.preDialogueAwarenessLine}` : '',
   ].filter(Boolean).join(' | ')
 }
@@ -668,7 +668,7 @@ function summarizeContinuityProjectFromSignals(
     projectState.latestLandedProgress ? `landed=${sanitizeMirrorProviderFacingText(projectState.latestLandedProgress, 220)}` : '',
     projectState.primaryOpenLoop ? `unresolved=${sanitizeMirrorProviderFacingText(projectState.primaryOpenLoop, 220)}` : '',
     projectState.nextClosureTarget ? `next=${sanitizeMirrorProviderFacingText(projectState.nextClosureTarget, 220)}` : '',
-    projectState.sameHerSelfLine ? `continuity_anchor=${sanitizeProjectStateContinuityAnchor(projectState.sameHerSelfLine, 220)}` : '',
+    projectState.sameHerSelfLine ? `project_anchor=${sanitizeProjectStateContinuityAnchor(projectState.sameHerSelfLine, 220)}` : '',
     preDialogueAwarenessLine ? `awareness_summary=${preDialogueAwarenessLine}` : '',
   ].filter(Boolean).join(' | ')
 }
@@ -1165,15 +1165,15 @@ function deriveExecutionLikeSameHerHoldDetail(input: {
   const genericRepairMenu = /measured-return\s*\/\s*repair-before-closeness|one measured-return,\s*repair-before-closeness,\s*or rest-protective|measured-return,\s*repair-before-closeness,\s*or rest-protective/u.test(combined)
 
   if (explicitRepairAuthority && !genericRepairMenu) {
-    return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens; surface=structured'
+    return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens'
   }
 
   if (/reopened too eagerly|too eagerly|more room this time|keep more room this time|leave more room|do not reopen it with the same eagerness|不要重开得太快|这次更要留白|这次要更慢一点|上次太急/u.test(combined)) {
-    return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; surface=structured'
+    return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred'
   }
 
   if (/measured-return|lower-pressure|one step more reversible|still settling|leave room|留白|放轻|别立刻把温度放大/u.test(combined)) {
-    return 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred; surface=structured'
+    return 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred'
   }
 
   return ''
@@ -1327,8 +1327,8 @@ function summarizeContinuityArcFromSignals(
       projectPreflight ? `preflight_summary=${projectPreflight}` : '',
       projectStateSameHerHoldDetail ? `hold=${projectStateSameHerHoldDetail}` : '',
       projectNextClosureTarget ? `next=${projectNextClosureTarget}` : '',
-      projectStateSameHerSelfLine ? `continuity_anchor=${projectStateSameHerSelfLine}` : '',
-      projectStateSameHerDriftRisk ? `continuity_drift_risk=${projectStateSameHerDriftRisk}` : '',
+      projectStateSameHerSelfLine ? `project_anchor=${projectStateSameHerSelfLine}` : '',
+      projectStateSameHerDriftRisk ? `template_residue_risk=${projectStateSameHerDriftRisk}` : '',
     ].filter(Boolean).join(' | ')
   }
 
@@ -1831,13 +1831,13 @@ function summarizeContinuityArcFromPreparedRuntimeSurface(surface: AlicizationMa
   return [
     continuityStage ? `stage=${continuityStage}` : '',
     carriesProjectStateClosureArc && projectPreflight ? `preflight_summary=${projectPreflight}` : '',
-    carriesProjectStateClosureArc && projectStateSameHerSelfLine ? `continuity_anchor=${projectStateSameHerSelfLine}` : '',
+    carriesProjectStateClosureArc && projectStateSameHerSelfLine ? `project_anchor=${projectStateSameHerSelfLine}` : '',
     carriesProjectStateClosureArc && projectStateLandedProgress ? `landed=${projectStateLandedProgress}` : '',
     carriesProjectStateClosureArc && projectStatePrimaryOpenLoop ? `open=${projectStatePrimaryOpenLoop}` : '',
     carriesProjectStateClosureArc && projectStateOpenFocusSummary ? `open-focus=${projectStateOpenFocusSummary}` : '',
     carriesProjectStateClosureArc && projectStateNextFocusSummary ? `next-focus=${projectStateNextFocusSummary}` : '',
     carriesProjectStateClosureArc && projectStateNextClosureTarget ? `next=${projectStateNextClosureTarget}` : '',
-    carriesProjectStateClosureArc && projectStateSameHerDriftRisk ? `continuity_drift_risk=${projectStateSameHerDriftRisk}` : '',
+    carriesProjectStateClosureArc && projectStateSameHerDriftRisk ? `template_residue_risk=${projectStateSameHerDriftRisk}` : '',
     speakingFrom ? `voice=${speakingFrom}` : '',
     answerIntent ? `answer=${answerIntent}` : '',
     inwardNeed ? `need=${inwardNeed}` : '',

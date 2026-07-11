@@ -821,7 +821,7 @@ function buildProjectStateContinuitySummary(input: {
 }) {
   const projectStateContinuityCarry = buildPrioritizedProjectStateRewritePreserveLines({
     projectStateContinuityAnchors: [
-      input.sameHerSummary ? `continuity_anchor=${formatProjectStateAuditField(input.sameHerSummary, 'continuity_anchor', 320)}` : '',
+      input.sameHerSummary ? `project_anchor=${formatProjectStateAuditField(input.sameHerSummary, 'continuity_anchor', 320)}` : '',
       input.sameHerHoldDetail ? `hold=${formatProjectStateAuditField(input.sameHerHoldDetail, 'continuity_hold', 320)}` : '',
       input.continuityArcStage ? `arc=${input.continuityArcStage}` : '',
       input.sameHerDriftRiskSummary ? `drift=${formatProjectStateAuditField(input.sameHerDriftRiskSummary, 'continuity_drift_risk', 360)}` : '',
@@ -1162,7 +1162,7 @@ function resolveExecutionDeliveryHoldOpeningGuidance(input: {
       ) ?? null
       : nextClosureTarget
   const sameHerMeasuredReturnLine = [
-    sameHerSelfLine ? `continuity_anchor=${sameHerSelfLine}` : '',
+    sameHerSelfLine ? `project_anchor=${sameHerSelfLine}` : '',
     latestLandedProgress ? `landed=${latestLandedProgress}` : '',
     primaryOpenLoop ? `open=${primaryOpenLoop}` : '',
     carriesRestProtective

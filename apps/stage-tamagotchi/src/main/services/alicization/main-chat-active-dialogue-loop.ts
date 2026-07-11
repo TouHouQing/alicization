@@ -976,21 +976,13 @@ function sanitizeActiveDialogueCarryText(raw: unknown, maxChars = 160) {
     return ''
 
   if (normalized === alicizationFixedTemplateReplacement) {
-    return [
-      'project_state_continuity=phase1',
-      'status=template_contamination_withheld',
-      'surface=structured',
-    ].join(' | ')
+    return ''
   }
 
   if (
     /Same Phase 1 digital life|same living line|same digital life line|same-her hold:|Before answering, remember/iu.test(normalized)
   ) {
-    return [
-      'project_state_continuity=phase1',
-      'status=template_contamination_withheld',
-      'surface=structured',
-    ].join(' | ')
+    return ''
   }
 
   return normalized
@@ -1062,7 +1054,7 @@ function buildCompactDialogueContextBlock(decision: AlicizationActiveDialogueFas
       ? `previous_assistant=${sanitizeActiveDialogueCarryText(decision.previousAssistantText, 220)}`
       : '',
     decision.lane !== 'dialogue' && decision.continuityAnchor
-      ? `continuity_anchor=${sanitizeActiveDialogueCarryText(decision.continuityAnchor, 160)}`
+      ? `project_anchor=${sanitizeActiveDialogueCarryText(decision.continuityAnchor, 160)}`
       : '',
   ].filter(Boolean).join('\n')
 }
@@ -1110,7 +1102,7 @@ function buildCompactDialogueEvidenceBlock(decision: AlicizationActiveDialogueFa
       lines.push(`authoritative_identity_name=${identityMove.name}`)
       lines.push(`identity_reconfirmation=${identityMove.repeated === true ? 'true' : 'false'}`)
       if (identityMove.continuityAnchor)
-        lines.push(`identity_continuity_anchor=${sanitizeActiveDialogueCarryText(identityMove.continuityAnchor, 160)}`)
+        lines.push(`identity_project_anchor=${sanitizeActiveDialogueCarryText(identityMove.continuityAnchor, 160)}`)
       lines.push('identity_answer_source=authoritative_identity_name; templated_identity_shell=blocked')
       break
     }
@@ -1993,7 +1985,7 @@ function buildFastPathGovernedThought(
   const fallbackGovernance = coerceAlicizationGovernanceForMindFallback(governance)
   const descriptor = describeFastPathMind(decision)
   const sanitizedFocusSeed = sanitizeActiveDialogueCarryText(descriptor.focus, 96)
-  const focus = sanitizedFocusSeed.includes('project_state_continuity=')
+  const focus = sanitizedFocusSeed.includes('project_state_review=')
     ? 'project-state-continuity'
     : sanitizeText(sanitizedFocusSeed, 48) || 'current-user-turn'
   const move = sanitizeText(descriptor.openingMove, 64) || 'stabilize-and-answer'

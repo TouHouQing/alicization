@@ -573,7 +573,7 @@ function buildProjectStateAuditContinuitySummary(input: {
 }) {
   const projectStateContinuityCarry = buildPrioritizedProjectStateRewritePreserveLines({
     projectStateContinuityAnchors: [
-      input.sameHerSummary ? `continuity_anchor=${input.sameHerSummary}` : '',
+      input.sameHerSummary ? `project_anchor=${input.sameHerSummary}` : '',
       input.sameHerHoldDetail ? `hold=${input.sameHerHoldDetail}` : '',
       input.continuityArcStage ? `arc=${input.continuityArcStage}` : '',
       input.continuityCue ? `cue=${input.continuityCue}` : '',
@@ -617,7 +617,7 @@ function strengthenSameHerSelfLineForPersistence(value: string | null | undefine
     /same phase 1 digital life|same living line|unfinished closure/iu.test(normalized)
     && !/continuous her|one continuous her/iu.test(normalized)
   ) {
-    return sanitizeText(`continuity_context=local_desktop_life_loop; source=legacy_project_state; detail=${normalized}`, '') || normalized
+    return sanitizeText(`continuity_context=runtime_personhood; source=legacy_project_state; detail=${normalized}`, '') || normalized
   }
   return normalized
 }
@@ -839,11 +839,11 @@ function looksLikeResumeConfirmationBoundaryHoldDetail(value: string | null | un
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal-structured'
+  return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager'
 }
 
 function resolveRememberedSeamMoreRoomOpeningGuidance() {
-  return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal-structured'
+  return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager'
 }
 
 function resolveTurnRememberedSeamMoreRoomOpeningGuidance(input: {
@@ -1965,7 +1965,7 @@ function looksLikeGeneratedProjectAwarenessExpansion(text: string | null | undef
 }
 
 function looksLikeStrongSameHerCarryLine(text: string | null | undefined) {
-  return /continuity=embodiment|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|holding together mainly through|one living her|one living digital life|one continuous her|same living line|face|motion|voice|lipsync|cross-modal|embodiment closure|generic assistant shell|generic project guidance|generic project shell|detached project narration|project-summary voice|generic task shell/iu.test(text ?? '')
+  return /embodiment_status|lane=(?:body|face|motion|lipsync|voice)|status=partial|holding together mainly through|one living her|one living digital life|one continuous her|same living line|face|motion|voice|lipsync|cross-modal|embodiment closure|generic assistant shell|generic project guidance|generic project shell|detached project narration|project-summary voice|generic task shell/iu.test(text ?? '')
 }
 
 function promoteSameHerDriftRiskOverThinAwareness(input: {

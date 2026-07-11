@@ -302,7 +302,7 @@ function scoreSpeechProjectStateValue(field: string, value: unknown) {
     case 'identity':
       if (lowered.includes('phase1_local_digital_life'))
         score += 4
-      if (lowered.includes('identity-continuity') || lowered.includes('project_state_continuity'))
+      if (lowered.includes('identity-continuity') || lowered.includes('project_state_review'))
         score += 2
       break
     case 'currentPhase':

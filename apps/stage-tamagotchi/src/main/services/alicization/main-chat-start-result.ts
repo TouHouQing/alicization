@@ -125,7 +125,7 @@ function scoreMainChatStartProjectDetail(value: unknown, kind: 'awareness' | 'sa
   if (kind === 'same-her') {
     if (lower.includes('continuity hold:') || lower.includes('generic project continuity hold'))
       score += 1200
-    if (lower.includes('continuity_anchor=') || lower.includes('continuity_owner='))
+    if (lower.includes('project_anchor=') || lower.includes('continuity_owner='))
       score += 700
     if (lower.includes('do not reopen from scratch') || lower.includes('without reopening from scratch') || lower.includes('should not start from scratch'))
       score += 650
@@ -133,7 +133,7 @@ function scoreMainChatStartProjectDetail(value: unknown, kind: 'awareness' | 'sa
       score += 500
     if (lower.includes('measured-return') || lower.includes('repair-before-closeness') || lower.includes('rest-protective') || lower.includes('lower-pressure'))
       score += 300
-    if (lower.includes('local_desktop_life_loop'))
+    if (lower.includes('runtime_personhood'))
       score += 160
     return score
   }
@@ -144,7 +144,7 @@ function scoreMainChatStartProjectDetail(value: unknown, kind: 'awareness' | 'sa
     score += 500
   if (lower.includes('landed=') || lower.includes('open=') || lower.includes('next='))
     score += 280
-  if (lower.includes('local_desktop_life_loop'))
+  if (lower.includes('runtime_personhood'))
     score += 420
   if (lower.includes('still-open') || lower.includes('memory, initiative, and embodiment'))
     score += 180

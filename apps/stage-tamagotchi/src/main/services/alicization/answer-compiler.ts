@@ -799,8 +799,8 @@ function buildSameHerAntiShellAnswerConstraint(runtimeSurface?: AlicizationDigit
     /generic assistant shell|generic project shell|generic task shell|detached project narration|detached project narrator|project-summary voice|project summary voice/u.test(driftRisk)
   ) {
     return {
-      mustDo: 'continuity_drift_risk=generic_shell; preserve_project_facts_without_project_slogan=true; require_current_turn_payoff=true',
-      mustNotDo: 'avoid=generic_assistant_shell,detached_project_narration,project_summary_voice',
+      mustDo: 'Preserve factual project evidence without using project slogans; answer the current turn directly.',
+      mustNotDo: 'Do not use a generic assistant shell, detached project narration, or project-summary voice.',
     }
   }
 
@@ -1290,18 +1290,18 @@ function resolveOpeningDirective(input: {
     groundedThisTurn: input.groundedThisTurn === true,
   })) {
     return input.discourseState.currentTurnSubject === 'task-knot'
-      ? 'opening_source=live_task_knot; next_step=concrete_answer_step; visibility=internal-structured'
-      : 'opening_source=visible_now; stale_anchor_bookkeeping=surface_blocked; visibility=internal-structured'
+      ? 'opening_source=live_task_knot; next_step=concrete_answer_step'
+      : 'opening_source=visible_now; stale_anchor_bookkeeping=surface_blocked'
   }
   if (input.recommendedAct === 'correct-stale-anchor')
-    return 'opening_act=correct_stale_anchor; stale_read_label=before_interpretation_or_softening; visibility=internal-structured'
+    return 'opening_act=correct_stale_anchor; stale_read_label=before_interpretation_or_softening'
   if (input.recommendedAct === 'ask-reground')
-    return 'opening_act=ask_reground; truth_boundary=early; stale_bluffing=blocked; visibility=internal-structured'
+    return 'opening_act=ask_reground; truth_boundary=early; stale_bluffing=blocked'
   if (
     input.personalityContinuityState?.currentRegime === 'execution-callback'
     && (input.recommendedAct === 'guide' || input.recommendedAct === 'answer')
   ) {
-    return 'opening_source=returned_result; callback_scope=bounded_exact; thread_binding=requesting_thread; visibility=internal-structured'
+    return 'opening_source=returned_result; callback_scope=bounded_exact; thread_binding=requesting_thread'
   }
   if (input.recommendedAct === 'guide') {
     return input.personalityContinuityState?.currentRegime === 'focused-work'
@@ -1335,15 +1335,15 @@ function resolveOpeningDirective(input: {
   if (input.discourseState.currentTurnSubject === 'alicization-self') {
     return input.selfContinuityAuthority?.selfLine
       ? hasAcrossTurnDurableSelfCore
-        ? `self_answer_source=current_self_continuity_authority; self_line=${lowerFirst(stripTrailingPunctuation(input.selfContinuityAuthority.selfLine))}; visibility=internal-structured`
-        : `self_answer_source=self_continuity_line; self_line=${lowerFirst(stripTrailingPunctuation(input.selfContinuityAuthority.selfLine))}; visibility=internal-structured`
+        ? `self_answer_source=current_self_continuity_authority; self_line=${lowerFirst(stripTrailingPunctuation(input.selfContinuityAuthority.selfLine))}`
+        : `self_answer_source=self_continuity_line; self_line=${lowerFirst(stripTrailingPunctuation(input.selfContinuityAuthority.selfLine))}`
       : input.growthProfile.selfLine
-        ? `self_answer_source=growth_profile_self_line; self_line=${lowerFirst(stripTrailingPunctuation(input.growthProfile.selfLine))}; visibility=internal-structured`
-        : 'self_answer_source=own_continuity; visibility=internal-structured'
+        ? `self_answer_source=growth_profile_self_line; self_line=${lowerFirst(stripTrailingPunctuation(input.growthProfile.selfLine))}`
+        : 'self_answer_source=own_continuity'
   }
   if (input.discourseState.screenReferenceMode === 'required')
-    return 'opening_source=strongest_live_observation; memory_priority=secondary; visibility=internal-structured'
-  return 'current_turn_payoff=direct; visibility=internal-structured'
+    return 'opening_source=strongest_live_observation; memory_priority=secondary'
+  return 'current_turn_payoff=direct'
 }
 
 function resolveOpeningClaim(input: {
@@ -1529,20 +1529,20 @@ function resolveNextMove(input: {
       180,
     )
     return guideNeed
-      ? `next_move=honest_step; detail=${lowerFirst(stripTrailingPunctuation(guideNeed))}; visibility=internal-structured`
-      : 'next_move=one_concrete_step; generic_option_bundle=blocked; visibility=internal-structured'
+      ? `next_move=honest_step; detail=${lowerFirst(stripTrailingPunctuation(guideNeed))}`
+      : 'next_move=one_concrete_step; generic_option_bundle=blocked'
   }
   if (input.recommendedAct === 'care') {
     return input.growthProfile.restAttunement >= 0.62
-      ? 'care_followup=after_first_care_lands; pressure=light; host_room=preserve; visibility=internal-structured'
+      ? 'care_followup=after_first_care_lands; pressure=light; host_room=preserve'
       : input.growthProfile.protectsRestWindow
-        ? 'care_followup=after_first_care_lands; brevity=required; host_extra_load=blocked; visibility=internal-structured'
-        : 'care_followup=after_first_care_lands; brevity=required; grounding=actual_issue; visibility=internal-structured'
+        ? 'care_followup=after_first_care_lands; brevity=required; host_extra_load=blocked'
+        : 'care_followup=after_first_care_lands; brevity=required; grounding=actual_issue'
   }
   if (input.discourseState.currentTurnSubject === 'relationship') {
     return input.growthProfile.autonomyRespect >= 0.58
-      ? 'relationship_followup=after_bid_answered; distance=near_light; host_room=preserve; visibility=internal-structured'
-      : 'relationship_followup=after_bid_answered; distance=near_light; widen_only_if_host_wants_more=true; visibility=internal-structured'
+      ? 'relationship_followup=after_bid_answered; distance=near_light; host_room=preserve'
+      : 'relationship_followup=after_bid_answered; distance=near_light; widen_only_if_host_wants_more=true'
   }
   return 'After this answer lands, I can decide whether anything else truly needs opening.'
 }
@@ -2182,7 +2182,7 @@ export function buildAnswerCompilerSystemBlock(state: AlicizationAnswerCompilerS
 
   return [
     '[ALICIZATION_ANSWER_COMPILER]',
-    'visibility=internal-structured',
+    'context_role=answer_compiler_status',
     `turn_mode=${state.turnMode}`,
     `response_mode=${state.responseMode}`,
     `reply_realization_mode=${state.replyRealizationMode ?? 'unknown'}`,

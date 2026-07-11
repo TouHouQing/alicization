@@ -114,7 +114,7 @@ function compactReplyProjectIdentityForMemoryFact(raw: unknown) {
     return ''
 
   if (/alicization is a local-first digital life project/iu.test(identity))
-    return 'identity=local_desktop_life_loop'
+    return 'identity=runtime_personhood'
 
   return identity
 }
@@ -637,7 +637,7 @@ function buildExecutionResultProjectClosureLesson(input: {
 
   if (input.feedback === 'valued') {
     return sanitizeText(
-      `For ${goal}${outcome ? ` with outcome ${outcome}` : ''}, keep the callback in first-person continuity; memory_continuity=local_runtime; verified_closure_progress=partial; unresolved_closure=${openLoop || 'open'}; proactive_gap=${proactiveSameHerGap || 'needs-follow-through'}; next_closure=${nextClosureTarget || 'needs-follow-through'}. ${sameHerSelfLine || ''}`,
+      `For ${goal}${outcome ? ` with outcome ${outcome}` : ''}, keep the callback in first-person continuity; memory_continuity=local_runtime; verified_closure_progress=partial; unresolved_closure=${openLoop || 'open'}; initiative_gap=${proactiveSameHerGap || 'needs-follow-through'}; next_closure=${nextClosureTarget || 'needs-follow-through'}. ${sameHerSelfLine || ''}`,
       220,
     )
   }
@@ -649,7 +649,7 @@ function buildExecutionResultProjectClosureLesson(input: {
   }
   if (input.feedback === 'intrusive') {
     return sanitizeText(
-      `For ${goal}, callback_continuity=current_thread; restart=avoid_abrupt; proactive_gap=${proactiveSameHerGap || 'needs_lower_pressure_return'}; next_closure=${nextClosureTarget || 'needs_lower_pressure_return'}; widening=defer_closeness_or_directness.`,
+      `For ${goal}, callback_continuity=current_thread; restart=avoid_abrupt; initiative_gap=${proactiveSameHerGap || 'needs_lower_pressure_return'}; next_closure=${nextClosureTarget || 'needs_lower_pressure_return'}; widening=defer_closeness_or_directness.`,
       220,
     )
   }
@@ -669,7 +669,6 @@ function buildExecutionProposalProjectClosureLesson(input: {
   const openLoop = sanitizeText(projectState.primaryOpenLoop, 220)
   const proactiveSameHerGap = sanitizeText(projectState.proactiveSameHerGap, 220)
   const nextClosureTarget = sanitizeText(projectState.nextClosureTarget, 220)
-  const sameHerSelfLine = sanitizeText(projectState.sameHerSelfLine, 220)
   const phase = sanitizeText(projectState.currentPhase, 180)
 
   if (input.feedback === 'affirmed') {

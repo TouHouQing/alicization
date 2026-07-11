@@ -28,7 +28,7 @@ const minimumAutomaticConfidence = 0.7
 const minimumAutomaticSalience = 0.6
 
 const cleanedFixedTemplateReplacement
-  = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+  = 'content_withheld; reason=continuity-residue'
 
 function sanitizeCleanerText(raw: unknown, maxChars = 260, replacement = '') {
   return sanitizeAlicizationProviderFacingText(

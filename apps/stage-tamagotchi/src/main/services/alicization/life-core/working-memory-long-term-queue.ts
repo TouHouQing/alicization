@@ -37,7 +37,7 @@ export interface WorkingMemoryLongTermQueueItem {
 const fixedFallbackTemplatePattern = /我在。同一条本地数字生命的线还在|同一条本地数字生命的线还在|我先轻一点留在这里|你想说什么，我就接住/u
 
 const fixedTemplateEvidenceReplacement
-  = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+  = 'content_withheld; reason=continuity-residue'
 
 function sanitizeQueueText(raw: unknown, maxChars = 260, replacement = '') {
   return sanitizeAlicizationProviderFacingText(

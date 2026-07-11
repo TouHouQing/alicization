@@ -504,7 +504,6 @@ function buildStructuredProactiveReason(input: {
   return [
     `proactive_policy_reason=${input.phase}`,
     ...Array.from(reasonTags),
-    'visibility=internal-structured',
     'authored_prose=withheld',
   ].join('; ')
 }
@@ -626,15 +625,15 @@ function collectLowercaseSignals(...values: unknown[]) {
 function carriesStructuredProactiveProjectStateSignal(text: string) {
   return includesAny(text, [
     'continuity_hold=',
-    'continuity_anchor=',
+    'project_anchor=',
     'continuity_cue=',
-    'project_state_continuity=',
-    'life_loop_continuity=',
+    'project_state_review=',
+    'runtime_loop_validation=',
     'memory_dialogue_embodiment_closure=',
     'phase1_closure_requires=',
     'project_identity_route_carry=',
     'unresolved_closure_carry=',
-    'cross_modal_continuity_proof=',
+    'embodiment_scale_validation=',
     'callback_carry_continuity=',
     'proactive_continuity_loop=',
     'continuity_progress=',
@@ -656,7 +655,7 @@ function carriesStructuredProactiveProjectStateSignal(text: string) {
     'trace=',
     'trace_id=',
     'visibility=internal',
-    'local_desktop_life_loop',
+    'runtime_personhood',
     'host_resident_identity=persistent',
     'not_chat_wrapper',
   ])
@@ -672,13 +671,13 @@ function extractStructuredProactiveProjectStateSignals(text: string) {
     'continuity_hold',
     'continuity_anchor',
     'continuity_cue',
-    'project_state_continuity',
-    'life_loop_continuity',
+    'project_state_review',
+    'runtime_loop_validation',
     'memory_dialogue_embodiment_closure',
     'phase1_closure_requires',
     'project_identity_route_carry',
     'unresolved_closure_carry',
-    'cross_modal_continuity_proof',
+    'embodiment_scale_validation',
     'callback_carry_continuity',
     'proactive_continuity_loop',
     'continuity_progress',
@@ -712,7 +711,7 @@ function extractStructuredProactiveProjectStateSignals(text: string) {
   }
 
   for (const token of [
-    'local_desktop_life_loop',
+    'runtime_personhood',
     'host_resident_identity=persistent',
     'not_chat_wrapper',
     'end_to_end_proof_incomplete',
@@ -1266,8 +1265,8 @@ function deriveContinuityGovernanceProactiveBias(
       'continuity_hold=lower-pressure',
       'continuity_hold=measured-return',
       'continuity_hold=repair-before-closeness',
-      'project_state_continuity=active',
-      'life_loop_continuity=active',
+      'project_state_review=active',
+      'runtime_loop_validation=active',
     ])
   const richerProjectClosureCarry = structuredGovernanceCarry || includesAny(summary, [
     'project identity carry',
@@ -1776,10 +1775,10 @@ function deriveProjectStateProactiveBias(input?: {
     'timing=',
     'proactive_continuity_loop=',
     'callback_carry_continuity=',
-    'cross_modal_continuity_proof=',
+    'embodiment_scale_validation=',
     'memory_dialogue_embodiment_closure=',
-    'project_state_continuity=',
-    'life_loop_continuity=',
+    'project_state_review=',
+    'runtime_loop_validation=',
     'unresolved_closure_carry=',
     'evidence=',
     'evidence_id=',
@@ -1817,7 +1816,7 @@ function deriveProjectStateProactiveBias(input?: {
     'phase 1',
     'local digital life',
     'digital life project',
-    'local_desktop_life_loop',
+    'runtime_personhood',
     'phase1_closure_requires',
     '数字生命',
     '本地优先',
@@ -1827,7 +1826,7 @@ function deriveProjectStateProactiveBias(input?: {
     'end_to_end_proof_incomplete',
     'project_identity_route_carry',
     'unresolved_closure_carry',
-    'cross_modal_continuity_proof',
+    'embodiment_scale_validation',
     'phase1_closure_requires',
     'memory closure',
     'same-session continuity',
@@ -1863,7 +1862,7 @@ function deriveProjectStateProactiveBias(input?: {
     '泛化助手',
   ])
   const digitalLifeIdentity = includesAny(projectStateDetectionSignals, [
-    'local_desktop_life_loop',
+    'runtime_personhood',
     'host_resident_identity=persistent',
     'persistent_identity',
     'not_chat_wrapper',
@@ -1884,10 +1883,10 @@ function deriveProjectStateProactiveBias(input?: {
     && digitalLifeIdentity
   const sameHerPressure = requiresLifeLoopClosure && includesAny(explicitSignalsWithoutCanonicalBaseline, [
     'continuity_hold=',
-    'continuity_anchor=',
+    'project_anchor=',
     'continuity_cue=',
-    'project_state_continuity=',
-    'life_loop_continuity=',
+    'project_state_review=',
+    'runtime_loop_validation=',
     'continuity_identity',
     'continuity_line',
     'owner=workingmemory',
@@ -1910,9 +1909,9 @@ function deriveProjectStateProactiveBias(input?: {
     'holding together through motion, lipsync, and voice together',
   ])
   const strongerSameHerSelfAnchorPressure = requiresLifeLoopClosure && includesAny(explicitSignalsWithoutCanonicalBaseline, [
-    'continuity_anchor=',
+    'project_anchor=',
     'continuity_cue=',
-    'project_state_continuity=',
+    'project_state_review=',
     'continuity_identity',
     'continuity_line',
     'one continuous her',
@@ -1941,8 +1940,8 @@ function deriveProjectStateProactiveBias(input?: {
   ])
   const richerOpenClosureAwareness = requiresLifeLoopClosure && includesAny(explicitSignalsWithoutCanonicalBaseline, [
     'memory_dialogue_embodiment_closure=',
-    'life_loop_continuity=',
-    'cross_modal_continuity_proof=',
+    'runtime_loop_validation=',
+    'embodiment_scale_validation=',
     'unresolved_closure_carry=',
     'memory, initiative, and embodiment',
     'stronger end-to-end closure',
@@ -1961,7 +1960,7 @@ function deriveProjectStateProactiveBias(input?: {
     'continuity_hold=',
     'continuity_cue=',
     'callback_carry_continuity=',
-    'cross_modal_continuity_proof=',
+    'embodiment_scale_validation=',
     'preferred_timing=next-open-window',
     'timing=measured_return_or_repair_before_closeness',
     'keep hover-first initiative',

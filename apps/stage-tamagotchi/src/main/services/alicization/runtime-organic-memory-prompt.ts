@@ -608,7 +608,6 @@ function sanitizeOrganicProjectEmotionText(value: unknown, limit: number) {
     /low-pressure|lower-pressure|measured-return/iu.test(normalized) ? 'tone=low_pressure' : null,
     /repair-before-closeness|repair first|repair-first/iu.test(normalized) ? 'repair=before_closeness' : null,
     /rest-protective|rest protection|fatigue|休息/u.test(normalized) ? 'rest_protection=true' : null,
-    'surface=structured',
   ].filter(Boolean).join('; ')
 }
 
@@ -629,7 +628,7 @@ function sanitizeOrganicMemoryReplayText(value: unknown, limit = 800) {
     )
     return [
       prefix && prefix !== alicizationFixedTemplateReplacement ? prefix : '',
-      'project:identity=runtime_personhood; surface=structured',
+      'project:identity=runtime_personhood',
       /open=|still needs|unfinished/iu.test(normalized) ? 'open=continuity_pending' : '',
     ].filter(Boolean).join(' | ')
   }
@@ -691,12 +690,12 @@ function buildSameHerCarryLineFromProjectAnchor(projectPreflight: string | null)
   const summary = sanitizeOrganicProjectStateText(projectPreflight, 220)
   if (!summary)
     return null
-  if (/content=excluded;\s*reason=continuity-residue/iu.test(summary))
+  if (/content_withheld;\s*reason=continuity-residue/iu.test(summary))
     return null
 
   const lowered = summary.toLowerCase()
   const carriesProjectIdentity
-    = lowered.includes('local_desktop_life_loop')
+    = lowered.includes('runtime_personhood')
       || lowered.includes('phase1_local_digital_life')
       || lowered.includes('identity=phase1')
       || lowered.includes('same phase 1 digital life')
@@ -770,7 +769,7 @@ function buildOrganicMemoryProjectStateContextFromRecallGovernor(
   if (!projectPreflight && !projectEmotionalClosure)
     return null
 
-  const projectPreflightIsExcludedResidue = /content=excluded;\s*reason=continuity-residue/iu.test(projectPreflight ?? '')
+  const projectPreflightIsExcludedResidue = /content_withheld;\s*reason=continuity-residue/iu.test(projectPreflight ?? '')
   if (projectPreflightIsExcludedResidue) {
     return {
       projectStatePreflightSummary: null,

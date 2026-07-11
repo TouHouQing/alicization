@@ -34,7 +34,7 @@ function lowerHumanlikeMemoryText(...values: Array<string | null | undefined>) {
 
 const memoryClosureFixedTemplateReplacement = 'relationship_continuity=present; source_template=excluded; visibility=memory-structured'
 const memoryClosureFixedTemplateResiduePattern
-  = /Before answering|same[- ]?her|same living line|same local-first digital life project|local-first digital life project|phase\s*1\s*:\s*local digital life|phase\s*1 local digital life|phase1_local_digital_life|phase-1-local-digital-life|digital[-_]life[-_]project|one continuous digital life|continuity_anchor=phase1_local_digital_life|同一个她|女仆|\bmaid\b/iu
+  = /Before answering|same[- ]?her|same living line|same local-first digital life project|local-first digital life project|phase\s*1\s*:\s*local digital life|phase\s*1 local digital life|phase1_local_digital_life|phase-1-local-digital-life|digital[-_]life[-_]project|one continuous digital life|project_anchor=phase1_local_digital_life|同一个她|女仆|\bmaid\b/iu
 
 function sanitizeMemoryClosureWritebackText(raw: unknown, maxChars = 640) {
   if (typeof raw !== 'string')
@@ -343,7 +343,7 @@ function buildEmbodimentContinuityWritebackArtifacts(input: {
     `embodiment_memory_writeback=${ledger.memoryWriteback.lane}`,
     `embodiment_carrying=${joinEmbodimentLanes(carryingLanes)}`,
     `embodiment_dropped=${joinEmbodimentLanes(droppedLanes)}`,
-    `embodiment_pending_rejoin=${joinEmbodimentLanes(pendingRejoinLanes)}`,
+    `embodiment_missing_lanes=${joinEmbodimentLanes(pendingRejoinLanes)}`,
     `embodiment_rejoined=${joinEmbodimentLanes(rejoinedLanes)}`,
     ledger.sourceTags.length > 0 ? `embodiment_sources=${ledger.sourceTags.join('+')}` : '',
   ].filter(Boolean)
@@ -353,7 +353,7 @@ function buildEmbodimentContinuityWritebackArtifacts(input: {
     `embodiment-memory-${memoryLane}`,
     ...carryingLanes.map(lane => `embodiment-carry-${lane}`),
     ...droppedLanes.map(lane => `embodiment-dropped-${lane}`),
-    ...pendingRejoinLanes.map(lane => `embodiment-pending-rejoin-${lane}`),
+    ...pendingRejoinLanes.map(lane => `embodiment-partial-${lane}`),
     ...rejoinedLanes.map(lane => `embodiment-rejoined-${lane}`),
   ]
   const lesson = [

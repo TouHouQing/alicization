@@ -101,7 +101,6 @@ function sanitizeRecallSeedBlockForMemoryPrompt(raw: unknown) {
       : ''
     const structuredProject = [
       'project:identity=runtime_personhood',
-      'surface=structured',
       /open=|still needs|unfinished/iu.test(normalized) ? 'open=continuity_pending' : '',
       /already landed|already survives|has landed|some closure/iu.test(normalized) ? 'landed=partial' : '',
     ].filter(Boolean).join('; ')
@@ -140,7 +139,7 @@ function sanitizeStructuredRecallSeedLineForMemorySearch(raw: string) {
     .replace(/\blocal-first digital life project\b/giu, 'runtime_personhood')
     .replace(/\bPhase\s*1\s*:\s*Local Digital Life\b/giu, 'life_core')
     .replace(/\bSame Phase 1 digital life\b/giu, 'life_core')
-    .replace(/\bcross-modal same-her proof\b/giu, 'cross_modal_continuity_proof')
+    .replace(/\bcross-modal same-her proof\b/giu, 'embodiment_scale_validation')
     .replace(/\bsame-her proof\b/giu, 'continuity_proof')
     .replace(/\bsame-her closure\b/giu, 'identity-continuity closure')
     .replace(/\bsame-her\b/giu, 'identity-continuity')

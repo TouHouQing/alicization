@@ -38,8 +38,8 @@ function hasStructuredProjectStateEvidence(value: string | null | undefined) {
   if (!normalized || containsAlicizationFixedTemplateResidue(normalized))
     return false
 
-  return /(?:^|[\s|;])(?:identity|project_identity|phase|project_phase|visibility|landed|landed_progress|open|open_loop|next|next_closure|continuity_anchor|continuity_hold|continuity_drift_risk|project_state_continuity|life_loop_continuity|memory_dialogue_embodiment_closure|cross_modal_continuity_proof|embodiment_closure|callback_continuity|owner|evidence|evidence_id|evidence_ids|trace|trace_id|source|source_id|source_trace_id)=/u.test(normalized)
-    || /(?:^|[\s|;])local_desktop_life_loop(?:[\s|;]|$)/u.test(normalized)
+  return /(?:^|[\s|;])(?:identity|project_identity|phase|project_phase|visibility|landed|landed_progress|open|open_loop|next|next_closure|continuity_anchor|continuity_hold|continuity_drift_risk|project_state_review|runtime_loop_validation|memory_dialogue_embodiment_closure|embodiment_scale_validation|embodiment_closure|callback_continuity|owner|evidence|evidence_id|evidence_ids|trace|trace_id|source|source_id|source_trace_id)=/u.test(normalized)
+    || /(?:^|[\s|;])runtime_personhood(?:[\s|;]|$)/u.test(normalized)
 }
 
 function sanitizeConsciousContinuityPreferredTiming(
@@ -315,7 +315,7 @@ function normalizeProviderProjectIdentity(raw: unknown) {
     return null
   if (containsAlicizationFixedTemplateResidue(normalized))
     return null
-  if (/^(?:identity\s*=\s*)?local_desktop_life_loop$/iu.test(normalized))
+  if (/^(?:identity\s*=\s*)?runtime_personhood$/iu.test(normalized))
     return 'runtime_personhood'
   return sanitizeOptionalProviderCarryText(normalized, 220)
 }
@@ -326,7 +326,7 @@ function normalizeProviderContinuityAnchor(raw: unknown) {
     return null
   if (containsAlicizationFixedTemplateResidue(normalized))
     return null
-  if (/^(?:continuity_anchor\s*=\s*)?local_desktop_life_loop(?:\s*;\s*owner\s*=\s*[\w-]+)?$/iu.test(normalized)) {
+  if (/^(?:continuity_anchor\s*=\s*)?runtime_personhood(?:\s*;\s*owner\s*=\s*[\w-]+)?$/iu.test(normalized)) {
     return 'runtime_personhood; owner=project_state_governance'
   }
   return sanitizeOptionalProviderCarryText(normalized, 240)
@@ -831,7 +831,7 @@ export function reduceRuntimeConsciousFrame(input: RuntimeConsciousFrameReducerI
         ? 'continuity_owner=ProjectStateGovernance; visible_governance_entry=MemoryWorkbench; template_policy=no_fixed_persona_templates'
         : null,
       projectStateGrounding.sameHerSelfLine
-        ? `continuity_anchor=${sanitizeAlicizationProviderFacingText(stripTrailingPunctuation(projectStateGrounding.sameHerSelfLine), 220)}`
+        ? `project_anchor=${sanitizeAlicizationProviderFacingText(stripTrailingPunctuation(projectStateGrounding.sameHerSelfLine), 220)}`
         : null,
       projectStateGrounding.primaryOpenLoop
         ? `open_loop=${stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop)}`
@@ -1051,7 +1051,7 @@ export function reduceRuntimeConsciousFrame(input: RuntimeConsciousFrameReducerI
       ? 'continuity_owner=ProjectStateGovernance; visible_governance_entry=MemoryWorkbench; template_policy=no_fixed_persona_templates'
       : '',
     projectStateGrounding.sameHerSelfLine
-      ? `continuity_anchor=${sanitizeAlicizationProviderFacingText(stripTrailingPunctuation(projectStateGrounding.sameHerSelfLine), 220)}`
+      ? `project_anchor=${sanitizeAlicizationProviderFacingText(stripTrailingPunctuation(projectStateGrounding.sameHerSelfLine), 220)}`
       : '',
     projectStateGrounding.primaryOpenLoop
       ? `open_loop=${stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop)}`

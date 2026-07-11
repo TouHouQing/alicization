@@ -834,7 +834,7 @@ export function buildStageEmbodimentRendererAlignmentSurfaceSummary(
     && bodySegmentId === voiceSegmentId
     && faceSegmentId !== bodySegmentId
     && motionSegmentId !== bodySegmentId
-    ? 'pending-rejoin=face+motion'
+    ? 'partial=face+motion'
     : null
   const pendingFaceMotionLipsyncRejoin = bodySegmentId
     && voiceSegmentId
@@ -842,14 +842,14 @@ export function buildStageEmbodimentRendererAlignmentSurfaceSummary(
     && lipsyncSegmentId !== bodySegmentId
     && faceSegmentId !== bodySegmentId
     && motionSegmentId !== bodySegmentId
-    ? 'pending-rejoin=face+motion+lipsync'
+    ? 'partial=face+motion+lipsync'
     : null
   const pendingFaceMotionLipsyncVoiceRejoin = bodySegmentId
     && voiceSegmentId !== bodySegmentId
     && lipsyncSegmentId !== bodySegmentId
     && faceSegmentId !== bodySegmentId
     && motionSegmentId !== bodySegmentId
-    ? 'pending-rejoin=face+motion+lipsync+voice'
+    ? 'partial=face+motion+lipsync+voice'
     : null
   const audibleBodyRejoin = bodySegmentId
     && lipsyncSegmentId
@@ -865,7 +865,7 @@ export function buildStageEmbodimentRendererAlignmentSurfaceSummary(
     && lipsyncSegmentId !== voiceSegmentId
     && faceSegmentId !== voiceSegmentId
     && motionSegmentId !== voiceSegmentId
-    ? 'pending-rejoin=face+motion+voice'
+    ? 'partial=face+motion+voice'
     : null
   const pendingBodyFaceMotionRejoin = lipsyncSegmentId
     && voiceSegmentId
@@ -873,7 +873,7 @@ export function buildStageEmbodimentRendererAlignmentSurfaceSummary(
     && !bodySegmentId
     && faceSegmentId !== lipsyncSegmentId
     && motionSegmentId !== lipsyncSegmentId
-    ? 'pending-rejoin=body+face+motion'
+    ? 'partial=body+face+motion'
     : null
   const pendingBodyLipsyncRejoin = faceSegmentId
     && motionSegmentId
@@ -884,7 +884,7 @@ export function buildStageEmbodimentRendererAlignmentSurfaceSummary(
     && lipsyncSegmentId !== faceSegmentId
     && normalizeText(input.faceDriverCue)
     && normalizeText(input.motionDriverCue)
-    ? 'pending-rejoin=body+lipsync'
+    ? 'partial=body+lipsync'
     : null
   const pendingBodyRejoin = faceSegmentId
     && motionSegmentId
@@ -896,7 +896,7 @@ export function buildStageEmbodimentRendererAlignmentSurfaceSummary(
     && !bodySegmentId
     && normalizeText(input.faceDriverCue)
     && normalizeText(input.motionDriverCue)
-    ? 'pending-rejoin=body'
+    ? 'partial=body'
     : null
   const explicitSameHerContinuity = buildExplicitSameHerContinuitySurface({
     reasonTags: input.reasonTags,

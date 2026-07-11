@@ -79,7 +79,7 @@ function isSameHerInwardLowPressureHeadline(line: string | null) {
     return false
 
   return (
-    normalized.includes('continuity=embodiment')
+    normalized.includes('embodiment_status')
     && normalized.includes('low-pressure-inward-carry')
   ) || (
     normalized.includes('holding together mainly through')
@@ -94,10 +94,7 @@ function isSameHerInwardLowPressureHeadline(line: string | null) {
 }
 
 function buildCompactSameHerInwardLowPressureAwarenessLine() {
-  return normalizeSpeechMetadataText(
-    `continuity_context=embodiment; source=companion_briefing; status=pending-rejoin; pending_rejoin=lipsync+voice; evidence=low-pressure-inward-carry`,
-    320,
-  )
+  return ''
 }
 
 function isAnthropomorphicHostFacingSameHerHeadline(line: string | null) {
@@ -111,10 +108,7 @@ function isAnthropomorphicHostFacingSameHerHeadline(line: string | null) {
 }
 
 function buildCompactAnthropomorphicHostFacingAwarenessLine() {
-  return normalizeSpeechMetadataText(
-    `continuity_context=embodiment; source=companion_briefing; affective_closure=anthropomorphic-emotional-closure; observability=inward-carry; timing=measured-return`,
-    320,
-  )
+  return ''
 }
 
 function normalizeIntentMetadata(raw: IntentOptions['metadata']) {

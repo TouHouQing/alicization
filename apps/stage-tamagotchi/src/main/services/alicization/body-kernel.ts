@@ -837,7 +837,7 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
             ? `body_preoccupation=sustained_focus; source=persona_kernel; detail=${personaKernelSummary}`
             : personaAuthoritySummary
               ? `body_preoccupation=sustained_focus; source=persona_authority; detail=${personaAuthoritySummary}`
-              : 'body_preoccupation=sustained_focus; surface=structured',
+              : 'body_preoccupation=sustained_focus',
           updatedAt: now(),
         }
       }
@@ -851,7 +851,7 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
             ? `body_preoccupation=quiet_recovery; source=persona_kernel; detail=${personaKernelSummary}`
             : personaAuthoritySummary
               ? `body_preoccupation=quiet_recovery; source=persona_authority; detail=${personaAuthoritySummary}`
-              : 'body_preoccupation=quiet_recovery; surface=structured',
+              : 'body_preoccupation=quiet_recovery',
           updatedAt: now(),
         }
       }
@@ -930,7 +930,7 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
               || projectStateClosureCarry
               || preferredEmotionalOrProjectCarry
               || authority.currentInwardPreoccupation
-              || 'body_preoccupation=repair_settle; closeness=widening_blocked; surface=structured',
+              || 'body_preoccupation=repair_settle; closeness=widening_blocked',
           }
         : restProtectiveCompanionshipAuthority
           ? {
@@ -941,7 +941,7 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
                 || projectStateClosureCarry
                 || preferredEmotionalOrProjectCarry
                 || authority.currentInwardPreoccupation
-                || 'body_preoccupation=rest_protection; direction=inward; surface=structured',
+                || 'body_preoccupation=rest_protection; direction=inward',
             }
           : guardedCareConfirmationBoundaryAuthority
             ? {
@@ -952,7 +952,7 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
                   || projectStateClosureCarry
                   || preferredEmotionalOrProjectCarry
                   || authority.currentInwardPreoccupation
-                  || 'body_preoccupation=confirmation_boundary; action=wait; surface=structured',
+                  || 'body_preoccupation=confirmation_boundary; action=wait',
               }
             : durableSelfCoreProjectionEmbodimentAuthority
               ? {
@@ -962,7 +962,7 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
                   currentInwardPreoccupation: input.candidateState.currentInwardPreoccupation
                     || durableSelfCoreProjectionCarry
                     || authority.currentInwardPreoccupation
-                    || 'posture=lower_pressure; restart_policy=context_preserving; surface=structured',
+                    || 'posture=lower_pressure; restart_policy=context_preserving',
                 }
               : measuredReturnContinuityAuthority
                 ? {
@@ -975,7 +975,7 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
                     currentInwardPreoccupation: input.candidateState.currentInwardPreoccupation
                       || preferredEmotionalOrProjectCarry
                       || authority.currentInwardPreoccupation
-                      || 'posture=nearby_lower_pressure; surface=structured',
+                      || 'posture=nearby_lower_pressure',
                   }
                 : null
 

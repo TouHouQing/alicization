@@ -291,7 +291,7 @@ function buildPreDialogueContinuityFacts(input: {
     ['awareness_status', awareness?.status ?? null],
     ['closure_status', snapshot?.status ?? null],
     ['continuity_drift_risk', projectState?.sameHerDriftRisk],
-    ['proactive_gap', projectState?.proactiveSameHerGap],
+    ['initiative_gap', projectState?.proactiveSameHerGap],
     ['continuity_hold', projectState?.sameHerHoldDetail],
     ['embodiment_carry_status', embodimentCarryReason ? 'present' : null],
     ['relationship_cadence_status', companionshipReason ? 'bounded' : null],

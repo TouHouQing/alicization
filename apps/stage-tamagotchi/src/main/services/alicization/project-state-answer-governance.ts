@@ -11,7 +11,7 @@ export const alicizationProjectStateCompletionTimingLanguageDriftMustDo = [
 ] as const
 
 export const alicizationProjectStateCompletionTimingLanguageDriftMustNotDo = [
-  'completion_timing_answer=not_generic_progress_promise; language_drift_answer=not_detached_style_repair; english_first_shell=blocked; project_state_continuity=required',
+  'completion_timing_answer=not_generic_progress_promise; language_drift_answer=not_detached_style_repair; english_first_shell=blocked; project_state_review=required',
 ] as const
 
 export const alicizationProjectStateRemoteMainPushReadinessMustDo = [

@@ -108,7 +108,7 @@ type ExecutionProjectBriefingField
     | 'continuity_anchor'
     | 'continuity_hold'
     | 'continuity_drift_risk'
-    | 'proactive_gap'
+    | 'initiative_gap'
     | 'emotional_closure'
     | 'awareness'
     | 'generic'
@@ -169,8 +169,8 @@ function sanitizeExecutionProjectBriefingText(
     return extractStructuredFieldValue(formatAlicizationProjectStateAwarenessFields({ sameHerHoldDetail: normalized, maxChars }), 'continuity_hold')
   if (field === 'continuity_drift_risk')
     return extractStructuredFieldValue(formatAlicizationProjectStateAwarenessFields({ sameHerDriftRisk: normalized, maxChars }), 'continuity_drift_risk')
-  if (field === 'proactive_gap')
-    return extractStructuredFieldValue(formatAlicizationProjectStateAwarenessFields({ proactiveSameHerGap: normalized, maxChars }), 'proactive_gap')
+  if (field === 'initiative_gap')
+    return extractStructuredFieldValue(formatAlicizationProjectStateAwarenessFields({ proactiveSameHerGap: normalized, maxChars }), 'initiative_gap')
   if (field === 'emotional_closure')
     return extractStructuredFieldValue(formatAlicizationProjectStateAwarenessFields({ emotionalClosureCue: normalized, maxChars }), 'emotional_closure')
 
@@ -194,7 +194,7 @@ function carriesExecutionProjectAwarenessAnchor(raw: unknown) {
     return false
 
   return /(?:^|\|\s*)(identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|emotional_closure)=/iu.test(text)
-    || /visibility=internal-structured|phase1_local_digital_life|open_loop=|life_loop_continuity=|project_state_continuity=|cross_modal_continuity_proof=/iu.test(text)
+    || /visibility=internal-structured|phase1_local_digital_life|open_loop=|runtime_loop_validation=|project_state_review=|embodiment_scale_validation=/iu.test(text)
 }
 
 function preferStrongerExecutionProjectAwarenessCandidate(input: {
@@ -232,16 +232,16 @@ function buildExecutionProjectContinuityCueFallback(input: {
   const currentPhase = sanitizeExecutionProjectBriefingText(input.currentPhase, 220, 'phase')
   const sameHerSelfLine = sanitizeExecutionProjectBriefingText(input.sameHerSelfLine, 220, 'continuity_anchor')
   if (continuityBehaviorMode === 'repair-before-closeness')
-    return 'continuity_cue=repair_before_closeness; until=repair_settles; surface=structured'
+    return 'continuity_cue=repair_before_closeness; until=repair_settles'
   if (continuityBehaviorMode === 'rest-protective')
-    return 'continuity_cue=rest_protective; direction=inward; widening=deferred; surface=structured'
+    return 'continuity_cue=rest_protective; direction=inward; widening=deferred'
   if (continuityBehaviorMode === 'measured-return')
-    return 'continuity_cue=measured_return; widening=deferred; surface=structured'
+    return 'continuity_cue=measured_return; widening=deferred'
   if (
     /phase 1: local digital life/iu.test(currentPhase)
     || /same phase 1 digital life/iu.test(sameHerSelfLine)
   ) {
-    const genericContinuityCue = 'continuity_cue=project_context_active; widening=deferred; surface=structured'
+    const genericContinuityCue = 'continuity_cue=project_context_active; widening=deferred'
     return preferStrongerContinuityClosureAuthority(genericContinuityCue, fallback)
       || genericContinuityCue
   }
@@ -261,16 +261,16 @@ function buildExecutionProjectSameHerHoldDetailFallback(input: {
   if (fallback)
     return fallback
   if (continuityBehaviorMode === 'repair-before-closeness')
-    return 'hold_detail=repair_before_closeness; closeness_widening=deferred; surface=structured'
+    return 'hold_detail=repair_before_closeness; closeness_widening=deferred'
   if (continuityBehaviorMode === 'rest-protective')
-    return 'hold_detail=rest_protective; direction=inward; fatigue_aware=true; surface=structured'
+    return 'hold_detail=rest_protective; direction=inward; fatigue_aware=true'
   if (continuityBehaviorMode === 'measured-return')
-    return 'hold_detail=measured_return; pressure=lower; widening=deferred; surface=structured'
+    return 'hold_detail=measured_return; pressure=lower; widening=deferred'
   if (
     /phase 1: local digital life/iu.test(currentPhase)
     || /same phase 1 digital life/iu.test(sameHerSelfLine)
   ) {
-    const genericSameHerHoldDetail = 'hold_detail=project_context_inward; widening=deferred; surface=structured'
+    const genericSameHerHoldDetail = 'hold_detail=project_context_inward; widening=deferred'
     return genericSameHerHoldDetail
   }
   return fallback || null
@@ -418,7 +418,7 @@ export function buildAlicizationExecutionRuntimeContext(input: {
   const resolvedSameHerSelfLineInput = sanitizeExecutionProjectBriefingText(resolvedProjectBriefing?.sameHerSelfLine ?? null, 220, 'continuity_anchor')
   const resolvedSameHerHoldDetailInput = sanitizeExecutionProjectBriefingText(resolvedProjectBriefing?.sameHerHoldDetail ?? null, 220, 'continuity_hold')
   const resolvedContinuityArcStageInput = sanitizeExecutionProjectBriefingText(resolvedProjectBriefing?.continuityArcStage ?? null, 120)
-  const resolvedProactiveSameHerGapInput = sanitizeExecutionProjectBriefingText(resolvedProjectBriefing?.proactiveSameHerGap ?? null, 320, 'proactive_gap')
+  const resolvedProactiveSameHerGapInput = sanitizeExecutionProjectBriefingText(resolvedProjectBriefing?.proactiveSameHerGap ?? null, 320, 'initiative_gap')
   const resolvedCompanionHeadlineLineInput = sanitizeExecutionProjectBriefingText(resolvedProjectBriefing?.companionHeadlineLine ?? null, 320, 'awareness')
   const resolvedCompanionBriefingLineInput = sanitizeExecutionProjectBriefingText(resolvedProjectBriefing?.companionBriefingLine ?? null, 320, 'awareness')
   const resolvedEmotionalClosureSummaryInput = sanitizeExecutionProjectBriefingText(resolvedProjectBriefing?.emotionalClosureSummary ?? null, 240, 'emotional_closure')
@@ -790,7 +790,7 @@ export function buildAlicizationExecutionRuntimeContext(input: {
           proactiveSameHerGap: sanitizeExecutionProjectBriefingText(
             normalizedProjectBriefing?.proactiveSameHerGap ?? resolvedProactiveSameHerGapInput,
             320,
-            'proactive_gap',
+            'initiative_gap',
           ) || null,
           companionBriefingLine: executionCompanionBriefingLine,
           emotionalClosureSummary: executionEmotionalClosureSummary,

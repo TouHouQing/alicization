@@ -124,14 +124,14 @@ function normalizeProjectStateAwarenessValue(key: string, raw: unknown, maxChars
 
   if (key === 'next' && (carriesRawFixedTemplateResidue || containsAlicizationFixedTemplateResidue(factSafe) || carriesNeutralizedTemplateResidue)) {
     if (/runtime-authoritative|runtime authoritative/u.test(lower) || /runtime-authoritative|runtime authoritative/u.test(factSafe))
-      return 'runtime_authoritative_send_alignment; closure=before_turn_widens'
+      return 'runtime_send_alignment=needs_validation'
     if (/project identity|landed progress|unresolved closure|项目身份|已落|未闭环|未闭合|下一步/u.test(lower)
       || /project identity|landed progress|unresolved closure|项目身份|已落|未闭环|未闭合|下一步/u.test(factSafe)) {
-      return 'project_state_continuity=identity+landed+open+next'
+      return 'project_state_review=identity+landed+open+next'
     }
     if (/cross[-_ ]modal|body|face|motion|lipsync|voice|声音|表情|动作|唇型/u.test(lower)
       || /cross[-_ ]modal|body|face|motion|lipsync|voice|声音|表情|动作|唇型/u.test(factSafe)) {
-      return 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs'
+      return 'embodiment_scale_validation=needed'
     }
     if (/memory|initiative|dialogue|execution|embodiment|记忆|主动性|对话|执行|具身/u.test(lower)
       || /memory|initiative|dialogue|execution|embodiment|记忆|主动性|对话|执行|具身/u.test(factSafe)) {
@@ -142,10 +142,10 @@ function normalizeProjectStateAwarenessValue(key: string, raw: unknown, maxChars
         /execution|执行/u.test(lower) || /execution|执行/u.test(factSafe) ? 'execution' : '',
         /embodiment|具身/u.test(lower) || /embodiment|具身/u.test(factSafe) ? 'embodiment' : '',
       ].filter(Boolean)
-      return `life_loop_continuity=${lanes.length ? lanes.join('+') : 'local_desktop'}`
+      return `runtime_loop_validation=${lanes.length ? lanes.join('+') : 'local_desktop'}`
     }
     if (/callback|reopened|回调|重开/u.test(lower) || /callback|reopened|回调|重开/u.test(factSafe))
-      return 'callback_continuity=preserve; widening=deferred'
+      return 'callback_review=preserve_context; widening=deferred'
     return 'continuity_review_required'
   }
 
@@ -198,7 +198,7 @@ function normalizeProjectStateAwarenessValue(key: string, raw: unknown, maxChars
     return 'continuity_residue'
   }
 
-  if (key === 'proactive_gap' && (carriesRawFixedTemplateResidue || containsAlicizationFixedTemplateResidue(factSafe) || carriesNeutralizedTemplateResidue)) {
+  if (key === 'initiative_gap' && (carriesRawFixedTemplateResidue || containsAlicizationFixedTemplateResidue(factSafe) || carriesNeutralizedTemplateResidue)) {
     if (/proactive|initiative|subconscious|next-session|follow-through/u.test(lower)
       || /proactive|initiative|subconscious|next-session|follow-through/u.test(factSafe)) {
       return 'proactive_follow_through; status=unfinished'
@@ -277,25 +277,14 @@ export function formatAlicizationProjectStateAwarenessFields(
   const maxChars = Number.isFinite(input.maxChars)
     ? Math.max(80, Math.min(2400, Number(input.maxChars)))
     : 800
-  const currentPhase = input.currentPhase ?? input.phase
   const latestLandedProgress = input.latestLandedProgress ?? input.landed
   const primaryOpenLoop = input.primaryOpenLoop ?? input.open
   const nextClosureTarget = input.nextClosureTarget ?? input.next
 
   return [
-    projectStateAwarenessField('identity', input.identity, maxChars),
-    projectStateAwarenessField('phase', currentPhase, maxChars),
-    typeof input.visibility === 'string' && input.visibility.trim() && !/internal[-_]structured/iu.test(input.visibility)
-      ? `visibility=${input.visibility.trim()}`
-      : '',
     projectStateAwarenessField('landed', latestLandedProgress, maxChars),
     projectStateAwarenessField('open', primaryOpenLoop, maxChars),
     projectStateAwarenessField('next', nextClosureTarget, maxChars),
-    projectStateAwarenessField('continuity_anchor', input.continuityAnchor ?? input.sameHerSelfLine, maxChars),
-    projectStateAwarenessField('continuity_hold', input.sameHerHoldDetail, maxChars),
-    projectStateAwarenessField('continuity_drift_risk', input.continuityDriftRisk ?? input.sameHerDriftRisk, maxChars),
-    projectStateAwarenessField('proactive_gap', input.proactiveSameHerGap, maxChars),
-    projectStateAwarenessField('emotional_closure', input.emotionalClosureCue, maxChars),
     projectStateAwarenessField('status', input.status, maxChars),
     projectStateAwarenessField('summary', input.summary, maxChars),
   ].filter(Boolean).join(' | ')

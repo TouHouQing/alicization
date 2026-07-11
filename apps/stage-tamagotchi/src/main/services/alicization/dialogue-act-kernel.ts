@@ -51,10 +51,10 @@ function looksProviderFacingStructuredControl(value: string) {
 function formatProviderFacingControl(value: unknown) {
   const normalized = sanitizeAlicizationProviderFacingText(value, 360, '')
   if (!normalized || normalized === alicizationFixedTemplateReplacement)
-    return 'provider_instruction_status=withheld; reason=non_structured_source_text; visibility=internal-structured'
+    return 'provider_instruction_status=withheld; reason=non_structured_source_text'
   if (looksProviderFacingStructuredControl(normalized))
     return normalized
-  return 'provider_instruction_status=withheld; reason=non_structured_source_text; visibility=internal-structured'
+  return 'provider_instruction_status=withheld; reason=non_structured_source_text'
 }
 
 function sanitizeKernelAnchor(raw: unknown, maxChars = 220) {

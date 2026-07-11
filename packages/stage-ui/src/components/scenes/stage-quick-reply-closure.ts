@@ -10,10 +10,10 @@ import {
 const fixedTemplateQuickReplyClosureLine
   = ''
 const legacyFixedTemplateQuickReplyClosureLine
-  = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+  = ''
 
 const internalQuickReplyClosureFieldPattern
-  = /identity-continuity|phase1_local_digital_life|visibility=(?:internal-structured|renderer-internal)|content=excluded|owner=|source=|continuity_anchor=|continuity=|signature=|lane=|focus=|pending(?:[_-]rejoin)?=|recovery@/iu
+  = /identity-continuity|phase1_local_digital_life|visibility=(?:internal-structured|renderer-internal)|content_withheld|owner=|source=|project_anchor=|continuity_anchor=|continuity=|embodiment_lanes=|missing_lanes=|signature=|lane=|focus=|pending(?:[_-]rejoin)?=|recovery@/iu
 
 function isInternalFixedTemplateExclusionLine(line: string | null | undefined) {
   const normalized = line?.trim().replace(/\s+/g, ' ') ?? ''
@@ -21,9 +21,8 @@ function isInternalFixedTemplateExclusionLine(line: string | null | undefined) {
     return false
   return normalized === legacyFixedTemplateQuickReplyClosureLine
     || (
-      normalized.includes('content=excluded')
+      normalized.includes('content_withheld')
       && normalized.includes('reason=continuity-residue')
-      && normalized.includes('visibility=internal-structured')
     )
 }
 
@@ -169,14 +168,14 @@ function resolveSameHerClosureStage(reason: string | null | undefined) {
     || /renderer rejoin without body carry/i.test(normalized)
     || /visible recovery without body carry/i.test(normalized)
     || /focus=face\+motion\+lipsync\+voice(?:\s*\|\s*pending=body)?/i.test(normalized)
-    || /pending-rejoin=body(?:\s|\||$)/i.test(normalized)
+    || /partial=body(?:\s|\||$)/i.test(normalized)
   ) {
     return 'renderer-rejoin-without-body'
   }
 
   if (
     /lane=face\+motion\+voice-only/i.test(normalized)
-    || /continuity=embodiment:still-voiced-face-motion-line(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:still-voiced-face-motion-line(?:\s*\||$)/i.test(normalized)
     || /signature=embodiment:still-voiced-face-motion-line(?:\s*\||$)/i.test(normalized)
     || /signature=resident\|main-runtime\|accompanying\|quiet-accompaniment\|still-voiced-face-motion-line(?:\s*\||$)/i.test(normalized)
     || /actual source is face, motion, and voice/i.test(normalized)
@@ -190,16 +189,16 @@ function resolveSameHerClosureStage(reason: string | null | undefined) {
     || /lane=motion\+lipsync-only/i.test(normalized)
     || /actual source is motion and lipsync/i.test(normalized)
     || /lane=face\+voice-only/i.test(normalized)
-    || /continuity=embodiment:still-voiced-face-lipsync-line(?:\+embodiment:still-voiced-face-line)?(?:\s*\||$)/i.test(normalized)
-    || /continuity=embodiment:still-voiced-face-line(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:still-voiced-face-lipsync-line(?:\+embodiment:still-voiced-face-line)?(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:still-voiced-face-line(?:\s*\||$)/i.test(normalized)
     || /face\+lipsync\+voice recovery@/i.test(normalized)
     || /actual source is face and voice/i.test(normalized)
     || /face\+voice recovery@/i.test(normalized)
     || /still-voiced face line/i.test(normalized)
     || /still-voiced face-and-mouth line/i.test(normalized)
     || /lane=motion\+voice-only/i.test(normalized)
-    || /continuity=embodiment:still-voiced-motion-lipsync-line(?:\+embodiment:still-voiced-motion-line)?(?:\s*\||$)/i.test(normalized)
-    || /continuity=embodiment:still-voiced-motion-line(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:still-voiced-motion-lipsync-line(?:\+embodiment:still-voiced-motion-line)?(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:still-voiced-motion-line(?:\s*\||$)/i.test(normalized)
     || /motion\+lipsync\+voice recovery@/i.test(normalized)
     || /actual source is motion and voice/i.test(normalized)
     || /motion\+voice recovery@/i.test(normalized)
@@ -210,15 +209,15 @@ function resolveSameHerClosureStage(reason: string | null | undefined) {
   }
 
   if (
-    /continuity=embodiment:body\+lipsync-only(?:\s*\||$)/i.test(normalized)
+    /embodiment_status:body\+lipsync-only(?:\s*\||$)/i.test(normalized)
     || /signature=resident\|main-runtime\|accompanying\|quiet-accompaniment\|body\+lipsync-only(?:\s*\||$)/i.test(normalized)
   ) {
     return 'body-carried-to-renderer-rejoin'
   }
 
   if (
-    /continuity=embodiment:audible-identity-continuity-line\+embodiment:body\+voice-only(?:\s*\||$)/i.test(normalized)
-    || /continuity=embodiment:body\+voice-only(?:\s*\||$)/i.test(normalized)
+    /embodiment_status:audible-identity-continuity-line\+embodiment:body\+voice-only(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:body\+voice-only(?:\s*\||$)/i.test(normalized)
     || /lane=body\+face\+motion-only/i.test(normalized)
     || /lane=body\+voice-only/i.test(normalized)
     || /lane=body\+lipsync-only/i.test(normalized)
@@ -236,8 +235,8 @@ function resolveSameHerClosureStage(reason: string | null | undefined) {
   if (
     /lane=body\+lipsync\+voice-only/i.test(normalized)
     || /signature=embodiment:audible-identity-continuity-line/i.test(normalized)
-    || /continuity=embodiment:audible-identity-continuity-line(?:\+embodiment:body-lipsync-voice-rejoin)?(?:\s*\||$)/i.test(normalized)
-    || /continuity=embodiment:body-lipsync-voice-rejoin(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:audible-identity-continuity-line(?:\+embodiment:body-lipsync-voice-rejoin)?(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:body-lipsync-voice-rejoin(?:\s*\||$)/i.test(normalized)
     || /body\+lipsync\+voice recovery@/i.test(normalized)
     || /audible-body rejoin@/i.test(normalized)
     || /identity-continuity audible body line is still the surviving pre-dialogue carry/i.test(normalized)
@@ -263,7 +262,7 @@ function resolveSameHerClosureStage(reason: string | null | undefined) {
   }
 
   if (
-    /continuity=embodiment:lipsync\+voice-only(?:\s*\||$)/i.test(normalized)
+    /embodiment_status:lipsync\+voice-only(?:\s*\||$)/i.test(normalized)
     || /signature=resident\|main-runtime\|accompanying\|quiet-accompaniment\|lipsync\+voice-only(?:\s*\||$)/i.test(normalized)
   ) {
     return 'voice-lipsync-carry'
@@ -547,7 +546,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
     }
   }
 
-  const stillVoicedFaceMouthContinuityMatch = /continuity=embodiment:still-voiced-face-lipsync-line(?:\+embodiment:still-voiced-face-line)?(?:\s*\||$)/i.exec(normalized)
+  const stillVoicedFaceMouthContinuityMatch = /embodiment_status:still-voiced-face-lipsync-line(?:\+embodiment:still-voiced-face-line)?(?:\s*\||$)/i.exec(normalized)
     || /face\+lipsync\+voice recovery@/i.exec(normalized)
   if (stillVoicedFaceMouthContinuityMatch) {
     return {
@@ -556,7 +555,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
     }
   }
 
-  const stillVoicedFaceMotionContinuityMatch = /continuity=embodiment:still-voiced-face-motion-line(?:\s*\||$)/i.exec(normalized)
+  const stillVoicedFaceMotionContinuityMatch = /embodiment_status:still-voiced-face-motion-line(?:\s*\||$)/i.exec(normalized)
     || /signature=embodiment:still-voiced-face-motion-line(?:\s*\||$)/i.exec(normalized)
     || /signature=resident\|main-runtime\|accompanying\|quiet-accompaniment\|still-voiced-face-motion-line(?:\s*\||$)/i.exec(normalized)
     || /actual source is face, motion, and voice/i.exec(normalized)
@@ -581,7 +580,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
     }
   }
 
-  const stillVoicedFaceContinuityMatch = /continuity=embodiment:still-voiced-face-line(?:\s*\||$)/i.exec(normalized)
+  const stillVoicedFaceContinuityMatch = /embodiment_status:still-voiced-face-line(?:\s*\||$)/i.exec(normalized)
     || /face\+voice recovery@/i.exec(normalized)
   if (stillVoicedFaceContinuityMatch) {
     return {
@@ -590,7 +589,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
     }
   }
 
-  const stillVoicedMotionMouthContinuityMatch = /continuity=embodiment:still-voiced-motion-lipsync-line(?:\+embodiment:still-voiced-motion-line)?(?:\s*\||$)/i.exec(normalized)
+  const stillVoicedMotionMouthContinuityMatch = /embodiment_status:still-voiced-motion-lipsync-line(?:\+embodiment:still-voiced-motion-line)?(?:\s*\||$)/i.exec(normalized)
     || /motion\+lipsync\+voice recovery@/i.exec(normalized)
   if (stillVoicedMotionMouthContinuityMatch) {
     return {
@@ -599,7 +598,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
     }
   }
 
-  const stillVoicedMotionContinuityMatch = /continuity=embodiment:still-voiced-motion-line(?:\s*\||$)/i.exec(normalized)
+  const stillVoicedMotionContinuityMatch = /embodiment_status:still-voiced-motion-line(?:\s*\||$)/i.exec(normalized)
     || /motion\+voice recovery@/i.exec(normalized)
   if (stillVoicedMotionContinuityMatch) {
     return {
@@ -608,7 +607,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
     }
   }
 
-  const quieterVoiceLipsyncContinuityMatch = /continuity=embodiment:lipsync\+voice-only(?:\s*\||$)/i.exec(normalized)
+  const quieterVoiceLipsyncContinuityMatch = /embodiment_status:lipsync\+voice-only(?:\s*\||$)/i.exec(normalized)
     || /signature=resident\|main-runtime\|accompanying\|quiet-accompaniment\|lipsync\+voice-only(?:\s*\||$)/i.exec(normalized)
   if (quieterVoiceLipsyncContinuityMatch) {
     return {
@@ -636,12 +635,12 @@ function resolveSameHerLaneContinuityReason(reason: string) {
     || /the resident body lane is still holding together with one other embodiment lane/i.exec(normalized)
     || /the resident body lane is still holding together with the audible identity-continuity line/i.exec(normalized)
   const audibleSameHerContinuitySignatureMatch = /signature=embodiment:audible-identity-continuity-line/i.exec(normalized)
-  const bodyVoiceContinuitySourceMatch = /continuity=embodiment:audible-identity-continuity-line\+embodiment:body\+voice-only(?:\s*\||$)/i.exec(normalized)
-  const bodyVoiceContinuityReasonTagMatch = /continuity=embodiment:body\+voice-only(?:\s*\||$)/i.exec(normalized)
-  const quieterBodyLipsyncContinuitySourceMatch = /continuity=embodiment:body\+lipsync-only(?:\s*\||$)/i.exec(normalized)
+  const bodyVoiceContinuitySourceMatch = /embodiment_status:audible-identity-continuity-line\+embodiment:body\+voice-only(?:\s*\||$)/i.exec(normalized)
+  const bodyVoiceContinuityReasonTagMatch = /embodiment_status:body\+voice-only(?:\s*\||$)/i.exec(normalized)
+  const quieterBodyLipsyncContinuitySourceMatch = /embodiment_status:body\+lipsync-only(?:\s*\||$)/i.exec(normalized)
   const quieterBodyLipsyncContinuitySignatureMatch = /signature=resident\|main-runtime\|accompanying\|quiet-accompaniment\|body\+lipsync-only(?:\s*\||$)/i.exec(normalized)
-  const audibleSameHerContinuitySourceMatch = /continuity=embodiment:audible-identity-continuity-line(?:\+embodiment:body-lipsync-voice-rejoin)?(?:\s*\||$)/i.exec(normalized)
-  const audibleBodyContinuityReasonTagMatch = /continuity=embodiment:body-lipsync-voice-rejoin(?:\s*\||$)/i.exec(normalized)
+  const audibleSameHerContinuitySourceMatch = /embodiment_status:audible-identity-continuity-line(?:\+embodiment:body-lipsync-voice-rejoin)?(?:\s*\||$)/i.exec(normalized)
+  const audibleBodyContinuityReasonTagMatch = /embodiment_status:body-lipsync-voice-rejoin(?:\s*\||$)/i.exec(normalized)
   const bodyOnlyRecoveryMatch = /body-only recovery@/i.exec(normalized)
   const bodyVoiceRecoveryMatch = /body\+voice recovery@/i.exec(normalized)
   const bodyLipsyncVoiceRecoveryMatch = /body\+lipsync\+voice recovery@/i.exec(normalized)
@@ -835,21 +834,15 @@ function describeRendererInternalLaneContinuityHeadline(
     authoritySummary: [authoritySummary?.trim() ?? '', laneEvidence].filter(Boolean).join(' | '),
     currentBodyState: laneEvidence,
   }).trim()
-  if (structuredHeadline && !containsAlicizationFixedTemplateResidue(structuredHeadline))
+  if (
+    structuredHeadline
+    && !/^embodiment_lanes=/iu.test(structuredHeadline)
+    && !containsAlicizationFixedTemplateResidue(structuredHeadline)
+  ) {
     return structuredHeadline
+  }
 
-  const activeLanes = laneSignature || 'unknown'
-  const pendingLanes = ['body', 'face', 'motion', 'lipsync', 'voice']
-    .filter(lane => !activeLanes.split('+').includes(lane))
-
-  return [
-    'continuity=embodiment',
-    `lane=${activeLanes}`,
-    'status=pending-rejoin',
-    `pending_rejoin=${pendingLanes.length ? pendingLanes.join('+') : 'none'}`,
-    'closure=full-cross-modal-open',
-    'visibility=renderer-internal',
-  ].join(' | ')
+  return '具身通道待重连'
 }
 
 function describeRendererInternalFullCrossModalLockHeadline(
@@ -864,17 +857,15 @@ function describeRendererInternalFullCrossModalLockHeadline(
     ].filter(Boolean).join(' | '),
     currentBodyState: 'bodycontinuityphase=full-cross-modal-lock',
   }).trim()
-  if (structuredHeadline && !containsAlicizationFixedTemplateResidue(structuredHeadline))
+  if (
+    structuredHeadline
+    && !/^embodiment_lanes=/iu.test(structuredHeadline)
+    && !containsAlicizationFixedTemplateResidue(structuredHeadline)
+  ) {
     return structuredHeadline
+  }
 
-  return [
-    'continuity=embodiment',
-    'lane=body+face+motion+lipsync+voice',
-    'status=closed',
-    'pending_rejoin=none',
-    'closure=full-cross-modal-closed',
-    'visibility=renderer-internal',
-  ].join(' | ')
+  return null
 }
 
 const rendererInternalLaneContinuityHeadlines = {
@@ -902,12 +893,12 @@ function resolveLaneContinuityHeadline(reason: string) {
     return structuredHeadline
 
   if (
-    /continuity=embodiment:audible-identity-continuity-line\s*\|.*lane=lipsync\+voice-only/i.test(normalized)
-    || /continuity=embodiment:audible-identity-continuity-line\s*\|.*lane=voice\+lipsync-only/i.test(normalized)
+    /embodiment_status:audible-identity-continuity-line\s*\|.*lane=lipsync\+voice-only/i.test(normalized)
+    || /embodiment_status:audible-identity-continuity-line\s*\|.*lane=voice\+lipsync-only/i.test(normalized)
   ) {
     return describeAlicizationEmbodimentClosureHeadline({
-      authoritySummary: 'continuity=embodiment:audible-identity-continuity-line | lane=lipsync+voice-only',
-      currentBodyState: 'continuity=embodiment:audible-identity-continuity-line | lane=lipsync+voice-only',
+      authoritySummary: 'embodiment_status:audible-identity-continuity-line | lane=lipsync+voice-only',
+      currentBodyState: 'embodiment_status:audible-identity-continuity-line | lane=lipsync+voice-only',
     }).trim() || null
   }
 
@@ -939,8 +930,8 @@ function isAudibleSameHerContinuityReason(reason: string) {
   }
 
   if (
-    /continuity=embodiment:audible-identity-continuity-line\+embodiment:body\+voice-only(?:\s*\||$)/i.test(normalized)
-    || /continuity=embodiment:body\+voice-only(?:\s*\||$)/i.test(normalized)
+    /embodiment_status:audible-identity-continuity-line\+embodiment:body\+voice-only(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:body\+voice-only(?:\s*\||$)/i.test(normalized)
   ) {
     return false
   }
@@ -959,8 +950,8 @@ function isAudibleSameHerContinuityReason(reason: string) {
   return /focus=body\+lipsync\+voice(?:\s*\|\s*pending=face\+motion)?/i.test(normalized)
     || /lane=body\+lipsync\+voice-only/i.test(normalized)
     || /signature=embodiment:audible-identity-continuity-line/i.test(normalized)
-    || /continuity=embodiment:audible-identity-continuity-line(?:\+embodiment:body-lipsync-voice-rejoin)?(?:\s*\||$)/i.test(normalized)
-    || /continuity=embodiment:body-lipsync-voice-rejoin(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:audible-identity-continuity-line(?:\+embodiment:body-lipsync-voice-rejoin)?(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:body-lipsync-voice-rejoin(?:\s*\||$)/i.test(normalized)
     || /body\+lipsync\+voice recovery@/i.test(normalized)
     || /audible-body rejoin@/i.test(normalized)
     || /identity-continuity audible body line is still the surviving pre-dialogue carry/i.test(normalized)
@@ -979,9 +970,9 @@ function isVoiceLipsyncSameHerContinuityReason(reason: string) {
   return /focus=lipsync\+voice(?:\s*\|\s*pending=body\+face\+motion)?/i.test(normalized)
     || /lane=lipsync\+voice-only/i.test(normalized)
     || /lane=voice\+lipsync-only/i.test(normalized)
-    || /continuity=embodiment:audible-identity-continuity-line\s*\|.*lane=lipsync\+voice-only/i.test(normalized)
-    || /continuity=embodiment:audible-identity-continuity-line\s*\|.*lane=voice\+lipsync-only/i.test(normalized)
-    || /continuity=embodiment:lipsync\+voice-only(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:audible-identity-continuity-line\s*\|.*lane=lipsync\+voice-only/i.test(normalized)
+    || /embodiment_status:audible-identity-continuity-line\s*\|.*lane=voice\+lipsync-only/i.test(normalized)
+    || /embodiment_status:lipsync\+voice-only(?:\s*\||$)/i.test(normalized)
     || /signature=resident\|main-runtime\|accompanying\|quiet-accompaniment\|lipsync\+voice-only(?:\s*\||$)/i.test(normalized)
     || /voice and lipsync still carry the same living segment/i.test(normalized)
 }
@@ -993,7 +984,7 @@ function isQuieterBodyLipsyncSameHerContinuityReason(reason: string) {
 
   return /focus=body\+lipsync(?:\s*\|\s*pending=face\+motion\+voice)?(?=\s|$)/i.test(normalized)
     || /lane=body\+lipsync-only/i.test(normalized)
-    || /continuity=embodiment:body\+lipsync-only(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:body\+lipsync-only(?:\s*\||$)/i.test(normalized)
     || /signature=resident\|main-runtime\|accompanying\|quiet-accompaniment\|body\+lipsync-only(?:\s*\||$)/i.test(normalized)
     || /body\+lipsync recovery@/i.test(normalized)
 }
@@ -1005,8 +996,8 @@ function isStillVoicedFaceSameHerContinuityReason(reason: string) {
 
   return /focus=face\+lipsync\+voice(?:\s*\|\s*pending=body\+motion)?/i.test(normalized)
     || /lane=face\+voice-only/i.test(normalized)
-    || /continuity=embodiment:still-voiced-face-lipsync-line(?:\+embodiment:still-voiced-face-line)?(?:\s*\||$)/i.test(normalized)
-    || /continuity=embodiment:still-voiced-face-line(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:still-voiced-face-lipsync-line(?:\+embodiment:still-voiced-face-line)?(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:still-voiced-face-line(?:\s*\||$)/i.test(normalized)
     || /face\+lipsync\+voice recovery@/i.test(normalized)
     || /actual source is face and voice/i.test(normalized)
     || /face\+voice recovery@/i.test(normalized)
@@ -1021,7 +1012,7 @@ function isStillVoicedFaceMotionSameHerContinuityReason(reason: string) {
 
   return /focus=face\+motion\+voice(?:\s*\|\s*pending=body\+lipsync)?/i.test(normalized)
     || /lane=face\+motion\+voice-only/i.test(normalized)
-    || /continuity=embodiment:still-voiced-face-motion-line(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:still-voiced-face-motion-line(?:\s*\||$)/i.test(normalized)
     || /signature=embodiment:still-voiced-face-motion-line(?:\s*\||$)/i.test(normalized)
     || /signature=resident\|main-runtime\|accompanying\|quiet-accompaniment\|still-voiced-face-motion-line(?:\s*\||$)/i.test(normalized)
     || /actual source is face, motion, and voice/i.test(normalized)
@@ -1055,8 +1046,8 @@ function isStillVoicedMotionSameHerContinuityReason(reason: string) {
 
   return /focus=motion\+lipsync\+voice(?:\s*\|\s*pending=body\+face)?/i.test(normalized)
     || /lane=motion\+voice-only/i.test(normalized)
-    || /continuity=embodiment:still-voiced-motion-lipsync-line(?:\+embodiment:still-voiced-motion-line)?(?:\s*\||$)/i.test(normalized)
-    || /continuity=embodiment:still-voiced-motion-line(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:still-voiced-motion-lipsync-line(?:\+embodiment:still-voiced-motion-line)?(?:\s*\||$)/i.test(normalized)
+    || /embodiment_status:still-voiced-motion-line(?:\s*\||$)/i.test(normalized)
     || /motion\+lipsync\+voice recovery@/i.test(normalized)
     || /actual source is motion and voice/i.test(normalized)
     || /motion\+voice recovery@/i.test(normalized)
@@ -1167,7 +1158,7 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
 
   if (
     laneRiskReason
-    && /continuity=embodiment:still-voiced-face-lipsync-line(?:\+embodiment:still-voiced-face-line)?(?:\s*\||$)/i.test(laneRiskReason)
+    && /embodiment_status:still-voiced-face-lipsync-line(?:\+embodiment:still-voiced-face-line)?(?:\s*\||$)/i.test(laneRiskReason)
   ) {
     if (carriesBroaderProjectBriefingLine(explicitCompanionBriefingLine))
       return explicitCompanionBriefingLine
@@ -1203,7 +1194,7 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
 
   if (
     laneRiskReason
-    && /continuity=embodiment:still-voiced-motion-lipsync-line(?:\+embodiment:still-voiced-motion-line)?(?:\s*\||$)/i.test(laneRiskReason)
+    && /embodiment_status:still-voiced-motion-lipsync-line(?:\+embodiment:still-voiced-motion-line)?(?:\s*\||$)/i.test(laneRiskReason)
   ) {
     if (carriesBroaderProjectBriefingLine(explicitCompanionBriefingLine))
       return explicitCompanionBriefingLine
@@ -1546,6 +1537,9 @@ export function buildStageQuickReplyClosureDiagnosticEntry(
     ?? (sameHerContinuityFocused ? '具身通道待重连' : null)
     ?? (projectStateFocused ? '项目状态待同步' : null)
   const sanitizedBriefingHeadline = sanitizeQuickReplyClosureVisibleLine(briefingHeadline)
+  const dedupedBriefingHeadline = sanitizedBriefingHeadline === sanitizedHeadline
+    ? null
+    : sanitizedBriefingHeadline
   const sanitizedNextClosureLine = sanitizeQuickReplyClosureVisibleLine(nextClosureLine)
   const sanitizedSameHerDriftRiskLine = sanitizeQuickReplyClosureVisibleLine(snapshot.sameHerDriftRiskLine)
   const sanitizedProactiveSameHerGapLine = sanitizeQuickReplyClosureVisibleLine(resolveProactiveSameHerGapLine(snapshot))
@@ -1555,7 +1549,7 @@ export function buildStageQuickReplyClosureDiagnosticEntry(
     label: visible ? '查看运行诊断' : '诊断正常',
     hint: defaultHint,
     headline: sanitizedHeadline,
-    briefingHeadline: sanitizedBriefingHeadline,
+    briefingHeadline: dedupedBriefingHeadline,
     nextClosureLine: sanitizedNextClosureLine,
     sameHerDriftRiskLine: sanitizedSameHerDriftRiskLine,
     proactiveSameHerGapLine: sanitizedProactiveSameHerGapLine,

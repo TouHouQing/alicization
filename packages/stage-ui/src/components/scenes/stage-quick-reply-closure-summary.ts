@@ -10,7 +10,7 @@ const fixedTemplateQuickReplyClosureSummaryLine
   = ''
 
 const internalStructuredQuickReplyClosurePattern
-  = /surface=structured|content=excluded|continuity evidence/iu
+  = /surface=structured|content_withheld|continuity evidence/iu
 
 function applyProjectStateTone(line: string | null, status: string | undefined) {
   void status
@@ -152,7 +152,7 @@ function carriesExplicitSameHerContinuityEvidence(line: string | null | undefine
     && (
       normalized.includes('signature=')
       || normalized.includes('recovery@')
-      || normalized.includes('pending-rejoin=')
+      || normalized.includes('partial=')
     )
 }
 
@@ -333,7 +333,7 @@ function scoreFallbackAwarenessLine(line: string | null | undefined) {
       && (
         normalized.includes('signature=')
         || normalized.includes('recovery@')
-        || normalized.includes('pending-rejoin=')
+        || normalized.includes('partial=')
       )
   if (
     carriesSameHerMeasuredReturn
@@ -413,7 +413,7 @@ function isSameHerFocusedFallbackAwarenessCandidate(line: string | null | undefi
     || normalized.includes('same line inward')
     || normalized.includes('continuity=')
     || normalized.includes('recovery@')
-    || normalized.includes('pending-rejoin=')
+    || normalized.includes('partial=')
     || normalized.includes('pause=')
     || normalized.includes('lipsyncmode=')
     || normalized.includes('voicemode=')

@@ -76,8 +76,8 @@ function looksLikeIndependentStructuredSameHerSignal(value: string | null | unde
     && (
       /owner=(?:workingmemory|longtermmemoryrecall)/u.test(normalized)
       || /(?:evidence_id|evidence_ref|evidence|trace|source)=/u.test(normalized)
-      || /closure_policy=|continuity_hold=|project_state_continuity=|life_loop_continuity=/u.test(normalized)
-      || /memory_dialogue_embodiment_closure|cross_modal_continuity_proof=|continuity=embodiment/u.test(normalized)
+      || /closure_policy=|continuity_hold=|project_state_review=|runtime_loop_validation=/u.test(normalized)
+      || /memory_dialogue_embodiment_closure|embodiment_scale_validation=|embodiment_status/u.test(normalized)
     )
 }
 
@@ -91,20 +91,20 @@ function looksLikeProjectStateAnswerStancePreserveText(value: string | null | un
   return (
     normalized.includes('answer_subject=project_state')
     || normalized.includes('project_state_answer=')
-    || normalized.includes('project_state_continuity=')
+    || normalized.includes('project_state_review=')
     || normalized.includes('preserve_field=project_state.')
   ) && (
     normalized.includes('same_person_continuity')
-    || normalized.includes('project_state_continuity')
+    || normalized.includes('project_state_review')
     || normalized.includes('continuity_policy=')
-    || normalized.includes('continuity_anchor=')
+    || normalized.includes('project_anchor=')
   )
 }
 
 function containsProjectStateStructuredTemplateResidue(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   return Boolean(normalized)
-    && /\blocal_desktop_life_loop\b|phase1_local_digital_life|project_phase=life_core|continuity_identity|continuity_line|content=excluded|visibility=internal[-_]structured/u.test(normalized)
+    && /\bruntime_personhood\b|phase1_local_digital_life|project_phase=life_core|continuity_identity|continuity_line|content_withheld|visibility=internal[-_]structured/u.test(normalized)
 }
 
 function readProjectStateAuditText(value: unknown) {
@@ -147,8 +147,8 @@ function scoreProjectAwarenessLine(value: string | null | undefined) {
   const carriesFixedTemplateResidue = containsAlicizationFixedTemplateResidue(normalized)
     || containsProjectStateStructuredTemplateResidue(normalized)
   const carriesStructuredProjectFact
-    = /(?:^|\s\|\s)(?:identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|proactive_gap|emotional_closure|status|summary)=/u.test(normalized)
-      || /open_loop=|project_state_continuity=|life_loop_continuity=|cross_modal_continuity_proof=|memory_dialogue_embodiment_closure|embedding_recall_reindex/u.test(normalized)
+    = /(?:^|\s\|\s)(?:identity|phase|landed|open|next|initiative_gap|continuity_anchor|continuity_hold|continuity_drift_risk|emotional_closure|status|summary)=/u.test(normalized)
+      || /open_loop=|project_state_review=|runtime_loop_validation=|embodiment_scale_validation=|memory_dialogue_embodiment_closure|embedding_recall_reindex/u.test(normalized)
   const carriesConcreteClosureProgress
     = /workingmemory|longtermmemoryrecall|semantic_recall|embedding|reindex|分页|搜索|召回|短期|长期|治理入口|review|memory_review|记忆闭环|语义召回|重建/u.test(normalized)
   let score = scoreAlicizationProjectAwarenessLine(normalized)
@@ -179,8 +179,8 @@ function looksLikeStructuredProjectContinuityFact(value: string | null | undefin
   if (containsAlicizationFixedTemplateResidue(normalized) || containsProjectStateStructuredTemplateResidue(normalized))
     return false
 
-  return /(?:^|\s\|\s)(?:identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|proactive_gap|emotional_closure|status|summary)=/u.test(normalized)
-    || /project_state_continuity=|life_loop_continuity=|continuity_progress=|memory_dialogue_embodiment_closure|cross_modal_continuity_proof=|embedding_recall_reindex|embodiment_lanes=|continuity=embodiment/u.test(normalized)
+  return /(?:^|\s\|\s)(?:identity|phase|landed|open|next|initiative_gap|continuity_anchor|continuity_hold|continuity_drift_risk|emotional_closure|status|summary)=/u.test(normalized)
+    || /project_state_review=|runtime_loop_validation=|continuity_progress=|memory_dialogue_embodiment_closure|embodiment_scale_validation=|embedding_recall_reindex|embodiment_lanes=|embodiment_status/u.test(normalized)
 }
 
 function isThinProjectAwarenessLine(value: string | null | undefined) {
@@ -206,7 +206,7 @@ function looksLikeSameHerClosureSummary(value: string | null | undefined) {
   if (containsAlicizationFixedTemplateResidue(normalized) || containsProjectStateStructuredTemplateResidue(normalized))
     return false
 
-  return /project_state_continuity=|life_loop_continuity=|continuity_progress=/u.test(normalized)
+  return /project_state_review=|runtime_loop_validation=|continuity_progress=/u.test(normalized)
 }
 
 function normalizeEmbodimentRuntimeSameHerSummary(value: string | null | undefined) {
@@ -223,9 +223,9 @@ function normalizeEmbodimentRuntimeSameHerSummary(value: string | null | undefin
   ].filter(Boolean)
 
   return [
-    'continuity_anchor=embodiment_runtime',
+    'project_anchor=embodiment_runtime',
     `lane=${lanes.length > 0 ? lanes.join('+') : 'embodiment'}`,
-    'status=pending_rejoin',
+    'status=missing_lanes',
     'closure_status=cross_modal_open',
   ].join(' | ')
 }
@@ -257,7 +257,7 @@ function looksLikeStructuredProjectCarrySameHerSummary(value: string | null | un
     return false
 
   return looksLikeStructuredProjectContinuityFact(normalized)
-    && /landed|open|next|continuity_progress|memory_dialogue_embodiment_closure|cross_modal_continuity_proof/u.test(normalized)
+    && /landed|open|next|continuity_progress|memory_dialogue_embodiment_closure|embodiment_scale_validation/u.test(normalized)
 }
 
 function looksLikeLegacyFixedProjectAwarenessTemplate(value: string | null | undefined) {
@@ -282,7 +282,7 @@ function scoreProjectSameHerLine(value: string | null | undefined) {
   let score = normalized.length >= 120 ? 2 : normalized.length >= 72 ? 1 : 0
   if (containsProjectStateStructuredTemplateResidue(normalized))
     return -6
-  if (/project_state_continuity=|life_loop_continuity=|continuity_progress=/u.test(normalized))
+  if (/project_state_review=|runtime_loop_validation=|continuity_progress=/u.test(normalized))
     score += 3
   if (/holding together mainly through|face|motion|voice|lipsync|cross-modal|embodiment closure|unfinished closure/u.test(normalized))
     score += 2
@@ -298,7 +298,7 @@ function looksLikeRicherLivingSelfSameHerLine(value: string | null | undefined) 
   if (containsAlicizationFixedTemplateResidue(normalized))
     return false
 
-  return /continuity=embodiment|embodiment_lanes=|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|pending_rejoin|cross_modal_continuity_proof/u.test(normalized)
+  return /embodiment_status|embodiment_lanes=|lane=(?:body|face|motion|lipsync|voice)|status=partial|missing_lanes|embodiment_scale_validation/u.test(normalized)
 }
 
 function looksLikeEmbodimentClosureHeadline(value: string | null | undefined) {
@@ -306,7 +306,7 @@ function looksLikeEmbodimentClosureHeadline(value: string | null | undefined) {
   if (!normalized)
     return false
 
-  return /continuity=embodiment|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|face and motion|face, motion|lipsync|voice|body line|living her|living audio thread|audible-body|audible body|cross-modal closure/u.test(normalized)
+  return /embodiment_status|lane=(?:body|face|motion|lipsync|voice)|status=partial|face and motion|face, motion|lipsync|voice|body line|living her|living audio thread|audible-body|audible body|cross-modal closure/u.test(normalized)
 }
 
 function looksLikeStructuredEmbodimentContinuityFact(value: string | null | undefined) {
@@ -314,7 +314,7 @@ function looksLikeStructuredEmbodimentContinuityFact(value: string | null | unde
   if (!normalized || looksLikeLegacyFixedProjectAwarenessTemplate(normalized))
     return false
 
-  return /continuity=embodiment/u.test(normalized)
+  return /embodiment_status/u.test(normalized)
     && /pending[-_]rejoin|signature=|face|motion|lipsync|voice|body/u.test(normalized)
 }
 
@@ -325,7 +325,7 @@ function looksLikeCompactSameHerInwardLowPressureAwareness(value: string | null 
   if (containsAlicizationFixedTemplateResidue(normalized))
     return false
 
-  return /continuity_hold=|continuity_policy=|embodiment_lanes=|pending_rejoin/u.test(normalized)
+  return /continuity_hold=|continuity_policy=|embodiment_lanes=|missing_lanes/u.test(normalized)
     && /inward|lower_pressure|low-pressure|lipsync|voice/u.test(normalized)
 }
 
@@ -337,7 +337,7 @@ function looksLikeRicherProjectClosureCarry(value: string | null | undefined) {
     return false
 
   return looksLikeStructuredProjectContinuityFact(normalized)
-    || /workingmemory|longtermmemoryrecall|semantic_recall|embedding|reindex|memory_dialogue_embodiment_closure|cross_modal_continuity_proof|分页|搜索|召回|短期|长期|治理入口|review|记忆闭环|语义召回|重建/u.test(normalized)
+    || /workingmemory|longtermmemoryrecall|semantic_recall|embedding|reindex|memory_dialogue_embodiment_closure|embodiment_scale_validation|分页|搜索|召回|短期|长期|治理入口|review|记忆闭环|语义召回|重建/u.test(normalized)
 }
 
 function looksLikeFullerProjectAndPhaseAwarenessLine(value: string | null | undefined) {
@@ -348,7 +348,7 @@ function looksLikeFullerProjectAndPhaseAwarenessLine(value: string | null | unde
     return false
 
   return looksLikeStructuredProjectContinuityFact(normalized)
-    && /identity=|phase=|landed=|open=|next=|continuity_anchor=|memory_dialogue_embodiment_closure|cross_modal_continuity_proof/u.test(normalized)
+    && /identity=|phase=|landed=|open=|next=|project_anchor=|memory_dialogue_embodiment_closure|embodiment_scale_validation/u.test(normalized)
 }
 
 function looksLikeCallbackSpecificSameHerProjectAwareness(value: string | null | undefined) {

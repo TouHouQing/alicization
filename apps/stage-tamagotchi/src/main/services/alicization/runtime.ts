@@ -520,9 +520,9 @@ function preferStrongerPersistedSameHerSelfLine(input: {
   const currentLower = current.toLowerCase()
   const candidateLower = candidate.toLowerCase()
   const currentCarriesStructuredContinuity
-    = /(?:^|\s|\|)(?:identity|continuity_anchor|project_state_continuity|life_loop_continuity)=|local_desktop_life_loop/u.test(currentLower)
+    = /(?:^|\s|\|)(?:identity|continuity_anchor|project_state_review|runtime_loop_validation)=|runtime_personhood/u.test(currentLower)
   const candidateCarriesStructuredContinuity
-    = /(?:^|\s|\|)(?:identity|continuity_anchor|project_state_continuity|life_loop_continuity)=|local_desktop_life_loop/u.test(candidateLower)
+    = /(?:^|\s|\|)(?:identity|continuity_anchor|project_state_review|runtime_loop_validation)=|runtime_personhood/u.test(candidateLower)
 
   if (currentCarriesStructuredContinuity && !candidateCarriesStructuredContinuity)
     return current
@@ -724,7 +724,7 @@ function buildProjectStateAuditContinuitySummary(input: {
   embodimentClosureSummary: string | null | undefined
 }) {
   return [
-    input.sameHerSummary ? `continuity_anchor=${input.sameHerSummary}` : '',
+    input.sameHerSummary ? `project_anchor=${input.sameHerSummary}` : '',
     input.sameHerHoldDetail ? `hold=${input.sameHerHoldDetail}` : '',
     input.sameHerDriftRiskSummary ? `drift=${input.sameHerDriftRiskSummary}` : '',
     input.proactiveSameHerGapSummary ? `proactive-gap=${input.proactiveSameHerGapSummary}` : '',
@@ -1819,7 +1819,7 @@ function normalizePersistedProjectStateForConversationTurn(input: {
       currentPhaseSummary:
         canonicalProjectState.currentPhase
         ?? input.projectStatePersistence.currentPhase
-        ?? 'local_desktop_life_loop',
+        ?? 'runtime_personhood',
       landedProgressSummary:
         preferredLatestLandedProgress
         ?? alicizationProjectStatePersistenceLandedReminder,
@@ -5432,9 +5432,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                       ? previousSummary
                       : `project_continuity=${carrySummary || carryNarrative || 'continuation_state=active; cadence=lower_pressure; restart_policy=context_preserving'}`,
                     openingGuidance: previousOpeningGuidance
-                      || 'proactive_cadence=lower_pressure; continuation_state=active; restart_policy=context_preserving; visibility=internal-structured',
+                      || 'proactive_cadence=lower_pressure; continuation_state=active; restart_policy=context_preserving',
                     manifestationCadenceSummary: previousCadenceSummary
-                      || 'manifestation_cadence=quiet_continuation; continuation_state=active; visibility=internal-structured',
+                      || 'manifestation_cadence=quiet_continuation; continuation_state=active',
                   }
                 : null
               const continuitySummary = previousSummary.includes('project_continuity=')
@@ -5443,10 +5443,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                   ?? `project_continuity=${carrySummary || carryNarrative || 'continuation_state=active; cadence=lower_pressure; restart_policy=context_preserving'}`
               const openingGuidance = previousOpeningGuidance
                 || proactiveSameLineCopy?.openingGuidance
-                || 'callback_cadence=lower_pressure; continuation_state=active; restart_policy=context_preserving; visibility=internal-structured'
+                || 'callback_cadence=lower_pressure; continuation_state=active; restart_policy=context_preserving'
               const manifestationCadenceSummary = previousCadenceSummary
                 || proactiveSameLineCopy?.manifestationCadenceSummary
-                || 'manifestation_cadence=quiet_continuation; continuation_state=active; visibility=internal-structured'
+                || 'manifestation_cadence=quiet_continuation; continuation_state=active'
               const previousInwardLine = sanitizeBriefText(
                 visualPresenceState.personStateProjection?.selfContinuityAuthority?.inwardLine ?? '',
                 220,
@@ -7061,7 +7061,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `latest_landed_progress=${facts.latestLandedProgress}`,
       `primary_open_loop=${facts.primaryOpenLoop}`,
       `next_closure_target=${facts.nextClosureTarget}`,
-      `continuity_drift_risk=${facts.continuityDriftRisk}`,
+      `template_residue_risk=${facts.continuityDriftRisk}`,
       'visibility=internal_structured',
     ].join('\n')
   }
@@ -7081,7 +7081,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `latest_landed_progress=${facts.latestLandedProgress}`,
       `primary_open_loop=${facts.primaryOpenLoop}`,
       `next_closure_target=${facts.nextClosureTarget}`,
-      `continuity_drift_risk=${facts.continuityDriftRisk}`,
+      `template_residue_risk=${facts.continuityDriftRisk}`,
       'visibility=internal_structured',
     ].join('\n')
   }
@@ -7101,7 +7101,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `latest_landed_progress=${facts.latestLandedProgress}`,
       `primary_open_loop=${facts.primaryOpenLoop}`,
       `next_closure_target=${facts.nextClosureTarget}`,
-      `continuity_drift_risk=${facts.continuityDriftRisk}`,
+      `template_residue_risk=${facts.continuityDriftRisk}`,
       'visibility=internal_structured',
     ].join('\n')
   }
@@ -7121,7 +7121,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `latest_landed_progress=${facts.latestLandedProgress}`,
       `primary_open_loop=${facts.primaryOpenLoop}`,
       `next_closure_target=${facts.nextClosureTarget}`,
-      `continuity_drift_risk=${facts.continuityDriftRisk}`,
+      `template_residue_risk=${facts.continuityDriftRisk}`,
       'visibility=internal_structured',
     ].join('\n')
   }
@@ -7141,7 +7141,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `latest_landed_progress=${facts.latestLandedProgress}`,
       `primary_open_loop=${facts.primaryOpenLoop}`,
       `next_closure_target=${facts.nextClosureTarget}`,
-      `continuity_drift_risk=${facts.continuityDriftRisk}`,
+      `template_residue_risk=${facts.continuityDriftRisk}`,
       'visibility=internal_structured',
     ].join('\n')
   }

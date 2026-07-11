@@ -502,7 +502,7 @@ function responseSurfaceContractEvidenceField(key: string, value: unknown, maxCh
 
   const normalized = normalizeProjectContinuityProviderFacingField(raw, maxChars)
   if (!normalized)
-    return `${controlKey}=present; content=excluded; visibility=internal_structured`
+    return null
   if (containsResponseSurfaceNaturalInstruction(normalized))
     return `${controlKey}=present; visible_wording=false; source=structured_signal`
 
@@ -868,7 +868,7 @@ function scoreProjectContinuitySameHerLine(value: string | null | undefined) {
     return 0
 
   let score = normalized.length >= 140 ? 2 : normalized.length >= 80 ? 1 : 0
-  if (/local_desktop_life_loop|project_state_continuity|continuity_anchor=|continuity_(?:line|identity|thread)|cross_modal_continuity_proof/u.test(normalized))
+  if (/runtime_personhood|project_state_review|project_anchor=|continuity_(?:line|identity|thread)|embodiment_scale_validation/u.test(normalized))
     score += 4
   if (/callback|initiative|embodiment|resident presence|voice|face|motion|lipsync|closure|repair-before-closeness|measured-return/u.test(normalized))
     score += 2
@@ -884,7 +884,7 @@ function hasRicherProjectContinuityClosureCarry(value: string | null | undefined
   if (containsAlicizationFixedTemplateResidue(value))
     return false
 
-  const carriesSameHer = /local_desktop_life_loop|project_state_continuity|continuity_anchor=|continuity_(?:line|identity|thread)|cross_modal_continuity_proof/u.test(normalized)
+  const carriesSameHer = /runtime_personhood|project_state_review|project_anchor=|continuity_(?:line|identity|thread)|embodiment_scale_validation/u.test(normalized)
   const carriesClosureContext = /callback|initiative|embodiment|resident presence|voice|face|motion|lipsync|open closure|next closure|generic callback shell|repair-before-closeness|measured-return/u.test(normalized)
   return carriesSameHer && carriesClosureContext
 }
@@ -906,7 +906,7 @@ function carriesProjectClosureBriefing(value: string | null | undefined) {
   if (containsAlicizationFixedTemplateResidue(value))
     return false
 
-  return /local_desktop_life_loop|project_state_continuity|returned project-state carry|landed=|open=|next=|still-open closure|open closure|next closure|closure seam|landed progress|project identity/u.test(normalized)
+  return /runtime_personhood|project_state_review|returned project-state carry|landed=|open=|next=|still-open closure|open closure|next closure|closure seam|landed progress|project identity/u.test(normalized)
 }
 
 function looksLikeEmbodimentClosureHeadline(value: string | null | undefined) {
@@ -914,7 +914,7 @@ function looksLikeEmbodimentClosureHeadline(value: string | null | undefined) {
   if (!normalized)
     return false
 
-  return /continuity=embodiment|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|holding together mainly through|living audio thread is still intact|face and motion need to rejoin|full cross-modal closure settles|voice, face, and motion|body, lipsync, and voice/u.test(normalized)
+  return /embodiment_status|lane=(?:body|face|motion|lipsync|voice)|status=partial|holding together mainly through|living audio thread is still intact|face and motion need to rejoin|full cross-modal closure settles|voice, face, and motion|body, lipsync, and voice/u.test(normalized)
 }
 
 function looksLikeProjectClosureReanchorSummary(value: string | null | undefined) {
@@ -1491,7 +1491,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
     pushUnique(mustDo, item)
 
   if (projectContinuity?.sameHerLineRequired && projectContinuity.sameHerSelfLine) {
-    pushUnique(mustDo, 'project_continuity_anchor=required; preserve_as_structured_context=true; do_not_quote_anchor=true')
+    pushUnique(mustDo, 'project_project_anchor=required; preserve_as_structured_context=true; do_not_quote_anchor=true')
     pushUnique(mustNotDo, 'Do not degrade a required project continuity self line into generic project-awareness, generic companionship, or detached project-summary wording.')
     if (runtimeContinuityArcCue === 'same-thread-continuation') {
       pushUnique(mustNotDo, 'Do not flatten this same-thread project-state continuation into a fresh report opening or detached project-summary shell.')

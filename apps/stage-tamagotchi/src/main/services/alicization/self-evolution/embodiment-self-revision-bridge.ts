@@ -52,7 +52,7 @@ export function buildAlicizationEmbodimentSelfRevisionStatePatch(input: {
     `embodiment-memory:${ledger.memoryWriteback.lane}`,
     ...carryingLanes.map(lane => `embodiment-carry:${lane}`),
     ...droppedLanes.map(lane => `embodiment-lane-dropped:${lane}`),
-    ...pendingRejoinLanes.map(lane => `embodiment-pending-rejoin:${lane}`),
+    ...pendingRejoinLanes.map(lane => `embodiment-partial:${lane}`),
     ...rejoinedLanes.map(lane => `embodiment-lane-rejoined:${lane}`),
     sanitizeText(input.projectStateContinuity?.sameHerSelfLine, 180) ? 'same-her-self-line-active' : null,
     sanitizeText(input.projectStateContinuity?.sameHerDriftRisk, 180) ? 'same-her-anti-shell-guard-active' : null,

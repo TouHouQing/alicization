@@ -350,7 +350,7 @@ describe('long horizon memory', () => {
         accessCount: 2,
         updatedAt: 89_000,
       }] as any,
-      projectStatePrimaryOpenLoop: 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete; owner=LongTermMemoryRecall; continuity_anchor=local_desktop_life_loop; open_loop=turn_initiative_embodiment_return_proof',
+      projectStatePrimaryOpenLoop: 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete; owner=LongTermMemoryRecall; open_loop=turn_initiative_embodiment_return_proof; status=unfinished',
     })
 
     expect(snapshot).not.toBeNull()
@@ -383,7 +383,7 @@ describe('long horizon memory', () => {
     const snapshot = buildAlicizationLongHorizonMemory({
       now: 91_500,
       facts: [],
-      projectStateProactiveSameHerGap: 'continuity_progress=needs_long_run_proof; proactive_gap=visible_hold+subconscious_carry+next_session_feedback; proof=long_noisy_desktop_runs',
+      projectStateProactiveSameHerGap: 'continuity_progress=needs_long_run_proof; initiative_gap=visible_hold+subconscious_carry+next_session_feedback; proof=long_noisy_desktop_runs',
     })
 
     expect(snapshot).not.toBeNull()

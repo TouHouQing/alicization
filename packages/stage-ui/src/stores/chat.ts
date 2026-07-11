@@ -232,7 +232,7 @@ function sanitizeChatAwarenessStructuredText(
       structured
       && structured !== alicizationFixedTemplateReplacement
       && structured !== 'phase1_local_digital_life'
-      && structured !== 'local_desktop_life_loop'
+      && structured !== 'runtime_personhood'
       && structured !== 'continuity_review_required'
     ) {
       return structured
@@ -408,7 +408,7 @@ function sanitizeChatAwarenessTemplateReasonPreview(values: unknown, maxChars = 
       !sanitized
       || sanitized === alicizationFixedTemplateReplacement
       || sanitized === 'phase1_local_digital_life'
-      || sanitized === 'local_desktop_life_loop'
+      || sanitized === 'runtime_personhood'
       || sanitized === 'continuity_review_required'
       || result.includes(sanitized)
     ) {

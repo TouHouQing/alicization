@@ -57,7 +57,7 @@ function normalizeMindTurnContractText(raw: unknown, maxChars = 320) {
   if (!normalized)
     return ''
 
-  if (/\blocal_desktop_life_loop\b|phase1_local_digital_life|content=excluded/iu.test(normalized))
+  if (/\bruntime_personhood\b|phase1_local_digital_life|content_withheld/iu.test(normalized))
     return ''
 
   if (containsAlicizationFixedTemplateResidue(normalized))
@@ -282,7 +282,7 @@ function preferStrongerProjectStateLine(primary: unknown, fallback: unknown, max
 
   const strength = (value: string) => {
     let score = value.length >= 120 ? 2 : value.length >= 72 ? 1 : 0
-    if (/local_desktop_life_loop|identity_continuity|continuity_(?:anchor|line|hold|drift_risk)|project_state_continuity|cross_modal_continuity_proof|memory_dialogue_embodiment_closure|callback_continuity/u.test(value))
+    if (/runtime_personhood|identity_continuity|continuity_(?:anchor|line|hold|drift_risk)|project_state_review|embodiment_scale_validation|memory_dialogue_embodiment_closure|callback_continuity/u.test(value))
       score += 3
     if (/voice|face|motion|lipsync|cross-modal|embodiment closure|unfinished closure|still-open|initiative and embodiment closure/u.test(value))
       score += 2
@@ -308,7 +308,7 @@ function isExactProjectAwareContinuityLine(value: unknown) {
     return false
   if (containsAlicizationFixedTemplateResidue(normalized))
     return false
-  return /local_desktop_life_loop|identity_continuity|continuity_(?:anchor|line|hold)|project_state_continuity|cross_modal_continuity_proof|memory_dialogue_embodiment_closure|callback_continuity/iu.test(normalized)
+  return /runtime_personhood|identity_continuity|continuity_(?:anchor|line|hold)|project_state_review|embodiment_scale_validation|memory_dialogue_embodiment_closure|callback_continuity/iu.test(normalized)
     && /initiative|embodiment|execution continuity|still-open closure|closure_status=unfinished|open_loop|unresolved_closure/iu.test(normalized)
 }
 
@@ -440,7 +440,7 @@ function hasLiveProjectStateEvidence(
         continue
       if (containsAlicizationFixedTemplateResidue(providerSafe))
         continue
-      if (/\blocal_desktop_life_loop\b|phase1_local_digital_life|content=excluded|visibility=internal[-_][a-z0-9]+/iu.test(providerSafe))
+      if (/\bruntime_personhood\b|phase1_local_digital_life|content_withheld|visibility=internal[-_][a-z0-9]+/iu.test(providerSafe))
         continue
 
       if (canonicalValues.has(normalized))
@@ -526,13 +526,13 @@ function normalizeProviderFacingProjectStateFactValue(key: string, raw: unknown,
   }
 
   if (normalizedKey === 'next') {
-    if (/^cross_modal_continuity_proof\s*=/iu.test(normalized))
+    if (/^embodiment_scale_validation\s*=/iu.test(normalized))
       return normalized
     if (
-      /cross[-_ ]modal|visible reply|voice|face|motion|resident presence|cross_modal_continuity_proof/iu.test(normalized)
+      /cross[-_ ]modal|visible reply|voice|face|motion|resident presence|embodiment_scale_validation/iu.test(normalized)
       && /proof|continuity|line|same[- ]her|identity|visible reply|resident presence/iu.test(normalized)
     ) {
-      return 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs'
+      return 'embodiment_scale_validation=extend_on_longer_noisy_desktop_runs'
     }
     if (/callback repair seam|execution re-entry/iu.test(normalized))
       return 'execution_reentry_repair_seam_carry'
@@ -545,11 +545,11 @@ function normalizeProviderFacingProjectStateFactValue(key: string, raw: unknown,
   }
 
   if (normalizedKey === 'continuity_hold')
-    return normalized.replace(/\bone-continuous-her\b/giu, 'project_state_continuity')
+    return normalized.replace(/\bone-continuous-her\b/giu, 'project_state_review')
 
   if (normalizedKey === 'continuity_drift_risk') {
     if (/generic guidance|detached project|project-summary voice|same-her drift|generic shell/iu.test(normalized))
-      return 'continuity_drift_risk=generic_shell'
+      return 'template_residue_risk=generic_shell'
   }
 
   return normalized
@@ -570,7 +570,7 @@ function formatProviderFacingProjectStateAwarenessFields(input: {
   summary?: unknown
   visibility?: string
   maxChars?: number
-}) {
+}): string {
   const maxChars = Number.isFinite(input.maxChars)
     ? Math.max(80, Math.min(2400, Number(input.maxChars)))
     : 800
@@ -584,7 +584,7 @@ function formatProviderFacingProjectStateAwarenessFields(input: {
     continuityAnchor: normalizeProviderFacingProjectStateFactValue('continuity_anchor', input.continuityAnchor, maxChars),
     sameHerHoldDetail: normalizeProviderFacingProjectStateFactValue('continuity_hold', input.sameHerHoldDetail, maxChars),
     sameHerDriftRisk: normalizeProviderFacingProjectStateFactValue('continuity_drift_risk', input.sameHerDriftRisk, maxChars),
-    proactiveSameHerGap: normalizeProviderFacingProjectStateFactValue('proactive_gap', input.proactiveSameHerGap, maxChars),
+    proactiveSameHerGap: normalizeProviderFacingProjectStateFactValue('initiative_gap', input.proactiveSameHerGap, maxChars),
     emotionalClosureCue: normalizeProviderFacingProjectStateFactValue('emotional_closure', input.emotionalClosureCue, maxChars),
     status: normalizeProviderFacingProjectStateAwarenessLine(input.status, maxChars),
     summary: normalizeProviderFacingProjectStateAwarenessLine(input.summary, maxChars),
@@ -593,7 +593,7 @@ function formatProviderFacingProjectStateAwarenessFields(input: {
   })
 }
 
-function normalizeProviderFacingProjectStateAwarenessLine(raw: unknown, maxChars = 1600) {
+function normalizeProviderFacingProjectStateAwarenessLine(raw: unknown, maxChars = 1600): string {
   const normalized = normalizeProviderFacingProjectAwarenessText(raw, maxChars)
   if (!normalized)
     return ''
@@ -618,7 +618,7 @@ function normalizeProviderFacingProjectStateAwarenessLine(raw: unknown, maxChars
     continuityAnchor: fields.continuity_anchor,
     sameHerHoldDetail: fields.continuity_hold,
     sameHerDriftRisk: fields.continuity_drift_risk,
-    proactiveSameHerGap: fields.proactive_gap,
+    proactiveSameHerGap: fields.initiative_gap,
     emotionalClosureCue: fields.emotional_closure,
     status: fields.status,
     summary: fields.summary,
@@ -639,7 +639,7 @@ function sanitizeProviderFacingProjectFactsBlock(raw: string) {
         return false
       if (/^(?:identity|phase|continuity_anchor|continuity_hold|continuity_drift_risk|emotional_closure|status|summary)=?$/iu.test(part))
         return false
-      if (/\blocal_desktop_life_loop\b|phase1_local_digital_life|content=excluded|visibility=internal[-_]structured/iu.test(part))
+      if (/\bruntime_personhood\b|phase1_local_digital_life|content_withheld|visibility=internal[-_]structured/iu.test(part))
         return false
       if (containsAlicizationFixedTemplateResidue(part))
         return false
@@ -1747,13 +1747,13 @@ export function buildAlicizationMindTurnContract(input: {
     = hasLiveProjectState
       && memoryGateOnlyMustDo.length > 0
       && memoryGateOnlyMustDo.every(item => /memory gate|without narrating recall|memory shape caution|uncertainty inwardly/iu.test(item))
-      && /local_desktop_life_loop|identity_continuity|continuity_(?:line|anchor|hold|drift_risk)|project_state_continuity|cross_modal_continuity_proof|memory_dialogue_embodiment_closure|callback_continuity|closure_status=unfinished|open_loop=|unresolved_closure/iu.test(sameHerProjectAwareEvidence)
+      && /runtime_personhood|identity_continuity|continuity_(?:line|anchor|hold|drift_risk)|project_state_review|embodiment_scale_validation|memory_dialogue_embodiment_closure|callback_continuity|closure_status=unfinished|open_loop=|unresolved_closure/iu.test(sameHerProjectAwareEvidence)
   const sameHerProjectAwareMustDo = (
     (
       hasLiveProjectState
-      && /local_desktop_life_loop/iu.test(chosenCurrentPhase)
-      && /local_desktop_life_loop|identity_continuity|continuity_(?:line|anchor|hold|drift_risk)|project_state_continuity|cross_modal_continuity_proof|memory_dialogue_embodiment_closure|callback_continuity|repair_first_callback_continuity_closure|execution_reentry_repair_seam_carry/iu.test(sameHerProjectAwareEvidence)
-      && /closure_status=unfinished|memory_dialogue_embodiment_closure|end_to_end_proof_incomplete|cross_modal_continuity_proof|continuity_pending|callback_continuity|repair_first_callback_continuity_closure|execution_reentry_repair_seam_carry|unresolved_closure|open_loop=|initiative|embodiment|memory|dialogue|未闭环|没闭环|还差|still needs|still remains/iu.test(sameHerProjectAwareEvidence)
+      && /runtime_personhood/iu.test(chosenCurrentPhase)
+      && /runtime_personhood|identity_continuity|continuity_(?:line|anchor|hold|drift_risk)|project_state_review|embodiment_scale_validation|memory_dialogue_embodiment_closure|callback_continuity|repair_first_callback_continuity_closure|execution_reentry_repair_seam_carry/iu.test(sameHerProjectAwareEvidence)
+      && /closure_status=unfinished|memory_dialogue_embodiment_closure|end_to_end_proof_incomplete|embodiment_scale_validation|continuity_pending|callback_continuity|repair_first_callback_continuity_closure|execution_reentry_repair_seam_carry|unresolved_closure|open_loop=|initiative|embodiment|memory|dialogue|未闭环|没闭环|还差|still needs|still remains/iu.test(sameHerProjectAwareEvidence)
     )
     || memoryGateDominantButProjectStatePresent
   )

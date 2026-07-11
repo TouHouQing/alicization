@@ -470,7 +470,7 @@ export function buildAlicizationPersonStateUpdateSurface(input: {
     projectStateContinuity: {
       identity: projectStateBrief.identity,
       currentPhase: projectStateBrief.currentPhase,
-      sameHerSummary: 'continuity_scope=memory,initiative,dialogue,embodiment; owner=project_state; visibility=internal-structured',
+      sameHerSummary: 'continuity_scope=memory,initiative,dialogue,embodiment; owner=project_state',
       landedProgressSummary: readProjectStateLandedProgress(projectStateBrief),
       openClosureSummary: projectStateBrief.openLoops[0] ?? null,
       nextClosureTarget: projectStateBrief.nextClosureTarget ?? null,

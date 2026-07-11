@@ -33,7 +33,7 @@ import { buildMindEcology } from './mind-ecology'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 
 const digitalLifeSpineTemplateExclusionLine
-  = 'relationship_continuity=present; source_template=excluded; surface=structured'
+  = 'relationship_continuity=present; source_template=excluded'
 
 export interface AlicizationDigitalLifeSpineSnapshot {
   version: 'digital-life-spine-v1'
@@ -82,7 +82,7 @@ function isDigitalLifeSpineTemplateExclusionLine(raw: unknown) {
 function isDigitalLifeSpineGenericTemplateCarryLine(raw: unknown) {
   if (typeof raw !== 'string')
     return false
-  return raw.includes('local_desktop_life_loop')
+  return raw.includes('runtime_personhood')
     && raw.includes('landed_progress=present')
     && raw.includes('unresolved_closure=continuity_line')
 }
@@ -246,13 +246,13 @@ function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntim
     nextClosureLine,
   ].filter(Boolean).join(' | ').toLowerCase()
   const carriesPhase1SameHerClosure
-    = /phase1_local_digital_life|phase 1|local digital life|local_desktop_life_loop/u.test([
+    = /phase1_local_digital_life|phase 1|local digital life|runtime_personhood/u.test([
       phaseLine,
       sameHerLine,
       openLoopLine,
       nextClosureLine,
     ].filter(Boolean).join(' | ').toLowerCase())
-    && /continuity line|continuity_line|identity-continuity|identity continuity|continuity_identity|continuous her|same living line|same-her|local_desktop_life_loop|project_state_continuity/u.test(combinedCarry)
+    && /continuity line|continuity_line|identity-continuity|identity continuity|continuity_identity|continuous her|same living line|same-her|runtime_personhood|project_state_review/u.test(combinedCarry)
     && /memory|initiative|embodiment|voice|face|motion|lipsync/u.test(combinedCarry)
   const projectClosureCarrySuffix = carriesPhase1SameHerClosure
     ? sanitizeDigitalLifeSpineDigestText([
@@ -265,7 +265,7 @@ function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntim
   const openingGuidance = projectClosureCarrySuffix
     ? sanitizeDigitalLifeSpineDigestText([
       rawOpeningGuidance,
-      `project_context=runtime_personhood; continuity_evidence=present; source=project_state; surface=structured.`,
+      `project_context=runtime_personhood; continuity_evidence=present; source=project_state.`,
     ].filter(Boolean).join(' '), 220) || rawOpeningGuidance
     : rawOpeningGuidance
   const combinedProjectClosureWhySummary = projectClosureCarrySuffix
@@ -374,7 +374,7 @@ function resolveRuntimeContinuityCue(input: {
     .test(projectContinuitySummary)
   const callbackLikeCarrySummary = /callback|same-thread|same thread|same line|同一条线|沿着刚才那条线/u
     .test(projectStateCarrySummary)
-  const explicitSameHerCarrySummary = /phase 1 continuity|continuity line|continuity_line|same digital life|identity-continuity|identity continuity|continuity_identity|continuous her|local_desktop_life_loop|project_state_continuity|连续性/iu
+  const explicitSameHerCarrySummary = /phase 1 continuity|continuity line|continuity_line|same digital life|identity-continuity|identity continuity|continuity_identity|continuous her|runtime_personhood|project_state_review|连续性/iu
     .test(projectStateCarrySummary)
 
   if (callbackLikeContinuitySummary && explicitSameHerCarrySummary && !callbackLikeCarrySummary)
@@ -408,7 +408,7 @@ function normalizeSelfContinuitySourceTags(surface: Partial<AlicizationDigitalLi
   ].filter(Boolean).join(' | '), 1200)
   const loweredProjectCarryLine = sameHerProjectCarryLine.toLowerCase()
   const carriesProjectStateCarry
-    = /phase 1 continuity|continuity line|continuity_line|identity continuity|identity-continuity|continuity_identity|continuous her|local_desktop_life_loop|project_state_continuity/iu.test(loweredProjectCarryLine)
+    = /phase 1 continuity|continuity line|continuity_line|identity continuity|identity-continuity|continuity_identity|continuous her|runtime_personhood|project_state_review/iu.test(loweredProjectCarryLine)
       && /unfinished|still needs|continuing|unfinished closure|keep the same|leave room|measured-return|lower-pressure/iu.test(loweredProjectCarryLine)
   const carriesExecutionCallbackProjectCarry
     = loweredProjectCarryLine.includes('continuity-execution-callback-project-carry')

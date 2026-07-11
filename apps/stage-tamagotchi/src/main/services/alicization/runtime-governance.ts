@@ -2854,13 +2854,13 @@ export function applyCompanionshipHoldModeToDigitalLifeSpine(input: {
       ?? digitalLifeSpineWithContinuityAuthority,
   })
   const rememberedSeamManifestationCadenceSuffix = rememberedSeamMoreRoom
-    ? 'relationship_cadence=remembered_boundary; room=more; reentry=slower; visibility=internal-structured'
+    ? 'relationship_cadence=remembered_boundary; room=more; reentry=slower'
     : manifestationCadenceSuffix
   const rememberedSeamRelationshipDoctrineSuffix = rememberedSeamMoreRoom
-    ? 'relationship_doctrine=boundary_first; room=more; reentry=slower; visibility=internal-structured'
+    ? 'relationship_doctrine=boundary_first; room=more; reentry=slower'
     : relationshipDoctrineSuffix
   const rememberedSeamOutcomeSummarySuffix = rememberedSeamMoreRoom
-    ? 'relationship_outcome=measured_reentry; room=more; warmth_widening=deferred; visibility=internal-structured'
+    ? 'relationship_outcome=measured_reentry; room=more; warmth_widening=deferred'
     : outcomeSummarySuffix
   const openingGuidanceAuthority = sanitizeBriefText(input.openingGuidanceAuthority ?? '', 220)
   const shouldPreferHoldModeRelationshipDoctrine = companionshipHoldMode === 'rest-protective'
@@ -2892,7 +2892,7 @@ export function applyCompanionshipHoldModeToDigitalLifeSpine(input: {
             relationshipPosture: 'restrained',
             openingGuidance: openingGuidanceAuthority
               || (rememberedSeamMoreRoom
-                ? 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal-structured'
+                ? 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager'
                 : 'Keep the return lower-pressure and leave more room before widening closeness.'),
             preferredProactiveStyle: 'silent-observe',
             manifestationCadenceSummary: rememberedSeamManifestationCadenceSuffix,
@@ -3482,7 +3482,7 @@ export function buildPrioritizedProjectStateRewritePreserveLines(input: {
     projectStateContinuityAnchors.find(anchor => anchor.toLowerCase().startsWith(prefix))
     ?? ''
   const projectStatePreserveLines = [
-    findProjectStatePreserveLine('continuity_anchor='),
+    findProjectStatePreserveLine('project_anchor='),
     findProjectStatePreserveLine('hold='),
     findProjectStatePreserveLine('arc='),
     findProjectStatePreserveLine('cue='),
@@ -3553,7 +3553,7 @@ function deriveProjectStateClosureOpeningMove(projectStateAudit?: {
     latestInflection: sameHerHoldDetail,
     continuityCue: nextClosureTargetSummary,
   })) {
-    return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal-structured'
+    return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager'
   }
 
   const sameHerClosureStillOpen
@@ -3619,7 +3619,7 @@ function resolveProjectStateContinuityCarry(projectStateAudit?: {
     = isAlicizationThinProjectAwarenessLine(preDialogueAwarenessSummary)
       || /\b(?:before any local fluency takes over|remember this is still the same digital life project|keep this same digital life project in view)\b/i.test(preDialogueAwarenessSummary)
   const continuityLine = [
-    sameHerSummary ? `continuity_anchor=${sameHerSummary}` : '',
+    sameHerSummary ? `project_anchor=${sameHerSummary}` : '',
     sameHerHoldDetail ? `hold=${sameHerHoldDetail}` : '',
     continuityArcStage ? `arc=${continuityArcStage}` : '',
     continuityCue ? `cue=${continuityCue}` : '',
@@ -3683,7 +3683,7 @@ function resolveProjectStateContinuityAnchors(projectStateAudit?: {
   const closureSummary = sanitizeBriefText(closureMatch?.[1] ?? '', 220)
     || sanitizeBriefText(projectStateAudit?.emotionalClosureSummary ?? '', 220)
   const canonicalProjectStateAnchors = [
-    projectStateAudit?.sameHerSummary ? `continuity_anchor=${sanitizeBriefText(projectStateAudit.sameHerSummary, 220)}` : '',
+    projectStateAudit?.sameHerSummary ? `project_anchor=${sanitizeBriefText(projectStateAudit.sameHerSummary, 220)}` : '',
     projectStateAudit?.sameHerHoldDetail ? `hold=${sanitizeBriefText(projectStateAudit.sameHerHoldDetail, 220)}` : '',
     projectStateAudit?.continuityArcStage ? `arc=${sanitizeBriefText(projectStateAudit.continuityArcStage, 220)}` : '',
     projectStateAudit?.continuityCue ? `cue=${sanitizeBriefText(projectStateAudit.continuityCue, 220)}` : '',
@@ -5268,7 +5268,7 @@ function deriveFallbackMemoryClosureTrace(input: {
   const emotionalAfterglow = readMindTurnTraceString(
     projectState?.emotionalClosureCue,
     260,
-  ) ?? 'memory_closure=prior; afterglow=quieter_residue; visibility=internal-structured'
+  ) ?? 'memory_closure=prior; afterglow=quieter_residue'
 
   return {
     version: 'memory-closure-trace-v1',

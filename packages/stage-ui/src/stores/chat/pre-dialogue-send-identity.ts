@@ -46,10 +46,10 @@ const fixedTemplateWithheldSendIdentityLine = ''
 function isBlockedSendIdentityReplacement(value: string) {
   const normalized = value.trim()
   return normalized === fixedTemplateWithheldSendIdentityLine
-    || normalized.includes('content=excluded')
+    || normalized.includes('content_withheld')
     || normalized.includes('surface=structured')
     || normalized.includes('phase1_local_digital_life')
-    || normalized.includes('local_desktop_life_loop')
+    || normalized.includes('runtime_personhood')
 }
 
 function sanitizeSendIdentityText(
@@ -96,7 +96,7 @@ function sanitizeSendIdentityReasonPreview(values: string[] | null | undefined) 
       && value !== fixedTemplateWithheldSendIdentityLine
       && !isBlockedSendIdentityReplacement(value)
       && value !== 'phase1_local_digital_life'
-      && value !== 'local_desktop_life_loop'
+      && value !== 'runtime_personhood'
       && value !== 'continuity_review_required'
       && list.indexOf(value) === index)
 }
@@ -342,8 +342,8 @@ function looksLikeProjectAwareBriefingReminder(value: string | null | undefined)
 
   return (
     normalized.includes('project_state_awareness=')
-    || normalized.includes('project_state_continuity=')
-    || normalized.includes('life_loop_continuity=')
+    || normalized.includes('project_state_review=')
+    || normalized.includes('runtime_loop_validation=')
     || normalized.includes('continuity_context=')
     || (
       normalized.includes('what has landed')
@@ -445,13 +445,13 @@ function isSameHerInwardLowPressureHeadline(value: string | null | undefined) {
     return false
 
   return (
-    normalized.includes('continuity=embodiment')
+    normalized.includes('embodiment_status')
     && normalized.includes('low-pressure-inward-carry')
   )
 }
 
 function buildCompactSameHerInwardLowPressureAwarenessLine() {
-  return 'continuity_context=runtime_carry; source=companion_briefing; continuity=embodiment; status=pending-rejoin; pending_rejoin=lipsync+voice; evidence=low-pressure-inward-carry; visibility=internal'
+  return 'continuity_context=runtime_carry; source=companion_briefing; embodiment_status; status=partial; missing_lanes=lipsync+voice; evidence=low-pressure-inward-carry'
 }
 
 function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undefined) {
@@ -465,7 +465,7 @@ function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undef
 }
 
 function buildCompactAnthropomorphicHostFacingAwarenessLine() {
-  return 'continuity_context=runtime_carry; source=companion_briefing; affective_closure=anthropomorphic-emotional-closure; observability=continuity-inward-carry; timing=measured-return; visibility=internal'
+  return 'continuity_context=runtime_carry; source=companion_briefing; affective_closure=anthropomorphic-emotional-closure; observability=continuity-inward-carry; timing=measured-return'
 }
 
 function compactSameHerInwardLowPressureFallbackAwareness(

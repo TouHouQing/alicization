@@ -707,7 +707,7 @@ export function applyMemoryDeliberationToSpeechPlan(input: {
     // not hand a visible reply draft to the response layer. Visible wording is
     // authored only by the provider mind or second-pass rewrite.
     visibleLead: null,
-    styleNote: speechPlan?.styleNote || 'recollection_role=contour_answer; rigid_reply_shell=false; visibility=internal-structured',
+    styleNote: speechPlan?.styleNote || 'recollection_role=contour_answer; rigid_reply_shell=false',
     rationale: deliberation.whyNow || speechPlan?.rationale || '',
     confidence: deliberation.confidence,
   } satisfies NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']>

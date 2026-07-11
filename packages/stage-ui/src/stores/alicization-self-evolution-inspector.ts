@@ -3359,7 +3359,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     if (projectRows.length === 0 && emotionalRows.length === 0 && selfAuthorityRows.length === 0 && projectStateAuditRows.length === 0 && !runtimeSameHerProof)
       return null
 
-    const projectContinuity = projectRows.find(row => row.key === 'project_state_continuity_hit_rate')
+    const projectContinuity = projectRows.find(row => row.key === 'project_state_review_hit_rate')
     const projectIdentity = projectRows.find(row => row.key === 'project_state_identity_hit_rate')
     const projectPhase = projectRows.find(row => row.key === 'project_state_phase_hit_rate')
     const projectOpenLoop = projectRows.find(row => row.key === 'project_state_open_loop_hit_rate')

@@ -81,7 +81,7 @@ export function buildAlicizationSelfRevisionEvent(input: {
   const sameHerHoldDetail = sanitizeRevisionMaterialText(input.task.payload.projectStateContinuity?.sameHerHoldDetail, 240)
   const continuityGuard = sameHerDriftRisk
     && /generic assistant shell|project-summary voice|generic project shell|detached project|generic guidance|same-her continuity drift|same her continuity drift|project shell|project narrator/i.test(sameHerDriftRisk)
-    ? [sameHerSelfLine || 'project_state_continuity', sameHerDriftRisk].filter(Boolean).join(' ; ')
+    ? [sameHerSelfLine || 'project_state_review', sameHerDriftRisk].filter(Boolean).join(' ; ')
     : null
 
   return {

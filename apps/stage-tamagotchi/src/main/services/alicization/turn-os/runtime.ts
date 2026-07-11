@@ -71,7 +71,7 @@ function buildSurfaceProjectStateAuditSummary(surface: AlicizationVisibleReplyRe
     projectStateAudit.continuityArcStage ? `arc=${projectStateAudit.continuityArcStage}` : null,
     projectStateAudit.continuityCue ? `cue=${projectStateAudit.continuityCue}` : null,
     projectStateAudit.currentPhaseSummary ? `phase=${projectStateAudit.currentPhaseSummary}` : null,
-    projectStateAudit.sameHerSummary ? `continuity_anchor=${projectStateAudit.sameHerSummary}` : null,
+    projectStateAudit.sameHerSummary ? `project_anchor=${projectStateAudit.sameHerSummary}` : null,
   ], 5)
 
   return anchors.length > 0

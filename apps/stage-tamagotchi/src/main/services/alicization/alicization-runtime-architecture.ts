@@ -346,15 +346,15 @@ function buildRuntimeSameHerSelfLine(input: {
 }
 
 function hasLocalDesktopLifeLoopToken(text: string) {
-  return /\blocal_desktop_life_loop\b|\bphase=local_desktop_life_loop\b|\bproject_context=local_desktop_life_loop\b|\bcontinuity_context=local_desktop_life_loop\b|\bdesktop_life_loop\b|\blocal desktop life loop\b/u.test(text)
+  return /\bruntime_personhood\b|\bphase=runtime_personhood\b|\bproject_context=runtime_personhood\b|\bcontinuity_context=runtime_personhood\b|\bdesktop_life_loop\b|\blocal desktop life loop\b/u.test(text)
 }
 
 function hasContinuityIdentityToken(text: string) {
-  return /\bcontinuity_line\b|\bcontinuity_identity\b|\bidentity_continuity\b|\bidentity_continuity_open_loop\b|\bcontinuity_anchor=|\bcontinuity_hold=|\bproject_state_continuity\b|\blife_loop_continuity\b/u.test(text)
+  return /\bcontinuity_line\b|\bcontinuity_identity\b|\bidentity_continuity\b|\bidentity_continuity_open_loop\b|\bproject_anchor=|\bcontinuity_hold=|\bproject_state_review\b|\bruntime_loop_validation\b/u.test(text)
 }
 
 function hasMemoryDialogueEmbodimentClosureToken(text: string) {
-  return /\bmemory_dialogue_embodiment_closure\b|\bemotion_memory_initiative_embodiment_unity\b|\bemotion_memory_initiative_embodiment\b|\binitiative_embodiment_closure\b|\bend_to_end_proof_incomplete\b|\bcross_modal_continuity_proof\b|\bclosure_status=unfinished\b|\bunresolved_closure_carry\b|\bcallback_carry_continuity\b|\blife_loop_continuity=|\bopen_loop=[^|;]*(?:memory\+initiative|initiative\+embodiment|memory\+initiative\+embodiment|memory\+initiative\+dialogue\+embodiment)/u.test(text)
+  return /\bmemory_dialogue_embodiment_closure\b|\bemotion_memory_initiative_embodiment_unity\b|\bemotion_memory_initiative_embodiment\b|\binitiative_embodiment_closure\b|\bend_to_end_proof_incomplete\b|\bembodiment_scale_validation\b|\bclosure_status=unfinished\b|\bunresolved_closure_carry\b|\bcallback_carry_continuity\b|\bruntime_loop_validation=|\bopen_loop=[^|;]*(?:memory\+initiative|initiative\+embodiment|memory\+initiative\+embodiment|memory\+initiative\+dialogue\+embodiment)/u.test(text)
 }
 
 function hasMeasuredReturnToken(text: string) {
@@ -669,10 +669,10 @@ function normalizeRuntimeMemoryClosureSummary(raw: unknown) {
   const text = sanitizeText(raw, 420)
   if (!text)
     return null
-  if (/memory_closure_context=(?:phase1_open_loop|local_desktop_life_loop_open_loop|life_core_open_loop)/i.test(text)) {
+  if (/memory_closure_context=(?:phase1_open_loop|runtime_personhood_open_loop|life_core_open_loop)/i.test(text)) {
     return text
       .replace(/phase1_open_loop/giu, 'life_core_open_loop')
-      .replace(/local_desktop_life_loop_open_loop/giu, 'life_core_open_loop')
+      .replace(/runtime_personhood_open_loop/giu, 'life_core_open_loop')
   }
   return sanitizeText(`memory_closure_context=life_core_open_loop; summary=${text}`, 420) || text
 }
@@ -760,7 +760,7 @@ function scoreOuterRuntimeProjectStateDetail(
 
   if (
     !containsAlicizationFixedTemplateResidue(normalized)
-    && /local_desktop_life_loop|continuity_line|continuity_identity|identity_continuity|phase1_local_digital_life|continuity_anchor=|continuity_hold=|project_state_continuity=|life_loop_continuity=|cross_modal_continuity_proof=|memory_dialogue_embodiment_closure/u.test(lowerCased)
+    && /runtime_personhood|continuity_line|continuity_identity|identity_continuity|phase1_local_digital_life|project_anchor=|continuity_hold=|project_state_review=|runtime_loop_validation=|embodiment_scale_validation=|memory_dialogue_embodiment_closure/u.test(lowerCased)
   ) {
     score += 5
   }
@@ -3037,7 +3037,7 @@ export function buildAlicizationRuntimeSystemBlock(
     projectMemoryClosure ? `project_memory_closure=${projectMemoryClosure}` : '',
     projectOpenLoop ? `project_open_loop=${projectOpenLoop}` : '',
     projectNextClosure ? `project_next_closure=${projectNextClosure}` : '',
-    projectContinuityAnchor ? `project_continuity_anchor=${projectContinuityAnchor}` : '',
+    projectContinuityAnchor ? `project_project_anchor=${projectContinuityAnchor}` : '',
     projectDriftRisk ? `project_drift_risk=${projectDriftRisk}` : '',
     continuityTiming ? `continuity_timing=${continuityTiming}` : '',
     continuityCadence ? `continuity_cadence=${continuityCadence}` : '',

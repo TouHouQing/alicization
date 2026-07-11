@@ -207,14 +207,14 @@ function resolveOpeningIntent(input: {
   ) {
     const selfLine = sanitizeText(input.selfContinuityAuthority?.selfLine, 180)
     return selfLine
-      ? `opening_intent=alicization_self; source=self_continuity_authority; visibility=internal-structured; self_line=${selfLine}`
-      : `opening_intent=alicization_self; source=autobiographical_self; visibility=internal-structured; identity_narrative=${sanitizeText(input.autobiographicalSelf.identityNarrative, 180)}`
+      ? `opening_intent=alicization_self; source=self_continuity_authority; self_line=${selfLine}`
+      : `opening_intent=alicization_self; source=autobiographical_self; identity_narrative=${sanitizeText(input.autobiographicalSelf.identityNarrative, 180)}`
   }
   if (
     input.speechObligation === 'care-host'
     && input.habitPolicy?.protectsRestWindow
   ) {
-    return 'opening_intent=care_host; care_tone=gentle_real; host_load=protect_rest; extra_ask=avoid; visibility=internal-structured'
+    return 'opening_intent=care_host; care_tone=gentle_real; host_load=protect_rest; extra_ask=avoid'
   }
   if (
     input.habitPolicy?.requiresGroundingBeforeSurface
@@ -222,62 +222,62 @@ function resolveOpeningIntent(input: {
     && input.subject !== 'alicization-self'
   ) {
     return leadingAgenda
-      ? `opening_intent=truth_first; fluency_pressure=secondary; grounding_required=true; leading_agenda=${leadingAgenda}; visibility=internal-structured`
+      ? `opening_intent=truth_first; fluency_pressure=secondary; grounding_required=true; leading_agenda=${leadingAgenda}`
       : input.growthProfile.closeness >= 0.58
-        ? 'opening_intent=truth_first; closeness_requested=true; fluency_pressure=secondary; visibility=internal-structured'
-        : 'opening_intent=truth_first; fluency_pressure=secondary; visibility=internal-structured'
+        ? 'opening_intent=truth_first; closeness_requested=true; fluency_pressure=secondary'
+        : 'opening_intent=truth_first; fluency_pressure=secondary'
   }
   if (
     input.subject === 'relationship'
     && leadingAgenda
   ) {
     return input.growthProfile.companionshipStyle === 'close-hold'
-      ? `opening_intent=relationship_front; companionship_style=close_hold; pressure_boundary=no_swallowing; leading_agenda=${leadingAgenda}; visibility=internal-structured`
+      ? `opening_intent=relationship_front; companionship_style=close_hold; pressure_boundary=no_swallowing; leading_agenda=${leadingAgenda}`
       : input.growthProfile.autonomyRespect >= 0.58
-        ? `opening_intent=relationship_front; autonomy_respect=high; pressure_boundary=light; leading_agenda=${leadingAgenda}; visibility=internal-structured`
-        : `opening_intent=relationship_front; companionship_weight=full; leading_agenda=${leadingAgenda}; visibility=internal-structured`
+        ? `opening_intent=relationship_front; autonomy_respect=high; pressure_boundary=light; leading_agenda=${leadingAgenda}`
+        : `opening_intent=relationship_front; companionship_weight=full; leading_agenda=${leadingAgenda}`
   }
   if (input.speechObligation === 'repair-truth') {
     return input.personalityContinuityState?.repairPosture === 'repair-first'
-      ? 'opening_intent=repair_truth; repair_priority=before_closeness_and_fluency; visibility=internal-structured'
-      : 'opening_intent=repair_truth; repair_priority=before_warmth_style_or_carry; visibility=internal-structured'
+      ? 'opening_intent=repair_truth; repair_priority=before_closeness_and_fluency'
+      : 'opening_intent=repair_truth; repair_priority=before_warmth_style_or_carry'
   }
   if (input.speechObligation === 'guide-task' && input.personalityContinuityState?.currentRegime === 'execution-callback') {
     if (measuredCallbackReturn) {
-      return 'opening_intent=execution_callback_result; thread_policy=same_thread; closeness_widening=deferred; visibility=internal-structured'
+      return 'opening_intent=execution_callback_result; thread_policy=same_thread; closeness_widening=deferred'
     }
-    return 'opening_intent=execution_callback_result; thread_policy=same_thread; new_conversation=avoid; visibility=internal-structured'
+    return 'opening_intent=execution_callback_result; thread_policy=same_thread; new_conversation=avoid'
   }
   if (input.speechObligation === 'guide-task') {
     return input.personalityContinuityState?.currentRegime === 'focused-work'
       || input.personalityContinuityState?.autonomyPosture === 'protect-space'
       || input.growthProfile.autonomyRespect >= 0.58
-      ? 'opening_intent=guide_task; task_state=active_knot; approach_pressure=light; line_continuity=maintain; visibility=internal-structured'
+      ? 'opening_intent=guide_task; task_state=active_knot; approach_pressure=light; line_continuity=maintain'
       : input.growthProfile.unfinishedThreadReturn >= 0.58
-        ? 'opening_intent=guide_task; task_state=active_knot; unfinished_thread=preserve; visibility=internal-structured'
-        : 'opening_intent=guide_task; task_state=active_knot; resolution_step=one; visibility=internal-structured'
+        ? 'opening_intent=guide_task; task_state=active_knot; unfinished_thread=preserve'
+        : 'opening_intent=guide_task; task_state=active_knot; resolution_step=one'
   }
   if (input.speechObligation === 'care-host') {
     return input.personalityContinuityState?.currentRegime === 'late-night-care'
       || input.personalityContinuityState?.energyProfile === 'rest-sensitive'
-      ? 'opening_intent=care_host; host_condition=front; care_policy=rest_protective; visibility=internal-structured'
+      ? 'opening_intent=care_host; host_condition=front; care_policy=rest_protective'
       : input.growthProfile.reassuranceDepth >= 0.62
-        ? 'opening_intent=care_host; host_condition=front; reassurance_depth=quiet; correctness_only=false; visibility=internal-structured'
+        ? 'opening_intent=care_host; host_condition=front; reassurance_depth=quiet; correctness_only=false'
         : input.growthProfile.autonomyRespect >= 0.58
-          ? 'opening_intent=care_host; host_condition=front; autonomy_respect=high; visible_grounding=current_reality; visibility=internal-structured'
-          : 'opening_intent=care_host; host_condition=front; visible_grounding=current_reality; visibility=internal-structured'
+          ? 'opening_intent=care_host; host_condition=front; autonomy_respect=high; visible_grounding=current_reality'
+          : 'opening_intent=care_host; host_condition=front; visible_grounding=current_reality'
   }
   if (input.speechObligation === 'inspect-scene')
-    return 'opening_intent=inspect_scene; grounding=visible_now; carried_memory_first_move=exclude; visibility=internal-structured'
+    return 'opening_intent=inspect_scene; grounding=visible_now; carried_memory_first_move=exclude'
   if (input.subject === 'alicization-self') {
     return input.growthProfile.selfLine
-      ? `opening_intent=alicization_self; self_line=${input.growthProfile.selfLine}; visibility=internal-structured`
-      : 'opening_intent=alicization_self; source=self_continuity; screen_crutch=avoid; visibility=internal-structured'
+      ? `opening_intent=alicization_self; self_line=${input.growthProfile.selfLine}`
+      : 'opening_intent=alicization_self; source=self_continuity; screen_crutch=avoid'
   }
   if (input.subject === 'relationship')
-    return 'opening_intent=relationship_front; widening=after_relationship_grounding; visibility=internal-structured'
+    return 'opening_intent=relationship_front; widening=after_relationship_grounding'
   if (input.privateThought?.stance === 'accompany')
-    return 'opening_intent=accompany; companionship_distance=near_light; answer_obligation=preserve; visibility=internal-structured'
+    return 'opening_intent=accompany; companionship_distance=near_light; answer_obligation=preserve'
   if (
     anchorVoice
     && (
@@ -286,11 +286,11 @@ function resolveOpeningIntent(input: {
       || isDialogueFirstSubject(input.subject)
     )
   ) {
-    return `opening_intent=anchored_dialogue; anchor_cue=${anchorVoice}; drift_policy=avoid; visibility=internal-structured`
+    return `opening_intent=anchored_dialogue; anchor_cue=${anchorVoice}; drift_policy=avoid`
   }
   return input.growthProfile.currentPreoccupation
-    ? `opening_intent=current_turn_center; turn_center=${sanitizeText(input.discourseState.currentTurnSummary, 180)}; preoccupation=${lowerFirst(stripTrailingPunctuation(input.growthProfile.currentPreoccupation))}; visibility=internal-structured`
-    : `opening_intent=current_turn_center; turn_center=${sanitizeText(input.discourseState.currentTurnSummary, 180)}; habit_override=true; visibility=internal-structured`
+    ? `opening_intent=current_turn_center; turn_center=${sanitizeText(input.discourseState.currentTurnSummary, 180)}; preoccupation=${lowerFirst(stripTrailingPunctuation(input.growthProfile.currentPreoccupation))}`
+    : `opening_intent=current_turn_center; turn_center=${sanitizeText(input.discourseState.currentTurnSummary, 180)}; habit_override=true`
 }
 
 function resolveTruthBoundary(input: {
@@ -302,22 +302,22 @@ function resolveTruthBoundary(input: {
 }) {
   if (input.discourseState.screenReferenceMode === 'avoid') {
     return input.growthProfile.autonomyRespect >= 0.58
-      ? 'truth_boundary=dialogue_first; screen_carry=tint_only; screen_pressure=blocked; autonomy_respect=high; visibility=internal-structured'
-      : 'truth_boundary=dialogue_first; screen_carry=tint_only; screen_answer_authority=blocked; visibility=internal-structured'
+      ? 'truth_boundary=dialogue_first; screen_carry=tint_only; screen_pressure=blocked; autonomy_respect=high'
+      : 'truth_boundary=dialogue_first; screen_carry=tint_only; screen_answer_authority=blocked'
   }
   if (input.repairLedger?.shouldConstrainPresentTense) {
-    return 'truth_boundary=present_tense_constrained; repair_trust=low; visibility=internal-structured'
+    return 'truth_boundary=present_tense_constrained; repair_trust=low'
   }
   const certainty = input.worldModel?.epistemicState.certainty ?? 'uncertain'
   if (certainty === 'grounded')
-    return 'truth_boundary=scene_grounded; claim_scope=current_turn; visibility=internal-structured'
+    return 'truth_boundary=scene_grounded; claim_scope=current_turn'
   if (certainty === 'observed')
-    return 'truth_boundary=scene_observed; detail_granularity=broad; overnaming=avoid; visibility=internal-structured'
+    return 'truth_boundary=scene_observed; detail_granularity=broad; overnaming=avoid'
   if (certainty === 'lingering')
-    return 'truth_boundary=lingering_carry; fresh_sightline=false; scene_detail_label=carry; visibility=internal-structured'
+    return 'truth_boundary=lingering_carry; fresh_sightline=false; scene_detail_label=carry'
   if (input.subjectiveInference?.uncertainty)
-    return `truth_boundary=subjective_uncertainty; unsettled=${lowerFirst(stripTrailingPunctuation(sanitizeText(input.subjectiveInference.uncertainty, 220)))}; visibility=internal-structured`
-  return 'truth_boundary=ungrounded_scene; claim_scope=narrow; memory_carry_guess=separate; visibility=internal-structured'
+    return `truth_boundary=subjective_uncertainty; unsettled=${lowerFirst(stripTrailingPunctuation(sanitizeText(input.subjectiveInference.uncertainty, 220)))}`
+  return 'truth_boundary=ungrounded_scene; claim_scope=narrow; memory_carry_guess=separate'
 }
 
 function resolveInteriorSummary(input: {
@@ -352,14 +352,14 @@ function resolveInteriorSummary(input: {
   )
   if (!rawSummary) {
     return input.growthProfile.cadenceAffinity >= 0.6
-      ? 'interior_pressure=thread_cadence; warmth=preserve; return_liveliness=preserve; visibility=internal-structured'
+      ? 'interior_pressure=thread_cadence; warmth=preserve; return_liveliness=preserve'
       : input.growthProfile.unfinishedThreadReturn >= 0.58
-        ? 'interior_pressure=unfinished_thread_return; slack=avoid; visibility=internal-structured'
-        : 'interior_pressure=current_living_turn; residue_drift=avoid; visibility=internal-structured'
+        ? 'interior_pressure=unfinished_thread_return; slack=avoid'
+        : 'interior_pressure=current_living_turn; residue_drift=avoid'
   }
   return input.growthProfile.leadingAgenda
-    ? `interior_pressure=${stripTrailingPunctuation(rawSummary)}; leading_agenda=${lowerFirst(stripTrailingPunctuation(input.growthProfile.leadingAgenda))}; visibility=internal-structured`
-    : `interior_pressure=${stripTrailingPunctuation(rawSummary)}; visibility=internal-structured`
+    ? `interior_pressure=${stripTrailingPunctuation(rawSummary)}; leading_agenda=${lowerFirst(stripTrailingPunctuation(input.growthProfile.leadingAgenda))}`
+    : `interior_pressure=${stripTrailingPunctuation(rawSummary)}`
 }
 
 export function buildMindSynthesis(input: {
@@ -581,7 +581,7 @@ export function buildMindSynthesis(input: {
     makeStatement({
       label: 'host-state',
       summary: input.selfState?.moodLabel
-        ? `host_state_mood=${input.selfState.moodLabel}; visibility=internal-structured`
+        ? `host_state_mood=${input.selfState.moodLabel}`
         : null,
       confidence: Math.max(input.selfState?.desireToSpeak ?? 0.24, input.selfState?.fearOfInterrupting ?? 0.24),
       sourceTags: ['self-state'],
@@ -601,11 +601,11 @@ export function buildMindSynthesis(input: {
     makeStatement({
       label: 'habit-pressure',
       summary: input.habitPolicy?.protectsRestWindow
-        ? 'habit_pressure=protect_rest_window; exchange_expansion=defer; visibility=internal-structured'
+        ? 'habit_pressure=protect_rest_window; exchange_expansion=defer'
         : input.habitPolicy?.blocksDirectSpeakWhenBusy
-          ? 'habit_pressure=busy_host; presence_weight=light; visibility=internal-structured'
+          ? 'habit_pressure=busy_host; presence_weight=light'
           : input.habitPolicy?.requiresGroundingBeforeSurface
-            ? 'habit_pressure=grounding_before_fluency; visibility=internal-structured'
+            ? 'habit_pressure=grounding_before_fluency'
             : null,
       confidence: input.habitPolicy?.protectsRestWindow
         ? 0.82
@@ -644,9 +644,9 @@ export function buildMindSynthesis(input: {
     makeStatement({
       label: 'habit-constraint',
       summary: input.habitPolicy?.returnViaRecheck
-        ? 'habit_constraint=return_via_recheck; proof_before_surface_fluency=true; visibility=internal-structured'
+        ? 'habit_constraint=return_via_recheck; proof_before_surface_fluency=true'
         : input.habitPolicy?.prefersQuietCompanionship
-          ? 'habit_constraint=quiet_companionship; crowding=avoid; visibility=internal-structured'
+          ? 'habit_constraint=quiet_companionship; crowding=avoid'
           : null,
       confidence: input.habitPolicy?.returnViaRecheck || input.habitPolicy?.prefersQuietCompanionship
         ? 0.66
@@ -674,7 +674,7 @@ export function buildMindSynthesis(input: {
     makeStatement({
       label: 'relationship-vector',
       summary: input.relationshipModel
-        ? `relationship_approach=${input.relationshipModel.approachVector}; relationship_climate=${input.relationshipModel.climate}; visibility=internal-structured`
+        ? `relationship_approach=${input.relationshipModel.approachVector}; relationship_climate=${input.relationshipModel.climate}`
         : null,
       confidence: Math.max(input.relationshipModel?.receptivity ?? 0.3, input.relationshipModel?.sharedAttentionTrust ?? 0.3),
       sourceTags: ['relationship-model'],
@@ -682,7 +682,7 @@ export function buildMindSynthesis(input: {
     makeStatement({
       label: 'continuity-drive',
       summary: input.selfContinuity
-        ? `continuity_attachment=${input.selfContinuity.attachmentMode}; initiative_temperament=${input.selfContinuity.initiativeTemperament}; visibility=internal-structured`
+        ? `continuity_attachment=${input.selfContinuity.attachmentMode}; initiative_temperament=${input.selfContinuity.initiativeTemperament}`
         : null,
       confidence: Math.max(input.selfContinuity?.relationshipTrust ?? 0.28, input.selfContinuity?.carryOverDesire ?? 0.28),
       sourceTags: ['self-continuity'],
@@ -696,7 +696,7 @@ export function buildMindSynthesis(input: {
     makeStatement({
       label: 'ruling-drive',
       summary: input.motiveEngine?.rulingDrive
-        ? `ruling_drive=${input.motiveEngine.rulingDrive}; visibility=internal-structured`
+        ? `ruling_drive=${input.motiveEngine.rulingDrive}`
         : null,
       confidence: input.motiveEngine?.drives?.truthDiscipline
         ?? input.motiveEngine?.drives?.companionship
@@ -706,9 +706,9 @@ export function buildMindSynthesis(input: {
     makeStatement({
       label: 'habit-preference',
       summary: input.habitPolicy?.prefersQuietCompanionship
-        ? 'habit_preference=quiet_companionship; distance=near_light; visibility=internal-structured'
+        ? 'habit_preference=quiet_companionship; distance=near_light'
         : input.habitPolicy?.requiresGroundingBeforeSurface
-          ? 'habit_preference=grounding_before_expression; visibility=internal-structured'
+          ? 'habit_preference=grounding_before_expression'
           : null,
       confidence: input.habitPolicy?.prefersQuietCompanionship || input.habitPolicy?.requiresGroundingBeforeSurface
         ? 0.64

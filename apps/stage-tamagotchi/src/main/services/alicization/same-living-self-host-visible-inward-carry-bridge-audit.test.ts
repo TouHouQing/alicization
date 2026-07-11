@@ -100,7 +100,7 @@ describe('same living self host visible inward carry bridge audit', () => {
     }
   })
 
-  it('registers the same-living-self host-visible inward-carry bridge as repo truth while keeping fully sustained noisy-desktop convergence explicitly open', () => {
+  it('registers the host-visible inward-carry audit as repo truth while keeping fully sustained noisy-desktop convergence explicitly open', () => {
     const coverage = resolveAlicizationProjectStateCoverage()
     const matrixSource = readFileSync(new URL('../../../../../../docs/pre-dialogue-project-awareness-matrix.md', import.meta.url), 'utf8')
     const auditSource = readFileSync(new URL('../../../../../../docs/project-state-audit.md', import.meta.url), 'utf8')
@@ -116,11 +116,11 @@ describe('same living self host visible inward carry bridge audit', () => {
     expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.responsibility).toContain('clean provider/tool failure hints remain visible')
 
     expect(matrixSource).toContain('same-living-self-host-visible-inward-carry-bridge-audit.test.ts')
-    expect(matrixSource).toContain('same-living-self host-visible inward-carry bridge')
+    expect(matrixSource).toContain('host-visible inward-carry audit')
     expect(matrixSource).toContain('reopen-persistence-project-awareness-audit.test.ts')
     expect(matrixSource).toContain('quick-reply visible surfaces now hide fixed templates and internal diagnostic fields')
     expect(matrixSource).toContain('old project-brief proof surface has been removed')
-    expect(auditSource).toContain('same-living-self host-visible inward-carry bridge now also ties reopen-persistence handoff from restored-session/browser-local recovery, speech-boundary pre-dialogue awareness rebuilding, front-stage quick-reply closure, and the dialogue-panel hidden diagnostic boundary onto the same living inward project-awareness line without leaking diagnostic closure markers into the main dialogue bubble')
+    expect(auditSource).toContain('host-visible inward-carry audit ties reopen-persistence handoff, speech-boundary pre-dialogue awareness rebuilding, front-stage quick-reply closure, and the dialogue-panel hidden diagnostic boundary without leaking diagnostic closure markers into the main dialogue bubble')
     expect(auditSource).toContain('quick-reply visible surfaces now hide fixed templates and internal diagnostic fields')
     expect(auditSource).toContain('clean provider/tool failure hints remain visible')
     expect(auditSource).toContain('This still does not prove fully sustained noisy-desktop convergence.')

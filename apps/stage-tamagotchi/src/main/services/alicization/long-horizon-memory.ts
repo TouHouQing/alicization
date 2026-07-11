@@ -136,8 +136,8 @@ function hasLongHorizonStructuredContinuityEvidence(raw: unknown) {
   if (!normalized)
     return false
 
-  return /(?:^|\s|\|)(?:continuity_anchor|continuity_hold|continuity_drift_risk|continuity_progress|project_state_continuity|life_loop_continuity|memory_dialogue_embodiment_closure|cross_modal_continuity_proof|local_desktop_life_loop|callback_continuity|embodiment_closure|open_loop|next|landed)=/u.test(normalized)
-    || /(?:^|\s|\|)(?:local_desktop_life_loop|continuity_identity|continuity_line|continuity_thread|callback_continuity)(?:\s|\||$)/u.test(normalized)
+  return /(?:^|\s|\|)(?:continuity_anchor|continuity_hold|continuity_drift_risk|continuity_progress|project_state_review|runtime_loop_validation|memory_dialogue_embodiment_closure|embodiment_scale_validation|runtime_personhood|callback_continuity|embodiment_closure|open_loop|next|landed)=/u.test(normalized)
+    || /(?:^|\s|\|)(?:runtime_personhood|continuity_identity|continuity_line|continuity_thread|callback_continuity)(?:\s|\||$)/u.test(normalized)
 }
 
 function sanitizeProjectStatePreferredVoiceMode(raw: unknown): AlicizationProjectPreferredVoiceMode | null {
@@ -431,7 +431,7 @@ function parseHumanlikeCarryConsolidationCue(record: AlicizationMemoryConsolidat
       || emotionalResidueTags.some(tag => /protective|unfinished|corrected/i.test(tag))
       || /modality risk (?:medium|high)/i.test(cueObject)
   const carriesProjectIdentity
-    = /local_desktop_life_loop|project_state_continuity=|life_loop_continuity=/i.test(cueObject)
+    = /runtime_personhood|project_state_review=|runtime_loop_validation=/i.test(cueObject)
       || selfContinuitySourceTags.some(tag => /project-state-carry|continuity-execution-callback-project-carry/i.test(tag))
   const carriesRevisionPressure
     = correctionPattern.test(cueObject)

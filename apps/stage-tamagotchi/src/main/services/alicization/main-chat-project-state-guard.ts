@@ -50,7 +50,7 @@ function isCanonicalProjectStateMessageContent(content: string) {
   if (!content.includes(alicizationRequiredProjectStateMarker))
     return false
 
-  if (/identity=|current_phase=|phase1_local_digital_life|local_desktop_life_loop|visibility=internal[-_][a-z0-9]+/iu.test(content))
+  if (/identity=|current_phase=|phase1_local_digital_life|runtime_personhood|visibility=internal[-_][a-z0-9]+/iu.test(content))
     return false
 
   return alicizationCanonicalProjectStateRequiredFieldGroups.every((fields) => {

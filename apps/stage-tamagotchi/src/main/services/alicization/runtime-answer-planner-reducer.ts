@@ -151,7 +151,7 @@ function deriveSameHerEmotionalClosureCueFromGovernance(governance: AlicizationM
       || corpus.includes('reopen the same-her line from scratch')
   if (!hasLowPressureCarry || !hasAntiRestartCarry)
     return null
-  return 'closure_policy=settling_cadence; reply_pressure=low; room=preserve; restart=avoid; visibility=internal-structured'
+  return 'closure_policy=settling_cadence; reply_pressure=low; room=preserve; restart=avoid'
 }
 
 function normalizePreferredBlinkCadence(raw: unknown): AlicizationRuntimeProjectStateDigest['preferredBlinkCadence'] {

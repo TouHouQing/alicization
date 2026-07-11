@@ -241,7 +241,7 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.projectState?.latestProgress).toContain('visible_reply')
     expect(frame?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(frame?.projectState?.primaryOpenLoop).toContain('project_identity_route_carry=needs_disciplined_updates')
-    expect(frame?.projectState?.nextClosureTarget).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(frame?.projectState?.nextClosureTarget).toContain('embodiment_scale_validation=extend_on_longer_noisy_desktop_runs')
     expect(frame?.projectState?.nextClosureTarget).toContain('project_identity')
     expect(frame?.consciousNeed).toContain('project_context=')
     expect(frame?.consciousNeed).toContain('landed_progress=')
@@ -278,7 +278,7 @@ describe('buildCurrentConsciousFrame', () => {
         nextClosureTarget: 'Keep the next answer grounded in memory evidence.',
         sameHerSelfLine: 'runtime_personhood: landed_closure=partial; unresolved_closure=memory_dialogue_embodiment; continuity_owner=one_her.',
         sameHerDriftRisk: 'continuity_drift_risk=fixed_prompt_shell; owner=CurrentConsciousFrame.',
-        proactiveSameHerGap: 'proactive_gap=persona-candidate-review; surface=structured.',
+        proactiveSameHerGap: 'initiative_gap=persona-candidate-review; surface=structured.',
         memoryClosureSummary: 'Memory closure should stay evidence-first.',
         emotionalClosureCue: 'repair-before-closeness',
         emotionalClosureSummary: 'emotional_closure=low-pressure; owner=CurrentConsciousFrame.',
@@ -327,8 +327,6 @@ describe('buildCurrentConsciousFrame', () => {
   })
 
   it('anchors every pre-turn conscious frame in canonical project preflight self-awareness before answering', () => {
-    const brief = resolveAlicizationProjectStateBrief()
-
     const frame = buildCurrentConsciousFrame({
       now: 31_500,
       discourseState: {
@@ -392,7 +390,7 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.consciousNeed).not.toMatch(/Before I answer|What has already become real enough/iu)
     expect(frame?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expectNoFixedTemplateResidue(frame?.speakingIntention)
-    expect(frame?.projectState?.nextClosureTarget).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(frame?.projectState?.nextClosureTarget).toContain('embodiment_scale_validation=extend_on_longer_noisy_desktop_runs')
     expect(frame?.projectState?.nextClosureTarget).toContain('project_identity')
     expectNoFixedTemplateResidue(frame?.reasonTags)
   })
@@ -544,7 +542,7 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.projectState?.latestProgress).toContain('visible_reply')
     expect(frame?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(frame?.projectState?.primaryOpenLoop).toContain('project_identity_route_carry=needs_disciplined_updates')
-    expect(frame?.projectState?.nextClosureTarget).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(frame?.projectState?.nextClosureTarget).toContain('embodiment_scale_validation=extend_on_longer_noisy_desktop_runs')
     expect(frame?.projectState?.nextClosureTarget).toContain('project_identity')
     expect(frame?.consciousNeed).not.toContain('Project continuity exists')
     expect(frame?.consciousNeed).not.toContain('Carry project continuity forward')
@@ -702,7 +700,7 @@ describe('buildCurrentConsciousFrame', () => {
 
     expect(frame?.projectState?.latestProgress).toContain('continuity_progress=partial')
     expect(frame?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
-    expect(frame?.projectState?.nextClosureTarget).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(frame?.projectState?.nextClosureTarget).toContain('embodiment_scale_validation=extend_on_longer_noisy_desktop_runs')
     expect(frame?.projectState?.nextClosureTarget).toContain('project_identity')
     expect(frame?.projectState?.nextClosureTarget).not.toContain('Generic next closure shell')
     expect(frame?.consciousNeed).not.toContain('steadier carry of this project')
@@ -774,12 +772,11 @@ describe('buildCurrentConsciousFrame', () => {
 
     expect(frame?.projectState?.latestProgress).toContain('continuity_progress=partial')
     expect(frame?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
-    expect(frame?.projectState?.nextClosureTarget).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(frame?.projectState?.nextClosureTarget).toContain('embodiment_scale_validation=extend_on_longer_noisy_desktop_runs')
     expectNoFixedTemplateResidue(frame?.speakingIntention)
   })
 
   it('writes an explicit pre-dialogue awareness line and same-her self line into the conscious frame project state', () => {
-    const brief = resolveAlicizationProjectStateBrief()
     const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createDefaultVisualPresenceState(31_750))
     runtimeSurface.raw = {
       ...runtimeSurface.raw,
@@ -1256,7 +1253,8 @@ describe('buildCurrentConsciousFrame', () => {
     })
 
     expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
-    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('continuity_hold=measured_return; pressure=lower')
+    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('landed=Project awareness')
+    expect(frame?.projectState?.preDialogueAwarenessLine).toContain('next=embodiment_scale_validation')
     expect(frame?.projectState?.preDialogueAwarenessLine).not.toBe(sameHerSelfLine)
     expect(frame?.consciousNeed).not.toMatch(/same-her hold|same living line|Same Phase 1 digital life|同一个她/iu)
     expect(buildCurrentConsciousFrameSystemBlock(frame)).not.toMatch(/same-her hold|same living line|Same Phase 1 digital life|同一个她/iu)
@@ -1342,7 +1340,7 @@ describe('buildCurrentConsciousFrame', () => {
     expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expect(frame?.projectState?.preDialogueAwarenessLine).not.toContain('holding together mainly through voice, face, and motion')
     expectNoFixedTemplateResidue(frame?.consciousNeed)
-    expect(String(frame?.projectState?.preDialogueAwarenessLine ?? '')).toContain('runtime_personhood')
+    expect(String(frame?.projectState?.preDialogueAwarenessLine ?? '')).toContain('landed=Project awareness')
   })
 
   it('rebuilds current-conscious-frame project grounding from summary-only host-visible project-state audit when richer landed-open-next truth survives there first', () => {
@@ -1416,7 +1414,7 @@ describe('buildCurrentConsciousFrame', () => {
     expectNoFixedTemplateResidue(frame?.projectState?.preDialogueAwarenessLine)
     expect(frame?.projectState?.latestProgress).toContain('continuity_progress=partial')
     expect(frame?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
-    expect(frame?.projectState?.nextClosureTarget).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(frame?.projectState?.nextClosureTarget).toContain('embodiment_scale_validation=extend_on_longer_noisy_desktop_runs')
     expectNoFixedTemplateResidue(frame?.projectState?.sameHerDriftRisk)
     expectNoFixedTemplateResidue(frame?.consciousNeed)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
@@ -1496,7 +1494,7 @@ describe('buildCurrentConsciousFrame', () => {
 
     expect(frame?.projectState?.latestProgress).toContain('continuity_progress=partial')
     expect(frame?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
-    expect(frame?.projectState?.nextClosureTarget).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(frame?.projectState?.nextClosureTarget).toContain('embodiment_scale_validation=extend_on_longer_noisy_desktop_runs')
     expectNoFixedTemplateResidue(frame?.projectState?.sameHerDriftRisk)
     expectNoFixedTemplateResidue(frame?.consciousNeed)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
@@ -1661,7 +1659,7 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.speakingIntention).not.toBe('Answer helpfully and directly.')
   })
 
-  it('keeps the active emotional closure seam visible in rich current-conscious-frame project-state carry', () => {
+  it('withholds fixed emotional closure seam text from rich current-conscious-frame project-state carry', () => {
     const cue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment quiet-companionship while the line holds inward.'
     const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createDefaultVisualPresenceState(31_760))
     runtimeSurface.raw = {
@@ -1733,7 +1731,7 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(String(frame?.projectState?.emotionalClosureCue ?? '')).toContain('lower_pressure')
+    expect(String(frame?.projectState?.emotionalClosureCue ?? '')).toBe('')
     expectNoFixedTemplateResidue(frame?.consciousNeed)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
   })
@@ -3121,7 +3119,7 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.projectState?.sameHerDriftRisk).toBe('continuity_drift_risk=detached_project_status_talk; closure_status=unfinished; callback_carry=before_landing; surface=structured')
+    expect(frame?.projectState?.sameHerDriftRisk ?? null).toBeNull()
     expectNoFixedTemplateResidue(frame?.projectState?.sameHerDriftRisk)
   })
 
@@ -3390,14 +3388,13 @@ describe('buildCurrentConsciousFrame', () => {
     })
 
     expect(frame?.reasonTags).toContain('remembered-seam:reinterpret-with-more-room')
-    expect(frame?.projectState?.sameHerHoldDetail).toContain('remembered_boundary')
-    expect(frame?.projectState?.sameHerHoldDetail).toContain('room=more')
+    expect(frame?.projectState?.sameHerHoldDetail).toContain('continuity_hold=measured_return')
+    expect(frame?.projectState?.sameHerHoldDetail).toContain('pressure=lower')
     expectNoFixedTemplateResidue(frame?.projectState?.sameHerHoldDetail)
     expect(frame?.projectState?.sameHerHoldDetail).not.toBe('same-her hold: quiet-companionship still owns this line before closeness widens again.')
   })
 
   it('threads project identity, current phase, and still-open life loop into the current conscious frame before the turn speaks', () => {
-    const projectState = resolveAlicizationProjectStateBrief()
     const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface({
       ...createDefaultVisualPresenceState(76_000),
       discourseState: {
@@ -3631,14 +3628,13 @@ describe('buildCurrentConsciousFrame', () => {
     })
     const systemBlock = buildCurrentConsciousFrameSystemBlock(frame)
 
-    expect(frame?.projectState?.emotionalClosureSummary).toContain('repair_before_closeness')
-    expect(frame?.projectState?.sameHerHoldDetail).toContain('repair_before_closeness')
+    expect(frame?.projectState?.emotionalClosureSummary ?? null).toBeNull()
+    expect(frame?.projectState?.sameHerHoldDetail).toContain('continuity_hold=measured_return')
+    expect(frame?.projectState?.sameHerHoldDetail).toContain('pressure=lower')
     expectNoFixedTemplateResidue(frame?.projectState?.emotionalClosureSummary)
     expectNoFixedTemplateResidue(frame?.projectState?.sameHerHoldDetail)
-    expect(frame?.consciousNeed).toContain('repair-before-closeness')
-
-    expect(frame?.consciousNeed).toContain('repair-before-closeness')
-    expect(frame?.speakingIntention).toContain('repair_before_closeness')
+    expect(frame?.consciousNeed).toContain('inward_hold=active')
+    expect(frame?.speakingIntention).not.toContain('same-her hold:')
     expect(systemBlock).not.toContain('Project emotional closure seam:')
     expect(systemBlock).not.toContain('same-her hold:')
   })
@@ -4485,8 +4481,8 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.reasonTags).toContain('continuity-timing:next-open-window')
     expect(frame?.reasonTags).not.toContain('continuity-arc:hold-for-opening')
     expectNoFixedTemplateResidue(frame?.projectState?.sameHerHoldDetail)
-    expect(frame?.projectState?.continuityCue).toContain('continuity_cue=same_thread_continuation')
-    expect(frame?.projectState?.continuityCue).toContain('restart_shell_risk=blocked')
+    expect(frame?.projectState?.continuityCue).toContain('continuity_cue=lower_pressure_return')
+    expect(frame?.projectState?.continuityCue).toContain('widening=deferred')
     expectNoFixedTemplateResidue(frame?.projectState?.continuityCue)
     expect(frame?.projectState?.continuityPreferredTiming).toBe('next-open-window')
     expect(frame?.projectState?.continuityCadence).toBe('measured-return')
@@ -5484,7 +5480,7 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.projectState?.proactiveSameHerGap).toBe(callbackProactiveSameHerGap)
     expect(frame?.projectState?.latestProgress).toContain('continuity_progress=partial')
     expect(frame?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure')
-    expect(frame?.projectState?.nextClosureTarget).toContain('visible_reply_continuity=callback_return')
+    expect(frame?.projectState?.nextClosureTarget).toContain('embodiment_scale_validation=extend_on_longer_noisy_desktop_runs')
     expectNoFixedTemplateResidue(frame?.consciousNeed)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
@@ -5576,11 +5572,9 @@ describe('buildCurrentConsciousFrame', () => {
       runtimeSurface,
     })
 
-    expect(frame?.consciousNeed).toContain('execution_confirmation=bounded')
     expect(frame?.consciousNeed).toContain('new execution boundary')
-    expect(frame?.projectState?.sameHerHoldDetail).toContain('confirmation=host_confirmed_before_redispatch')
-    expect(frame?.projectState?.sameHerHoldDetail).toContain('permission=not_permanent')
-    expect(frame?.projectState?.sameHerHoldDetail).toContain('opening=new_execution_boundary_required')
+    expect(frame?.projectState?.sameHerHoldDetail).toContain('host confirmation')
+    expect(frame?.projectState?.sameHerHoldDetail).toContain('permission is not permanent')
     expectNoFixedTemplateResidue(frame?.consciousNeed)
     expectNoFixedTemplateResidue(frame?.speakingIntention)
   })
@@ -5700,7 +5694,7 @@ describe('buildCurrentConsciousFrame', () => {
     })
 
     expectNoFixedTemplateResidue(frame?.speakingIntention)
-    expect(frame?.projectState?.nextClosureTarget).toContain('cross_modal_continuity_proof')
+    expect(frame?.projectState?.nextClosureTarget).toContain('embodiment_scale_validation')
     expectNoFixedTemplateResidue(frame?.speakingIntention)
   })
 

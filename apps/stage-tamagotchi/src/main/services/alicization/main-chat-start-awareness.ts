@@ -50,11 +50,11 @@ function normalizeStartAwarenessTemplateShells(text: string) {
   return text
     .replace(
       /\bAlicization is (?:a |still the same )?local-first digital life project(?: building one continuous "her"(?: on the host computer rather than a better chat wrapper)?)?\.?/giu,
-      'local_desktop_life_loop',
+      'runtime_personhood',
     )
     .replace(
       /\bPhase 1:\s*Local Digital Life(?:\. The primary proving ground is apps\/stage-tamagotchi\.)?/giu,
-      'local_desktop_life_loop',
+      'runtime_personhood',
     )
 }
 
@@ -248,21 +248,21 @@ function looksLikeEmbodimentNarrowingHeadline(line: string | null) {
   if (!line)
     return false
 
-  return /continuity=embodiment|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|face and motion|face, motion|lipsync|voice|body line|living her|具身|面部|动作|唇同步|声音/u.test(line)
+  return /embodiment_status|lane=(?:body|face|motion|lipsync|voice)|status=partial|face and motion|face, motion|lipsync|voice|body line|living her|具身|面部|动作|唇同步|声音/u.test(line)
 }
 
 function looksLikeStrongEmbodimentClosureHeadline(line: string | null) {
   if (!line)
     return false
 
-  return /continuity=embodiment|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|living audio thread is still intact|holding together mainly through body and voice|being carried mainly through body and voice|resident body line is still keeping this one living her coherent|holding together mainly through body, lipsync, and voice|being carried mainly through body, lipsync, and voice|holding together mainly through motion and voice|being carried mainly through motion and voice|holding together mainly through face and voice|being carried mainly through face and voice|holding together through face, lipsync, and voice together|holding together through motion, lipsync, and voice together|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent/u.test(line)
+  return /embodiment_status|lane=(?:body|face|motion|lipsync|voice)|status=partial|living audio thread is still intact|holding together mainly through body and voice|being carried mainly through body and voice|resident body line is still keeping this one living her coherent|holding together mainly through body, lipsync, and voice|being carried mainly through body, lipsync, and voice|holding together mainly through motion and voice|being carried mainly through motion and voice|holding together mainly through face and voice|being carried mainly through face and voice|holding together through face, lipsync, and voice together|holding together through motion, lipsync, and voice together|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent/u.test(line)
 }
 
 function looksLikeStrongSameHerEmbodimentClosureHeadline(line: string | null) {
   if (!line)
     return false
 
-  return /continuity=embodiment|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|holding together mainly through|holding together through|being carried mainly through|being carried through|full cross-modal same-her line is not closed yet|next reply has to keep proving this is still one living her|this one living her still needs|lipsync and voice to rejoin|without splitting her continuity/u.test(line)
+  return /embodiment_status|lane=(?:body|face|motion|lipsync|voice)|status=partial|holding together mainly through|holding together through|being carried mainly through|being carried through|full cross-modal same-her line is not closed yet|next reply has to keep proving this is still one living her|this one living her still needs|lipsync and voice to rejoin|without splitting her continuity/u.test(line)
     && /same-her|same her|same living line|one living her|lipsync|voice|face|motion|body/u.test(line.toLowerCase())
 }
 
@@ -710,7 +710,7 @@ function buildCanonicalPreDialogueSendIdentity(): NonNullable<AlicizationChatSta
   const canonicalSameHerSelfLine = sanitizeStartAwarenessText(projectStatusBrief.sameHerSelfLine || projectStateBrief.sameHerSelfLine, 220) || null
   const canonicalSameHerDriftRisk = sanitizeStartAwarenessText(projectStatusBrief.sameHerDriftRisk || projectStateBrief.sameHerDriftRisk, 220) || null
   const canonicalSameHerReason = canonicalSameHerSelfLine
-    ? `continuity_anchor=${canonicalSameHerSelfLine}`
+    ? `project_anchor=${canonicalSameHerSelfLine}`
     : null
   const canonicalSameHerDriftReason = canonicalSameHerDriftRisk
     ? `drift_risk=${canonicalSameHerDriftRisk}`
@@ -782,7 +782,7 @@ function isSameHerAnchorPreDialogueReasonPreviewLine(line: string) {
     return false
 
   return normalized.startsWith('same-her self anchor:')
-    || normalized.startsWith('continuity_anchor=')
+    || normalized.startsWith('project_anchor=')
 }
 
 function readSameHerAnchorPreDialogueReasonPreviewPayload(line: string | null | undefined) {
@@ -795,7 +795,7 @@ function readSameHerAnchorPreDialogueReasonPreviewPayload(line: string | null | 
   return sanitizeStartAwarenessText(
     normalized
       .replace(/^same-her self anchor:\s*/iu, '')
-      .replace(/^continuity_anchor=/iu, ''),
+      .replace(/^project_anchor=/iu, ''),
     220,
   ) || null
 }
@@ -857,7 +857,7 @@ function isEmbodimentEvidencePreDialogueReasonPreviewLine(line: string) {
     return false
   }
 
-  return /continuity=embodiment:|pending-rejoin=|remaining-open=|recovery@|still-voiced|living audio thread/u.test(normalized)
+  return /embodiment_status:|partial=|remaining-open=|recovery@|still-voiced|living audio thread/u.test(normalized)
     || /lane=(?:body|face|motion|lipsync|voice)(?:\+(?:body|face|motion|lipsync|voice))*-only/u.test(normalized)
 }
 
@@ -1026,7 +1026,7 @@ function buildProjectStateReasonPreviewLines(projectState: Record<string, unknow
   const sameHerDriftRisk = sanitizeStructuredProjectStateField(projectState.sameHerDriftRisk, 220)
 
   return [
-    sameHerSelfLine ? `continuity_anchor=${sameHerSelfLine}` : '',
+    sameHerSelfLine ? `project_anchor=${sameHerSelfLine}` : '',
     primaryOpenLoop ? `open=${primaryOpenLoop}` : '',
     latestLandedProgress ? `landed=${latestLandedProgress}` : '',
     nextClosureTarget ? `next=${nextClosureTarget}` : '',

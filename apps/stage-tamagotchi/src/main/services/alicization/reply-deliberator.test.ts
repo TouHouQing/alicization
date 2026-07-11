@@ -340,7 +340,7 @@ describe('buildReplyDeliberation', () => {
       selectedMotive: 'witness',
       speakingFrom: 'live-scene',
     }))
-    expect(state?.mustInclude).toContain('direct_observation_clause=separate; task_guess_clause=separate; visibility=internal-structured')
+    expect(state?.mustInclude).toContain('direct_observation_clause=separate; task_guess_clause=separate')
     expect(state?.mustAvoid).toContain('coarse_visual_cues_to_specific_technical_certainty=blocked')
     expect(state?.mustAvoid).toContain('specific_technical_artifact_names=require_host_or_current_evidence')
     expect(state?.narrative).toContain('claim-budget:coarse-scene')
@@ -1705,7 +1705,7 @@ describe('buildReplyDeliberation', () => {
 
     expect(state?.whyThisReplyNow).toContain('project_closure_context=structured_continuity')
     expect(state?.whyThisReplyNow).toContain('open=memory_dialogue_embodiment_closure')
-    expect(state?.whyThisReplyNow).toContain('next=cross_modal_continuity_proof')
+    expect(state?.whyThisReplyNow).toContain('next=embodiment_scale_validation')
     expect(state?.whyThisReplyNow).not.toContain('Project continuity exists.')
     expect(state?.whyThisReplyNow).not.toContain('Project continuity still needs closure.')
     expect(state?.whyThisReplyNow).not.toContain('Carry project continuity forward.')
@@ -1895,8 +1895,8 @@ describe('buildReplyDeliberation', () => {
     expect(state?.whyThisReplyNow).toContain('project_closure_context=')
     expect(state?.whyThisReplyNow).toContain('landed=continuity_progress=partial')
     expect(state?.whyThisReplyNow).toContain('open=memory_dialogue_embodiment_closure')
-    expect(state?.whyThisReplyNow).toContain('next=cross_modal_continuity_proof')
-    expect(state?.whyThisReplyNow).toContain('drift_risk=generic_guidance_without_first_person_continuity')
+    expect(state?.whyThisReplyNow).toContain('next=embodiment_scale_validation')
+    expect(state?.whyThisReplyNow).toContain('drift_risk=detached_project_shell_or_generic_guidance')
     expect(state?.whyThisReplyNow).not.toMatch(fixedReplyDeliberationProjectTemplatePattern)
     expect(state?.whyThisReplyNow).toContain('closure_mode=cross_modal_continuity')
   })
@@ -1996,10 +1996,10 @@ describe('buildReplyDeliberation', () => {
     expect(state?.whyThisReplyNow).toContain('project_closure_context=')
     expect(state?.whyThisReplyNow).toContain('landed=continuity_progress=partial')
     expect(state?.whyThisReplyNow).toContain('open=memory_dialogue_embodiment_closure')
-    expect(state?.whyThisReplyNow).toContain('proactive_gap=proactive_continuity_loop=partial')
-    expect(state?.whyThisReplyNow).toContain('next=cross_modal_continuity_proof')
-    expect(state?.whyThisReplyNow).toContain('drift_risk=generic_guidance_without_first_person_continuity')
-    expect(state?.whyThisReplyNow).toContain('proactive_gap=proactive_continuity_loop=partial')
+    expect(state?.whyThisReplyNow).toContain('initiative_gap=proactive_continuity_loop=partial')
+    expect(state?.whyThisReplyNow).toContain('next=embodiment_scale_validation')
+    expect(state?.whyThisReplyNow).toContain('drift_risk=detached_project_shell_or_generic_guidance')
+    expect(state?.whyThisReplyNow).toContain('initiative_gap=proactive_continuity_loop=partial')
   })
 
   it('lets explicit pre-dialogue project awareness upgrade the opening beat so project self-knowledge lands before widening', () => {
@@ -2344,7 +2344,7 @@ describe('buildReplyDeliberation', () => {
       } as any,
     })
 
-    expect(state?.openingBeat).toBe('opening_policy=project_awareness_first; reply_context=current; widening=deferred')
+    expect(state?.openingBeat).toBe('opening_policy=same_thread_continuation; timing=next_open_window; widening=deferred')
     expect(state?.whyThisReplyNow).toContain('project_closure_context=')
     expect(state?.whyThisReplyNow).toContain('open=Body and motion')
     expect(state?.whyThisReplyNow).toContain('closure_mode=cross_modal_continuity')

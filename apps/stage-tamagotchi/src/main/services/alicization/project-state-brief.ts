@@ -156,7 +156,7 @@ export function looksLikeThinProjectClosureShell(raw: unknown, kind: 'landed' | 
     return true
 
   if (
-    /^(?:open_loop|life_loop_continuity|cross_modal_continuity_proof|memory_dialogue_embodiment_closure|project_state_continuity|continuity_progress)=/u.test(text)
+    /^(?:open_loop|runtime_loop_validation|embodiment_scale_validation|memory_dialogue_embodiment_closure|project_state_review|continuity_progress)=/u.test(text)
   ) {
     return false
   }
@@ -533,6 +533,17 @@ function sanitizeProjectStateSnapshotTextWithReplacement(raw: unknown, maxChars:
   return sanitizeAlicizationProviderFacingText(normalized, maxChars, alicizationFixedTemplateReplacement)
 }
 
+function sanitizeProjectStateCueOutput(raw: unknown, maxChars: number) {
+  const normalized = sanitizeProjectStateSnapshotText(raw, maxChars)
+  if (!normalized)
+    return ''
+  if (/(?:^|\b)(?:continuity_anchor|continuity_hold|continuity_drift_risk|continuity_cue|visibility|surface|content)\s*=/iu.test(normalized))
+    return ''
+  if (/visibility=internal[-_]structured|surface=structured|content_withheld|pending[-_]rejoin|embodiment_scale_validation|project_state_review|runtime_loop_validation/iu.test(normalized))
+    return ''
+  return normalized
+}
+
 function sanitizeProjectStateIdentityText(raw: unknown, maxChars = 220) {
   const normalized = sanitizeProjectStateSnapshotTextWithReplacement(raw, maxChars)
   if (!normalized)
@@ -647,11 +658,11 @@ function resolveProjectContinuityBehaviorMode(input: {
 
 function deriveSameHerHoldDetailFromProjectContinuityBehavior(mode: string | null) {
   if (mode === 'repair-before-closeness')
-    return 'continuity_hold=repair-before-closeness; owner=project_state_continuity; visibility=internal; pace=settle-before-closeness.'
+    return 'continuity_hold=repair-before-closeness; owner=project_state_review; pace=settle-before-closeness.'
   if (mode === 'rest-protective')
-    return 'continuity_hold=rest-protective; owner=project_state_continuity; visibility=internal; pace=fatigue-aware.'
+    return 'continuity_hold=rest-protective; owner=project_state_review; pace=fatigue-aware.'
   if (mode === 'measured-return')
-    return 'continuity_hold=measured-return; owner=project_state_continuity; visibility=internal; pace=lower-pressure.'
+    return 'continuity_hold=measured-return; owner=project_state_review; pace=lower-pressure.'
   return ''
 }
 
@@ -951,7 +962,7 @@ function compactProjectNextClosureTargetForAwareness(text: string, maxChars = 84
   if (!normalized)
     return ''
   if (/cross-modal same-her proof/iu.test(normalized))
-    return 'cross_modal_continuity_proof'
+    return 'embodiment_scale_validation'
   return normalized
     .split(' so ')[0]
     ?.replace(/[.。!！?？;；:：]+$/u, '')
@@ -1264,10 +1275,6 @@ export function buildAlicizationProjectPreDialogueAwareness(input: {
     input.fallbackProjectState?.emotionalClosureCue,
     220,
   ) || null
-  const sameHerSelfLine = sanitizeProjectStateSnapshotText(preferStrongerPersistedSameHerSelfLine({
-    current: input.runtimeProjectState?.sameHerSelfLine,
-    candidate: input.fallbackProjectState?.sameHerSelfLine,
-  }), 220) || null
   const proactiveSameHerGap = sanitizeProjectStateSnapshotText(
     input.runtimeProjectState?.proactiveSameHerGap
     ?? (input.runtimeProjectState as AlicizationProjectStateSummaryAliasShape | null | undefined)?.proactiveSameHerGapSummary,
@@ -1277,14 +1284,6 @@ export function buildAlicizationProjectPreDialogueAwareness(input: {
     ?? (input.fallbackProjectState as AlicizationProjectStateSummaryAliasShape | null | undefined)?.proactiveSameHerGapSummary,
     220,
   ) || null
-  const sameHerDriftRisk = sanitizeProjectStateSnapshotText(preferStrongerSameHerDriftRisk({
-    current:
-      input.runtimeProjectState?.sameHerDriftRisk
-      ?? (input.runtimeProjectState as AlicizationProjectStateSummaryAliasShape | null | undefined)?.sameHerDriftRiskSummary,
-    candidate:
-      input.fallbackProjectState?.sameHerDriftRisk
-      ?? (input.fallbackProjectState as AlicizationProjectStateSummaryAliasShape | null | undefined)?.sameHerDriftRiskSummary,
-  }), 220) || null
   const latestProgressReason = resolveProjectLatestProgressPreDialogueReason({
     runtimeLatestLandedProgress: input.runtimeProjectState?.latestLandedProgress,
     runtimeLatestProgress: input.runtimeProjectState?.latestProgress,
@@ -1336,12 +1335,10 @@ export function buildAlicizationProjectPreDialogueAwareness(input: {
     awarenessLine,
     emotionalClosureCue,
     reasonPreview: [
-      sameHerSelfLine ? `continuity_anchor=${sameHerSelfLine}` : '',
       input.primaryOpenLoop ? `${input.primaryOpenLoop}` : '',
       preferredLatestProgressReason,
-      proactiveSameHerGap ? `proactive_gap=${proactiveSameHerGap}` : '',
-      nextClosureTarget ? `next_closure=${nextClosureTarget}` : '',
-      sameHerDriftRisk ? `continuity_drift_risk=${sameHerDriftRisk}` : '',
+      proactiveSameHerGap ? `initiative_gap=${proactiveSameHerGap}` : '',
+      nextClosureTarget ? `next_target=${nextClosureTarget}` : '',
     ].filter(Boolean),
   } as const
 }
@@ -1420,7 +1417,7 @@ export function buildAlicizationProjectPreDialogueClosure(input: {
     reasons: [
       input.primaryOpenLoop ? `${input.primaryOpenLoop}` : '',
       preferredLatestProgressReason,
-      proactiveSameHerGap ? `proactive_gap=${proactiveSameHerGap}` : '',
+      proactiveSameHerGap ? `initiative_gap=${proactiveSameHerGap}` : '',
       nextClosureTarget ?? '',
     ].filter(Boolean),
   } as const
@@ -1758,7 +1755,7 @@ export function resolveAlicizationProjectStateSnapshot(input?: {
     current: input?.runtimeProjectState?.sameHerSelfLine,
     candidate: input?.fallbackProjectState?.sameHerSelfLine ?? brief.sameHerSelfLine,
   }) || brief.sameHerSelfLine
-  const sameHerDriftRisk = preferStrongerSameHerDriftRisk({
+  const sameHerDriftRisk = sanitizeProjectStateCueOutput(preferStrongerSameHerDriftRisk({
     current:
       input?.runtimeProjectState?.sameHerDriftRisk
       ?? (input?.runtimeProjectState as AlicizationProjectStateSummaryAliasShape | null | undefined)?.sameHerDriftRiskSummary,
@@ -1766,7 +1763,7 @@ export function resolveAlicizationProjectStateSnapshot(input?: {
       input?.fallbackProjectState?.sameHerDriftRisk
       ?? (input?.fallbackProjectState as AlicizationProjectStateSummaryAliasShape | null | undefined)?.sameHerDriftRiskSummary,
     fallback: brief.sameHerDriftRisk,
-  }) || brief.sameHerDriftRisk
+  }), 220) || brief.sameHerDriftRisk
   const runtimeLatestLandedProgress
     = sanitizeProjectStateSnapshotText(
       input?.runtimeProjectState?.latestLandedProgress
@@ -3819,11 +3816,11 @@ export function resolveAlicizationProjectStateDirectGatewayAuditTargets() {
 export function resolveAlicizationProjectStateBrief(): AlicizationProjectStateBrief {
   const identity = 'identity=runtime_personhood; local_first=true; host_resident_identity=persistent; boundary=not_chat_wrapper.'
   const currentPhase = 'phase=life_core; proving_ground=apps/stage-tamagotchi.'
-  const sameHerSelfLine = 'runtime_personhood; owner=project_state_governance.'
-  const sameHerDriftRisk = 'continuity_drift_risk=template_residue_or_generic_shell; closure_status=unfinished; surface=structured.'
-  const emotionalClosureCue = 'emotional_closure=active; pressure=low; restart_policy=no_restart; surface=structured.'
+  const sameHerSelfLine = 'owner=project_state_governance.'
+  const sameHerDriftRisk = ''
+  const emotionalClosureCue = ''
   const emotionalClosureSummary = emotionalClosureCue
-  const sameHerHoldDetail = 'continuity_hold=project-state; pressure=measured-return; scope=persistent_identity; visibility=internal-unless-asked.'
+  const sameHerHoldDetail = null
   const continuityRestraint = 'measured-return' as const
   const continuityPreferredTiming = 'next-open-window' as const
   const continuityCadence = continuityRestraint
@@ -3833,20 +3830,20 @@ export function resolveAlicizationProjectStateBrief(): AlicizationProjectStateBr
   const preferredLipsyncMode = 'restrained' as const
   const preferredVoiceMode = 'lower-pressure' as const
   const preferredPacingMode = 'slower' as const
-  const continuityCue = 'continuity_cue=project-state-carry; landed_closure=partial; surface_timing=next-open-window; surface=internal.'
+  const continuityCue = null
   const openLoops = [
     'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete; project_identity_route_carry=needs_disciplined_updates.',
-    'proactive_continuity_loop=partial; long_run_noisy_desktop_proof=needed; surface=structured; exposure=user_requested_project_state.',
-    'callback_carry_continuity=partial; cross_modal_long_run_proof=needed; timing=measured_return_or_repair_before_closeness.',
+    'proactive_continuity_loop=partial; long_run_noisy_desktop_proof=needed; exposure=user_requested_project_state.',
+    'callback_carry_validation=partial; long_run_embodiment_proof=needed; timing=measured_return_or_repair_before_closeness.',
     'emotion_memory_initiative_embodiment_unity=needs_long_run_pressure_proof; affective_residue_and_body_settling_must_remain_auditable.',
-    'embodiment_coherence_under_memory_pressure=partial; runtime_continuity=measured_return_supported; remaining=cross_modal_long_run_proof.',
+    'embodiment_coherence_under_memory_pressure=partial; runtime_memory_pressure=measured_return_supported; remaining=long_run_embodiment_proof.',
     'project_identity_route_carry=present; phase_route_carry=present; unresolved_closure_carry=present; update_rule=disciplined_on_real_closure_change.',
     'life_core_closure_requires=evidence_for_project_identity,natural_recall,restrained_initiative,emotional_closure,dialogue_voice_motion_unity.',
   ]
   const proactiveSameHerGap = compactProjectProactiveSameHerGap(openLoops[1] ?? '')
-  const nextClosureTarget = 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs; cover=visible_reply,voice,face,motion,resident_presence,project_identity,phase_route,open_loop,emotion; timing=measured_return_or_repair_before_closeness.'
+  const nextClosureTarget = 'embodiment_scale_validation=extend_on_longer_noisy_desktop_runs; cover=visible_reply,voice,face,motion,resident_presence,project_identity,phase_route,open_loop,emotion; timing=measured_return_or_repair_before_closeness.'
   const latestProgress = [
-    'continuity_progress=partial; evidence=mirrors,next_turns,scene_switches,visible_reply,embodiment_playback; remaining=cross_modal_long_run_pressure; visibility=internal_structured.',
+    'continuity_progress=partial; evidence=mirrors,next_turns,scene_switches,visible_reply,embodiment_playback; remaining=long_run_embodiment_pressure.',
     'dialogue_entry_governance=covered; transport=pre_dialogue_and_chat_entry; remaining=provider_generation_families,execution_preflight,execution_dispatch.',
     'memory_dialogue_loop=connected; short_term_owner=WorkingMemory; long_term_recall_owner=LongTermMemoryRecall; remaining=semantic_recall_quality,embedding_reindex,scale_testing.',
     'execution_safety=transparent; gates=confirmation,no_process_started_evidence,bounded_resume; forbidden=permanent_permission_from_single_resume.',
@@ -3865,7 +3862,6 @@ export function resolveAlicizationProjectStateBrief(): AlicizationProjectStateBr
     latestLandedProgress: latestProgressWithAddendum,
     primaryOpenLoop,
     nextClosureTarget,
-    sameHerSelfLine,
   })
 
   return {
@@ -3903,62 +3899,12 @@ export function resolveAlicizationProjectStateBrief(): AlicizationProjectStateBr
       'Execution safety gating and kill-switch behavior are already part of the life loop.',
       'Desktop presence baseline exists and is being strengthened rather than invented from zero.',
     ],
-    continuityProgressSummary: 'continuity_progress=partial; evidence=mirrors,next_turns,scene_switches,visible_reply,embodiment_playback; remaining=cross_modal_long_run_pressure; visibility=internal_structured.',
+    continuityProgressSummary: 'continuity_progress=partial; evidence=mirrors,next_turns,scene_switches,visible_reply,embodiment_playback; remaining=long_run_embodiment_pressure.',
     memoryAnthropomorphismProgress: [
-      'Person-state already accumulates into autobiographical self and long-horizon memory.',
-      'Long-horizon memory already influences recollection intent and retrieval ranking.',
-      'Memory surfacing already respects room-first, boundary-first, and repair-first restraint.',
-      'Memory restraint already affects proactive timing, visible presence, reminder handoff, and execution callback tone.',
-      'long_run_continuity=explicit_at_repo_level; hardening=emotion,memory,initiative,embodiment; evidence=voice,face,motion,lipsync.',
-      'shared_emotional_owner=emotional-kernel-v1; route=recollection_intent,initiative_restraint,body_continuity,runtime_system_text,replay_diagnostics.',
-      'projected_continuity_route=answer_planning,execution_delivery,session_mirror,replay,compact_fast_path_dialogue_cues.',
-      'Held-autonomy and callback-carry continuity now re-enter later turns gently and can keep embodiment settling in measured-return or repair-before-closeness modes instead of collapsing back into generic utility cadence.',
-      'Held-autonomy opening guidance now also survives fallback conscious-frame turns, so the modern main runtime can still mark continuity-arc:hold-for-opening even when conversationState, answerCompiler, and mindTurnFrame are absent.',
-      'Runtime hold-for-opening continuity arcs now directly restrain proactive opening pressure too, so a same-line return can keep waiting for a looser opening instead of collapsing into generic companionship speech as soon as initiative heat rises.',
-      'When callback afterglow continuity is still explicitly hold-for-opening, the active loop now keeps an inward active-memory handoff instead of misreading outward dialogue heat as permission to widen the line too early.',
-      'When a fresher main-runtime surface already carries continuity-arc evidence, background stream meta and resident performance now prefer that more current surface over an older spine snapshot, so measured-return same-her restraint survives into emitted embodiment timing instead of being flattened by stale runtime copies.',
-      'Even when richer callback projection or explicit proactive restraint is absent, thinner same-thread-continuation runtime arc evidence now still keeps embodiment settling on the same measured-return line instead of falling back to generic quiet companionship.',
-      'runtime_continuity_arcs=govern_visible_reply_opening; modes=same-thread-continuation,hold-for-opening,gentle-reopen; restart_shell_risk=blocked.',
-      'Same-thread continuation now also survives into second-pass rewrite guidance, so if a provider draft tries to restart one living line as a fresh opening, the repair pass is taught to continue the still-live line itself instead of polishing the restart shell.',
-      'Same-thread continuation restart shells are now also caught in normal governed rewrite requests before second-pass repair begins, so the runtime can flag one-living-line restarts as self-continuity drift instead of waiting for the final critic pass to notice them.',
-      'When a runtime line is already marked same-thread-continuation, the final visible-reply critic now also rejects start-over shells, so one living thread is less likely to be polished into a fresh opening at the last wording boundary.',
-      'When a newer prepared runtime surface only reflects a fresh scene change but has not rebuilt the same-her continuity evidence yet, background runtime selection now keeps the richer spine-side continuity arc instead of throwing it away for a thinner refresh.',
-      'Same-session mirror generation now follows that same continuity-aware runtime selection rule too, so session carry summaries can absorb fresher same-her continuity evidence instead of staying pinned to an older embedded spine.',
-      'That continuity-aware runtime-surface preference now lives in one shared selector, so adjacent runtime exits are less likely to drift into competing ideas of which version of her is freshest.',
-      'Compact active-dialogue fast-path prompts now also resolve durable mind cues from that preferred continuity-aware runtime surface/spine, so when a fresher prepared surface already carries stronger same-her projection than an older embedded spine, visible reply shaping no longer falls back to stale identity or relationship doctrine.',
-      'Execution callback reminder runtime now carries held-autonomy hold/requeue, callback rationale, and later reopen on one audited same-her arc, and it can still persist the valid reopen reply when the surface style stays silent-observe but the same-thread guidance is satisfied.',
-      'Execution callback delivery policy now also recognizes fresher live hold-for-opening continuity evidence before reopening, so the same-her callback afterglow does not get pulled back into an older deliver-now session rhythm just because that snapshot is still around.',
-      'Inline execution payoff continuity wiring now also follows that same continuity-aware runtime-surface preference, so callback person-state projection, host relationship posture, and self-continuity authority can still come from the richer same-her spine surface when a newer prepared runtime is thinner instead of flattening the return back into a generic callback posture.',
-      'Execution callback knowledge evidence now follows that same continuity-aware runtime selection too, so fresher live proof and validation state can override an older callback snapshot instead of pulling the same-her return back toward stale contradiction pressure.',
-      'Runtime embodiment coordination now also reads execution-callback cadence from the canonical digital-life spine memory.personStateProjection digest path, so measured-return or repair-before-closeness callback settling can survive into face, lipsync, motion, and top-level digital-life posture on the real transported spine shape instead of only in hand-crafted fixture shapes.',
-      'Execution callback continuity now also stays legible in diagnostics, cue timing, driver tails, callback self-authority selection, and callback host-relationship modeling, so restrained returns can still explain why she is slowing down or repairing before closeness widens without getting pinned to an older warmer session snapshot.',
-      'Same-session mirror carry, repeated next-turn carry, longer-lived continuation, and even dream-prompt mirror carry now keep held-autonomy callback continuity on one same-her line instead of splitting it into adjacent artifacts.',
-      'Scene-switch same-line continuity now survives session-mirror carry, memory-prelude parsing, and a quiet extra desktop carry turn, so short window changes are less likely to collapse back into generic dialogue metadata instead of one living thread.',
-      'Execution-callback afterglow continuity now also stays measured-return across noisier unrelated window detours before a later coding reopen instead of treating the return as a fresh proactive approach.',
-      'A real later chat turn can now emit measured-return embodiment authority after callback afterglow survives scene hops, so stream meta, digital-life frames, and embodiment script reopen on the same lower-pressure line instead of keeping that carry trapped inside resident state only.',
-      'That same real later chat turn now also exposes silent-observe, shouldSpeak=false, and measured-return continuity restraint through stream meta and digital-life spine output, so the same-her lower-pressure return is externally observable instead of only inferable from embodiment hints.',
-      'That same lower-pressure callback line is now also proven on a real later chat turn after noisier unrelated detours, so emitted stream meta can keep voice, face, and motion summaries on one measured-return, repair-before-closeness, or rest-protective quiet-companionship same-her line instead of letting the final reopen flatten cross-modal continuity back into a fresh approach.',
-      'That same noisy-detour later turn now also keeps the final visible reply on the same lower-pressure callback seam, so what the host actually reads continues one living line instead of restarting as a fresh approach after the detour noise.',
-      'That same noisy-detour callback seam now also survives one more real later turn after the first reopen speaks, so the next visible reply and cross-modal stream meta can keep continuing the same lower-pressure line instead of resetting once the callback result is already back in view.',
-      'When a quieter settle-tail frame lands after that same-thread reply has already spoken, cross-modal stream-meta summaries now still stay anchored to the last visible spoken segment instead of letting the softer tail frame overwrite the host-facing same-her line.',
-      'When renderer authority briefly thins toward lipsync-first continuity and then recollects on the same segment, a same-segment cue-bridge rebind can now pull stream-meta lipsync continuity back onto the same measured-return body line that face and motion already rejoined instead of leaving the mouth lane on a thinner reactive reading.',
-      'Playback authority is now also less likely to let trailing face/motion residue steal the current living line when an actively playing lipsync lane has already advanced onto one later segment, so “mouth already on the next beat but body still stuck on the last one” is becoming less authoritative in VRM playback telemetry itself.',
-      'Renderer/runtime playback items can now also derive and attach a later digital-life frame directly from embodimentScript authority when no full envelope has arrived yet, so later-segment face / motion / lipsync playback no longer has to stay frame-empty while the body line is already visibly speaking.',
-      'VRM lipsync continuity execution now also uses later digital-life frame continuityHoldMs as a real hold floor, so once the later body line has taken over the renderer does not shorten that cautious mouth tail back to a thinner default measured-return release.',
-      'Host-facing stream summaries are now also less likely to slide back onto an older cue-bridge tail text when the later spoken segment is still the living callback seam, so one softer measured-return tail frame does not overwrite which spoken body line the host is actually reading.',
-      'After that third noisy-detour continuation speaks, one more desktop detour can still keep resident presence in measured-return / silent-observe posture instead of letting the reopened line immediately collapse back into a fresher surface-only reset.',
-      'That thinner extra-detour resident frame now also keeps fifth-turn measured-return embodiment delivery legible through shared companionship summaries instead of letting body cadence fall back into a more hesitant landing, the later noisy-detour fifth-turn reopen now also keeps emitted face / motion / lipsync stream-meta authority on that same measured-return line instead of letting downstream digital-life normalization thin the face lane away again, one further noisy-detour follow-up can now keep a multi-segment visible reply with the last segment still carrying measured-return / linger / soften rendererHints, and the resident runtime digest itself now also stays on same-thread-continuation through that extra-detour frame instead of cooling back toward hold-for-opening.',
-      'That same post-reopen later continuation now also stays inward at the active-loop layer itself, so even when dialogue heat rises again after the first measured-return reopen already spoke, runtime handoff can still stay on memory carry instead of mistaking the warmer reopened seam for permission to restart outward.',
-      'That same inward callback carry is now also explicit in resident embodiment observability itself: quiet measured-return body settling can publish same-her-inward-carry beside timing-source and body-presence evidence instead of leaving the quieter body to read like generic calm accompaniment.',
-      'Later noisy same-thread proactive returns now also stay hover-first and silent-observe when that reads as more like the same her than outwardly restarting a fresh proactive approach.',
-      'callback-afterglow same-her carry now also has one explicit route-level audit from session-runtime recall seed through recollection reopening, same-her ranking, and host-visible same-life governance instead of being implied only across neighboring recollection, ranking, and visible-reply tests.',
-      'recollection continuity is now better locked through visible-reply governance, so reopened project-state same-her closure memories, inward callback afterthought memories, callback afterglow same-her memories, and measured-return cadence memories can stay on one same-life line from recollection ranking through reply planning, response chartering, semantic judging, critic repair, and rewrite preservation instead of collapsing back into a generic recap or detached project shell.',
-      'Project identity, landed progress, and still-open closure pressure now survive rich, fallback, and memory-deliberation turns before reply, so the current conscious frame can keep knowing what Alicization is, how far Phase 1 has really landed, and which life-loop still needs closure even when reply shaping starts from thinner runtime state.',
-      'project_state_carry=attached_to_self_continuity_authority; fields=identity,landed_progress,open_closure; visibility=internal_structured.',
-      'That inward project-state carry now also states more directly that emotion is not a detachable feature lane, so the same life can keep anthropomorphic emotional closure attached to memory, initiative, dialogue, and embodiment instead of narrating mood as a separate shell.',
-      'When visible project-state answers drift toward a thinner project shell, same-her repair and second-pass rewrite now preserve not only the direct sameHerSelfLine but also that inward project-state carry itself, so the repaired answer is pushed back toward one same digital life instead of a cleaner status recital.',
-      'When private thought is already carrying that same project-state line, initiative self-explanation and autonomy execution intent now keep serving the same unfinished Phase 1 digital-life closure instead of treating project awareness as something that mattered only before speech.',
-      'Later-turn cross-modal companionship summaries now also prefer same-her-inward-carry observability over a thinner generic callback-afterglow reading when richer self-continuity evidence is already present, so downstream summaries are less likely to narrate the right reopening with the wrong reason.',
+      'WorkingMemory owns short-term dialogue carry and should not be bypassed by project-state wording.',
+      'LongTermMemoryRecall owns long-term recall and should surface evidence, latency, and errors instead of persona slogans.',
+      'Memory Workbench remains the visible governance entry; it aggregates health, review policy, search, and embedding controls without owning memory semantics.',
+      'Persona learning must come only from cleaned, reviewable long-term reflection or persona reinforcement candidates, with raw transcript training blocked.',
     ],
     openLoops,
     nextClosureTarget,
@@ -4411,10 +4357,8 @@ export function buildAlicizationProjectStateSystemBlock(input?: {
     'failure_surface=transparent_errors_only',
     'template_policy=no_fixed_persona_templates',
     `latest_landed_progress=${compactProjectLatestProgressForSystemBlock(brief.latestProgress, 360)}`,
-    `continuity_anchor=${sanitizeProjectStateSnapshotText(brief.sameHerSelfLine, 220)}`,
-    `continuity_drift_risk=${sanitizeProjectStateSnapshotText(brief.sameHerDriftRisk, 220)}`,
     `primary_open_loop=${sanitizeProjectStateSnapshotText(brief.openLoops[0] ?? '', 220)}`,
-    brief.proactiveSameHerGap ? `continuity_gap=${sanitizeProjectStateSnapshotText(brief.proactiveSameHerGap, 220)}` : '',
+    brief.proactiveSameHerGap ? `initiative_gap=${sanitizeProjectStateSnapshotText(brief.proactiveSameHerGap, 220)}` : '',
     openFocusSummary ? `open_focus=${sanitizeProjectStateSnapshotText(openFocusSummary, 220)}` : '',
     brief.preferredPauseMode ? `preferred_pause_mode=${sanitizeProjectStateSnapshotText(brief.preferredPauseMode, 32)}` : '',
     brief.preferredLipsyncMode ? `preferred_lipsync_mode=${sanitizeProjectStateSnapshotText(brief.preferredLipsyncMode, 32)}` : '',
@@ -4423,7 +4367,7 @@ export function buildAlicizationProjectStateSystemBlock(input?: {
     `next_closure_target=${sanitizeProjectStateSnapshotText(brief.nextClosureTarget, 220)}`,
     nextFocusSummary ? `next_focus=${sanitizeProjectStateSnapshotText(nextFocusSummary, 220)}` : '',
     'remaining_focus=semantic_recall,production_embedding,paginated_long_term_search,review_policy_persistence,persona_candidate_review',
-    'action_policy=memory_owner_boundaries_and_transparent_failure_surface | surface=structured',
+    'action_policy=memory_owner_boundaries_and_transparent_failure_surface',
   ]
 
   return lines.filter(Boolean).join('\n')
@@ -4507,15 +4451,12 @@ export function buildAlicizationProjectStateClosureDashboard(input?: {
 
   const lines = [
     '[ALICIZATION_PROJECT_GOVERNANCE_DASHBOARD]',
+    'context_role=memory_governance_dashboard',
     `identity=${sanitizeProjectStateIdentityText(brief.identity, 220)}`,
     `phase=${sanitizeProjectStatePhaseText(brief.currentPhase, 160)}`,
-    `awareness_summary=${sanitizeProjectStateSnapshotText(brief.preDialogueAwarenessLine ?? '', 720)}`,
     `latest_landed_progress=${sanitizeProjectStateSnapshotText(brief.continuityProgressSummary ?? brief.memoryAnthropomorphismProgress[0] ?? '', 220) || 'none'}`,
     `primary_open_loop=${sanitizeProjectStateSnapshotText(brief.openLoops[0] ?? '', 220) || 'none'}`,
-    `continuity_anchor=${sanitizeProjectStateSnapshotText(brief.sameHerSelfLine, 220) || 'none'}`,
-    `continuity_hold=${sanitizeProjectStateSnapshotText(brief.sameHerHoldDetail ?? '', 220) || 'none'}`,
-    `continuity_drift_risk=${sanitizeProjectStateSnapshotText(brief.sameHerDriftRisk, 220) || 'none'}`,
-    brief.proactiveSameHerGap ? `continuity_gap=${sanitizeProjectStateSnapshotText(brief.proactiveSameHerGap, 220)}` : '',
+    brief.proactiveSameHerGap ? `initiative_gap=${sanitizeProjectStateSnapshotText(brief.proactiveSameHerGap, 220)}` : '',
     openFocusSummary ? `open_focus=${sanitizeProjectStateSnapshotText(openFocusSummary, 220)}` : '',
     `next_closure_target=${sanitizeProjectStateSnapshotText(brief.nextClosureTarget, 220)}`,
     nextFocusSummary ? `next_focus=${sanitizeProjectStateSnapshotText(nextFocusSummary, 220)}` : '',
@@ -4528,9 +4469,8 @@ export function buildAlicizationProjectStateClosureDashboard(input?: {
     runtimeDigest?.habitMode ? `runtime_habit_mode=${sanitizeProjectStateSnapshotText(runtimeDigest.habitMode, 96)}` : '',
     typeof runtimeDigest?.shouldProactivelySpeak === 'boolean' ? `runtime_should_speak=${runtimeDigest.shouldProactivelySpeak}` : '',
     typeof runtimeDigest?.shouldProactivelyAct === 'boolean' ? `runtime_should_act=${runtimeDigest.shouldProactivelyAct}` : '',
-    runtimeDigest?.projectState?.continuityArcStage ? `continuity_arc_stage=${sanitizeProjectStateSnapshotText(runtimeDigest.projectState.continuityArcStage, 120)}` : '',
-    runtimeDigest?.projectState?.continuityCue ? `continuity_cue=${sanitizeProjectStateSnapshotText(runtimeDigest.projectState.continuityCue, 180)}` : '',
-    'dashboard_rule=verify_identity_phase_and_open_closure_before_turn | surface=structured',
+    runtimeDigest?.projectState?.continuityArcStage ? `runtime_arc_stage=${sanitizeProjectStateSnapshotText(runtimeDigest.projectState.continuityArcStage, 120)}` : '',
+    'dashboard_scope=memory_governance_audit',
   ]
 
   return lines.filter(Boolean).join('\n')
@@ -4580,8 +4520,7 @@ export function buildAlicizationProviderFacingProjectStateClosureDashboard(input
     providerFacingProjectStateLine('runtime_habit_mode', runtimeDigest?.habitMode, 96),
     typeof runtimeDigest?.shouldProactivelySpeak === 'boolean' ? `runtime_should_speak=${runtimeDigest.shouldProactivelySpeak}` : '',
     typeof runtimeDigest?.shouldProactivelyAct === 'boolean' ? `runtime_should_act=${runtimeDigest.shouldProactivelyAct}` : '',
-    providerFacingProjectStateLine('continuity_arc_stage', runtimeDigest?.projectState?.continuityArcStage, 120),
-    providerFacingProjectStateLine('continuity_cue', runtimeDigest?.projectState?.continuityCue, 180),
+    providerFacingProjectStateLine('runtime_arc_stage', runtimeDigest?.projectState?.continuityArcStage, 120),
     'dashboard_scope=memory_governance_audit',
   ]
 

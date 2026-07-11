@@ -730,7 +730,7 @@ function buildMindStateEmbodimentLaneEvidence(input: {
     currentInwardPreoccupation,
   ].map(item => compactProjectStatePromptText(item, 220).toLowerCase()).join(' ')
   const carriesStructuredContinuity
-    = /(?:^|\s|\|)(?:continuity_anchor|continuity_hold|continuity_drift_risk|project_state_continuity|life_loop_continuity|embodiment_closure|cross_modal_continuity_proof|continuity_identity|continuity_line|continuity_thread|callback_continuity|body_continuity|owner)=/u.test(sameHerText)
+    = /(?:^|\s|\|)(?:continuity_anchor|continuity_hold|continuity_drift_risk|project_state_review|runtime_loop_validation|embodiment_closure|embodiment_scale_validation|continuity_identity|continuity_line|continuity_thread|callback_continuity|body_continuity|owner)=/u.test(sameHerText)
   const carriesSameHer = carriesStructuredContinuity
   const bodyAvailable = input.previousVisualPresenceState.currentBodyState !== 'sleep'
   const preferredVoiceMode = compactPromptText(input.projectState.snapshot.preferredVoiceMode, 80)

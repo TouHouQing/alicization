@@ -104,7 +104,7 @@ function hasRememberedSeamMoreRoomCarry(text: string | null | undefined) {
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; visibility=internal-structured'
+  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred'
 }
 
 function joinPresenceOnlyStructuredTokens(tokens: string[]) {
@@ -113,8 +113,6 @@ function joinPresenceOnlyStructuredTokens(tokens: string[]) {
     .filter(Boolean)))
   if (!uniqueTokens.length)
     return ''
-  if (!uniqueTokens.some(token => token.startsWith('visibility=')))
-    uniqueTokens.push('visibility=internal-structured')
   return uniqueTokens.join('; ')
 }
 
@@ -206,8 +204,8 @@ function resolvePresenceOnlyHoldStructuredTokens(raw: string) {
   if (/permanent permission|permanent autonomous permission|permanent execution permission|永久权限/iu.test(normalized))
     tokens.push('permission_scope=bounded')
 
-  if (/Alicization|local_desktop_life_loop|local-first digital life project|Phase\s*1|Local Digital Life|本地优先数字生命项目|数字生命项目/iu.test(normalized))
-    tokens.push('identity=local_desktop_life_loop')
+  if (/Alicization|runtime_personhood|local-first digital life project|Phase\s*1|Local Digital Life|本地优先数字生命项目|数字生命项目/iu.test(normalized))
+    tokens.push('identity=runtime_personhood')
 
   if (/visible reply|voice|facial state|face|motion|lipsync|resident presence|embodiment|body|mouth|语音|表情|动作|唇形|身体/u.test(normalized))
     tokens.push('cover=visible_reply,voice,face,motion,lipsync,resident_presence')
@@ -389,7 +387,7 @@ function preferPresenceOnlyDeferredSummaryAuthority(candidates: Array<string | n
       value += 8
     if (/fixed_template=excluded/u.test(candidate))
       value -= 24
-    if (/content=excluded/u.test(candidate))
+    if (/content_withheld/u.test(candidate))
       value -= 32
     return value
   }
@@ -487,7 +485,7 @@ function hasPresenceOnlyHoldSameHerProjectCue(text: unknown) {
   if (!normalized)
     return false
 
-  return /identity=local_desktop_life_loop|lanes=emotion\+memory\+initiative\+embodiment|execution_safety_gate=|execution_resume_confirmation=|relationship_cadence=remembered_boundary|continuity_mode=repair_before_closeness|continuity_mode=rest_protective|cover=visible_reply,voice,face,motion,lipsync,resident_presence/u.test(normalized)
+  return /identity=runtime_personhood|lanes=emotion\+memory\+initiative\+embodiment|execution_safety_gate=|execution_resume_confirmation=|relationship_cadence=remembered_boundary|continuity_mode=repair_before_closeness|continuity_mode=rest_protective|cover=visible_reply,voice,face,motion,lipsync,resident_presence/u.test(normalized)
 }
 
 function preferPresenceOnlyHoldSameHerSelfLine(input: {
@@ -563,7 +561,7 @@ function resolvePresenceOnlyHoldSameHerHoldDetail(input: {
 
   return current
     || candidate
-    || 'continuity_hold=measured_return; pressure=lower; visibility=internal-structured'
+    || 'continuity_hold=measured_return; pressure=lower'
 }
 
 export function buildPresenceOnlyHoldContinuityProjection(input: {
@@ -591,10 +589,10 @@ export function buildPresenceOnlyHoldContinuityProjection(input: {
 
   const previousProjection = input.previousProjection ?? null
   const synthesizedOpeningGuidance = input.continuityRestraint === 'repair-before-closeness'
-    ? 'continuity_mode=repair_before_closeness; timing=before_widening; visibility=internal-structured'
+    ? 'continuity_mode=repair_before_closeness; timing=before_widening'
     : input.continuityRestraint === 'rest-protective'
-      ? 'continuity_mode=rest_protective; direction=inward; visibility=internal-structured'
-      : 'continuity_mode=measured_return; pressure=lower; reopening=fresh_start_blocked; visibility=internal-structured'
+      ? 'continuity_mode=rest_protective; direction=inward'
+      : 'continuity_mode=measured_return; pressure=lower; reopening=fresh_start_blocked'
   const guidanceCandidates = [
     String(input.openingGuidance ?? '').trim(),
     String(previousProjection?.openingGuidance ?? '').trim(),
@@ -756,11 +754,11 @@ export function preserveResidentSameLineProjection(input: {
         ? nextOpeningGuidance
         : previousOpeningGuidance
           || nextOpeningGuidance
-          || 'callback_cadence=lower_pressure; continuation_state=active; restart_policy=context_preserving; visibility=internal-structured',
+          || 'callback_cadence=lower_pressure; continuation_state=active; restart_policy=context_preserving',
     manifestationCadenceSummary: shouldPreferNextRepairBeforeCloseness || shouldPreferNextRestProtective
       ? nextCadenceSummary
       : previousCadenceSummary
-        || 'manifestation_cadence=measured_return; continuation_state=active; visibility=internal-structured',
+        || 'manifestation_cadence=measured_return; continuation_state=active',
     selfContinuityAuthority: mergedSelfContinuityAuthority,
   }
 }
@@ -836,7 +834,7 @@ export function buildPresenceOnlyHoldInitiativeFallback(input: {
     String(input.decision?.whyNow ?? '').trim(),
     String(input.projectContinuityCue ?? '').trim(),
     String(input.privateThought?.thoughtText ?? '').trim(),
-  ].filter(Boolean)[0] || 'continuity_state=active; cadence=lower_pressure; visibility=internal-structured'
+  ].filter(Boolean)[0] || 'continuity_state=active; cadence=lower_pressure'
 
   const preferredPresence = continuityRestraint === 'repair-before-closeness'
     ? 'concerned'
@@ -974,7 +972,7 @@ export function buildPresenceOnlyHoldProjectStateSameHerCarryTag(input: {
   if (!merged)
     return ''
 
-  const hasSameHerIdentity = /same phase 1 digital life|same digital life|same-her|same her|one living her|continuous her|one continuous her|continuity_identity|identity=local_desktop_life_loop|同一个她|同一个 her/u.test(merged)
+  const hasSameHerIdentity = /same phase 1 digital life|same digital life|same-her|same her|one living her|continuous her|one continuous her|continuity_identity|identity=runtime_personhood|同一个她|同一个 her/u.test(merged)
   const hasLivingLineClosure = /same living line|without reopening from scratch|reopen_from_scratch=false|continuity_hold=|repair-before-closeness|repair before closeness|repair first|callback repair seam|rest_protective|measured_return|relationship_cadence=remembered_boundary|同一条线|同一生命线|接回去|继续沿着这条线|回线/u.test(merged)
 
   const hasStructuredContinuityRestraint
@@ -1324,7 +1322,7 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
     state: 'observed',
     label: `proactive:${executionIntentKind || scenario}:held-autonomy`,
     summary: [
-      deferredSummaryAuthority || deferredExecutionIntentSummary || deferredWhyNow || 'proactive_state=held_for_opening; visibility=internal-structured',
+      deferredSummaryAuthority || deferredExecutionIntentSummary || deferredWhyNow || 'proactive_state=held_for_opening',
       executionIntentKind ? `intent=${executionIntentKind}` : '',
       deferReason ? `defer=${deferReason}` : '',
       reason ? `reason=${reason}` : '',

@@ -730,7 +730,7 @@ function formatPendingFaceMotionRejoin(entry: StageEmbodimentDiagnosticsRenderer
     return null
   }
 
-  return 'pending-rejoin=face+motion'
+  return 'partial=face+motion'
 }
 
 function formatPendingFaceMotionLipsyncRejoin(entry: StageEmbodimentDiagnosticsRendererAlignmentEntry) {
@@ -761,7 +761,7 @@ function formatPendingFaceMotionLipsyncRejoin(entry: StageEmbodimentDiagnosticsR
     return null
   }
 
-  return 'pending-rejoin=face+motion+lipsync'
+  return 'partial=face+motion+lipsync'
 }
 
 function formatPendingFaceMotionLipsyncVoiceRejoin(entry: StageEmbodimentDiagnosticsRendererAlignmentEntry) {
@@ -791,42 +791,42 @@ function formatPendingFaceMotionLipsyncVoiceRejoin(entry: StageEmbodimentDiagnos
     return null
   }
 
-  return 'pending-rejoin=face+motion+lipsync+voice'
+  return 'partial=face+motion+lipsync+voice'
 }
 
 function formatPendingBodyMotionRejoin(entry: StageEmbodimentDiagnosticsRendererAlignmentEntry) {
   if (!formatFaceLipsyncVoiceRecovery(entry))
     return null
 
-  return 'pending-rejoin=body+motion'
+  return 'partial=body+motion'
 }
 
 function formatPendingBodyMotionLipsyncRejoin(entry: StageEmbodimentDiagnosticsRendererAlignmentEntry) {
   if (!formatFaceVoiceRecovery(entry))
     return null
 
-  return 'pending-rejoin=body+motion+lipsync'
+  return 'partial=body+motion+lipsync'
 }
 
 function formatPendingBodyLipsyncRejoin(entry: StageEmbodimentDiagnosticsRendererAlignmentEntry) {
   if (!formatFaceMotionVoiceRecovery(entry))
     return null
 
-  return 'pending-rejoin=body+lipsync'
+  return 'partial=body+lipsync'
 }
 
 function formatPendingBodyFaceRejoin(entry: StageEmbodimentDiagnosticsRendererAlignmentEntry) {
   if (!formatMotionLipsyncVoiceRecovery(entry))
     return null
 
-  return 'pending-rejoin=body+face'
+  return 'partial=body+face'
 }
 
 function formatPendingBodyFaceLipsyncRejoin(entry: StageEmbodimentDiagnosticsRendererAlignmentEntry) {
   if (!formatMotionVoiceRecovery(entry))
     return null
 
-  return 'pending-rejoin=body+face+lipsync'
+  return 'partial=body+face+lipsync'
 }
 
 function formatPendingBodyFaceMotionRejoin(entry: StageEmbodimentDiagnosticsRendererAlignmentEntry) {
@@ -857,7 +857,7 @@ function formatPendingBodyFaceMotionRejoin(entry: StageEmbodimentDiagnosticsRend
     return null
   }
 
-  return 'pending-rejoin=body+face+motion'
+  return 'partial=body+face+motion'
 }
 
 function formatAudibleLivingLineLaggingLanes(entry: StageEmbodimentDiagnosticsRendererAlignmentEntry) {
@@ -921,7 +921,7 @@ function normalizePendingLaneFocus(entry: StageEmbodimentDiagnosticsRendererAlig
     ?? formatPendingBodyFaceLipsyncRejoin(entry)
     ?? formatPendingBodyFaceMotionRejoin(entry)
 
-  return pending?.replace('pending-rejoin=', '') ?? null
+  return pending?.replace('partial=', '') ?? null
 }
 
 function buildRendererLaneFocusSummary(entry: StageEmbodimentDiagnosticsRendererAlignmentEntry) {

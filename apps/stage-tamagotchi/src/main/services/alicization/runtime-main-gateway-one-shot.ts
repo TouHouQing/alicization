@@ -965,7 +965,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       `latest_landed_progress=${sanitizeOneShotProjectBriefText(projectState.latestLandedProgress)}`,
       `primary_open_loop=${sanitizeOneShotProjectBriefText(projectState.primaryOpenLoop)}`,
       `next_closure_target=${sanitizeOneShotProjectBriefText(projectState.nextClosureTarget)}`,
-      'screen_semantic_scope=desktop_semantics | memory_continuity=local_runtime | visibility=internal-structured',
+      'screen_semantic_scope=desktop_semantics | memory_continuity=local_runtime-structured',
       'screen_semantic_policy=evidence_first; generic_desktop_classifier=blocked; detached_productivity_caption=blocked; assistant_utility_shell=blocked',
     ].join('\n')
   }
@@ -983,7 +983,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       `latest_landed_progress=${sanitizeOneShotProjectBriefText(projectState.latestLandedProgress)}`,
       `primary_open_loop=${sanitizeOneShotProjectBriefText(projectState.primaryOpenLoop)}`,
       `next_closure_target=${sanitizeOneShotProjectBriefText(projectState.nextClosureTarget)}`,
-      'scene_appraisal_scope=desktop_scene_appraisal | memory_continuity=local_runtime | visibility=internal-structured',
+      'scene_appraisal_scope=desktop_scene_appraisal | memory_continuity=local_runtime-structured',
       'scene_appraisal_policy=current_evidence_first; productivity_guessing=blocked; detached_environment_scoring=blocked; assistant_utility_heuristics=blocked',
     ].join('\n')
   }

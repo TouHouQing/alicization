@@ -278,7 +278,7 @@ function looksLikeEmbodimentClosureHeadline(raw: unknown) {
   if (!text)
     return false
 
-  return /continuity=embodiment|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|face and motion|face, motion|lipsync|voice|body line|living her|living audio thread|audible-body|audible body|cross-modal closure/u.test(text)
+  return /embodiment_status|lane=(?:body|face|motion|lipsync|voice)|status=partial|face and motion|face, motion|lipsync|voice|body line|living her|living audio thread|audible-body|audible body|cross-modal closure/u.test(text)
 }
 
 function looksLikeStructuredEmbodimentContinuityFact(raw: unknown) {
@@ -289,7 +289,7 @@ function looksLikeStructuredEmbodimentContinuityFact(raw: unknown) {
   if (!text || containsAlicizationFixedTemplateResidue(text))
     return false
 
-  return /continuity=embodiment/u.test(text)
+  return /embodiment_status/u.test(text)
     && /pending[-_]rejoin|signature=|face|motion|lipsync|voice|body/u.test(text)
 }
 

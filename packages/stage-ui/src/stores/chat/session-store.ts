@@ -80,7 +80,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       return false
 
     return (
-      normalized.includes('continuity=embodiment')
+      normalized.includes('embodiment_status')
       && normalized.includes('low-pressure-inward-carry')
     ) || (
       normalized.includes('holding together mainly through')
@@ -99,17 +99,17 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       return false
     const normalized = value.trim().toLowerCase()
     return normalized === fixedTemplateWithheldLine
-      || normalized.includes('content=excluded')
+      || normalized.includes('content_withheld')
       || normalized.includes('reason=continuity-residue')
   }
 
   function looksLikeStructuredSessionFact(value: string) {
-    return /(?:^|\|\s*)(?:identity|phase|landed|open|next|continuity_[a-z_]+|emotional_closure|proactive_gap|status|summary|visibility|owner|source|evidence|observability|affective_closure|pending_rejoin|open_loop|life_loop_continuity|project_state_continuity|cross_modal_continuity_proof|runtime_authoritative_send_alignment|embodiment_lanes|pending_lanes|embodiment_closure|body_continuity|memory_surface_policy|remaining-open)=/iu.test(value)
+    return /(?:^|\|\s*)(?:identity|phase|landed|open|next|initiative_gap|continuity_[a-z_]+|emotional_closure|status|summary|visibility|owner|source|evidence|observability|affective_closure|missing_lanes|open_loop|runtime_loop_validation|project_state_review|embodiment_scale_validation|runtime_authoritative_send_alignment|embodiment_lanes|pending_lanes|embodiment_closure|body_continuity|memory_surface_policy|remaining-open)=/iu.test(value)
       || /^[a-z][\w+-]*:[\w+:-]+$/iu.test(value)
   }
 
   function looksLikeNeutralizedTemplateSentence(value: string) {
-    const carriesNeutralizedContinuityToken = /\b(?:continuity_identity|continuity_line|local_desktop_life_loop|project_state_continuity)\b/iu.test(value)
+    const carriesNeutralizedContinuityToken = /\b(?:continuity_identity|continuity_line|runtime_personhood|project_state_review)\b/iu.test(value)
     if (!carriesNeutralizedContinuityToken)
       return false
 
@@ -154,14 +154,14 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       /cross[-_ ]modal|body|face|motion|lipsync|voice|声音|表情|动作|唇型/iu.test(lower)
       || /continuity_identity proof|continuity_proof|continuity_line/iu.test(normalized)
     ) {
-      return 'cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs'
+      return 'embodiment_scale_validation=needed'
     }
     if (/memory|initiative|dialogue|execution|embodiment|记忆|主动性|对话|执行|具身/iu.test(lower))
-      return 'life_loop_continuity=memory+initiative+dialogue+execution+embodiment'
+      return 'runtime_loop_validation=memory+initiative+dialogue+execution+embodiment'
     if (/project identity|landed progress|unresolved closure|项目身份|已落|未闭环|未闭合/iu.test(lower))
-      return 'project_state_continuity=identity+landed+open+next'
+      return 'project_state_review=identity+landed+open+next'
     if (/callback|reopened|回调|重开/iu.test(lower))
-      return 'callback_continuity=preserve; widening=deferred'
+      return 'callback_review=preserve_context; widening=deferred'
 
     return null
   }
@@ -190,7 +190,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
   }
 
   function sanitizeSessionStructuredProjectField(
-    field: 'identity' | 'phase' | 'open' | 'next' | 'continuity_anchor' | 'continuity_hold' | 'continuity_drift_risk' | 'emotional_closure' | 'proactive_gap',
+    field: 'identity' | 'phase' | 'open' | 'next' | 'continuity_anchor' | 'continuity_hold' | 'continuity_drift_risk' | 'emotional_closure' | 'initiative_gap',
     value: string | null | undefined,
     maxChars = 420,
   ) {
@@ -208,7 +208,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       ...(field === 'continuity_hold' ? { sameHerHoldDetail: value } : {}),
       ...(field === 'continuity_drift_risk' ? { sameHerDriftRisk: value } : {}),
       ...(field === 'emotional_closure' ? { emotionalClosureCue: value } : {}),
-      ...(field === 'proactive_gap' ? { proactiveSameHerGap: value } : {}),
+      ...(field === 'initiative_gap' ? { proactiveSameHerGap: value } : {}),
       maxChars,
     })
     const prefix = `${field}=`
@@ -249,7 +249,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
   }
 
   function sanitizeSessionStructuredProjectLine(
-    field: 'next' | 'continuity_drift_risk' | 'emotional_closure' | 'proactive_gap',
+    field: 'next' | 'continuity_drift_risk' | 'emotional_closure' | 'initiative_gap',
     value: string | null | undefined,
     maxChars = 420,
   ) {
@@ -289,7 +289,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       sameHerHoldDetail: sanitizeSessionStructuredProjectField('continuity_hold', projectState.sameHerHoldDetail),
       sameHerDriftRisk: sanitizeSessionStructuredProjectField('continuity_drift_risk', projectState.sameHerDriftRisk),
       emotionalClosureCue: sanitizeSessionStructuredProjectField('emotional_closure', projectState.emotionalClosureCue),
-      proactiveSameHerGap: sanitizeSessionStructuredProjectField('proactive_gap', projectState.proactiveSameHerGap),
+      proactiveSameHerGap: sanitizeSessionStructuredProjectField('initiative_gap', projectState.proactiveSameHerGap),
       continuityCue: sanitizeSessionStructuredText(projectState.continuityCue),
     } as T
   }
@@ -335,9 +335,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
   }
 
   function buildCompactSameHerInwardLowPressureAwarenessLine() {
-    return sanitizeSessionStructuredText(
-      'source=companion_briefing; continuity=embodiment; status=pending-rejoin; pending_rejoin=lipsync+voice; evidence=low-pressure-inward-carry',
-    )
+    return ''
   }
 
   function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undefined) {
@@ -405,7 +403,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
     }
     const carriesBroaderProjectFrame = (value: string) =>
       /(?:^|\|\s*)(?:identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|emotional_closure)=/iu.test(value)
-      || /(?:open_loop|life_loop_continuity|project_state_continuity|cross_modal_continuity_proof|runtime_authoritative_send_alignment)=/iu.test(value)
+      || /(?:open_loop|runtime_loop_validation|project_state_review|embodiment_scale_validation|runtime_authoritative_send_alignment)=/iu.test(value)
     const persistedLooksThin = Boolean(preDialogueAwareness) && (
       (!persistedAwarenessLine && !persistedBriefingLine)
       || looksLikeThinReminder(persistedSummary)
@@ -427,10 +425,10 @@ export const useChatSessionStore = defineStore('chat-session', () => {
     const sameHerHoldDetail = projectState.sameHerHoldDetail?.trim() || null
     const sameHerHoldDetailIsBlockedEvidence = sameHerHoldDetail === fixedTemplateWithheldLine
       || sameHerHoldDetail?.includes('reason=continuity-residue')
-      || sameHerHoldDetail?.includes('content=excluded')
+      || sameHerHoldDetail?.includes('content_withheld')
     const sameHerSelfLineIsBlockedEvidence = sameHerSelfLine === fixedTemplateWithheldLine
       || sameHerSelfLine?.includes('reason=continuity-residue')
-      || sameHerSelfLine?.includes('content=excluded')
+      || sameHerSelfLine?.includes('content_withheld')
     const shouldPreferSameHerHoldDetail = Boolean(
       preDialogueAwareness
       && persistedLooksThin

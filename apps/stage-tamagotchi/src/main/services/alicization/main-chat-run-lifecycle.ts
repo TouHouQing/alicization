@@ -435,7 +435,7 @@ function ensureStructuredRecoveredReplyFullText(reply: AlicizationResolvedVisibl
       = (typeof rawProjectStateAudit?.continuitySummary === 'string' && rawProjectStateAudit.continuitySummary.trim())
         || buildPrioritizedProjectStateRewritePreserveLines({
           projectStateContinuityAnchors: [
-            sameHerSummary ? `continuity_anchor=${sameHerSummary}` : '',
+            sameHerSummary ? `project_anchor=${sameHerSummary}` : '',
             projectStateBrief.currentPhase ? `phase=${projectStateBrief.currentPhase}` : '',
             landedProgressSummary ? `landed=${landedProgressSummary}` : '',
             openClosureSummary ? `open=${openClosureSummary}` : '',

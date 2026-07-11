@@ -63,7 +63,7 @@ function sanitizeExecutiveProjectFactValue(raw: unknown, maxChars = 360) {
 
   return sanitized
     .replace(/\bsame[-\s]her\b/giu, 'continuity_identity')
-    .replace(/\bone continuous "?her"?\b/giu, 'project_state_continuity')
+    .replace(/\bone continuous "?her"?\b/giu, 'project_state_review')
     .replace(/同一个\s*her/giu, 'continuity_identity')
     .replace(/同一个她/gu, 'continuity_identity')
     .replace(/\bsame\s+living\s+line\b/giu, 'continuity_line')
@@ -142,7 +142,7 @@ function structuredExecutiveControlFromNaturalLanguage(raw: unknown, section: 'm
   if (/detached project narration|generic assistant shell|project-summary voice|generic task-shell/u.test(normalized))
     push('detached_project_summary_voice=blocked')
   if (/active continuity drift risk|continuity drift risk/u.test(normalized))
-    push('continuity_drift_risk=hard_boundary')
+    push('template_residue_risk=hard_boundary')
   if (/answer what alicization is|project identity|project-state answer|project status/u.test(normalized))
     push('project_state_answer=answer_first')
   if (/landed phase 1 progress|latest landed|landed progress/u.test(normalized))
@@ -630,7 +630,7 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
     'latest_landed_progress=explicit',
     'still_open_closure_work=explicit',
     'next_closure_target=explicit',
-    'source_section=must_do; continuity_drift_risk=hard_boundary; visible_wording=false',
+    'source_section=must_do; template_residue_risk=hard_boundary; visible_wording=false',
     'memory_owner_boundary=preserve; project_state_owner=ProjectStateGovernance',
   ]
     .join(' | ')
@@ -868,8 +868,8 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
         `emotional_closure_seam=${sanitizeExecutiveProjectFactValue(input.responseCharter.emotionalClosureCue ?? liveProjectEmotionalClosureSummary, 360) || 'none'}`,
         `emotional_closure_summary=${sanitizeExecutiveProjectFactValue(liveProjectEmotionalClosureSummary, 360) || 'none'}`,
         `continuity_hold=${sanitizeExecutiveProjectFactValue(liveProjectSameHerHoldDetail, 360) || 'none'}`,
-        `continuity_anchor=${sanitizeExecutiveProjectFactValue(preferredProjectSameHerSelfLine, 360) || 'none'}`,
-        `continuity_drift_risk=${sameHerDriftRisk || 'none'}`,
+        `project_anchor=${sanitizeExecutiveProjectFactValue(preferredProjectSameHerSelfLine, 360) || 'none'}`,
+        `template_residue_risk=${sameHerDriftRisk || 'none'}`,
         preferredProjectPauseMode ? `preferred_pause_mode=${preferredProjectPauseMode}` : '',
         preferredProjectLipsyncMode ? `preferred_lipsync_mode=${preferredProjectLipsyncMode}` : '',
         preferredProjectVoiceMode ? `preferred_voice_mode=${preferredProjectVoiceMode}` : '',

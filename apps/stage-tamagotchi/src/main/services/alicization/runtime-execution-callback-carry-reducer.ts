@@ -364,7 +364,6 @@ export function applyExecutionCallbackCarryToDigitalLifeRuntimeSurface(input: {
     'execution_callback=return',
     `thread=${callbackThreadAnchor}`,
     `summary=${callbackSummary}`,
-    'visibility=internal-structured',
   ].join(' | ')
   const openingDirective = carry.carryMode === 'repair-before-closeness'
     ? 'callback_return_policy=repair_before_closeness | utility_notice=blocked'

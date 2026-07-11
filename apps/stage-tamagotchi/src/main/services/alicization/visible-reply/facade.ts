@@ -190,7 +190,7 @@ function looksLikeSameHerVisibleReplyProjectContinuityLine(raw: unknown) {
   if (containsAlicizationFixedTemplateResidue(raw))
     return false
 
-  const carriesSameHer = /continuity_anchor=|continuity_(?:identity|line|thread)|project_state_continuity|local_desktop_life_loop|current thread continuity/u.test(normalized)
+  const carriesSameHer = /project_anchor=|continuity_(?:identity|line|thread)|project_state_review|runtime_personhood|current thread continuity/u.test(normalized)
   const carriesClosureContext = /callback|returned result|execution|project|closure|open closure|next closure|generic callback shell|detached utility notice|open_loop=|memory_dialogue_embodiment/u.test(normalized)
 
   return carriesSameHer && carriesClosureContext
@@ -225,7 +225,7 @@ function readVisibleReplyProjectContinuityFromAnswerCompiler(
     .find(item =>
       Boolean(item)
       && /generic assistant shell|generic task shell|detached project narration|project-summary voice|generic callback shell|detached utility notice/u.test(String(item))
-      && /continuity_(?:identity|line|thread)|current thread continuity|project_state_continuity/u.test(String(item).toLowerCase()),
+      && /continuity_(?:identity|line|thread)|current thread continuity|project_state_review/u.test(String(item).toLowerCase()),
     ) ?? null
 
   return {

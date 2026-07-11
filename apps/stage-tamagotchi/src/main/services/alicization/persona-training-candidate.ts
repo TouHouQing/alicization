@@ -72,20 +72,20 @@ function redactPersonalReferences(raw: string) {
 function positiveExampleFor(lesson: string) {
   const text = normalizeText(lesson, 260)
   if (/出错|超时|失败|链路/u.test(text))
-    return 'behavior_policy=failure_transparency; reply_source=model_authored; template_policy=forbidden; visibility=internal-structured'
+    return 'behavior_policy=failure_transparency; reply_source=model_authored; template_policy=forbidden'
   if (/承认错误|修复/u.test(text))
-    return 'behavior_policy=repair_then_continue; grounding=current_turn; template_policy=forbidden; visibility=internal-structured'
+    return 'behavior_policy=repair_then_continue; grounding=current_turn; template_policy=forbidden'
   if (/固定模板|人格|数字生命/u.test(text))
-    return 'behavior_policy=current_intent_first; template_policy=forbidden; visibility=internal-structured'
-  return 'behavior_policy=ground_current_turn; source=clean_reflection; visibility=internal-structured'
+    return 'behavior_policy=current_intent_first; template_policy=forbidden'
+  return 'behavior_policy=ground_current_turn; source=clean_reflection'
 }
 
 function negativeExampleFor(lesson: string) {
   const text = normalizeText(lesson, 260)
   if (/固定模板|安抚/u.test(text))
-    return 'avoidance_policy=no_template_cover; visibility=internal-structured'
+    return 'avoidance_policy=no_template_cover'
   if (/错误|失败|超时/u.test(text))
-    return 'avoidance_policy=no_failure_masking; visibility=internal-structured'
+    return 'avoidance_policy=no_failure_masking'
   return undefined
 }
 

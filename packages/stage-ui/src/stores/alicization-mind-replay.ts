@@ -750,7 +750,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
           }]
         : []),
       {
-        key: 'project_state_continuity_hit_rate',
+        key: 'project_state_review_hit_rate',
         value: continuityHitRate,
         detail: `continuity=${continuityHitRate ?? 'n/a'} (${projectState.continuityHitCount}/${comparedTurnCount}) | checks whether identity, phase, open loops, and the continuity self line still arrive together as one continuity brief.`,
       },

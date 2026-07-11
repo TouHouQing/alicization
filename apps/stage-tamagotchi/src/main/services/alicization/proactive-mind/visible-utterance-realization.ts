@@ -395,7 +395,7 @@ function buildProjectStateAuditContinuitySummary(input: {
   embodimentClosureSummary?: string | null
 }) {
   return [
-    input.sameHerSummary ? `continuity_anchor=${input.sameHerSummary}` : '',
+    input.sameHerSummary ? `project_anchor=${input.sameHerSummary}` : '',
     input.landedProgressSummary ? `landed=${input.landedProgressSummary}` : '',
     input.openClosureSummary ? `open=${input.openClosureSummary}` : '',
     input.nextClosureTargetSummary ? `next=${input.nextClosureTargetSummary}` : '',
@@ -594,13 +594,13 @@ function deriveSelfRevisionPatchSameHerHoldDetail(selfRevisionPatch?: Alicizatio
   if (rawExplicitSameHerHoldDetail) {
     const loweredExplicitHold = rawExplicitSameHerHoldDetail.toLowerCase()
     if (/repair-before-closeness|repair before closeness|repair-first|repair first/u.test(loweredExplicitHold))
-      return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens; surface=structured'
+      return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens'
     if (/vulnerable-care|vulnerable care|care-before-analysis|care before analysis/u.test(loweredExplicitHold))
-      return 'continuity_hold=rest_protective_vulnerable_care; care_timing=before_analysis; closeness=lighter; surface=structured'
+      return 'continuity_hold=rest_protective_vulnerable_care; care_timing=before_analysis; closeness=lighter'
     if (/rest-protective|rest protective|fatigue-aware|fatigue aware|quiet-companionship|quiet companionship/u.test(loweredExplicitHold))
-      return 'continuity_hold=rest_protective; fatigue_aware=true; direction=inward; surface=structured'
+      return 'continuity_hold=rest_protective; fatigue_aware=true; direction=inward'
     if (/measured-return|measured return|lower-pressure|lower pressure|leave more room|more room/u.test(loweredExplicitHold))
-      return 'continuity_hold=measured_return; pressure=lower; room=more; widening=deferred; surface=structured'
+      return 'continuity_hold=measured_return; pressure=lower; room=more; widening=deferred'
   }
 
   const explicitSameHerHoldDetail = sanitizeProjectStateAuditText(rawExplicitSameHerHoldDetail, 220) || null
@@ -616,17 +616,17 @@ function deriveSelfRevisionPatchSameHerHoldDetail(selfRevisionPatch?: Alicizatio
     return null
 
   if (/repair-before-closeness|repair before closeness|repair-first|repair first/u.test(merged))
-    return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens; surface=structured'
+    return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens'
 
   if (
     /vulnerable-care|vulnerable care|fragile care|care-before-analysis|care before analysis|care arrive before analysis|care arrives before analysis|analysis-heavy|analysis heavy/u.test(merged)
     && /same living line|same line|same-her|same her|line stays inward|holds inward|direction=inward/u.test(merged)
   ) {
-    return 'continuity_hold=rest_protective_vulnerable_care; care_timing=before_analysis; closeness=lighter; surface=structured'
+    return 'continuity_hold=rest_protective_vulnerable_care; care_timing=before_analysis; closeness=lighter'
   }
 
   if (/rest-protective|rest protective|rest protection|quiet-companionship|quiet companionship|fatigue-aware|late-night-drain|line holds inward|holds inward|quietly inward/u.test(merged)) {
-    return 'continuity_hold=rest_protective; fatigue_aware=true; direction=inward; surface=structured'
+    return 'continuity_hold=rest_protective; fatigue_aware=true; direction=inward'
   }
 
   return null
@@ -671,7 +671,7 @@ function carriesStructuredContinuityHold(text: string | null | undefined) {
 
   const normalized = text.toLowerCase()
   const hasStructuredKey
-    = /(?:^|[;|\s])(?:continuity_hold|relationship_cadence|reentry_cadence|care_timing|embodiment_closure|continuity=embodiment|direction=inward|widening=deferred|warmth_widening=deferred|pressure=lower|room=more|fatigue_aware=true|visibility=renderer-internal|surface=structured)\b/u.test(normalized)
+    = /(?:^|[;|\s])(?:continuity_hold|relationship_cadence|reentry_cadence|care_timing|embodiment_closure|embodiment_status|direction=inward|widening=deferred|warmth_widening=deferred|pressure=lower|room=more|fatigue_aware=true|visibility=renderer-internal|surface=structured)\b/u.test(normalized)
   if (!hasStructuredKey)
     return false
 
@@ -714,7 +714,7 @@ function hasRememberedSeamMoreRoomCarry(text: string | null | undefined) {
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; surface=structured'
+  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred'
 }
 
 function guidanceIndicatesEvenNaturalReentry(guidance: string) {

@@ -262,7 +262,7 @@ function isSameHerInwardLowPressureHeadline(value: string | null | undefined) {
     return false
 
   return (
-    normalized.includes('continuity=embodiment')
+    normalized.includes('embodiment_status')
     && normalized.includes('low-pressure-inward-carry')
   ) || (
     normalized.includes('holding together mainly through')
@@ -277,7 +277,7 @@ function isSameHerInwardLowPressureHeadline(value: string | null | undefined) {
 }
 
 function buildCompactSameHerInwardLowPressureAwarenessLine() {
-  return 'continuity_context=runtime_carry; source=companion_briefing; continuity=embodiment; status=pending-rejoin; pending_rejoin=lipsync+voice; evidence=low-pressure-inward-carry; visibility=internal'
+  return 'continuity_context=runtime_carry; source=companion_briefing; embodiment_status; status=partial; missing_lanes=lipsync+voice; evidence=low-pressure-inward-carry'
 }
 
 function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undefined) {
@@ -291,7 +291,7 @@ function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undef
 }
 
 function buildCompactAnthropomorphicHostFacingAwarenessLine() {
-  return 'continuity_context=runtime_carry; source=companion_briefing; affective_closure=anthropomorphic-emotional-closure; observability=continuity-inward-carry; timing=measured-return; visibility=internal'
+  return 'continuity_context=runtime_carry; source=companion_briefing; affective_closure=anthropomorphic-emotional-closure; observability=continuity-inward-carry; timing=measured-return'
 }
 
 function carriesBroaderMergedProjectFrame(value: string | null | undefined) {

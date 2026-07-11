@@ -399,8 +399,8 @@ describe('alicization prompt composer', () => {
       },
     })
 
-    expect(String(result.messages[1]?.content)).toContain(`proactive_gap=${proactiveSameHerGap}`)
-    expect(String(result.messages[1]?.content)).toContain(`proactive_gap=${proactiveSameHerGap}`)
+    expect(String(result.messages[1]?.content)).toContain(`initiative_gap=${proactiveSameHerGap}`)
+    expect(String(result.messages[1]?.content)).toContain(`initiative_gap=${proactiveSameHerGap}`)
   })
 
   it('keeps quieter body-and-lipsync embodiment carry explicit before the turn opens outward', () => {

@@ -2628,7 +2628,7 @@ function derivePresenceOnlyResidentHoldInwardPreoccupation(input: {
   if (!hasRememberedSeamMoreRoomCarry(continuityAuthorityText) && (!hasSameLineCarry || !hasMeasuredRoomCarry))
     return fallback || null
 
-  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; warmth_widening=deferred; visibility=internal-structured'
+  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; warmth_widening=deferred'
 }
 
 function derivePresenceOnlyResidentHoldContinuityRestraint(input: {

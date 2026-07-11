@@ -48,7 +48,7 @@ const sameHerProjectFollowThroughPreserveLine
 function containsVisibleReplyStructuredTemplateResidue(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   return Boolean(normalized)
-    && /\blocal_desktop_life_loop\b|phase1_local_digital_life|project_phase=life_core|continuity_identity|continuity_line|content=excluded|visibility=internal[-_]structured/u.test(normalized)
+    && /\bruntime_personhood\b|phase1_local_digital_life|project_phase=life_core|continuity_identity|continuity_line|content_withheld|visibility=internal[-_]structured/u.test(normalized)
 }
 
 function canUseVisibleReplyDecisionText(value: string | null | undefined) {
@@ -99,8 +99,8 @@ function looksLikeStructuredProjectAwareness(value: string | null | undefined) {
   if (containsVisibleReplyStructuredTemplateResidue(normalized))
     return false
 
-  return /(?:^|\s\|\s)(?:identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|proactive_gap|emotional_closure|status|summary)=/iu.test(normalized)
-    || /open_loop=|project_state_continuity=|life_loop_continuity=|cross_modal_continuity_proof=|embedding_recall_reindex|memory_dialogue_embodiment_closure/iu.test(normalized)
+  return /(?:^|\s\|\s)(?:identity|phase|landed|open|next|initiative_gap|continuity_anchor|continuity_hold|continuity_drift_risk|emotional_closure|status|summary)=/iu.test(normalized)
+    || /open_loop=|project_state_review=|runtime_loop_validation=|embodiment_scale_validation=|embedding_recall_reindex|memory_dialogue_embodiment_closure/iu.test(normalized)
 }
 
 function scoreStructuredProjectAwareness(value: string | null | undefined) {
@@ -114,7 +114,7 @@ function scoreStructuredProjectAwareness(value: string | null | undefined) {
   let score = 0
   if (looksLikeStructuredProjectAwareness(normalized))
     score += 6
-  for (const key of ['identity=', 'phase=', 'landed=', 'open=', 'next=', 'continuity_anchor=', 'continuity_hold=', 'continuity_drift_risk=', 'proactive_gap=', 'emotional_closure=', 'status=', 'summary=']) {
+  for (const key of ['identity=', 'phase=', 'landed=', 'open=', 'next=', 'project_anchor=', 'continuity_hold=', 'template_residue_risk=', 'initiative_gap=', 'emotional_closure=', 'status=', 'summary=']) {
     if (normalized.includes(key))
       score += 1
   }
@@ -263,7 +263,7 @@ function projectAuditSegmentValue(raw: string | null | undefined, preferredKeys:
 
 function projectContinuityAnchorLine(raw: string | null | undefined) {
   const value = projectAuditSegmentValue(raw, ['continuity_anchor', 'sameHerSelfLine'])
-  return value ? `continuity_anchor=${value}` : ''
+  return value ? `project_anchor=${value}` : ''
 }
 
 function projectContinuityCarryLine(
@@ -582,7 +582,7 @@ function looksLikeCadenceAwareSameHerHoldDetail(value: string | null | undefined
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; visibility=internal'
+  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred'
 }
 
 function resolvePreferredSameHerHoldDetail(input: {
@@ -766,7 +766,7 @@ function resolveCompanionshipHoldMode(input: {
   const detectRestProtective = (value: string) =>
     /rest-protective|rest protection|fatigue-aware|let rest protection hold|before warmth widens|先让休息保护|疲惫感先缓住/u.test(value)
   const detectMeasuredReturn = (value: string) =>
-    /measured-return|next-open-window|lower-pressure|low-pressure|leave room before widening|same living line is still settling|living audio thread is still intact|living audio thread is keeping the same-her carry alive|holding together mainly through lipsync and voice|holding together mainly through face,\s*lipsync,\s*and voice|holding together mainly through motion,\s*lipsync,\s*and voice|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|still-voiced face line|still-voiced motion line|audible-body|audible body|same callback line.*after another detour|same callback seam.*after another detour|same living thread|same-thread continuation|body and lipsync|body\+lipsync-only|quieter living line|embodiment_lanes=.*(?:pending_lanes=|status=pending_rejoin)/u.test(value)
+    /measured-return|next-open-window|lower-pressure|low-pressure|leave room before widening|same living line is still settling|living audio thread is still intact|living audio thread is keeping the same-her carry alive|holding together mainly through lipsync and voice|holding together mainly through face,\s*lipsync,\s*and voice|holding together mainly through motion,\s*lipsync,\s*and voice|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|still-voiced face line|still-voiced motion line|audible-body|audible body|same callback line.*after another detour|same callback seam.*after another detour|same living thread|same-thread continuation|body and lipsync|body\+lipsync-only|quieter living line|embodiment_lanes=.*(?:pending_lanes=|status=missing_lanes)/u.test(value)
   const detectQuietCompanionship = (value: string) =>
     /quiet-companionship|quiet line|quiet companionship/u.test(value)
   const detectQuietSameHerContinuity = (value: string) =>
@@ -1463,7 +1463,7 @@ function looksLikeEmbodimentClosureHeadline(value: string | null | undefined) {
   if (!normalized)
     return false
 
-  return /continuity=embodiment|lane=(?:body|face|motion|lipsync|voice)|status=pending-rejoin|holding together mainly through|holding together through face,\s*motion,\s*lipsync,\s*and voice together|visible same-her line has already rejoined without body carry|face, motion, and lipsync|face and motion|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|still-voiced face line|still-voiced motion line|audible-body|living audio thread/iu.test(normalized)
+  return /embodiment_status|lane=(?:body|face|motion|lipsync|voice)|status=partial|holding together mainly through|holding together through face,\s*motion,\s*lipsync,\s*and voice together|visible same-her line has already rejoined without body carry|face, motion, and lipsync|face and motion|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|still-voiced face line|still-voiced motion line|audible-body|living audio thread/iu.test(normalized)
     && !/before answering|before i answer/iu.test(normalized)
 }
 
@@ -2148,7 +2148,7 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
       projectContinuityCarryLine('landed', auditProjectStateLandedProgressSummary, ['landed', 'latestLandedProgress']),
       projectContinuityCarryLine('open', auditProjectStateOpenClosureSummary, ['open', 'primaryOpenLoop']),
       projectContinuityCarryLine('next', auditProjectStateNextClosureTargetSummary, ['next', 'nextClosureTarget']),
-      projectContinuityCarryLine('proactive-gap', auditProjectStateProactiveSameHerGapSummary, ['proactive_gap', 'proactiveSameHerGap']),
+      projectContinuityCarryLine('initiative-gap', auditProjectStateProactiveSameHerGapSummary, ['initiative_gap', 'proactiveSameHerGap']),
       projectContinuityCarryLine('closure-emotion', auditProjectStateEmotionalClosureSummary, ['emotional_closure', 'emotionalClosureCue']),
       projectContinuityCarryLine('relationship-truth', auditProjectStateRelationshipTruthSummary, ['summary', 'relationshipTruth']),
     ].filter(Boolean),
