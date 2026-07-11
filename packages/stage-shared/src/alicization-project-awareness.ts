@@ -530,11 +530,11 @@ function resolveContinuityBehaviorMode(input: {
 
 function deriveSameHerHoldDetailFromContinuityBehavior(mode: string | null) {
   if (mode === 'repair-before-closeness')
-    return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens'
+    return 'cadence=repair_before_closeness; timing=before_closeness_widens'
   if (mode === 'rest-protective')
-    return 'continuity_hold=rest_protective; timing=fatigue_aware'
+    return 'cadence=rest_protective; timing=fatigue_aware'
   if (mode === 'measured-return')
-    return 'continuity_hold=measured_return; pressure=lower'
+    return 'cadence=measured_return; pressure=lower'
   return ''
 }
 
@@ -564,10 +564,10 @@ function deriveCadenceAwareSameHerHoldDetail(input: {
   const preferredPacingMode = sanitizeProjectAwarenessText(input.preferredPacingMode, 32).toLowerCase()
 
   if (preferredVoiceMode === 'lower-pressure' && preferredPacingMode === 'slower')
-    return 'continuity_hold=measured_return; pressure=lower; pacing=slower'
+    return 'cadence=measured_return; pressure=lower; pacing=slower'
 
   if (preferredPauseMode === 'longer' && preferredLipsyncMode === 'restrained')
-    return 'continuity_hold=measured_return; pause=longer; lipsync=restrained'
+    return 'cadence=measured_return; pause=longer; lipsync=restrained'
 
   return ''
 }

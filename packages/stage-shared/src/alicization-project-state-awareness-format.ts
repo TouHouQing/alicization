@@ -183,7 +183,7 @@ function normalizeProjectStateAwarenessValue(key: string, raw: unknown, maxChars
     ) {
       return 'continuity_line; widening=deferred'
     }
-    return 'continuity_hold=content_excluded'
+    return ''
   }
 
   if (key === 'continuity_drift_risk' && (carriesRawFixedTemplateResidue || containsAlicizationFixedTemplateResidue(factSafe) || carriesNeutralizedTemplateResidue)) {
@@ -208,7 +208,7 @@ function normalizeProjectStateAwarenessValue(key: string, raw: unknown, maxChars
 
   if (key === 'emotional_closure' && (carriesRawFixedTemplateResidue || containsAlicizationFixedTemplateResidue(factSafe))) {
     if (/lower-pressure|low-pressure|leave more room|more room|do not reopen|from scratch/u.test(lower))
-      return 'continuity_hold=lower_pressure; room=more; reopen_from_scratch=false'
+      return 'lower_pressure; room=more; reopen_from_scratch=false'
     if (/repair-before-closeness|repair before closeness/u.test(lower))
       return 'repair_before_closeness'
     return 'continuity_residue'

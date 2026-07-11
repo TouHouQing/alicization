@@ -446,7 +446,8 @@ describe('alicization project awareness', () => {
       } as any,
     })
 
-    expect(resolved).toContain('continuity_hold=repair_before_closeness; timing=before_closeness_widens')
+    expect(resolved).toContain('cadence=repair_before_closeness; timing=before_closeness_widens')
+    expect(resolved).not.toContain('continuity_hold=')
     expectNoFixedTemplateResidue(resolved)
   })
 
