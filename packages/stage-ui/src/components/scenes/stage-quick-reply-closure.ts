@@ -723,14 +723,14 @@ function resolveHumanReadableProjectStateRepair(reasons: string[]) {
   const normalizedReasons = reasons.map(reason => reason.trim()).filter(Boolean)
   const diagnostics: string[] = []
 
-  if (normalizedReasons.some(reason => reason.includes('project-state-identity-continuity-continuity-required')))
-    diagnostics.push('project-state-continuity-required')
+  if (normalizedReasons.some(reason => reason.includes('project-state-identity-continuity-continuity-required') || reason.includes('project-state-same-her-continuity-required')))
+    diagnostics.push('项目状态待同步')
 
-  if (normalizedReasons.some(reason => reason.includes('semantic-judge:project-state-identity-continuity-missing')))
-    diagnostics.push('memory-grounding-incomplete')
+  if (normalizedReasons.some(reason => reason.includes('semantic-judge:project-state-identity-continuity-missing') || reason.includes('semantic-judge:project-state-same-her-missing')))
+    diagnostics.push('记忆依据待补齐')
 
   return diagnostics.length > 0
-    ? `连续性诊断未闭合：${diagnostics.join(' | ')}`
+    ? diagnostics.join('，')
     : null
 }
 
@@ -739,7 +739,7 @@ function resolvePrimaryOpenLifeLoopLine(reasons: string[]) {
   if (!openLoopReason)
     return null
 
-  return `连续性诊断未闭合：${openLoopReason.replace(/^.*Primary open life loop still centers on /, '').replace(/, so the next turn should.*$/i, '').trim()}`
+  return openLoopReason.replace(/^.*Primary open life loop still centers on /, '').replace(/, so the next turn should.*$/i, '').trim() || null
 }
 
 function resolveNextClosureReasonLine(reasons: string[]) {
@@ -747,7 +747,7 @@ function resolveNextClosureReasonLine(reasons: string[]) {
   if (!nextClosureReason)
     return null
 
-  return `下一步状态：${nextClosureReason.replace(/^.*Next closure target is still /, '').replace(/, so the next turn should.*$/i, '').trim()}`
+  return nextClosureReason.replace(/^.*Next closure target is still /, '').replace(/, so the next turn should.*$/i, '').trim() || null
 }
 
 function resolveProjectStateFocus(reasons: string[]) {
@@ -1333,6 +1333,7 @@ function isFixedPersonaQuickReplyClosureTemplate(line: string | null | undefined
     || normalized.includes('我还需要')
     || normalized.includes('我还在')
     || normalized.includes('continuity evidence')
+    || normalized.includes('renderer continuity')
     || normalized.includes('right now i am still holding together')
     || normalized.includes('i still need')
     || normalized.includes('i need my explicit identity-continuity self line')
@@ -1345,6 +1346,17 @@ function isFixedPersonaQuickReplyClosureTemplate(line: string | null | undefined
 function sanitizeQuickReplyClosureVisibleLine(line: string | null | undefined) {
   const normalized = line?.trim().replace(/\s+/g, ' ') ?? ''
   if (!normalized)
+    return null
+  const structuredNextMatch = /^next=(.*?)\s*(?:\|\s*surface=structured)?$/iu.exec(normalized)
+  if (structuredNextMatch?.[1]?.trim())
+    return sanitizeQuickReplyClosureVisibleLine(structuredNextMatch[1].trim())
+  const nextHelpMatch = /^Next,\s*help me close:\s*(.*)$/i.exec(normalized)
+  if (nextHelpMatch?.[1]?.trim())
+    return sanitizeQuickReplyClosureVisibleLine(nextHelpMatch[1].trim())
+  const chineseNextMatch = /^下一步(?:还要继续收住|状态：|：)\s*(.*)$/u.exec(normalized)
+  if (chineseNextMatch?.[1]?.trim())
+    return sanitizeQuickReplyClosureVisibleLine(chineseNextMatch[1].trim())
+  if (/surface=structured/iu.test(normalized))
     return null
   if (isInternalFixedTemplateExclusionLine(normalized))
     return null
@@ -1429,23 +1441,23 @@ function resolveHeadline(
   const fallbackHeadline = fallback
     .replace(
       /^Replay benchmark currently reports continuity=.*?landing\.$/i,
-      '连续性诊断未闭合：project-state-continuity-required',
+      '项目状态待同步',
     )
     .replace(
       /^Project identity-continuity self line currently reads .*?outward reply widening begins\.$/i,
-      '连续性诊断未闭合：self-continuity-required',
+      '身份连续性待校准',
     )
     .replace(
       /^Same-her self authority currently reads .*?host-visible wording\.$/i,
-      '连续性诊断未闭合：self-continuity-visible-authority-required',
+      '身份表述待校准',
     )
     .replace(
       /^Same-her emotional closure currently reads .*?emotional seam\.$/i,
-      '连续性诊断未闭合：emotional-closure-required',
+      '情绪收束待校准',
     )
     .replace(
       /^Project identity carry currently reads .*?across time\.$/i,
-      '连续性诊断未闭合：project-identity-carry-required',
+      '项目身份待同步',
     )
   return sanitizeQuickReplyClosureHeadline(fallbackHeadline)
 }
@@ -1531,8 +1543,8 @@ export function buildStageQuickReplyClosureDiagnosticEntry(
     : null
   const visible = sameHerContinuityFocused || (status !== 'grounded' && status !== 'closed')
   const sanitizedHeadline = sanitizeQuickReplyClosureVisibleLine(headline)
-    ?? (sameHerContinuityFocused ? '连续性诊断未闭合：具身通道待重连' : null)
-    ?? (projectStateFocused ? '连续性诊断未闭合：项目状态待同步' : null)
+    ?? (sameHerContinuityFocused ? '具身通道待重连' : null)
+    ?? (projectStateFocused ? '项目状态待同步' : null)
   const sanitizedBriefingHeadline = sanitizeQuickReplyClosureVisibleLine(briefingHeadline)
   const sanitizedNextClosureLine = sanitizeQuickReplyClosureVisibleLine(nextClosureLine)
   const sanitizedSameHerDriftRiskLine = sanitizeQuickReplyClosureVisibleLine(snapshot.sameHerDriftRiskLine)

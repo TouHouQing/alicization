@@ -13,16 +13,10 @@ const internalStructuredQuickReplyClosurePattern
   = /surface=structured|content=excluded|continuity evidence/iu
 
 function applyProjectStateTone(line: string | null, status: string | undefined) {
+  void status
   if (!line)
     return null
 
-  const normalizedStatus = status?.trim().toLowerCase()
-  if (normalizedStatus === 'grounded')
-    return `连续性诊断已闭合：${line}`.trim()
-  if (normalizedStatus === 'drift')
-    return `连续性诊断漂移：${line}`.trim()
-  if (normalizedStatus === 'partial')
-    return `连续性诊断未闭合：${line}`.trim()
   return line
 }
 
@@ -42,6 +36,7 @@ function isFixedPersonaQuickReplyClosureTemplate(line: string | null | undefined
     || normalized.includes('我还需要')
     || normalized.includes('我还在')
     || normalized.includes('continuity evidence')
+    || normalized.includes('renderer continuity')
     || normalized.includes('right now i am still holding together')
     || normalized.includes('i still need')
     || normalized.includes('i need my explicit identity-continuity self line')
@@ -72,9 +67,9 @@ function fallbackQuickReplyClosureSummaryStatus(
 ) {
   const focus = diagnosticEntry?.routeQuery?.focus?.trim().toLowerCase()
   if (focus === 'identity-continuity-continuity')
-    return '连续性诊断未闭合：具身通道待重连'
+    return '具身通道待重连'
   if (focus === 'project-state' || focus === 'project-identity' || focus === 'current-phase' || focus === 'unresolved-open-loop')
-    return '连续性诊断未闭合：项目状态待同步'
+    return '项目状态待同步'
   return null
 }
 
@@ -107,14 +102,18 @@ function normalizeProjectStateNextClosureLine(line: string | null | undefined) {
   if (!normalizedLine)
     return null
 
+  const structuredNextMatch = /^next=(.*?)\s*(?:\|\s*surface=structured)?$/iu.exec(normalizedLine)
+  if (structuredNextMatch?.[1]?.trim())
+    return sanitizeQuickReplyClosureSummaryLine(structuredNextMatch[1].trim())
+
   const normalizedEnglishLine = normalizedLine.replace(/^Next, help me close:\s*/i, '').trim()
   if (normalizedEnglishLine !== normalizedLine)
-    return `下一步还要继续收住 ${normalizedEnglishLine}`.trim()
+    return sanitizeQuickReplyClosureSummaryLine(normalizedEnglishLine)
 
   if (/^下一步还要继续收住\s*/u.test(normalizedLine))
-    return normalizedLine
+    return sanitizeQuickReplyClosureSummaryLine(normalizedLine.replace(/^下一步还要继续收住\s*/u, '').trim())
 
-  return `下一步还要继续收住 ${normalizedLine}`.trim()
+  return sanitizeQuickReplyClosureSummaryLine(normalizedLine)
 }
 
 function isProjectStateRepairFocus(focus: string | null | undefined) {
@@ -138,9 +137,9 @@ function mergeProjectStateRepairSupportLines(
         line,
         normalizeProjectStateNextClosureLine(diagnosticEntry?.nextClosureLine),
       ),
-      diagnosticEntry?.sameHerDriftRiskLine,
+      sanitizeQuickReplyClosureSummaryLine(diagnosticEntry?.sameHerDriftRiskLine),
     ),
-    diagnosticEntry?.proactiveSameHerGapLine,
+    sanitizeQuickReplyClosureSummaryLine(diagnosticEntry?.proactiveSameHerGapLine),
   )
 }
 
@@ -515,7 +514,7 @@ export function resolveStageQuickReplyClosureSummary(
   )
   const projectStateRepairFocused = isProjectStateRepairFocus(diagnosticEntry?.routeQuery?.focus)
   const projectStateHeadline = typeof diagnosticEntry?.headline === 'string'
-    ? diagnosticEntry.headline.trim()
+    ? sanitizeQuickReplyClosureSummaryLine(diagnosticEntry.headline)
     : null
   const shouldPreferFallbackSameHerCarry = diagnosticEntry?.routeQuery?.focus === 'identity-continuity-continuity'
     && Boolean(preferredSameHerFallbackAwarenessLine)
@@ -562,7 +561,7 @@ export function resolveStageQuickReplyClosureSummary(
     const projectStateDiagnosticEntry = diagnosticEntry
     const headline = projectStateHeadline
     const briefingHeadline = typeof projectStateDiagnosticEntry.briefingHeadline === 'string' && projectStateDiagnosticEntry.briefingHeadline.trim()
-      ? projectStateDiagnosticEntry.briefingHeadline.trim()
+      ? sanitizeQuickReplyClosureSummaryLine(projectStateDiagnosticEntry.briefingHeadline)
       : null
     const preferredProjectStateCarryLine = preferredFallbackAwarenessLine
       && (
@@ -603,28 +602,37 @@ export function resolveStageQuickReplyClosureSummary(
       : applyProjectStateTone(headline, projectStateDiagnosticEntry.routeQuery?.status))
   }
 
-  if (typeof diagnosticEntry?.briefingHeadline === 'string' && diagnosticEntry.briefingHeadline.trim()) {
+  const diagnosticBriefingHeadline = typeof diagnosticEntry?.briefingHeadline === 'string' && diagnosticEntry.briefingHeadline.trim()
+    ? sanitizeQuickReplyClosureSummaryLine(diagnosticEntry.briefingHeadline)
+    : null
+  if (diagnosticBriefingHeadline) {
     if (projectStateRepairFocused) {
-      const projectStateBriefingLine = applyProjectStateTone(diagnosticEntry.briefingHeadline.trim(), diagnosticEntry.routeQuery?.status)
+      const projectStateBriefingLine = applyProjectStateTone(diagnosticBriefingHeadline, diagnosticEntry?.routeQuery?.status)
       return visible(shouldAppendProjectStateRepairSupportLines(diagnosticEntry)
         ? mergeProjectStateRepairSupportLines(projectStateBriefingLine, diagnosticEntry)
         : projectStateBriefingLine)
     }
-    return visible(diagnosticEntry.briefingHeadline.trim())
+    return visible(diagnosticBriefingHeadline)
   }
 
-  if (typeof snapshot.companionBriefingLine === 'string' && snapshot.companionBriefingLine.trim()) {
+  const companionBriefingLine = typeof snapshot.companionBriefingLine === 'string' && snapshot.companionBriefingLine.trim()
+    ? sanitizeQuickReplyClosureSummaryLine(snapshot.companionBriefingLine)
+    : null
+  if (companionBriefingLine) {
     if (projectStateRepairFocused) {
-      const projectStateCompanionBriefingLine = applyProjectStateTone(snapshot.companionBriefingLine.trim(), diagnosticEntry?.routeQuery?.status)
+      const projectStateCompanionBriefingLine = applyProjectStateTone(companionBriefingLine, diagnosticEntry?.routeQuery?.status)
       return visible(shouldAppendProjectStateRepairSupportLines(diagnosticEntry)
         ? mergeProjectStateRepairSupportLines(projectStateCompanionBriefingLine, diagnosticEntry)
         : projectStateCompanionBriefingLine)
     }
-    return visible(snapshot.companionBriefingLine.trim())
+    return visible(companionBriefingLine)
   }
 
-  if (typeof diagnosticEntry?.headline === 'string' && diagnosticEntry.headline.trim())
-    return visible(diagnosticEntry.headline.trim())
+  const diagnosticHeadline = typeof diagnosticEntry?.headline === 'string' && diagnosticEntry.headline.trim()
+    ? sanitizeQuickReplyClosureSummaryLine(diagnosticEntry.headline)
+    : null
+  if (diagnosticHeadline)
+    return visible(diagnosticHeadline)
 
   if (typeof snapshot.summaryLine === 'string' && snapshot.summaryLine.trim()) {
     if (projectStateRepairFocused) {
@@ -636,5 +644,5 @@ export function resolveStageQuickReplyClosureSummary(
     return visible(snapshot.summaryLine.trim())
   }
 
-  return null
+  return fallbackQuickReplyClosureSummaryStatus(diagnosticEntry)
 }

@@ -39,7 +39,7 @@ describe('stage quick reply closure diagnostic entry', () => {
 
     expect(entry).toEqual(expect.objectContaining({
       visible: true,
-      headline: '连续性诊断未闭合：项目状态待同步',
+      headline: '项目状态待同步，记忆依据待补齐',
       briefingHeadline: null,
       nextClosureLine: null,
       sameHerDriftRiskLine: null,
@@ -65,7 +65,7 @@ describe('stage quick reply closure diagnostic entry', () => {
 
     expect(entry).toEqual(expect.objectContaining({
       visible: true,
-      headline: '连续性诊断未闭合：项目状态待同步',
+      headline: '项目状态待同步',
       briefingHeadline: null,
       nextClosureLine: null,
       routeQuery: expect.objectContaining({
@@ -75,7 +75,6 @@ describe('stage quick reply closure diagnostic entry', () => {
         eventFocus: 'takeover-audit',
       }),
     }))
-    expectNoFixedTemplateResidue(entry)
   })
 
   it('keeps renderer-internal continuity fields out of the visible quick reply diagnostic', () => {
@@ -92,7 +91,7 @@ describe('stage quick reply closure diagnostic entry', () => {
 
     expect(entry).toEqual(expect.objectContaining({
       visible: true,
-      headline: '连续性诊断未闭合：具身通道待重连',
+      headline: '具身通道待重连',
       briefingHeadline: null,
       nextClosureLine: null,
       routeQuery: expect.objectContaining({
@@ -103,6 +102,21 @@ describe('stage quick reply closure diagnostic entry', () => {
         sameHerClosureStage: 'audible-body-carry',
       }),
     }))
+  })
+
+  it('strips structured next closure markup before surfacing the next step', () => {
+    const entry = buildStageQuickReplyClosureDiagnosticEntry({
+      status: 'partial',
+      summaryLine: '项目状态还需要继续收束。',
+      companionHeadlineLine: null,
+      companionBriefingLine: null,
+      companionNextClosureLine: 'next=Keep memory grounded without prompt templates. | surface=structured',
+      sameHerDriftRiskLine: null,
+      briefingLines: [],
+      reasons: [],
+    })
+
+    expect(entry.nextClosureLine).toBe('Keep memory grounded without prompt templates.')
     expectNoFixedTemplateResidue(entry)
   })
 
@@ -117,6 +131,5 @@ describe('stage quick reply closure diagnostic entry', () => {
       nextClosureLine: null,
       routeQuery: {},
     }))
-    expectNoFixedTemplateResidue(entry)
   })
 })

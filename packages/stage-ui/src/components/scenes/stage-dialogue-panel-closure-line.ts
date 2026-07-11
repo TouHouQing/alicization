@@ -6,7 +6,7 @@ import {
 } from '@proj-alicization/stage-shared'
 
 const dialoguePanelInternalResiduePattern
-  = /continuity evidence|identity-continuity|phase1_local_digital_life|visibility=internal-structured|content=excluded|owner=|source=|continuity_anchor=|continuity=|pending=|pending[_-]rejoin=|recovery@|same[- ]her|same living line|one living her|one continuous her|同一个\s*her|同一个她|同一条数字生命线|数字生命主线|普通项目播报|下一步还要继续收住/iu
+  = /continuity evidence|renderer continuity|identity-continuity|phase1_local_digital_life|visibility=internal-structured|content=excluded|owner=|source=|continuity_anchor=|continuity=|pending=|pending[_-]rejoin=|recovery@|same[- ]her|same living line|one living her|one continuous her|同一个\s*her|同一个她|同一条数字生命线|数字生命主线|普通项目播报|下一步还要继续收住/iu
 
 function normalizeVisibleClosureLine(line: string | null | undefined) {
   const trimmed = typeof line === 'string' ? line.trim() : ''
@@ -147,20 +147,6 @@ function isProjectStateRepairFocus(focus: string | null | undefined) {
     || normalizedFocus === 'project-identity'
     || normalizedFocus === 'current-phase'
     || normalizedFocus === 'unresolved-open-loop'
-}
-
-function buildProjectLoopGapEmbodimentLine(line: string | null) {
-  void line
-  return null
-}
-
-function combineProjectLoopGapEvidence(...lines: Array<string | null>) {
-  const normalized = lines
-    .filter((line): line is string => Boolean(line?.trim()))
-    .map(line => line.trim())
-    .join(' ')
-
-  return normalized || null
 }
 
 function looksLikeThinLaneSameHerHeadline(line: string | null | undefined) {
@@ -459,26 +445,6 @@ export function resolveStageDialoguePanelClosureLine(
   }
 
   if (projectStateRepairFocused) {
-    if ((preferredProjectStateCarryLine || briefingHeadline) && nextClosureLine) {
-      const normalizedNextClosure = nextClosureLine.replace(/^Next, help me close:\s*/i, '').trim()
-      const normalizedChineseNextClosure = normalizedNextClosure.replace(/^下一步还要继续收住\s*/u, '').trim()
-      const projectStateLeadLine = preferredProjectStateCarryLine ?? briefingHeadline
-      const loopGapEmbodimentLine = buildProjectLoopGapEmbodimentLine(
-        combineProjectLoopGapEvidence(projectStateLeadLine, normalizedChineseNextClosure || normalizedNextClosure),
-      )
-
-      if (normalizedChineseNextClosure) {
-        return mergeProjectStateRepairSupportLines(
-          mergeCompanionshipReasonLine(applyProjectStateTone(
-            `${projectStateLeadLine}${loopGapEmbodimentLine ? ` ${loopGapEmbodimentLine}` : ''} 下一步还要继续收住 ${normalizedChineseNextClosure}`.trim(),
-            closureCue.routeQuery?.status,
-          ), companionshipReasonLine),
-          sameHerDriftRiskLine,
-          proactiveSameHerGapLine,
-        )
-      }
-    }
-
     if (preferredProjectStateCarryLine) {
       return mergeProjectStateRepairSupportLines(
         mergeCompanionshipReasonLine(applyProjectStateTone(preferredProjectStateCarryLine, closureCue.routeQuery?.status), companionshipReasonLine),

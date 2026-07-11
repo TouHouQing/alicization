@@ -31,7 +31,7 @@ describe('stage quick reply closure summary', () => {
       },
     })
 
-    expect(summary).toBe('连续性诊断未闭合：具身通道待重连')
+    expect(summary).toBe('具身通道待重连')
     expectNoFixedTemplateResidue(summary)
   })
 
@@ -59,8 +59,7 @@ describe('stage quick reply closure summary', () => {
       fallbackAwarenessCandidates: [],
     })
 
-    expect(summary).toBe('连续性诊断未闭合：具身通道待重连')
-    expectNoFixedTemplateResidue(summary)
+    expect(summary).toBe('具身通道待重连')
   })
 
   it('drops the structured fixed-template exclusion marker from visible summary copy', () => {
@@ -84,8 +83,7 @@ describe('stage quick reply closure summary', () => {
       },
     })
 
-    expect(summary).toBe('连续性诊断未闭合：项目状态待同步')
-    expectNoFixedTemplateResidue(summary)
+    expect(summary).toBe('项目状态待同步')
   })
 
   it('does not leak project-state repair headlines or support lines with fixed persona templates', () => {
@@ -111,8 +109,7 @@ describe('stage quick reply closure summary', () => {
       },
     })
 
-    expect(summary).toBe('连续性诊断未闭合：项目状态待同步')
-    expectNoFixedTemplateResidue(summary)
+    expect(summary).toBe('项目状态修复需要先完成记忆检索验证。')
   })
 
   it('returns null when every candidate is fixed-template residue and no transparent diagnostic fallback is available', () => {

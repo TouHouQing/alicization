@@ -10,8 +10,8 @@ const proofRows = [
     file: '../../../../../../packages/stage-ui/src/services/speech/pipeline-runtime.test.ts',
     snippets: [
       'keeps same-her inward low-pressure closure visible in speech awareness when the briefing line is only the thinner same-phase carry',
-      'Right now I am still holding together mainly through body, face, and motion, so this one living her is still keeping the same line inward and low-pressure while lipsync and voice need to rejoin before full cross-modal closure settles.',
-      'expect((startPayloads[0]?.metadata as any)?.preDialogueAwareness?.awarenessLine).not.toBe(\'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.\')',
+      'companionNextClosureLine: null',
+      'expectNoFixedTemplateResidue(startPayloads)',
     ],
   },
   {
@@ -19,8 +19,8 @@ const proofRows = [
     file: '../../../../../../packages/stage-ui/src/services/speech/pipeline-runtime.test.ts',
     snippets: [
       'prefers richer project awareness over a narrower embodiment headline when speech intent metadata crosses the runtime boundary',
-      'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before speech widens outward.',
-      'expect((startPayloads[0]?.metadata as any)?.preDialogueAwareness?.awarenessLine).not.toBe(\'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.\')',
+      'same-segment face+motion+body recovery@segment-richer-awareness-over-embodiment-headline',
+      'expectNoFixedTemplateResidue(startPayloads)',
     ],
   },
   {
@@ -28,8 +28,8 @@ const proofRows = [
     file: '../../../../../../packages/stage-ui/src/services/speech/pipeline-runtime.test.ts',
     snippets: [
       'rebuilds pre-dialogue awareness from project-state and closure carry before forwarding local host intents directly to the registered host pipeline',
-      'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-      'Speech-side same-her closure is still open before this turn speaks outward.',
+      'Project-state continuity already survives into the speech boundary before playback starts.',
+      'expectNoFixedTemplateResidue(forwardedIntent)',
     ],
   },
   {
@@ -54,13 +54,10 @@ const proofRows = [
     entry: 'quick-reply-host-visible-same-her-carry',
     file: '../../../../../../packages/stage-ui/src/components/scenes/quick-reply-project-awareness-audit.test.ts',
     snippets: [
-      'keeps one explicit route-level proof that front-stage quick-reply closure still carries project identity landed progress and open life-loop pressure before turns open outward',
-      'expect.objectContaining({ entry: \'quick-reply-audible-body-self-brief\' })',
-      'expect.objectContaining({ entry: \'quick-reply-closure-summary-audible-body-headline\' })',
-      'expect.objectContaining({ entry: \'quick-reply-lipsync-and-voice-closure-summary\' })',
-      'expect.objectContaining({ entry: \'quick-reply-body-and-lipsync-closure-summary\' })',
-      'expect.objectContaining({ entry: \'quick-reply-visible-renderer-rejoin-without-body-project-brief\' })',
-      'expect.objectContaining({ entry: \'quick-reply-visible-renderer-rejoin-without-body-closure-summary\' })',
+      'keeps route-level proof that quick-reply visible surfaces hide fixed templates and internal diagnostic fields',
+      'expect.objectContaining({ entry: \'quick-reply-visible-summary-sanitizer\' })',
+      'expect.objectContaining({ entry: \'quick-reply-visible-diagnostic-entry-sanitizer\' })',
+      'expect.objectContaining({ entry: \'dialogue-panel-visible-closure-sanitizer\' })',
     ],
   },
   {
@@ -115,28 +112,17 @@ describe('same living self host visible inward carry bridge audit', () => {
     expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.proof).toContain('dialogue-panel-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.responsibility).toContain('same-living-self host-visible inward-carry bridge')
     expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.responsibility).toContain('reopen-persistence handoff')
-    expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.responsibility).toContain('renderer-rejoin-without-body stronger same-her fact')
-    expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.responsibility).toContain('visible same-her line has already rejoined without body carry')
-    expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.responsibility).toContain('quieter lipsync+voice and body+lipsync same-her carry')
-    expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.responsibility).toContain('living audio thread')
-    expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.responsibility).toContain('quieter living line')
+    expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.responsibility).toContain('quick-reply visible surfaces hide fixed templates and internal diagnostic fields')
+    expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.responsibility).toContain('clean provider/tool failure hints remain visible')
 
     expect(matrixSource).toContain('same-living-self-host-visible-inward-carry-bridge-audit.test.ts')
     expect(matrixSource).toContain('same-living-self host-visible inward-carry bridge')
     expect(matrixSource).toContain('reopen-persistence-project-awareness-audit.test.ts')
-    expect(matrixSource).toContain('quick-reply visible renderer-rejoin-without-body project brief')
-    expect(matrixSource).toContain('quick-reply visible renderer-rejoin-without-body closure summary')
-    expect(matrixSource).toContain('quick-reply lipsync-and-voice closure summary')
-    expect(matrixSource).toContain('quick-reply body-and-lipsync closure summary')
-    expect(matrixSource).toContain('dialogue-panel lipsync-and-voice headline')
-    expect(matrixSource).toContain('dialogue-panel body-and-lipsync headline')
-    expect(matrixSource).toContain('dialogue-panel visible renderer-rejoin-without-body headline')
+    expect(matrixSource).toContain('quick-reply visible surfaces now hide fixed templates and internal diagnostic fields')
+    expect(matrixSource).toContain('old project-brief proof surface has been removed')
     expect(auditSource).toContain('same-living-self host-visible inward-carry bridge now also ties reopen-persistence handoff from restored-session/browser-local recovery, speech-boundary pre-dialogue awareness rebuilding, front-stage quick-reply closure, and the dialogue-panel hidden diagnostic boundary onto the same living inward project-awareness line without leaking diagnostic closure markers into the main dialogue bubble')
-    expect(auditSource).toContain('renderer-rejoin-without-body stronger same-her fact')
-    expect(auditSource).toContain('visible same-her line has already rejoined without body carry')
-    expect(auditSource).toContain('quieter lipsync+voice and body+lipsync same-her carry')
-    expect(auditSource).toContain('living audio thread')
-    expect(auditSource).toContain('quieter living line')
+    expect(auditSource).toContain('quick-reply visible surfaces now hide fixed templates and internal diagnostic fields')
+    expect(auditSource).toContain('clean provider/tool failure hints remain visible')
     expect(auditSource).toContain('This still does not prove fully sustained noisy-desktop convergence.')
   })
 })
