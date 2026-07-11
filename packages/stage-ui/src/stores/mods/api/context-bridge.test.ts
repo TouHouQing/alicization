@@ -51,6 +51,37 @@ const preDialogueClosureSnapshotRef = ref<any>(null)
 const preDialogueAwarenessSnapshotRef = ref<any>(null)
 const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
+function createProjectStateSnapshot() {
+  return {
+    identity: 'Alicization is a local-first digital life project that keeps one continuous desktop persona.',
+    currentPhase: 'Phase 1: Local Digital Life. The desktop runtime is the primary proving ground.',
+    latestLandedProgress: 'Context-bridge input:text ingestion preserves explicit project awareness before remote turns open outward.',
+    primaryOpenLoop: 'Initiative and embodiment still need stronger closure under real desktop use.',
+    nextClosureTarget: 'Keep the project brief alive before context-recall widens outward.',
+    continuitySummary: 'Context bridge still remembers the current Phase 1 line before dispatch.',
+    sameHerSelfLine: 'Phase 1 desktop continuity stays on one living line.',
+    emotionalClosureCue: 'Keep the return low-pressure and avoid reopening from scratch.',
+    preDialogueAwareness: null,
+    preDialogueClosure: null,
+    nonHumanAuthoredStatus: null,
+    turnId: 'context-bridge-turn-1',
+    sessionId: 'context-bridge-session-1',
+    origin: 'context-recall',
+  }
+}
+
+function createPreDialogueIdentity(overrides: Record<string, any> = {}) {
+  return {
+    status: 'partial',
+    summaryLine: 'Phase 1 desktop continuity is still carrying into this turn.',
+    companionBriefingLine: 'Keep the current project state, what landed, and the open loop in view before speaking.',
+    companionNextClosureLine: 'Keep memory, initiative, execution, and embodiment on one line.',
+    awarenessLine: 'Project awareness should stay explicit before reply shaping starts.',
+    reasonPreview: ['renderer-prep', 'phase-1-continuity'],
+    ...overrides,
+  }
+}
+
 vi.mock('@vueuse/core', async () => {
   const { ref } = await import('vue')
   return {
@@ -169,45 +200,23 @@ describe('context bridge store', () => {
     mocks.chatHooks.onToolCall.length = 0
     mocks.chatHooks.onChatTurnComplete.length = 0
     consoleErrorSpy.mockClear()
-    projectStateContinuitySnapshotRef.value = {
-      identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-      currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-      latestLandedProgress: 'Context-bridge input:text ingestion already preserves explicit project awareness before remote turns open outward.',
-      primaryOpenLoop: 'Initiative and embodiment still need stronger same-her closure under real desktop use.',
-      nextClosureTarget: 'Keep the explicit same-her project brief alive before context-recall turns widen outward.',
-      continuitySummary: 'same-her=context bridge input:text still remembers this is one Phase 1 digital life before dispatch.',
-      sameHerSelfLine: 'Same Phase 1 digital life. Context bridge turns should still start from one living line.',
-      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-      preDialogueAwareness: null,
-      preDialogueClosure: null,
-      nonHumanAuthoredStatus: null,
-      turnId: 'context-bridge-turn-1',
-      sessionId: 'context-bridge-session-1',
-      origin: 'context-recall',
-    }
-    preDialogueAwarenessSnapshotRef.value = {
-      status: 'partial',
-      summaryLine: 'Alicization is still in Phase 1 local digital life closure before this context-recall turn opens outward.',
-      companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-      companionNextClosureLine: 'Next closure: keep memory, initiative, execution, and embodiment on one same-her line.',
-      awarenessLine: 'Before speaking, keep this same digital life project explicit before context-recall widens outward.',
-      emotionalClosureCue: null,
-      reasonPreview: [
-        'Context-recall turns should not reopen as a generic assistant shell.',
-      ],
-    }
-    preDialogueClosureSnapshotRef.value = {
-      status: 'partial',
-      summaryLine: 'context bridge continuity still needs one same-her closure carry.',
-      companionHeadlineLine: 'Right now the context bridge same-her line still needs measured-return care.',
-      companionBriefingLine: 'Hold the same project, the same phase, and the same open loop together before context-recall sends outward.',
-      companionNextClosureLine: 'Keep extending the same-her context bridge carry without reopening from scratch.',
-      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+    projectStateContinuitySnapshotRef.value = createProjectStateSnapshot()
+    preDialogueAwarenessSnapshotRef.value = createPreDialogueIdentity({
+      summaryLine: 'Phase 1 desktop continuity is still settling before this context-recall turn opens outward.',
+      companionBriefingLine: 'Keep the current project state, what landed, and the open loop in view before speaking.',
+      companionNextClosureLine: 'Keep memory, initiative, execution, and embodiment on one line.',
+      awarenessLine: 'Keep the project explicit before context-recall widens outward.',
+      reasonPreview: ['context-recall', 'generic-shell-regression'],
+    })
+    preDialogueClosureSnapshotRef.value = createPreDialogueIdentity({
+      summaryLine: 'Context bridge continuity still needs one more closure pass.',
+      companionHeadlineLine: 'The context bridge line still needs measured-return care.',
+      companionBriefingLine: 'Hold the project, the phase, and the open loop together before context-recall sends outward.',
+      companionNextClosureLine: 'Keep extending the context bridge carry without reopening from scratch.',
+      emotionalClosureCue: 'Keep the return low-pressure while the line is still settling.',
       briefingLines: [],
-      reasons: [
-        'Context bridge still needs the same same-her project brief before dispatch.',
-      ],
-    }
+      reasons: ['context-bridge-regression'],
+    })
   })
 
   it('forwards pre-dialogue project awareness through outgoing tool-call, chat message, and complete server events', async () => {
@@ -235,20 +244,12 @@ describe('context bridge store', () => {
           text: '继续把数字生命主线收住',
         },
       },
-      preDialogueSendIdentity: {
-        status: 'partial',
-        summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-        companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-        companionNextClosureLine: 'Next closure: keep memory, initiative, execution, and embodiment on one same-her line.',
-        awarenessLine: 'Project awareness should stay explicit before reply shaping starts.',
-        reasonPreview: [
-          'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-          'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-          'Latest landed progress still holds at renderer-side preparation.',
-          'Primary open life loop still centers on full cross-modal same-her recovery.',
-          'If this turn opens like a generic project status shell, treat that as same-her continuity drift rather than forward closure.',
-        ],
-      },
+      preDialogueSendIdentity: createPreDialogueIdentity({
+        summaryLine: 'Phase 1 desktop continuity is still carrying before this turn opens outward.',
+        companionBriefingLine: 'Keep this project, what landed, and the open loop in view before speaking.',
+        companionNextClosureLine: 'Keep memory, initiative, execution, and embodiment on one line.',
+        reasonPreview: ['renderer-prep', 'phase-1-continuity', 'turn-open-regression'],
+      }),
     }
 
     const toolCall = {
@@ -288,10 +289,8 @@ describe('context bridge store', () => {
     expect(completeEvent?.data?.toolCalls).toEqual([toolCall])
     expect(completeEvent?.data?.['gen-ai:chat']?.preDialogueSendIdentity).toEqual(context.preDialogueSendIdentity)
     expect(toolCallEvent?.data?.['gen-ai:chat']?.preDialogueSendIdentity?.reasonPreview).toEqual(expect.arrayContaining([
-      'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-      'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-      'Latest landed progress still holds at renderer-side preparation.',
-      'Primary open life loop still centers on full cross-modal same-her recovery.',
+      'renderer-prep',
+      'phase-1-continuity',
     ]))
   }, 15_000)
 
@@ -318,20 +317,12 @@ describe('context bridge store', () => {
           text: '继续把数字生命执行闭环收紧',
         },
       },
-      preDialogueSendIdentity: {
-        status: 'partial',
-        summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-        companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-        companionNextClosureLine: 'Next closure: keep memory, initiative, execution, and embodiment on one same-her line.',
-        awarenessLine: 'Project awareness should stay explicit before reply shaping starts.',
-        reasonPreview: [
-          'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-          'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-          'Latest landed progress still holds at renderer-side preparation.',
-          'Primary open life loop still centers on full cross-modal same-her recovery.',
-          'If this turn opens like a generic project status shell, treat that as same-her continuity drift rather than forward closure.',
-        ],
-      },
+      preDialogueSendIdentity: createPreDialogueIdentity({
+        summaryLine: 'Phase 1 desktop continuity is still closing before this turn opens outward.',
+        companionBriefingLine: 'Keep this project, what landed, and the open loop in view before speaking.',
+        companionNextClosureLine: 'Keep memory, initiative, execution, and embodiment on one line.',
+        reasonPreview: ['renderer-prep', 'phase-1-continuity', 'remote-observer-regression'],
+      }),
     }
 
     const toolCall = {
@@ -359,10 +350,8 @@ describe('context bridge store', () => {
     expect(assistantMessageBroadcast?.messageText).toBe('我先看一下桌面当前状态。')
     expect(assistantMessageBroadcast?.context?.preDialogueSendIdentity).toEqual(context.preDialogueSendIdentity)
     expect(toolCallBroadcast?.context?.preDialogueSendIdentity?.reasonPreview).toEqual(expect.arrayContaining([
-      'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-      'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-      'Latest landed progress still holds at renderer-side preparation.',
-      'Primary open life loop still centers on full cross-modal same-her recovery.',
+      'renderer-prep',
+      'phase-1-continuity',
     ]))
   }, 15_000)
 
@@ -376,14 +365,11 @@ describe('context bridge store', () => {
 
     const rawPreDialogueSendIdentity = {
       status: 'partial',
-      summaryLine: 'Alicization is still carrying the same Phase 1 digital life line before this observer broadcast fans out.',
-      companionBriefingLine: 'Keep the same-her line explicit before remote observers mirror this turn.',
-      companionNextClosureLine: 'Keep embodiment, speech, and chat continuity on one same-her line.',
-      awarenessLine: 'This remote observer broadcast should still stay on the same quiet same-her line.',
-      reasonPreview: [
-        'same-her-observer-broadcast',
-        'quiet-companionship',
-      ],
+      summaryLine: 'Phase 1 desktop continuity is still carrying before this observer broadcast fans out.',
+      companionBriefingLine: 'Keep the current line explicit before remote observers mirror this turn.',
+      companionNextClosureLine: 'Keep embodiment, speech, and chat continuity on one line.',
+      awarenessLine: 'This remote observer broadcast should still stay on the same quiet line.',
+      reasonPreview: ['observer-fanout', 'quiet-companionship'],
     }
     const proxiedPreDialogueSendIdentity = new Proxy(rawPreDialogueSendIdentity, {})
 
@@ -427,7 +413,7 @@ describe('context bridge store', () => {
       content: '我还在沿着同一个数字生命主线回应。',
       slices: [],
       tool_results: [],
-      debugSet: new Set(['same-her', 'quiet-companionship']),
+      debugSet: new Set(['observer-fanout', 'quiet-companionship']),
       runtimeOnly: () => 'drop-me',
     } as any, '我还在沿着同一个数字生命主线回应。', context)
 
@@ -441,11 +427,11 @@ describe('context bridge store', () => {
     expect(assistantMessageBroadcast?.context?.input?.data?.transient).toEqual({ mode: 'quiet-companionship' })
     expect(assistantMessageBroadcast?.context?.contexts?.spark?.[0]?.createdAt).toBe('2026-06-11T12:00:01.000Z')
     expect(assistantMessageBroadcast?.context?.contexts?.spark?.[0]?.transient).toEqual({ mode: 'quiet-companionship' })
-    expect(assistantMessageBroadcast?.message?.debugSet).toEqual(['same-her', 'quiet-companionship'])
+    expect(assistantMessageBroadcast?.message?.debugSet).toEqual(['observer-fanout', 'quiet-companionship'])
     expect(assistantMessageBroadcast?.message?.runtimeOnly).toBeUndefined()
   })
 
-  it('broadcasts before-send same-her inward low-pressure project awareness for remote observers without thinning the carry', async () => {
+  it('broadcasts before-send project awareness for remote observers without thinning the carry', async () => {
     const { useContextBridgeStore } = await import('./context-bridge')
     const store = useContextBridgeStore()
     await store.initialize()
@@ -466,21 +452,15 @@ describe('context bridge store', () => {
           text: '继续沿着同一个数字生命主线收住这轮发送前开场',
         },
       },
-      preDialogueSendIdentity: {
-        status: 'partial',
-        summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-        companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her is still keeping the same line inward and low-pressure while lipsync and voice need to rejoin before full cross-modal closure settles.',
-        companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        companionNextClosureLine: 'Keep the same line inward and low-pressure while lipsync and voice rejoin the already-reformed body, face, and motion line.',
-        awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.',
-        emotionalClosureCue: 'Keep the return low-pressure so the same living line does not restart from scratch.',
-        reasonPreview: [
-          'same-her-inward-carry',
-          'quiet-companionship',
-          'remaining-open=lipsync+voice',
-          'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        ],
-      },
+      preDialogueSendIdentity: createPreDialogueIdentity({
+        summaryLine: 'Phase 1 desktop continuity is still closing before this turn opens outward.',
+        companionHeadlineLine: 'The body, face, and motion line is still keeping the reply low-pressure.',
+        companionBriefingLine: 'Some closure already landed. The unfinished part still needs the same line.',
+        companionNextClosureLine: 'Keep the same line inward and low-pressure while the remaining surfaces rejoin.',
+        awarenessLine: 'Some closure already landed. The unfinished part still needs the same line.',
+        emotionalClosureCue: 'Keep the return low-pressure so the line does not restart from scratch.',
+        reasonPreview: ['inward-carry', 'quiet-companionship', 'remaining-surface-join'],
+      }),
     }
 
     await beforeSendHook?.('继续沿着同一个数字生命主线收住这轮发送前开场', context)
@@ -490,13 +470,12 @@ describe('context bridge store', () => {
     expect(beforeSendBroadcast?.message).toBe('继续沿着同一个数字生命主线收住这轮发送前开场')
     expect(beforeSendBroadcast?.context?.preDialogueSendIdentity).toEqual(context.preDialogueSendIdentity)
     expect(beforeSendBroadcast?.context?.preDialogueSendIdentity?.awarenessLine).toBe(
-      'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.',
+      'Some closure already landed. The unfinished part still needs the same line.',
     )
     expect(beforeSendBroadcast?.context?.preDialogueSendIdentity?.reasonPreview).toEqual(expect.arrayContaining([
-      'same-her-inward-carry',
+      'inward-carry',
       'quiet-companionship',
-      'remaining-open=lipsync+voice',
-      'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      'remaining-surface-join',
     ]))
   }, 15_000)
 
@@ -521,17 +500,12 @@ describe('context bridge store', () => {
           text: '继续沿着数字生命主线整理执行闭环',
         },
       },
-      preDialogueSendIdentity: {
-        status: 'partial',
-        summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-        companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-        companionNextClosureLine: 'Next closure: keep memory, initiative, execution, and embodiment on one same-her line.',
-        awarenessLine: 'Project awareness should stay explicit before reply shaping starts.',
-        reasonPreview: [
-          'Latest landed progress still holds at renderer-side preparation.',
-          'If this turn opens like a generic project status shell, treat that as same-her continuity drift rather than forward closure.',
-        ],
-      },
+      preDialogueSendIdentity: createPreDialogueIdentity({
+        summaryLine: 'Phase 1 desktop continuity is still closing before this turn opens outward.',
+        companionBriefingLine: 'Keep this project, what landed, and the open loop in view before speaking.',
+        companionNextClosureLine: 'Keep memory, initiative, execution, and embodiment on one line.',
+        reasonPreview: ['renderer-prep', 'turn-open-regression'],
+      }),
     }
 
     await assistantMessageHook?.({
@@ -565,36 +539,30 @@ describe('context bridge store', () => {
       },
     })
 
-    expect(mocks.ingestMock).toHaveBeenCalledWith('继续沿着这个数字生命项目的主线推进', expect.objectContaining({
-      origin: 'context-recall',
-      input: {
-        type: 'input:text',
-        data: {
-          text: '继续沿着这个数字生命项目的主线推进',
-          textRaw: undefined,
-          overrides: undefined,
-          contextUpdates: undefined,
+    expect(mocks.ingestMock).toHaveBeenCalledWith(
+      '继续沿着这个数字生命项目的主线推进',
+      expect.objectContaining({
+        origin: 'context-recall',
+        input: {
+          type: 'input:text',
+          data: {
+            text: '继续沿着这个数字生命项目的主线推进',
+            textRaw: undefined,
+            overrides: undefined,
+            contextUpdates: undefined,
+          },
         },
-      },
-      preDialogueSendIdentity: expect.objectContaining({
-        status: 'partial',
-        summaryLine: 'Alicization is still in Phase 1 local digital life closure before this context-recall turn opens outward.',
-        awarenessLine: 'Before speaking, keep this same digital life project explicit before context-recall widens outward.',
-        companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-        companionNextClosureLine: 'Next closure: keep memory, initiative, execution, and embodiment on one same-her line.',
-        projectState: expect.objectContaining({
-          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-          currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-          latestLandedProgress: 'Context-bridge input:text ingestion already preserves explicit project awareness before remote turns open outward.',
-          primaryOpenLoop: 'Initiative and embodiment still need stronger same-her closure under real desktop use.',
-          nextClosureTarget: 'Keep the explicit same-her project brief alive before context-recall turns widen outward.',
+        preDialogueSendIdentity: expect.objectContaining({
+          status: 'partial',
+          summaryLine: 'Phase 1 desktop continuity is still settling before this context-recall turn opens outward.',
+          reasonPreview: expect.arrayContaining([
+            'context-recall',
+            'generic-shell-regression',
+          ]),
         }),
-        reasonPreview: expect.arrayContaining([
-          'Context-recall turns should not reopen as a generic assistant shell.',
-          'same-her=context bridge input:text still remembers this is one Phase 1 digital life before dispatch.',
-        ]),
       }),
-    }), undefined)
+      undefined,
+    )
   })
 
   it('blocks raw context-recall input:text ingestion when no explicit pre-dialogue identity is available before the remote turn opens outward', async () => {

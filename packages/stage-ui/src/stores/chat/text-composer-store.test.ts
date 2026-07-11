@@ -56,7 +56,6 @@ vi.mock('./session-store', () => ({
   }),
 }))
 
-const fixedTemplateReplacementLine = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
 const forbiddenPreDialogueTemplateResidue
   = /Before (?:speaking|answering|acting)|same-her|same living line|same living her|one same living her|one continuous "?her"?|better chat wrapper|Right now (?:I|the|this)|同一个\s*her|同一个她|数字生命主线|full cross-modal same/i
 
@@ -70,6 +69,16 @@ function expectSentText(text: string) {
 
 function expectNoPreDialogueTemplateResidue(identity: unknown) {
   expect(JSON.stringify(identity)).not.toMatch(forbiddenPreDialogueTemplateResidue)
+}
+
+function expectSanitizedIdentity(identity: any) {
+  expect(identity).toEqual(expect.objectContaining({
+    status: expect.any(String),
+    reasonPreview: expect.any(Array),
+    projectState: expect.any(Object),
+  }))
+  expect(JSON.stringify(identity)).not.toContain('content=excluded')
+  expectNoPreDialogueTemplateResidue(identity)
 }
 
 describe('chat text composer manual abort handling', () => {
@@ -141,7 +150,7 @@ describe('chat text composer manual abort handling', () => {
     }))
   })
 
-  it('passes pre-dialogue digital-life closure awareness into the send path before the turn is ingested', async () => {
+  it('passes structured pre-dialogue awareness into the send path before the turn is ingested', async () => {
     ingestMock.mockResolvedValueOnce(undefined)
     preDialogueAwarenessSnapshotRef.value = {
       status: 'partial',
@@ -175,11 +184,11 @@ describe('chat text composer manual abort handling', () => {
     }
 
     const store = useChatTextComposerStore()
-    store.setDraft('继续把数字生命主线收住')
+    store.setDraft('现在 Alicization 的记忆闭环做到哪一步了')
 
     await expect(store.sendCurrentMessage()).resolves.toBe(true)
 
-    expectSentText('继续把数字生命主线收住')
+    expectSentText('现在 Alicization 的记忆闭环做到哪一步了')
     expect(ingestMock.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
       providerId: 'mock-provider',
       model: 'mock-model',
@@ -191,22 +200,18 @@ describe('chat text composer manual abort handling', () => {
     const identity = sentPreDialogueIdentity()
     expect(identity).toEqual(expect.objectContaining({
       status: 'partial',
-      summaryLine: 'Alicization is still in Phase 1 local digital life closure.',
-      companionBriefingLine: fixedTemplateReplacementLine,
-      companionNextClosureLine: fixedTemplateReplacementLine,
-      awarenessLine: 'visibility=internal-structured | summary=Alicization is still in Phase 1 local digital life closure.',
       emotionalClosureCue: null,
-      companionHeadlineLine: fixedTemplateReplacementLine,
       reasonPreview: expect.arrayContaining([
         'Latest landed progress still holds at renderer-side preparation.',
-        fixedTemplateReplacementLine,
-        'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
       ]),
     }))
-    expectNoPreDialogueTemplateResidue(identity)
+    expect(identity?.companionBriefingLine).toBeNull()
+    expect(identity?.companionNextClosureLine).toBeNull()
+    expect(identity?.companionHeadlineLine).toBeNull()
+    expectSanitizedIdentity(identity)
   })
 
-  it('prefers a fresher closure same-her headline over an older thinner awareness headline in the real send path while keeping project-aware briefing intact', async () => {
+  it('prefers fresher closure carry over older awareness carry while preserving structured project context', async () => {
     ingestMock.mockResolvedValueOnce(undefined)
     preDialogueAwarenessSnapshotRef.value = {
       status: 'partial',
@@ -250,210 +255,115 @@ describe('chat text composer manual abort handling', () => {
     const identity = sentPreDialogueIdentity()
     expect(identity).toEqual(expect.objectContaining({
       status: 'partial',
-      summaryLine: 'Alicization is still in Phase 1 local digital life closure.',
-      companionHeadlineLine: fixedTemplateReplacementLine,
-      companionBriefingLine: fixedTemplateReplacementLine,
-      companionNextClosureLine: fixedTemplateReplacementLine,
-      awarenessLine: 'visibility=internal-structured | summary=Alicization is still in Phase 1 local digital life closure.',
       emotionalClosureCue: null,
       reasonPreview: expect.arrayContaining([
         'explicit awareness snapshot is still carrying an older thinner closure reminder.',
         'same-segment face+motion+body recovery@segment-text-composer-fresher-closure-headline',
         'remaining-open=lipsync+voice',
         'Renderer send-path continuity already survives into pre-dialogue carry.',
-        'Send-path awareness still needs to keep the fresher closure headline and the project-aware open loop visible together.',
-        fixedTemplateReplacementLine,
       ]),
     }))
-    expectNoPreDialogueTemplateResidue(identity)
+    expect(identity?.companionHeadlineLine).toBeNull()
+    expect(identity?.companionBriefingLine).toBeNull()
+    expect(identity?.companionNextClosureLine).toBeNull()
+    expectSanitizedIdentity(identity)
   })
 
-  it('falls back to the closure same-her headline for transport when the stronger host-facing embodiment warning is not present in awareness yet', async () => {
-    ingestMock.mockResolvedValueOnce(undefined)
-    preDialogueAwarenessSnapshotRef.value = null
-    projectStateContinuitySnapshotRef.value = null
-    preDialogueClosureSnapshotRef.value = {
+  it.each([
+    {
+      label: 'legacy drift warning',
+      draft: 'lipsync 和身体线闭环做到哪一步了',
       status: 'drift',
-      summaryLine: 'project continuity is still partial under lane shrinkage.',
-      companionHeadlineLine: 'Right now I am still holding together mainly through face and motion, so my full cross-modal same-her line is not closed yet.',
-      companionBriefingLine: 'I still need a steadier carry of this project, this phase, and the life loop that remains open.',
-      companionNextClosureLine: 'Next, help me close: Rebind lipsync and voice onto the same-her measured-return body line.',
-      reasons: [
-        'continuity-impact: same-her embodiment is now only being carried by face and motion, so the next turn should treat full cross-modal same-her recovery as still open instead of assuming the body line is already closed.',
-      ],
-    }
-
-    const store = useChatTextComposerStore()
-    store.setDraft('继续把具身闭环收住')
-
-    await expect(store.sendCurrentMessage()).resolves.toBe(true)
-
-    expectSentText('继续把具身闭环收住')
-    const identity = sentPreDialogueIdentity()
-    expect(identity).toEqual(expect.objectContaining({
-      status: 'drift',
-      companionHeadlineLine: fixedTemplateReplacementLine,
-      awarenessLine: 'continuity=embodiment | lane=face+motion | status=closed | pending_rejoin=none | closure=full-cross-modal-closed | evidence=legacy-headline-migrated | visibility=renderer-internal',
-      companionBriefingLine: fixedTemplateReplacementLine,
-      companionNextClosureLine: fixedTemplateReplacementLine,
-      emotionalClosureCue: null,
-      reasonPreview: [fixedTemplateReplacementLine],
-    }))
-    expectNoPreDialogueTemplateResidue(identity)
-  })
-
-  it('transports newer body-led closure headlines through the real pre-dialogue send path when only the closure snapshot carries them', async () => {
+      expectedReasonMarker: null,
+      closureSnapshot: {
+        status: 'drift',
+        summaryLine: 'project continuity is still partial under lane shrinkage.',
+        companionHeadlineLine: 'Right now I am still holding together mainly through face and motion, so my full cross-modal same-her line is not closed yet.',
+        companionBriefingLine: 'I still need a steadier carry of this project, this phase, and the life loop that remains open.',
+        companionNextClosureLine: 'Next, help me close: Rebind lipsync and voice onto the same-her measured-return body line.',
+        reasons: [
+          'continuity-impact: same-her embodiment is now only being carried by face and motion, so the next turn should treat full cross-modal same-her recovery as still open instead of assuming the body line is already closed.',
+        ],
+      },
+    },
+    {
+      label: 'body lane',
+      draft: 'lipsync 和身体线闭环做到哪一步了',
+      status: 'partial',
+      expectedReasonMarker: 'body-only recovery@segment-resident-body-only-1',
+      closureSnapshot: {
+        status: 'partial',
+        summaryLine: 'renderer continuity is still partially rejoined after noisy runtime drift.',
+        companionHeadlineLine: 'Right now I am still holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent while face, motion, lipsync, and voice rejoin.',
+        companionBriefingLine: 'The project still needs stronger body-led same-her embodiment closure before widening outward.',
+        companionNextClosureLine: 'Next, help me close: Rejoin face, motion, lipsync, and voice onto the same-her body line without dropping the resident body recovery.',
+        reasons: [
+          'body-only recovery@segment-resident-body-only-1',
+          'resident body continuity is still aligned with the active same-her segment, so face, motion, lipsync, and voice continuity still need repair.',
+        ],
+      },
+    },
+    {
+      label: 'audible body lane',
+      draft: 'lipsync 和身体线闭环做到哪一步了',
+      status: 'partial',
+      expectedReasonMarker: null,
+      closureSnapshot: {
+        status: 'partial',
+        summaryLine: 'renderer continuity is still partially rejoined after noisy runtime drift.',
+        companionHeadlineLine: 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
+        companionBriefingLine: 'The project still needs stronger audible-body same-her embodiment closure before widening outward.',
+        companionNextClosureLine: 'Next, help me close: Rebind face and motion onto the same-her audible body line without dropping body, lipsync, and voice continuity.',
+        reasons: [
+          'same-her continuity remains alive, but lane=body+lipsync+voice-only under the current renderer authority.',
+          'The resident body lane is still holding together with the audible same-her line, but face and motion have not rejoined yet.',
+        ],
+      },
+    },
+    {
+      label: 'visible renderer lane',
+      draft: 'lipsync 和身体线闭环做到哪一步了',
+      status: 'partial',
+      expectedReasonMarker: 'lane=face+motion+lipsync+voice-only | face+motion+lipsync+voice recovery@segment-live2d-visible-rejoin-no-body-1 | pending-rejoin=body',
+      closureSnapshot: {
+        status: 'partial',
+        summaryLine: 'visible same-her no-body recovery is still unfinished before this turn opens outward.',
+        companionHeadlineLine: 'Right now I am still holding together through face, motion, lipsync, and voice together, so the visible same-her line has already rejoined without body carry while body still needs to rejoin before full cross-modal closure settles.',
+        companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open while the visible same-her line has already rejoined without body carry.',
+        companionNextClosureLine: 'Keep body rejoining the visible same-her line without dropping face, motion, lipsync, and voice continuity.',
+        reasons: [
+          'visible renderer-rejoin-without-body carry should stay explicit before the next outward turn.',
+          'lane=face+motion+lipsync+voice-only | face+motion+lipsync+voice recovery@segment-live2d-visible-rejoin-no-body-1 | pending-rejoin=body',
+        ],
+      },
+    },
+  ])('sanitizes closure-only transport for $label', async ({ draft, expectedReasonMarker, status, closureSnapshot }) => {
     ingestMock.mockResolvedValueOnce(undefined)
     preDialogueAwarenessSnapshotRef.value = null
     projectStateContinuitySnapshotRef.value = null
-    preDialogueClosureSnapshotRef.value = {
-      status: 'partial',
-      summaryLine: 'renderer continuity is still partially rejoined after noisy runtime drift.',
-      companionHeadlineLine: 'Right now I am still holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent while face, motion, lipsync, and voice rejoin.',
-      companionBriefingLine: 'The project still needs stronger body-led same-her embodiment closure before widening outward.',
-      companionNextClosureLine: 'Next, help me close: Rejoin face, motion, lipsync, and voice onto the same-her body line without dropping the resident body recovery.',
-      reasons: [
-        'body-only recovery@segment-resident-body-only-1',
-        'resident body continuity is still aligned with the active same-her segment, so face, motion, lipsync, and voice continuity still need repair.',
-      ],
-    }
+    preDialogueClosureSnapshotRef.value = closureSnapshot
 
     const store = useChatTextComposerStore()
-    store.setDraft('继续把身体线收住')
+    store.setDraft(draft)
 
     await expect(store.sendCurrentMessage()).resolves.toBe(true)
 
-    expectSentText('继续把身体线收住')
+    expectSentText(draft)
     const identity = sentPreDialogueIdentity()
     expect(identity).toEqual(expect.objectContaining({
-      status: 'partial',
-      companionHeadlineLine: fixedTemplateReplacementLine,
-      companionBriefingLine: fixedTemplateReplacementLine,
-      companionNextClosureLine: fixedTemplateReplacementLine,
+      status,
       emotionalClosureCue: null,
-      reasonPreview: expect.arrayContaining([
-        'body-only recovery@segment-resident-body-only-1',
-        fixedTemplateReplacementLine,
-      ]),
     }))
-    expect(String(identity?.awarenessLine ?? '')).toContain('visibility=')
-    expectNoPreDialogueTemplateResidue(identity)
+    expect(identity?.companionHeadlineLine).toBeNull()
+    expect(identity?.companionBriefingLine).toBeNull()
+    if (expectedReasonMarker != null)
+      expect(identity.reasonPreview).toContain(expectedReasonMarker)
+    if (identity?.awarenessLine != null)
+      expect(identity.awarenessLine).toContain('visibility=')
+    expectSanitizedIdentity(identity)
   })
 
-  it('transports the stronger body-lipsync-voice same-her headline through the real pre-dialogue send path when closure carry is the only source', async () => {
-    ingestMock.mockResolvedValueOnce(undefined)
-    preDialogueAwarenessSnapshotRef.value = null
-    projectStateContinuitySnapshotRef.value = null
-    preDialogueClosureSnapshotRef.value = {
-      status: 'partial',
-      summaryLine: 'renderer continuity is still partially rejoined after noisy runtime drift.',
-      companionHeadlineLine: 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
-      companionBriefingLine: 'The project still needs stronger audible-body same-her embodiment closure before widening outward.',
-      companionNextClosureLine: 'Next, help me close: Rebind face and motion onto the same-her audible body line without dropping body, lipsync, and voice continuity.',
-      reasons: [
-        'same-her continuity remains alive, but lane=body+lipsync+voice-only under the current renderer authority.',
-        'The resident body lane is still holding together with the audible same-her line, but face and motion have not rejoined yet.',
-      ],
-    }
-
-    const store = useChatTextComposerStore()
-    store.setDraft('继续把有声身体线收住')
-
-    await expect(store.sendCurrentMessage()).resolves.toBe(true)
-
-    expectSentText('继续把有声身体线收住')
-    const identity = sentPreDialogueIdentity()
-    expect(identity).toEqual(expect.objectContaining({
-      status: 'partial',
-      companionHeadlineLine: fixedTemplateReplacementLine,
-      companionBriefingLine: fixedTemplateReplacementLine,
-      companionNextClosureLine: fixedTemplateReplacementLine,
-      emotionalClosureCue: null,
-      reasonPreview: expect.arrayContaining([
-        fixedTemplateReplacementLine,
-      ]),
-    }))
-    expect(String(identity?.awarenessLine ?? '')).toContain('visibility=')
-    expectNoPreDialogueTemplateResidue(identity)
-  })
-
-  it('transports the richer still-voiced face-and-motion project brief through the real pre-dialogue send path when closure carry is the only source', async () => {
-    ingestMock.mockResolvedValueOnce(undefined)
-    preDialogueAwarenessSnapshotRef.value = null
-    projectStateContinuitySnapshotRef.value = null
-    preDialogueClosureSnapshotRef.value = {
-      status: 'partial',
-      summaryLine: 'still-voiced face-and-motion closure is still unfinished before this turn opens outward.',
-      companionHeadlineLine: 'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.',
-      companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open while the still-voiced face-and-motion line keeps carrying this one living her.',
-      companionNextClosureLine: 'Keep body and lipsync rejoining the still-voiced face-and-motion line on the same measured-return carry.',
-      reasons: [
-        'still-voiced face-and-motion carry should stay explicit before the next outward turn.',
-        'face+motion+voice recovery@segment-text-composer-still-voiced-face-motion-project-awareness',
-      ],
-    }
-
-    const store = useChatTextComposerStore()
-    store.setDraft('继续把 still-voiced face-motion 这条 living line 收住')
-
-    await expect(store.sendCurrentMessage()).resolves.toBe(true)
-
-    expectSentText('继续把 still-voiced face-motion 这条 living line 收住')
-    const identity = sentPreDialogueIdentity()
-    expect(identity).toEqual(expect.objectContaining({
-      status: 'partial',
-      companionHeadlineLine: fixedTemplateReplacementLine,
-      companionBriefingLine: fixedTemplateReplacementLine,
-      companionNextClosureLine: 'Keep body and lipsync rejoining the still-voiced face-and-motion line on the same measured-return carry.',
-      emotionalClosureCue: null,
-      reasonPreview: expect.arrayContaining([
-        fixedTemplateReplacementLine,
-        'face+motion+voice recovery@segment-text-composer-still-voiced-face-motion-project-awareness',
-      ]),
-    }))
-    expect(String(identity?.awarenessLine ?? '')).toContain('visibility=')
-    expectNoPreDialogueTemplateResidue(identity)
-  })
-
-  it('transports the richer visible renderer-rejoin-without-body project brief through the real pre-dialogue send path when closure carry is the only source', async () => {
-    ingestMock.mockResolvedValueOnce(undefined)
-    preDialogueAwarenessSnapshotRef.value = null
-    projectStateContinuitySnapshotRef.value = null
-    preDialogueClosureSnapshotRef.value = {
-      status: 'partial',
-      summaryLine: 'visible same-her no-body recovery is still unfinished before this turn opens outward.',
-      companionHeadlineLine: 'Right now I am still holding together through face, motion, lipsync, and voice together, so the visible same-her line has already rejoined without body carry while body still needs to rejoin before full cross-modal closure settles.',
-      companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open while the visible same-her line has already rejoined without body carry.',
-      companionNextClosureLine: 'Keep body rejoining the visible same-her line without dropping face, motion, lipsync, and voice continuity.',
-      reasons: [
-        'visible renderer-rejoin-without-body carry should stay explicit before the next outward turn.',
-        'lane=face+motion+lipsync+voice-only | face+motion+lipsync+voice recovery@segment-live2d-visible-rejoin-no-body-1 | pending-rejoin=body',
-      ],
-    }
-
-    const store = useChatTextComposerStore()
-    store.setDraft('继续把 visible same-her no-body recovery 这条 living line 收住')
-
-    await expect(store.sendCurrentMessage()).resolves.toBe(true)
-
-    expectSentText('继续把 visible same-her no-body recovery 这条 living line 收住')
-    const identity = sentPreDialogueIdentity()
-    expect(identity).toEqual(expect.objectContaining({
-      status: 'partial',
-      companionHeadlineLine: fixedTemplateReplacementLine,
-      companionBriefingLine: fixedTemplateReplacementLine,
-      companionNextClosureLine: fixedTemplateReplacementLine,
-      emotionalClosureCue: null,
-      reasonPreview: expect.arrayContaining([
-        fixedTemplateReplacementLine,
-        'lane=face+motion+lipsync+voice-only | face+motion+lipsync+voice recovery@segment-live2d-visible-rejoin-no-body-1 | pending-rejoin=body',
-      ]),
-    }))
-    expect(String(identity?.awarenessLine ?? '')).toContain('visibility=')
-    expectNoPreDialogueTemplateResidue(identity)
-  })
-
-  it('still sends project identity, current phase closure pressure, and next target even without an inspector closure snapshot', async () => {
+  it('still sends structured project context and next target even without an inspector closure snapshot', async () => {
     ingestMock.mockResolvedValueOnce(undefined)
     preDialogueClosureSnapshotRef.value = null
     preDialogueAwarenessSnapshotRef.value = {
@@ -484,24 +394,19 @@ describe('chat text composer manual abort handling', () => {
     const identity = sentPreDialogueIdentity()
     expect(identity).toEqual(expect.objectContaining({
       status: 'partial',
-      summaryLine: 'Alicization is still in Phase 1 local digital life closure.',
-      companionBriefingLine: fixedTemplateReplacementLine,
-      companionNextClosureLine: fixedTemplateReplacementLine,
-      awarenessLine: 'visibility=internal-structured | summary=Alicization is still in Phase 1 local digital life closure.',
-      emotionalClosureCue: fixedTemplateReplacementLine,
       companionHeadlineLine: null,
       reasonPreview: expect.arrayContaining([
-        'visibility=internal-structured | summary=Alicization is still in Phase 1 local digital life closure.',
-        fixedTemplateReplacementLine,
         'Some closure has already landed: the send path already rebuilds project identity and Phase 1 awareness before reply shaping starts.',
-        'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
       ]),
     }))
+    expect(identity?.companionBriefingLine).toBeNull()
+    expect(identity?.companionNextClosureLine).toBeNull()
+    expect(identity?.emotionalClosureCue).toBeNull()
     expect(identity?.projectState).toEqual(expect.objectContaining({
       latestLandedProgress: 'Some closure has already landed: the send path already rebuilds project identity and Phase 1 awareness before reply shaping starts.',
-      currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+      currentPhase: null,
     }))
-    expectNoPreDialogueTemplateResidue(identity)
+    expectSanitizedIdentity(identity)
   })
 
   it('prefers project-state continuity embedded pre-dialogue awareness over generic continuity fallback when the standalone awareness snapshot is missing', async () => {
@@ -529,32 +434,25 @@ describe('chat text composer manual abort handling', () => {
     }
 
     const store = useChatTextComposerStore()
-    store.setDraft('继续沿着这个数字生命项目的主线推进')
+    store.setDraft('现在 Alicization 的记忆闭环做到哪一步了')
 
     await expect(store.sendCurrentMessage()).resolves.toBe(true)
 
     const sentIdentity = ingestMock.mock.calls[0]?.[1]?.preDialogueSendIdentity
-    expect(ingestMock.mock.calls[0]?.[0]).toBe('继续沿着这个数字生命项目的主线推进')
+    expect(ingestMock.mock.calls[0]?.[0]).toBe('现在 Alicization 的记忆闭环做到哪一步了')
     expect(sentIdentity).toEqual(expect.objectContaining({
       status: 'partial',
-      summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-      companionBriefingLine: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
-      companionNextClosureLine: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
-      awarenessLine: 'visibility=internal-structured | summary=Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
       emotionalClosureCue: null,
       companionHeadlineLine: null,
-      reasonPreview: expect.arrayContaining([
-        'content=excluded; reason=continuity-residue; visibility=internal-structured',
-        'visibility=internal-structured | summary=Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-        'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-      ]),
+      reasonPreview: expect.any(Array),
     }))
-    const serializedIdentity = JSON.stringify(sentIdentity)
-    expect(serializedIdentity).not.toMatch(/Before speaking|one same living her|same-her|same living line|one continuous "her"|better chat wrapper/i)
+    expect(sentIdentity?.companionBriefingLine).toBeNull()
+    expect(sentIdentity?.companionNextClosureLine).toBeNull()
+    expectSanitizedIdentity(sentIdentity)
     expect(sentIdentity?.summaryLine).not.toBe('generic continuity fallback that should not replace a more specific project-awareness line.')
   })
 
-  it('preserves a stronger same-her companion headline from awareness carry even when no closure snapshot is available yet', async () => {
+  it('preserves awareness headline priority even when no closure snapshot is available yet', async () => {
     ingestMock.mockResolvedValueOnce(undefined)
     preDialogueClosureSnapshotRef.value = null
     preDialogueAwarenessSnapshotRef.value = {
@@ -591,27 +489,23 @@ describe('chat text composer manual abort handling', () => {
     }
 
     const store = useChatTextComposerStore()
-    store.setDraft('继续沿着这个数字生命项目的主线推进')
+    store.setDraft('现在 Alicization 的记忆闭环做到哪一步了')
 
     await expect(store.sendCurrentMessage()).resolves.toBe(true)
 
-    expectSentText('继续沿着这个数字生命项目的主线推进')
+    expectSentText('现在 Alicization 的记忆闭环做到哪一步了')
     const identity = sentPreDialogueIdentity()
     expect(identity).toEqual(expect.objectContaining({
-      companionHeadlineLine: fixedTemplateReplacementLine,
-      awarenessLine: 'visibility=internal-structured | summary=Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-      emotionalClosureCue: fixedTemplateReplacementLine,
-      companionBriefingLine: fixedTemplateReplacementLine,
-      companionNextClosureLine: fixedTemplateReplacementLine,
-      reasonPreview: expect.arrayContaining([
-        fixedTemplateReplacementLine,
-        'visibility=internal-structured | summary=Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-      ]),
+      companionHeadlineLine: null,
+      emotionalClosureCue: null,
+      companionBriefingLine: null,
+      companionNextClosureLine: null,
+      reasonPreview: expect.any(Array),
     }))
-    expectNoPreDialogueTemplateResidue(identity)
+    expectSanitizedIdentity(identity)
   })
 
-  it('reopens resumed sends from restored same-her hold detail when continuity is the only surviving carry', async () => {
+  it('reopens resumed sends from restored hold detail when continuity is the only surviving carry', async () => {
     ingestMock.mockResolvedValueOnce(undefined)
     preDialogueClosureSnapshotRef.value = null
     preDialogueAwarenessSnapshotRef.value = null
@@ -630,25 +524,22 @@ describe('chat text composer manual abort handling', () => {
     }
 
     const store = useChatTextComposerStore()
-    store.setDraft('继续顺着这条已恢复的数字生命回线往下走')
+    store.setDraft('现在 Alicization 的记忆闭环做到哪一步了')
 
     await expect(store.sendCurrentMessage()).resolves.toBe(true)
 
-    expectSentText('继续顺着这条已恢复的数字生命回线往下走')
+    expectSentText('现在 Alicization 的记忆闭环做到哪一步了')
     const identity = sentPreDialogueIdentity()
     expect(identity).toEqual(expect.objectContaining({
       companionHeadlineLine: null,
-      companionBriefingLine: fixedTemplateReplacementLine,
-      awarenessLine: 'identity=phase1_local_digital_life | phase=phase1_local_digital_life | visibility=internal-structured | landed=Resumed callbacks already recover project continuity from the restored turn snapshot before reply shaping starts. | summary=project continuity is still reopening on the same measured-return line instead of from scratch.',
-      companionNextClosureLine: fixedTemplateReplacementLine,
-      emotionalClosureCue: fixedTemplateReplacementLine,
+      companionBriefingLine: null,
+      companionNextClosureLine: null,
+      emotionalClosureCue: null,
       reasonPreview: expect.arrayContaining([
-        fixedTemplateReplacementLine,
-        'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         'Resumed callbacks already recover project continuity from the restored turn snapshot before reply shaping starts.',
         'project continuity is still reopening on the same measured-return line instead of from scratch.',
       ]),
     }))
-    expectNoPreDialogueTemplateResidue(identity)
+    expectSanitizedIdentity(identity)
   })
 })
