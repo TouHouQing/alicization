@@ -815,8 +815,7 @@ describe('response-charter', () => {
 
     const block = buildAlicizationResponseCharterSystemBlock(charter)
 
-    expectBlockControl(block, 'source_section=must_do', 'held_autonomy_reentry=gentle', 'fresh_restart=blocked')
-    expectBlockControl(block, 'source_section=must_not_do', 'held_autonomy_reentry=gentle', 'fresh_restart=blocked')
+    expectBlockControl(block, 'Return gently to the held thread; do not treat prior permission as permanent.')
   })
 
   it('renders a high-priority executive system block', () => {
@@ -832,6 +831,28 @@ describe('response-charter', () => {
     expect(block).toContain('digital_life_architecture=')
     expect(block).toContain('control_section=must_do')
     expect(block).toContain('control_section=must_not_do')
+  })
+
+  it('keeps structured response controls out of the provider-facing charter block', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState(),
+      inspectionRequested: false,
+      projectState: {
+        identity: '',
+        currentPhase: '   ',
+        primaryOpenLoop: null,
+      },
+    })
+
+    const block = buildAlicizationResponseCharterSystemBlock(charter)
+
+    expect(block).not.toContain('source_section=')
+    expect(block).not.toContain('visible_wording=false')
+    expect(block).not.toContain('project_state_answer=')
+    expect(block).not.toContain('detached_project_summary_voice=')
+    expect(block).toContain('- When project state matters, use current project evidence instead of a detached status recap.')
+    expect(block).toContain('- Avoid detached project summaries, generic shells, and fresh restarts.')
   })
 
   it('threads closeness ladder authority into the response charter when runtime surface provides person-state projection', () => {
@@ -999,8 +1020,8 @@ describe('response-charter', () => {
 
     const directBlock = buildAlicizationResponseCharterSystemBlock(direct)
     const observantBlock = buildAlicizationResponseCharterSystemBlock(observant)
-    expectBlockControl(directBlock, 'source_section=must_do', 'closeness_ladder=focused-work/space-first')
-    expectBlockControl(observantBlock, 'source_section=must_do', 'relationship_pressure=lower')
+    expectBlockControl(directBlock, 'Respect the active closeness boundary for this turn.')
+    expectBlockControl(observantBlock, 'Keep relationship pressure lower and defer closeness widening.')
   })
 
   it('lets shared memory deliberation kernel feed reasons and truth discipline in the response charter', () => {
@@ -3200,7 +3221,7 @@ describe('response-charter', () => {
 
     expectControl(charter.mustDo, 'source_section=must_do', 'held_autonomy_reentry=gentle', 'fresh_restart=blocked')
     expectControl(charter.mustNotDo, 'source_section=must_not_do', 'held_autonomy_reentry=gentle', 'fresh_restart=blocked')
-    expectBlockControl(block, 'held_autonomy_reentry=gentle', 'fresh_restart=blocked')
+    expectBlockControl(block, 'Return gently to the held thread; do not treat prior permission as permanent.')
   })
 
   it('threads active self-revision response posture into charter-level reply discipline', () => {

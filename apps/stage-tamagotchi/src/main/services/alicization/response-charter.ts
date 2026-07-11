@@ -126,11 +126,76 @@ function renderResponseCharterProviderListItem(raw: unknown) {
   const normalized = sanitizeResponseCharterProviderText(raw, 360)
   if (!normalized)
     return ''
-  if (/^[\w.:-]+=[^.!?。！？]*?(?:[;|,]\s*[\w.:-]+=[^.!?。！？]*?)*$/iu.test(normalized.trim())
-    || /^[\w.:-]+$/iu.test(normalized.trim())) {
-    return `- ${normalized}`
-  }
-  return '- response_control_present=true; response_control_source_text=withheld_non_structured_instruction'
+  return `- ${describeResponseCharterProviderControl(normalized)}`
+}
+
+function describeResponseCharterProviderControl(raw: string) {
+  const normalized = raw.trim().toLowerCase()
+  if (!normalized)
+    return 'Apply the current response policy without exposing internal control fields.'
+
+  if (normalized.includes('contamination=residue_detected'))
+    return 'Fixed-template residue was withheld; do not reconstruct it in the reply.'
+  if (normalized.includes('response_control_present=true'))
+    return 'Some internal response controls were withheld from the prompt; keep the reply grounded in current evidence.'
+  if (normalized.includes('stale_visual_context_reuse=blocked'))
+    return 'Do not reuse stale screen or window details as current evidence.'
+  if (normalized.includes('visual_claim_certainty=bounded_by_current_evidence'))
+    return 'Keep visual claims bounded by current evidence.'
+  if (normalized.includes('evidence_priority=current_grounded_state'))
+    return 'Use current grounded evidence before older context.'
+  if (normalized.includes('uncertainty_boundary=transparent'))
+    return 'State uncertainty early and ask to reground when needed.'
+  if (normalized.includes('observation_hypothesis_separation=visible'))
+    return 'Separate observation from hypothesis in visible wording.'
+  if (normalized.includes('unsupported_specificity=blocked'))
+    return 'Do not invent unsupported technical specifics.'
+  if (normalized.includes('associative_recall=subordinate_to_current_thread'))
+    return 'Keep associative recall subordinate to the current thread.'
+  if (normalized.includes('recollection_surface=inward_until_host_room'))
+    return 'Keep recalled material quiet until the current turn has room for it.'
+  if (normalized.includes('recollection_forward_before_host_room=blocked'))
+    return 'Do not push recollection forward before the user has room for it.'
+  if (normalized.includes('provenance_label=required_for_learned_continuity'))
+    return 'Label learned or recalled context when it could be mistaken for live fact.'
+  if (normalized.includes('visible_certainty=behind_verification'))
+    return 'Keep certainty behind the current verification state.'
+  if (normalized.includes('self_revision_visibility=before_new_certainty'))
+    return 'Show active revision before making a new certainty claim.'
+  if (normalized.includes('learned_procedure_constraint=active'))
+    return 'Follow the verified learned procedure and do not regress to older habits.'
+  if (normalized.includes('detached_project_summary_voice=blocked') || normalized.includes('generic_project_shell=blocked') || normalized.includes('generic_task_shell=blocked'))
+    return 'Avoid detached project summaries, generic shells, and fresh restarts.'
+  if (normalized.includes('closeness_cap=host_room_first'))
+    return 'Keep closeness bounded by the user’s current room.'
+  if (normalized.includes('relationship_pressure=lower') || normalized.includes('closeness_widening=deferred'))
+    return 'Keep relationship pressure lower and defer closeness widening.'
+  if (normalized.includes('project_state_answer=current_continuity_context'))
+    return 'When project state matters, use current project evidence instead of a detached status recap.'
+  if (normalized.includes('project_state_fields=landed_progress,open_loop,next_closure'))
+    return 'Use only concrete project evidence: what landed, what remains open, and the next verifiable target.'
+  if (normalized.includes('emotional_closure_surface=low_pressure_internal_until_payoff'))
+    return 'Keep emotional closure low-pressure until the current turn has payoff.'
+  if (normalized.includes('held_autonomy_reentry=gentle'))
+    return 'Return gently to the held thread; do not treat prior permission as permanent.'
+  if (normalized.includes('fresh_restart=blocked') || normalized.includes('fresh_reopen_from_scratch=blocked'))
+    return 'Do not restart the thread as if there were no prior context.'
+  if (normalized.includes('continuity_restraint=repair_before_closeness'))
+    return 'Repair the current thread before widening closeness.'
+  if (normalized.includes('continuity_restraint=measured_return'))
+    return 'Use a measured return and widen only after a natural opening.'
+  if (normalized.includes('reply_continuity=current_thread'))
+    return 'Keep the reply bound to the current thread.'
+  if (normalized.includes('embodiment_closure=voice_lipsync_face_motion_resident_presence_coherent'))
+    return 'Keep voice, lipsync, face, and motion coherent with the resident state.'
+  if (normalized.includes('proactive_speech_pressure=bounded_by_host_turn'))
+    return 'Keep proactive speech pressure bounded by the user’s turn.'
+  if (normalized.includes('current_turn_payoff=first'))
+    return 'Answer the current turn before widening into background context.'
+  if (normalized.includes('closeness_ladder='))
+    return 'Respect the active closeness boundary for this turn.'
+
+  return 'Apply the current response policy without exposing internal control fields.'
 }
 
 function renderResponseCharterProviderField(raw: unknown, maxChars = 360, fallback = 'none') {
@@ -2646,7 +2711,7 @@ export function buildAlicizationResponseCharterSystemBlock(charter: AlicizationR
     'charter_role=executive_answer_state; outranks=persona_flourish,recalled_residue,older_chat_descriptions',
     `epistemic_mode=${charter.epistemicMode}`,
     `response_mode=${charter.responseMode}`,
-    `governing_focus=${renderResponseCharterProviderField(charter.governingFocus, 360, 'current_turn_context=present; visible_wording=false')}`,
+    `governing_focus=${renderResponseCharterProviderField(charter.governingFocus, 360, 'current turn context is present')}`,
     `governing_concern=${renderResponseCharterProviderField(charter.governingConcern, 360)}`,
     `governing_commitment=${renderResponseCharterProviderField(charter.governingCommitment, 360)}`,
     `open_inquiry=${renderResponseCharterProviderField(charter.governingInquiry, 360)}`,
@@ -2671,9 +2736,11 @@ export function buildAlicizationResponseCharterSystemBlock(charter: AlicizationR
   ].filter(Boolean)
 
   if (charter.reasons.length > 0) {
-    const reasons = charter.reasons
-      .map(renderResponseCharterProviderListItem)
-      .filter(Boolean)
+    const reasons = uniqueList(
+      charter.reasons.map(renderResponseCharterProviderListItem).filter(Boolean),
+      12,
+      360,
+    )
     lines.push(
       'control_section=reasons',
       ...reasons,
@@ -2682,9 +2749,9 @@ export function buildAlicizationResponseCharterSystemBlock(charter: AlicizationR
 
   lines.push(
     'control_section=must_do',
-    ...charter.mustDo.map(renderResponseCharterProviderListItem).filter(Boolean),
+    ...uniqueList(charter.mustDo.map(renderResponseCharterProviderListItem).filter(Boolean), 12, 360),
     'control_section=must_not_do',
-    ...charter.mustNotDo.map(renderResponseCharterProviderListItem).filter(Boolean),
+    ...uniqueList(charter.mustNotDo.map(renderResponseCharterProviderListItem).filter(Boolean), 12, 360),
   )
 
   return lines.join('\n')
