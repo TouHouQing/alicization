@@ -710,6 +710,48 @@ describe('main chat fixed template audit', () => {
     expect(failures).toEqual([])
   })
 
+  it('keeps provider-facing and persona seeds from actively generating internal structured control cues', () => {
+    const auditedFiles = [
+      'apps/stage-tamagotchi/src/main/services/alicization/answer-planner.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/executive-answer-brief.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/project-state-answer-governance.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/response-charter.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/response-surface-contract.ts',
+      'packages/stage-shared/src/alicization-fixed-template-sanitizer.ts',
+      'packages/stage-shared/src/alicization-persona-kernel.ts',
+    ] as const
+    const forbidden = [
+      'source_section=',
+      'visible_wording=false',
+      'project_state_answer=',
+      'detached_project_summary_voice=',
+      'orientation_visibility=internal',
+      'surface=structured',
+      'continuity_hold=',
+    ] as const
+    const failures: string[] = []
+
+    for (const relativePath of auditedFiles) {
+      const lines = readFileSync(`${repoRoot}${relativePath}`, 'utf8').split('\n')
+      lines.forEach((line, index) => {
+        if (
+          line.includes('.includes(')
+          || line.includes('.test(')
+          || line.includes('.replace(/')
+          || line.includes('RegExp')
+          || /Pattern|pattern|regex|legacy|detector|forbidden|blacklist/iu.test(line)
+        ) {
+          return
+        }
+        const matched = forbidden.find(fragment => line.includes(fragment))
+        if (matched)
+          failures.push(`${relativePath}:${index + 1} ${matched}: ${line.trim()}`)
+      })
+    }
+
+    expect(failures).toEqual([])
+  })
+
   it('keeps raw visible-reply critic and closure internals out of public chat transport and debug payloads', () => {
     const auditedFiles = [
       'apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.ts',

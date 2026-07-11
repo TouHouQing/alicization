@@ -173,15 +173,15 @@ describe('alicization fixed template sanitizer', () => {
     const templates = [
       {
         text: 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again',
-        fields: ['continuity_hold=repair_before_closeness', 'target=callback', 'repair=settle_first', 'widening=deferred'],
+        fields: ['cadence=repair_before_closeness', 'target=callback', 'repair=settle_first', 'widening=deferred'],
       },
       {
         text: 'Wait for a later opening, keep the next return measured-return, and leave this same living line inward for now.',
-        fields: ['continuity_hold=measured_return', 'timing=next_open_window', 'direction=inward', 'widening=deferred'],
+        fields: ['cadence=measured_return', 'timing=next_open_window', 'direction=inward', 'widening=deferred'],
       },
       {
         text: 'Keep the same living line audible while face and motion rejoin.',
-        fields: ['continuity_hold=audible_body_carry', 'rejoin=face+motion'],
+        fields: ['cadence=audible_body_carry', 'rejoin=face+motion'],
       },
       {
         text: 'Right now I am still holding together mainly through face and motion, so my full cross-modal same-her line is not closed yet.',
@@ -194,7 +194,7 @@ describe('alicization fixed template sanitizer', () => {
 
       for (const field of template.fields)
         expect(sanitized, template.text).toContain(field)
-      expect(sanitized, template.text).not.toMatch(/Keep the callback|Wait for a later opening|Keep the same living line|Right now I am|same-her|same living line|continuity_identity|continuity_line|project_phase=life_core|content=excluded|visibility=internal[-_]structured/iu)
+      expect(sanitized, template.text).not.toMatch(/Keep the callback|Wait for a later opening|Keep the same living line|Right now I am|same-her|same living line|continuity_hold=|continuity_identity|continuity_line|project_phase=life_core|content=excluded|visibility=internal[-_]structured/iu)
       expect(containsAlicizationFixedTemplateResidue(sanitized), template.text).toBe(false)
       expectProviderFacingExcluded(template.text)
     }

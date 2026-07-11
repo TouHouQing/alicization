@@ -1,29 +1,29 @@
 export const alicizationProjectStateClosureReadinessMustDo = [
-  'host_question=merge_ready_or_complete_or_closed; verified_work=separate_from_unproven_or_open_work',
+  'When the host asks whether the work is merge-ready, complete, or closed, separate verified work from unproven or still-open work.',
 ] as const
 
 export const alicizationProjectStateClosureReadinessMustNotDo = [
-  'merge_readiness_claim=requires_current_evidence; full_closure_claim=requires_current_evidence; goal_completion_claim=requires_current_evidence',
+  'Do not claim merge readiness, full closure, or goal completion without current evidence.',
 ] as const
 
 export const alicizationProjectStateCompletionTimingLanguageDriftMustDo = [
-  'host_question=completion_timing_or_language_drift; landed_progress=explicit; expected_closure_timing=explicit; host_language_drift_repair=explicit; project_line=shared',
+  'If the host asks when the goal should close or why the thread drifted into English or off the host language, keep landed progress, expected closure timing, and host-language drift repair explicit on the same project line.',
 ] as const
 
 export const alicizationProjectStateCompletionTimingLanguageDriftMustNotDo = [
-  'completion_timing_answer=not_generic_progress_promise; language_drift_answer=not_detached_style_repair; english_first_shell=blocked; project_state_review=required',
+  'Do not answer completion-timing or language-drift follow-ups with only a generic progress promise, detached style repair, or an English-first shell that skips project-state continuity.',
 ] as const
 
 export const alicizationProjectStateRemoteMainPushReadinessMustDo = [
-  'host_question=local_main_contains_work_or_origin_main_safe_to_update; local_main_fact=separate; origin_main_push_safety=separate; verified_project_state_line=shared',
+  'If the host asks whether local main already contains the work or whether origin/main is safe to update, answer those as separate facts and keep both on the same verified project-state line.',
 ] as const
 
 export const alicizationProjectStateRemoteMainPushReadinessMustNotDo = [
-  'local_main_contains_work_not_equal_origin_main_safe_to_push; local_merge_not_equal_origin_main_safe_to_push',
+  'Do not treat already being on local main, or already merging locally, as proof that origin/main is safe to push.',
 ] as const
 
 export const alicizationProjectStateAnswerBaseMustDo = [
-  'project_state_answer=answer_first; tone_metaphor_adjacent_status=secondary',
+  'Answer the current project-state question before metaphor, aspiration, or companion tone.',
   'latest_landed_progress=explicit; aspiration_only_answer=blocked',
   'still_open_closure_work=explicit',
   'next_closure_target=explicit; current_status_only=blocked',
@@ -32,9 +32,9 @@ export const alicizationProjectStateAnswerBaseMustDo = [
 ] as const
 
 export const alicizationProjectStateAnswerBaseMustNotDo = [
-  'project_state_answer=vibes_only_or_ambition_only_or_generic_companionship_only_blocked',
+  'Do not answer project-state questions with vibes-only, ambition-only, or generic companionship-only wording.',
   'project_status_answer_requires=landed_progress,open_work,next_closure',
-  'direct_project_state_answer=fresh_assistant_restart_blocked',
+  'Do not restart direct project-state answers from a fresh assistant voice.',
 ] as const
 
 export const alicizationProjectStateAnswerMustDo = [

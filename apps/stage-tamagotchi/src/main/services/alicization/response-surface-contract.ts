@@ -489,7 +489,7 @@ function responseSurfaceProviderField(key: string, value: unknown, maxChars = 32
 
   const controlKey = normalizeResponseSurfaceControlCode(key)
   if (containsResponseSurfaceNaturalInstruction(normalized))
-    return `${controlKey}=present; visible_wording=false; source=structured_signal.`
+    return `${controlKey}=present; source=structured_signal.`
 
   return `${controlKey}=${normalizeResponseSurfaceProviderValue(normalized)}.`
 }
@@ -504,7 +504,7 @@ function responseSurfaceContractEvidenceField(key: string, value: unknown, maxCh
   if (!normalized)
     return null
   if (containsResponseSurfaceNaturalInstruction(normalized))
-    return `${controlKey}=present; visible_wording=false; source=structured_signal`
+    return `${controlKey}=present; source=structured_signal`
 
   return normalizeResponseSurfaceProviderValue(normalized)
 }
@@ -552,7 +552,7 @@ function classifyResponseSurfaceNaturalLanguageRule(value: string, lane: Aliciza
   }
 
   if (lower.includes('visible reply') || lower.includes('visible answer') || lower.includes('visible surface'))
-    pushUniqueSurfaceControl(controls, 'visible_wording=false')
+    pushUniqueSurfaceControl(controls, 'visible_surface=answer_payoff')
   if (
     lower.includes('fully realize the visible reply')
     || lower.includes('actual answer payoff')
@@ -693,7 +693,7 @@ function classifyResponseSurfaceNaturalLanguageRule(value: string, lane: Aliciza
     || lower.includes('detached utility notice')
     || lower.includes('external summary cadence')
   ) {
-    pushUniqueSurfaceControl(controls, 'detached_project_summary_voice=blocked')
+    pushUniqueSurfaceControl(controls, 'detached_project_summary=blocked')
   }
   if (
     lower.includes('template shell')
@@ -1595,7 +1595,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
 
   const normalizedMustDo = normalizeResponseSurfaceRuleList(mustDo, 'mustDo')
   const normalizedMustNotDo = normalizeResponseSurfaceRuleList(mustNotDo, 'mustNotDo')
-  pushUniqueSurfaceControl(normalizedMustDo, 'visible_wording=false')
+  pushUniqueSurfaceControl(normalizedMustDo, 'visible_surface=answer_payoff')
   pushUniqueSurfaceControl(normalizedMustDo, 'visible_reply_payoff=concrete_current_turn')
   pushUniqueSurfaceControl(normalizedMustDo, 'provider_visible_reply_authority=mind_required')
   pushUniqueSurfaceControl(normalizedMustDo, 'failure_transparency=required')

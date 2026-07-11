@@ -2185,7 +2185,7 @@ export function buildAnswerPlanner(input: {
       narrative.push('emotional_closure=active; pressure=low; restart=avoid')
     }
     if (projectStateCarryDisciplineRequired) {
-      mustDo.push('project_state_answer=inward_first; landed_progress=after_live_payoff; next_closure=after_live_payoff')
+      mustDo.push('Use project-state context only after the current answer has landed; keep landed progress and next closure secondary.')
       if (projectStateExplicitOpenLoopCarryDirective)
         mustDo.push(projectStateExplicitOpenLoopCarryDirective)
       mustNotDo.push('project_state_pressure=do_not_spill_into_external_summary_voice; timing=before_current_answer_lands')
@@ -2356,7 +2356,7 @@ export function buildAnswerPlanner(input: {
   pushUniqueText(mustDo, ...(memoryDeliberationKernel?.restraint.mustDo ?? []))
   pushUniqueText(mustNotDo, ...(memoryDeliberationKernel?.restraint.mustNotDo ?? []))
   if (projectStateCarryDisciplineRequired) {
-    mustDo.push('project_state_answer=inward_first; landed_progress=after_live_payoff; next_closure=after_live_payoff')
+    mustDo.push('Use project-state context only after the current answer has landed; keep landed progress and next closure secondary.')
     if (projectStateExplicitOpenLoopCarryDirective)
       mustDo.push(projectStateExplicitOpenLoopCarryDirective)
     mustNotDo.push('project_state_pressure=do_not_spill_into_external_summary_voice; timing=before_live_answer_lands')

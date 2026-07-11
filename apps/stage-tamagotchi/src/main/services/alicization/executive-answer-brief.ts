@@ -140,11 +140,11 @@ function structuredExecutiveControlFromNaturalLanguage(raw: unknown, section: 'm
   if (/projectstategovernance|workingmemory|longtermmemoryrecall/u.test(normalized))
     push('memory_owner_boundary=preserve; project_state_owner=ProjectStateGovernance')
   if (/detached project narration|generic assistant shell|project-summary voice|generic task-shell/u.test(normalized))
-    push('detached_project_summary_voice=blocked')
+    push('Avoid detached project-summary narration.')
   if (/active continuity drift risk|continuity drift risk/u.test(normalized))
     push('template_residue_risk=hard_boundary')
   if (/answer what alicization is|project identity|project-state answer|project status/u.test(normalized))
-    push('project_state_answer=answer_first')
+    push('Answer the current project-state question directly before broader framing.')
   if (/landed phase 1 progress|latest landed|landed progress/u.test(normalized))
     push('latest_landed_progress=explicit')
   if (/still-open closure|open closure|still remains open/u.test(normalized))
@@ -156,7 +156,7 @@ function structuredExecutiveControlFromNaturalLanguage(raw: unknown, section: 'm
 
   if (controls.length === 0)
     return null
-  return `source_section=${section}; ${controls.join('; ')}; visible_wording=false`
+  return `Executive ${section} controls: ${controls.join(' ')}`
 }
 
 function normalizeExecutiveControlList(values: readonly string[], section: 'must_do' | 'must_not_do') {
@@ -182,7 +182,7 @@ function normalizeExecutiveControlList(values: readonly string[], section: 'must
   }
 
   if (withheldCount > 0) {
-    const diagnostic = `executive_control_present=true; section=${section}; withheld_non_structured_instruction_count=${withheldCount}; visible_wording=false`
+    const diagnostic = `Executive ${section} controls withheld ${withheldCount} non-structured instruction(s).`
     if (!normalized.includes(diagnostic))
       normalized.push(diagnostic)
   }
@@ -626,11 +626,11 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
     ),
   })
   const executiveProjectLivingOrientationControls = [
-    'project_state_answer=answer_first',
+    'Answer the current project-state question directly before broader framing.',
     'latest_landed_progress=explicit',
     'still_open_closure_work=explicit',
     'next_closure_target=explicit',
-    'source_section=must_do; template_residue_risk=hard_boundary; visible_wording=false',
+    'template_residue_risk=hard_boundary',
     'memory_owner_boundary=preserve; project_state_owner=ProjectStateGovernance',
   ]
     .join(' | ')
@@ -856,7 +856,7 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
         'long_term_recall_owner=LongTermMemoryRecall',
         'visible_governance_entry=MemoryWorkbench',
         'template_policy=no_fixed_persona_templates',
-        'orientation_visibility=internal_structured; visible_wording=false',
+        'orientation_scope=governance_only',
         executiveProjectLivingOrientationControls,
         `preflight_summary=${sanitizeExecutiveProjectFactValue((liveProjectState as { preflightSummary?: unknown } | null)?.preflightSummary, 400) || sanitizeExecutiveProjectFactValue(projectStateBrief.preflightSummary, 400) || 'none'}`,
         `awareness_summary=${sanitizeExecutiveProjectFactValue(preferredExecutiveProjectPreDialogueAwarenessLine, 800) || 'none'}`,
@@ -867,7 +867,7 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
         `next_focus=${preferredProjectNextFocusSummary || 'none'}`,
         `emotional_closure_seam=${sanitizeExecutiveProjectFactValue(input.responseCharter.emotionalClosureCue ?? liveProjectEmotionalClosureSummary, 360) || 'none'}`,
         `emotional_closure_summary=${sanitizeExecutiveProjectFactValue(liveProjectEmotionalClosureSummary, 360) || 'none'}`,
-        `continuity_hold=${sanitizeExecutiveProjectFactValue(liveProjectSameHerHoldDetail, 360) || 'none'}`,
+        `cadence_detail=${sanitizeExecutiveProjectFactValue(liveProjectSameHerHoldDetail, 360) || 'none'}`,
         `project_anchor=${sanitizeExecutiveProjectFactValue(preferredProjectSameHerSelfLine, 360) || 'none'}`,
         `template_residue_risk=${sameHerDriftRisk || 'none'}`,
         preferredProjectPauseMode ? `preferred_pause_mode=${preferredProjectPauseMode}` : '',

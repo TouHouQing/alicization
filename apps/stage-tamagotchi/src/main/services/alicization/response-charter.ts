@@ -164,13 +164,13 @@ function describeResponseCharterProviderControl(raw: string) {
     return 'Show active revision before making a new certainty claim.'
   if (normalized.includes('learned_procedure_constraint=active'))
     return 'Follow the verified learned procedure and do not regress to older habits.'
-  if (normalized.includes('detached_project_summary_voice=blocked') || normalized.includes('generic_project_shell=blocked') || normalized.includes('generic_task_shell=blocked'))
+  if (normalized.includes('detached_project_summary=blocked') || normalized.includes('generic_project_shell=blocked') || normalized.includes('generic_task_shell=blocked'))
     return 'Avoid detached project summaries, generic shells, and fresh restarts.'
   if (normalized.includes('closeness_cap=host_room_first'))
     return 'Keep closeness bounded by the user’s current room.'
   if (normalized.includes('relationship_pressure=lower') || normalized.includes('closeness_widening=deferred'))
     return 'Keep relationship pressure lower and defer closeness widening.'
-  if (normalized.includes('project_state_answer=current_continuity_context'))
+  if (normalized.includes('project_context=current'))
     return 'When project state matters, use current project evidence instead of a detached status recap.'
   if (normalized.includes('project_state_fields=landed_progress,open_loop,next_closure'))
     return 'Use only concrete project evidence: what landed, what remains open, and the next verifiable target.'
@@ -220,19 +220,13 @@ function isStructuredResponseControl(raw: unknown) {
 
 function renderStructuredResponseControl(
   raw: string,
-  section: 'reasons' | 'must_do' | 'must_not_do',
+  _section: 'reasons' | 'must_do' | 'must_not_do',
 ) {
   const segments = raw
     .split(/\s*;\s*|\s*,\s*(?=[\w.:-]+=)/iu)
     .map(segment => segment.trim())
     .filter(Boolean)
-  const withSource = segments.some(segment => segment.startsWith('source_section='))
-    ? segments
-    : [`source_section=${section}`, ...segments]
-  const withVisibility = withSource.some(segment => segment.startsWith('visible_wording='))
-    ? withSource
-    : [...withSource, 'visible_wording=false']
-  return withVisibility.join('; ')
+  return segments.join('; ')
 }
 
 function neutralizeGoverningProjectSegment(raw: string) {
@@ -338,9 +332,9 @@ function structuredResponseControlFromNaturalLanguage(raw: unknown, section: 're
   if (/lower-pressure|low-pressure|less performative|before closeness widens|older closeness tempo|eager warmth/u.test(normalized))
     push('relationship_pressure=lower; closeness_widening=deferred')
   if (/project-state|project_state_|project_continuity|project_context=|runtime_personhood|project_state_review=|continuity_governance|closurepolicy=|owner=(?:workingmemory|longtermmemoryrecall)|evidence(?:_ids?)?=/u.test(normalized)) {
-    push('project_state_answer=current_continuity_context')
+    push('project_context=current')
     if (/detached|generic|shell|summary voice|narration/u.test(normalized))
-      push('detached_project_summary_voice=blocked')
+      push('detached_project_summary=blocked')
   }
   if (/landed progress|landed_progress|next closure target|next_closure|still-open closure|open_loop|unresolved_closure/u.test(normalized))
     push('project_state_fields=landed_progress,open_loop,next_closure')
@@ -367,7 +361,7 @@ function structuredResponseControlFromNaturalLanguage(raw: unknown, section: 're
 
   if (controls.length === 0)
     return null
-  return `source_section=${section}; ${controls.join('; ')}; visible_wording=false`
+  return `source=${section}; ${controls.join('; ')}; visible_surface=answer_payoff`
 }
 
 function normalizeResponseControlList(
@@ -401,12 +395,12 @@ function normalizeResponseControlList(
   }
 
   if (withheldCount > 0) {
-    const diagnostic = `response_control_present=true; section=${section}; withheld_non_structured_instruction_count=${withheldCount}; visible_wording=false`
+    const diagnostic = `response_control_present=true; section=${section}; withheld_non_structured_instruction_count=${withheldCount}; visible_surface=answer_payoff`
     if (!normalized.includes(diagnostic))
       normalized.push(diagnostic)
   }
   if (residueCount > 0) {
-    const diagnostic = `contamination=residue_detected; section=${section}; withheld_fixed_template_count=${residueCount}; visible_wording=false`
+    const diagnostic = `contamination=residue_detected; section=${section}; withheld_fixed_template_count=${residueCount}; visible_surface=answer_payoff`
     if (!normalized.includes(diagnostic))
       normalized.push(diagnostic)
   }
@@ -435,7 +429,7 @@ function normalizeResponseCharterScalar(
 function normalizeResponseCharterControls<T extends AlicizationResponseCharter>(charter: T): T {
   return {
     ...charter,
-    governingFocus: normalizeResponseCharterScalar(charter.governingFocus, 360, 'current_turn_context=present; visible_wording=false') ?? 'current_turn_context=present; visible_wording=false',
+    governingFocus: normalizeResponseCharterScalar(charter.governingFocus, 360, 'current_turn_context=present; visible_surface=answer_payoff') ?? 'current_turn_context=present; visible_surface=answer_payoff',
     governingConcern: normalizeResponseCharterScalar(charter.governingConcern, 360),
     governingCommitment: normalizeResponseCharterScalar(charter.governingCommitment, 360),
     governingInquiry: normalizeResponseCharterScalar(charter.governingInquiry, 360),
@@ -1659,8 +1653,8 @@ function deriveProjectStateResponseCharterBias(projectState?: {
     return {
       preferRestrainedPosture: true,
       reason: 'project_continuity_context=explicit; risk=generic_project_shell; source=thin_project_state_fallback',
-      mustDo: 'project_state_answer=current_continuity_context; project_state_fields=landed_progress,open_loop,next_closure; timing=after_live_payoff',
-      mustNotDo: 'project_state_answer=current_continuity_context; detached_project_summary_voice=blocked; closeness_cap=host_room_first',
+      mustDo: 'project_context=current; project_state_fields=landed_progress,open_loop,next_closure; timing=after_live_payoff',
+      mustNotDo: 'project_context=current; detached_project_summary=blocked; closeness_cap=host_room_first',
     }
   }
 
@@ -1676,9 +1670,9 @@ function deriveProjectStateResponseCharterBias(projectState?: {
       preferRestrainedPosture: true,
       reason: 'project_continuity_context=explicit; risk=generic_project_shell; preserve_factual_fields_without_slogans=true',
       mustDo: hasProjectStateCarryDiscipline
-        ? 'project_state_answer=current_continuity_context; project_state_fields=landed_progress,open_loop,next_closure; timing=after_live_payoff'
-        : 'project_state_answer=current_continuity_context; current_turn_payoff=first; widening=only_if_current_turn_has_room',
-      mustNotDo: 'project_state_answer=current_continuity_context; detached_project_summary_voice=blocked; fresh_restart=blocked; generic_project_shell=blocked',
+        ? 'project_context=current; project_state_fields=landed_progress,open_loop,next_closure; timing=after_live_payoff'
+        : 'project_context=current; current_turn_payoff=first; widening=only_if_current_turn_has_room',
+      mustNotDo: 'project_context=current; detached_project_summary=blocked; fresh_restart=blocked; generic_project_shell=blocked',
     }
   }
 
@@ -1721,10 +1715,10 @@ function deriveProjectStateResponseCharterBias(projectState?: {
     return {
       preferRestrainedPosture: true,
       reason: prefersEvenVoiceAndNaturalPacing
-        ? 'project_state_answer=current_continuity_context; continuity_restraint=measured_return; widening=after_natural_opening; voice=even; pacing=natural'
+        ? 'project_context=current; continuity_restraint=measured_return; widening=after_natural_opening; voice=even; pacing=natural'
         : quietSameHerContinuity
-          ? 'project_state_answer=current_continuity_context; continuity_restraint=measured_return; widening=after_natural_opening; continuity_carry=quiet_inward'
-          : 'project_state_answer=current_continuity_context; relationship_pressure=lower; closeness_widening=deferred; timing=wait_for_natural_opening_before_widening',
+          ? 'project_context=current; continuity_restraint=measured_return; widening=after_natural_opening; continuity_carry=quiet_inward'
+          : 'project_context=current; relationship_pressure=lower; closeness_widening=deferred; timing=wait_for_natural_opening_before_widening',
       mustDo: prefersEvenVoiceAndNaturalPacing
         ? 'continuity_restraint=measured_return; widening=after_natural_opening; reply_continuity=current_thread; voice=even; pacing=natural'
         : quietSameHerContinuity
@@ -1748,7 +1742,7 @@ function deriveProjectStateResponseCharterBias(projectState?: {
   ) {
     return {
       preferRestrainedPosture: true,
-      reason: 'project_state_answer=current_continuity_context; relationship_pressure=lower; closeness_widening=deferred; reply_continuity=current_thread; timing=wait_for_natural_opening_before_widening',
+      reason: 'project_context=current; relationship_pressure=lower; closeness_widening=deferred; reply_continuity=current_thread; timing=wait_for_natural_opening_before_widening',
       mustDo: 'reply_continuity=current_thread; first_visible_beat=reenter_current_context; timing=wait_for_natural_opening_before_widening; avoid=warmth_payoff_closeness_frontload',
       mustNotDo: 'warmth_payoff_closeness_frontload=blocked; fresh_restart=blocked; timing=wait_for_natural_opening_before_widening',
     }
@@ -2537,8 +2531,8 @@ export function buildAlicizationResponseCharter(input: {
     pushUnique(mustNotDo, 'learned_familiarity_visible_closeness_widening=bounded_by_host_room')
   }
   if (memoryTuningAdvice?.focusDimensions.includes('avoidGenericProjectShell')) {
-    pushUnique(mustDo, 'project_state_answer=current_continuity_context; current_turn_payoff=first; detached_project_summary_voice=after_live_payoff')
-    pushUnique(mustNotDo, 'project_state_answer=current_continuity_context; detached_project_summary_voice=blocked')
+    pushUnique(mustDo, 'project_context=current; current_turn_payoff=first; detached_project_summary=after_live_payoff')
+    pushUnique(mustNotDo, 'project_context=current; detached_project_summary=blocked')
   }
   if (
     projectStateCarryDisciplineRequired
@@ -2548,14 +2542,14 @@ export function buildAlicizationResponseCharter(input: {
     )
   ) {
     pushUnique(mustDo, 'Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.')
-    pushUnique(mustNotDo, 'project_state_answer=current_continuity_context; detached_project_summary_voice=blocked; project_state_fields=landed_progress,open_loop,next_closure')
+    pushUnique(mustNotDo, 'project_context=current; detached_project_summary=blocked; project_state_fields=landed_progress,open_loop,next_closure')
   }
   if (
     typeof projectStateCarrySource.sameHerDriftRisk === 'string'
     && /generic task shell|detached project narration|project-summary voice|generic assistant|generic guidance/i.test(projectStateCarrySource.sameHerDriftRisk)
   ) {
-    pushUnique(mustDo, 'project_state_answer=current_continuity_context; detached_project_summary_voice=blocked')
-    pushUnique(mustNotDo, 'project_state_answer=current_continuity_context; detached_project_summary_voice=blocked; generic_task_shell=blocked')
+    pushUnique(mustDo, 'project_context=current; detached_project_summary=blocked')
+    pushUnique(mustNotDo, 'project_context=current; detached_project_summary=blocked; generic_task_shell=blocked')
   }
   if (projectEmotionalClosureDisciplineRequired) {
     pushUnique(mustDo, 'Keep emotional closure low-pressure and inward until the live payoff lands.')
@@ -2590,8 +2584,8 @@ export function buildAlicizationResponseCharter(input: {
       pushUnique(mustNotDo, 'active_hold_detail=present; answer_widening=blocked_until_current_closure_lands')
     }
     if (selfRevisionPatch.projectStateContinuity?.continuityGuard) {
-      pushUnique(mustDo, 'self_revision_continuity_guard=present; project_state_answer=current_continuity_context; detached_project_summary_voice=blocked')
-      pushUnique(mustNotDo, 'self_revision_continuity_guard=present; detached_project_summary_voice=blocked')
+      pushUnique(mustDo, 'self_revision_continuity_guard=present; project_context=current; detached_project_summary=blocked')
+      pushUnique(mustNotDo, 'self_revision_continuity_guard=present; detached_project_summary=blocked')
     }
   }
   if (digitalLifeArchitecture?.dominantSystem === 'proactive') {
