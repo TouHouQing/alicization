@@ -668,11 +668,11 @@ function deriveSameHerHoldDetailFromProjectContinuityBehavior(mode: string | nul
 
 function deriveContinuityCueFromProjectContinuityBehavior(mode: string | null) {
   if (mode === 'repair-before-closeness')
-    return 'continuity_cue=repair-before-closeness; surface_timing=after-repair-settles; surface=internal.'
+    return 'continuity_cue=repair-before-closeness; surface_timing=after-repair-settles.'
   if (mode === 'rest-protective')
-    return 'continuity_cue=rest-protective; surface_timing=after-rest-stabilizes; surface=internal.'
+    return 'continuity_cue=rest-protective; surface_timing=after-rest-stabilizes.'
   if (mode === 'measured-return')
-    return 'continuity_cue=measured-return; surface_timing=next-open-window; surface=internal.'
+    return 'continuity_cue=measured-return; surface_timing=next-open-window.'
   return ''
 }
 

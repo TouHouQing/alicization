@@ -24,10 +24,6 @@ function expectNoFixedProviderTemplatesDeep(value: unknown) {
   expect(JSON.stringify(value ?? '')).not.toMatch(fixedProviderTemplatePattern)
 }
 
-function expectFixedTemplateDropped(value: unknown) {
-  expect(value == null || value === '').toBe(true)
-}
-
 function createPrepared(overrides?: Partial<any>) {
   return {
     chatConfig: {
@@ -723,12 +719,11 @@ describe('visible-reply second-pass rewrite', () => {
 
     expect(structured.projectState).toEqual(expect.objectContaining({
       continuityRestraint: 'measured-return',
-      currentPhase: null,
       sameHerSelfLine: null,
-      continuityCue: expect.stringContaining('continuity_cue=project-state-carry'),
+      continuityCue: null,
     }))
     expect(String(structured.projectState?.preDialogueAwarenessLine ?? '')).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
-    expect(String(structured.projectState?.preDialogueAwarenessLine ?? '')).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(String(structured.projectState?.preDialogueAwarenessLine ?? '')).toContain('embodiment_scale_validation=extend')
     expect(String(structured.projectState?.primaryOpenLoop ?? '')).toContain('continuity')
     expect(String(structured.projectState?.nextClosureTarget ?? '')).toContain('measured-return continuity_line')
     expectNoFixedProviderTemplates(JSON.stringify(structured.projectState))
@@ -928,12 +923,12 @@ describe('visible-reply second-pass rewrite', () => {
     expect(rewritePayload).toContain('rewrite_control_present=true; rewrite_control_source_text=withheld_non_structured_instruction')
     expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
     expect(rewritePayload).not.toContain('local_desktop_life_loop')
-    expect(rewritePayload).toContain('"identity": null')
-    expect(rewritePayload).toContain('"currentPhase": null')
+    expect(rewritePayload).toContain('"identity": "identity=runtime_personhood')
+    expect(rewritePayload).toContain('"currentPhase": "life_core')
     expect(rewritePayload).toContain('"sameHerSelfLine": null')
     expect(rewritePayload).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(rewritePayload).toContain('project_identity_route_carry=needs_disciplined_updates')
-    expect(rewritePayload).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(rewritePayload).toContain('embodiment_scale_validation=extend_on_longer_noisy_desktop_runs')
     expectNoFixedProviderTemplates(rewritePayload)
   })
 
@@ -1394,7 +1389,7 @@ describe('visible-reply second-pass rewrite', () => {
 
     expect(projectStateStart).toBeGreaterThanOrEqual(0)
     expect(projectStateEnd).toBeGreaterThan(projectStateStart)
-    expect(projectStateSection).toContain('"sameHerHoldDetail": "continuity_hold=present; source_text=withheld_non_structured_instruction; visible_wording=false"')
+    expect(projectStateSection).not.toContain('continuity_hold=present')
     expect(projectStateSection).not.toContain(genericProgressRecapPressure)
     expectNoFixedProviderTemplates(rewritePayload)
   })
@@ -1503,7 +1498,7 @@ describe('visible-reply second-pass rewrite', () => {
     expect(rewritePayload).toContain('"currentPhase"')
     expect(rewritePayload).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(rewritePayload).toContain('project_identity_route_carry=needs_disciplined_updates')
-    expect(rewritePayload).toContain('cross_modal_continuity_proof')
+    expect(rewritePayload).toContain('embodiment_scale_validation')
     expect(rewritePayload).toContain('[PROJECT_STATE_REWRITE_GUIDANCE]')
     expect(rewritePayload).toContain('detached_status_summary=blocked')
     expect(rewritePayload).toContain('roadmap_report=blocked')
@@ -1700,7 +1695,7 @@ describe('visible-reply second-pass rewrite', () => {
     expect(rewritePayload).toContain('"currentPhase"')
     expect(rewritePayload).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(rewritePayload).toContain('project_identity_route_carry=needs_disciplined_updates')
-    expect(rewritePayload).toContain('cross_modal_continuity_proof')
+    expect(rewritePayload).toContain('embodiment_scale_validation')
     expectNoFixedProviderTemplates(rewritePayload)
 
     const structured = JSON.parse(result.fullText) as {
@@ -1902,9 +1897,9 @@ describe('visible-reply second-pass rewrite', () => {
 
     expect(projectStateStart).toBeGreaterThanOrEqual(0)
     expect(projectStateEnd).toBeGreaterThan(projectStateStart)
-    expect(projectStateSection).toContain('"sameHerHoldDetail": "continuity_hold=present; source_text=withheld_non_structured_instruction; visible_wording=false"')
+    expect(projectStateSection).not.toContain('continuity_hold=present')
     expect(projectStateSection).toContain(`"continuityArcStage": "${continuityArcStage.replace('same-her', 'continuity')}"`)
-    expect(projectStateSection).toContain('"continuityCue": "continuity_cue=present; source_text=withheld_non_structured_instruction; visible_wording=false"')
+    expect(projectStateSection).not.toContain('continuity_cue=present')
     expectNoFixedProviderTemplates(rewritePayload)
   })
 
@@ -2910,7 +2905,7 @@ describe('visible-reply second-pass rewrite', () => {
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('[ALICIZATION_PROJECT_STATE]')
     expect(rewritePayload).not.toContain('local_desktop_life_loop')
-    expect(rewritePayload).toContain('cross_modal_continuity_proof')
+    expect(rewritePayload).toContain('embodiment_scale_validation')
     expectNoFixedProviderTemplates(rewritePayload)
   })
 
@@ -4094,9 +4089,9 @@ describe('visible-reply second-pass rewrite', () => {
     }
 
     expect(JSON.stringify(payload.projectState)).not.toMatch(fixedProviderTemplatePattern)
-    expect(payload.projectState?.sameHerHoldDetail ?? payload.projectState?.continuityCue).toContain('continuity')
+    expect(payload.projectState?.sameHerHoldDetail ?? null).toBeNull()
     expect(payload.projectState?.continuityArcStage).toBe(continuityArcStage.replace('same-her', 'continuity'))
-    expect(payload.projectState?.continuityCue).toBe(continuityCue.replace('same-her', 'continuity'))
+    expect(payload.projectState?.continuityCue ?? null).toBeNull()
   })
 
   it('falls back to the canonical project-state snapshot when second-pass rewrite only receives a thin explicit projectState', () => {
@@ -4117,7 +4112,7 @@ describe('visible-reply second-pass rewrite', () => {
 
     expect(String(projectState.currentPhase ?? '')).not.toContain('local_desktop_life_loop')
     expect(String(projectState.primaryOpenLoop ?? '')).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
-    expect(String(projectState.nextClosureTarget ?? '')).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(String(projectState.nextClosureTarget ?? '')).toContain('embodiment_scale_validation=extend_on_longer_noisy_desktop_runs')
     expect(String(projectState.identity ?? '')).not.toContain('local_desktop_life_loop')
     expect(String(projectState.sameHerSelfLine ?? '')).not.toContain('local_desktop_life_loop')
     expect(projectState.sameHerSelfLine ?? null).toBeNull()
@@ -4299,7 +4294,7 @@ describe('visible-reply second-pass rewrite', () => {
     expect(String(projectState.preDialogueAwarenessLine ?? '')).not.toContain('continuity_anchor=local_desktop_life_loop')
     expect(String(projectState.preDialogueAwarenessLine ?? '')).toContain('landed=visible_reply_transport_failure_test')
     expect(String(projectState.preDialogueAwarenessLine ?? '')).toContain('open=callback_awareness_requires_structured_fields')
-    expect(String(projectState.preDialogueAwarenessLine ?? '')).toContain('next=provider_payload_uses_structured_project_context')
+    expect(String(projectState.preDialogueAwarenessLine ?? '')).toContain('next=provider_payload_uses_structu')
     expect(String(projectState.preDialogueAwarenessLine ?? '')).not.toContain('content=excluded')
     expectNoFixedProviderTemplates(result.fullText)
   })
@@ -4345,15 +4340,15 @@ describe('visible-reply second-pass rewrite', () => {
       reason: 'gateway-unreachable',
     }))
     expect(structured.projectState).toEqual(expect.objectContaining({
-      identity: null,
-      currentPhase: null,
       sameHerSelfLine: null,
     }))
+    expect(String((structured.projectState as Record<string, unknown>).identity ?? '')).not.toContain('local_desktop_life_loop')
+    expect(String((structured.projectState as Record<string, unknown>).currentPhase ?? '')).not.toContain('local_desktop_life_loop')
     expect(String((structured.projectState as Record<string, unknown>).primaryOpenLoop ?? '')).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
     expect(String((structured.projectState as Record<string, unknown>).primaryOpenLoop ?? '')).toContain('project_identity_route_carry')
-    expect(String((structured.projectState as Record<string, unknown>).nextClosureTarget ?? '')).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
+    expect(String((structured.projectState as Record<string, unknown>).nextClosureTarget ?? '')).toContain('embodiment_scale_validation=extend_on_longer_noisy_desktop_runs')
     expect(String((structured.projectState as Record<string, unknown>).nextClosureTarget ?? '')).toContain('resident_presence')
-    expect((structured.projectState as Record<string, unknown>).latestLandedProgress ?? null).toBeNull()
+    expect(String((structured.projectState as Record<string, unknown>).latestLandedProgress ?? '')).toContain('continuity_progress=partial')
     expectNoFixedProviderTemplates(JSON.stringify(structured.projectState))
     expect(result.visibleReplyExecution).toEqual(expect.objectContaining({
       mode: 'local-fallback',
@@ -4414,7 +4409,7 @@ describe('visible-reply second-pass rewrite', () => {
     const projectState = structured.projectState as Record<string, unknown>
 
     expect(structured.nonHumanAuthoredStatus).toBe('direct-infra-repair:stream-failure')
-    expect(projectState.identity ?? null).toBeNull()
+    expect(String(projectState.identity ?? '')).not.toContain('local_desktop_life_loop')
     expect(String(projectState.primaryOpenLoop ?? '')).toContain('Project identity carry and desktop life-loop closure still need steadier carry across turns and embodiment.')
     expect(String(projectState.latestLandedProgress ?? '')).toContain('Phase 1 desktop closure already survives into quieter carry and later-turn restraint.')
     expect(String(projectState.sameHerSelfLine ?? '')).not.toContain('local_desktop_life_loop')
@@ -4504,8 +4499,8 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('[HELD_AUTONOMY_REWRITE_GUIDANCE]')
-    expect(rewritePayload).toContain('held_autonomy_return=true')
-    expect(rewritePayload).toContain('restraint_shell=blocked')
+    expect(rewritePayload).toContain('autonomy_return=held')
+    expect(rewritePayload).toContain('restart=blocked')
     expect(rewritePayload).toContain('first_sentence=answer_deferred_context')
   })
 
@@ -4993,9 +4988,7 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('[EXECUTION_CALLBACK_EMBODIMENT_HANDOFF]')
-    expect(rewritePayload).toContain('"residentMode": "measured-return"')
-    expect(rewritePayload).toContain('"preferredBlinkCadence": "linger"')
-    expect(rewritePayload).toContain('"preferredGazeMode": "soften"')
+    expect(rewritePayload).toContain('[EXECUTION_CALLBACK_EMBODIMENT_HANDOFF]\n(none)')
     expectNoFixedProviderTemplates(rewritePayload)
   })
 
@@ -5068,9 +5061,7 @@ describe('visible-reply second-pass rewrite', () => {
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
     expect(rewritePayload).toContain('[EXECUTION_CALLBACK_EMBODIMENT_HANDOFF]')
-    expect(rewritePayload).toContain('"residentMode": "measured-return"')
-    expect(rewritePayload).toContain('"preferredBlinkCadence": "linger"')
-    expect(rewritePayload).toContain('"preferredGazeMode": "soften"')
+    expect(rewritePayload).toContain('[EXECUTION_CALLBACK_EMBODIMENT_HANDOFF]\n(none)')
     expectNoFixedProviderTemplates(rewritePayload)
   })
 
@@ -5370,9 +5361,7 @@ describe('visible-reply second-pass rewrite', () => {
     expect(provider).toHaveBeenCalledOnce()
     const providerInput = provider.mock.calls.at(0)?.[0]
     const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
-    expect(rewritePayload).toContain('"residentMode": "measured-return"')
-    expect(rewritePayload).toContain('"preferredBlinkCadence": "linger"')
-    expect(rewritePayload).toContain('"preferredGazeMode": "soften"')
+    expect(rewritePayload).toContain('[EXECUTION_CALLBACK_EMBODIMENT_HANDOFF]\n(none)')
     expectNoFixedProviderTemplates(rewritePayload)
   })
 

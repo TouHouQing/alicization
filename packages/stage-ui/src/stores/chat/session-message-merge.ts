@@ -277,7 +277,7 @@ function isSameHerInwardLowPressureHeadline(value: string | null | undefined) {
 }
 
 function buildCompactSameHerInwardLowPressureAwarenessLine() {
-  return 'continuity_context=runtime_carry; source=companion_briefing; embodiment_status; status=partial; missing_lanes=lipsync+voice; evidence=low-pressure-inward-carry'
+  return 'embodiment_lanes=body+face+motion; missing_lanes=lipsync+voice; status=partial; evidence=low-pressure-inward-carry; source=companion_briefing'
 }
 
 function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undefined) {
@@ -291,7 +291,7 @@ function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undef
 }
 
 function buildCompactAnthropomorphicHostFacingAwarenessLine() {
-  return 'continuity_context=runtime_carry; source=companion_briefing; affective_closure=anthropomorphic-emotional-closure; observability=continuity-inward-carry; timing=measured-return'
+  return 'emotional_closure=anthropomorphic_emotional_closure; evidence=inward_carry; timing=measured_return; source=companion_briefing'
 }
 
 function carriesBroaderMergedProjectFrame(value: string | null | undefined) {

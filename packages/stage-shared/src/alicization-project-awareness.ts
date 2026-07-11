@@ -14,6 +14,7 @@ function containsProjectAwarenessFixedTemplateResidue(raw: unknown) {
   const normalized = sanitizeProjectAwarenessText(raw, PROJECT_AWARENESS_RETURN_MAX_CHARS)
   return Boolean(normalized) && (
     containsAlicizationFixedTemplateResidue(normalized)
+    || /\bcontinuity=embodiment(?::|=|\b)|\bpending-rejoin=/iu.test(normalized)
     || /\bBefore (?:answering|speaking|acting)\b/iu.test(normalized)
   )
 }
@@ -44,7 +45,7 @@ type AlicizationProjectAwarenessSource = {
 } | null | undefined
 
 function hasMeaningfulStructuredProjectAwarenessFact(text: string) {
-  return /(?:^|\|\s*)(?:identity|phase|landed|open|next|initiative_gap|continuity_anchor|continuity_hold|continuity_drift_risk|emotional_closure|project_state_continuity|status|summary|continuity|lane|pending_rejoin|closure|evidence|ref|trace|source|affective_closure|observability|timing)=/iu.test(text)
+  return /(?:^|\|\s*)(?:identity|phase|landed|open|next|initiative_gap|emotional_closure|status|summary|embodiment_lanes|missing_lanes|pending_lanes|evidence|ref|trace|source|timing)=/iu.test(text)
 }
 
 function preserveStructuredProjectAwarenessFragments(text: string) {
@@ -54,7 +55,7 @@ function preserveStructuredProjectAwarenessFragments(text: string) {
     .filter((fragment) => {
       if (!fragment || !/^[a-z][\w+-]*=/iu.test(fragment))
         return false
-      if (/^(?:same_her|same-her|project_awareness|proactive_gap)=/iu.test(fragment))
+      if (/^(?:same_her|same-her|project_awareness|proactive_gap|continuity_anchor|continuity_hold|project_state_continuity|life_loop_continuity|cross_modal_continuity_proof|continuity|lane|pending_rejoin|visibility|affective_closure|observability)=/iu.test(fragment))
         return false
       return !containsProjectAwarenessFixedTemplateResidue(fragment)
     })
@@ -205,25 +206,28 @@ function buildStructuredProjectAwarenessFromState(
 
 function buildStructuredEmbodimentAwarenessFromLegacyLine(text: string) {
   const normalized = sanitizeProjectAwarenessText(text, PROJECT_AWARENESS_RETURN_MAX_CHARS)
-  if (!/\bRight now (?:I am|the host-facing|this one living her|her)\b/iu.test(normalized))
-    return ''
-
   const structuredHeadline = describeAlicizationEmbodimentClosureHeadline({
     authoritySummary: normalized,
   })
-  if (hasMeaningfulStructuredProjectAwarenessFact(structuredHeadline))
+  if (
+    hasMeaningfulStructuredProjectAwarenessFact(structuredHeadline)
+    && !/(?:^|\|\s*)embodiment_lanes=unknown(?:\s*\||$)/iu.test(structuredHeadline)
+  ) {
     return structuredHeadline
+  }
+
+  if (!/\bRight now (?:I am|the host-facing|this one living her|her)\b/iu.test(normalized))
+    return ''
 
   if (/anthropomorphic emotional closure/iu.test(normalized)) {
     return [
-      'affective_closure=anthropomorphic-emotional-closure',
+      'emotional_closure=anthropomorphic_emotional_closure',
       /(?:same-her|continuity) inward-carry observability/iu.test(normalized)
-        ? 'observability=continuity-inward-carry'
+        ? 'evidence=inward_carry'
         : '',
       /measured-return/iu.test(normalized)
-        ? 'timing=measured-return'
+        ? 'timing=measured_return'
         : '',
-      'visibility=internal',
     ].filter(Boolean).join(' | ')
   }
 
@@ -233,9 +237,10 @@ function buildStructuredEmbodimentAwarenessFromLegacyLine(text: string) {
     const pattern = new RegExp(`\\b${lane}\\b`, 'iu')
     return pattern.test(lowerCased)
   })
+  const pendingSource = lowerCased.match(/(?:while|but)\s+([^.!?。]+?)\s+(?:need|needs|still need|still needs|还要|需要)\s+(?:to\s+)?(?:rejoin|close|接回|闭环)/u)?.[1] ?? ''
   const pendingLanes = allLanes.filter((lane) => {
-    const pattern = new RegExp(`\\b${lane}\\b[^.]{0,90}\\b(?:need|needs|still need|still needs)\\b[^.]{0,50}\\brejoin`, 'iu')
-    return pattern.test(lowerCased)
+    const pattern = new RegExp(`\\b${lane}\\b`, 'iu')
+    return pattern.test(pendingSource)
   })
   const activeLanes = mentionedLanes.filter(lane => !pendingLanes.includes(lane))
   if (!activeLanes.length && !pendingLanes.length)
@@ -245,16 +250,13 @@ function buildStructuredEmbodimentAwarenessFromLegacyLine(text: string) {
     ? activeLanes
     : allLanes.filter(lane => !pendingLanes.includes(lane))
   return [
-    'continuity=embodiment',
-    `lane=${effectiveActiveLanes.join('+')}${pendingLanes.length ? '-only' : ''}`,
-    `status=${pendingLanes.length ? 'pending-rejoin' : 'closed'}`,
-    `pending_rejoin=${pendingLanes.length ? pendingLanes.join('+') : 'none'}`,
-    `closure=${pendingLanes.length ? 'full-cross-modal-open' : 'full-cross-modal-closed'}`,
+    `embodiment_lanes=${effectiveActiveLanes.join('+')}`,
+    pendingLanes.length ? `missing_lanes=${pendingLanes.join('+')}` : '',
+    `status=${pendingLanes.length ? 'partial' : 'closed'}`,
     /low-pressure|same line inward|inward-carry/iu.test(normalized)
       ? 'evidence=low-pressure-inward-carry'
       : 'evidence=legacy-headline-migrated',
-    'visibility=renderer-internal',
-  ].join(' | ')
+  ].filter(Boolean).join(' | ')
 }
 
 function extractLegacySentenceAfterMarker(text: string, marker: RegExp) {
@@ -440,7 +442,7 @@ function carriesLivedInSameHerLine(text: unknown) {
 
   const lower = normalized.toLowerCase()
   const carriesStructuredAuthority
-    = /(?:^|\|\s*)(?:continuity_hold|continuity_cue|continuity_drift_risk|continuity|evidence|ref|trace|source)=/iu.test(normalized)
+    = /(?:^|\|\s*)(?:landed|open|next|status|summary|emotional_closure|embodiment_lanes|missing_lanes|pending_lanes|evidence|ref|trace|source)=/iu.test(normalized)
       || carriesStructuredEmbodimentContinuityProof(normalized)
   const carriesBehavioralContinuity
     = /继续|沿着|别飘回|不要退回|不要掉回|口吻|generic assistant|project shell|without splitting/u.test(normalized)
@@ -455,10 +457,9 @@ function carriesStructuredEmbodimentContinuityProof(text: unknown) {
   if (!normalized)
     return false
 
-  return /continuity=embodiment:(?:still-voiced-face-motion-line|still-voiced-motion-line|still-voiced-face-line|still-voiced-face-lipsync-line|still-voiced-motion-lipsync-line|audible-same-her-line|body-lipsync-voice-rejoin)(?:\+embodiment:[^|\s]+)?(?:\s*\||$)/i.test(normalized)
+  return /(?:^|\|\s*)embodiment_lanes=(?:body|face|motion|lipsync|voice)(?:\+(?:body|face|motion|lipsync|voice))*/i.test(normalized)
     || /signature=resident\|main-runtime\|accompanying\|quiet-accompaniment\|(?:still-voiced-face-motion-line|still-voiced-motion-line|still-voiced-face-line|still-voiced-face-lipsync-line|still-voiced-motion-lipsync-line)/i.test(normalized)
     || /(?:same-segment\s+)?(?:face\+motion|face\+voice|motion\+voice|face\+lipsync\+voice|motion\+lipsync\+voice|body\+lipsync\+voice)\s+recovery@/i.test(normalized)
-    || /pending-rejoin=body(?:\+face)?(?:\+motion)?(?:\+lipsync)?(?:\+voice)?(?:\s|\||$)/i.test(normalized)
 }
 
 function looksLikeProjectAwareReminderLine(text: unknown) {
@@ -705,7 +706,7 @@ function isSameHerInwardLowPressureHeadline(text: unknown) {
 }
 
 function buildCompactSameHerInwardLowPressureAwarenessLine(_companionBriefingLine: string) {
-  return 'continuity=embodiment | status=pending-rejoin | pending_rejoin=lipsync+voice | evidence=low-pressure-inward-carry | visibility=internal'
+  return 'embodiment_lanes=body+face+motion | missing_lanes=lipsync+voice | status=partial | evidence=low-pressure-inward-carry'
 }
 
 function isAnthropomorphicHostFacingSameHerHeadline(text: unknown) {
@@ -719,7 +720,7 @@ function isAnthropomorphicHostFacingSameHerHeadline(text: unknown) {
 }
 
 function buildCompactAnthropomorphicHostFacingAwarenessLine(_companionBriefingLine: string) {
-  return 'affective_closure=anthropomorphic-emotional-closure | observability=continuity-inward-carry | timing=measured-return | visibility=internal'
+  return 'emotional_closure=anthropomorphic_emotional_closure | evidence=inward_carry | timing=measured_return'
 }
 
 function carriesStrongerSameHerContinuity(text: unknown) {
@@ -801,9 +802,9 @@ export function scoreAlicizationProjectAwarenessLine(value: string | null | unde
   const carriesFixedTemplateResidue = containsProjectAwarenessFixedTemplateResidue(normalized)
   if (carriesFixedTemplateResidue)
     score -= 8
-  if (!carriesFixedTemplateResidue && /(?:^|\|\s*)(?:continuity_anchor|continuity_hold|project_state_continuity|life_loop_continuity|cross_modal_continuity_proof|evidence|ref|trace|source)=/u.test(normalized))
+  if (!carriesFixedTemplateResidue && /(?:^|\|\s*)(?:landed|open|next|status|summary|emotional_closure|embodiment_lanes|missing_lanes|pending_lanes|evidence|ref|trace|source)=/u.test(normalized))
     score += 3
-  if (!carriesFixedTemplateResidue && /(?:^|\|\s*)(?:phase|landed|open|next|visibility)=|holding together mainly through|voice|face|motion|lipsync|具身|声音|表情|动作|唇型/u.test(normalized))
+  if (!carriesFixedTemplateResidue && /(?:^|\|\s*)(?:phase|landed|open|next|status)=|holding together mainly through|voice|face|motion|lipsync|具身|声音|表情|动作|唇型/u.test(normalized))
     score += 2
   if (carriesStructuredEmbodimentContinuityProof(normalized))
     score += 3

@@ -655,15 +655,15 @@ describe('mergeLoadedSessionMessages', () => {
     assert.equal(assistantMessage?.id, stableTurnId)
     assertStructuredProjectFact(
       assistantMessage?.structured?.preDialogueAwareness?.companionHeadlineLine,
-      /visibility=internal-structured|summary=/,
+      /summary=|embodiment_lanes=/,
     )
     assertStructuredProjectFact(
       assistantMessage?.structured?.preDialogueAwareness?.companionBriefingLine,
-      /phase1_local_digital_life|continuity_anchor=|visibility=internal-structured/,
+      /summary=|landed=|open=|next=/,
     )
     assertStructuredProjectFact(
       assistantMessage?.structured?.preDialogueAwareness?.awarenessLine,
-      /visibility=internal|continuity=embodiment|low-pressure-inward-carry/,
+      /embodiment_lanes=|low-pressure-inward-carry/,
     )
   })
 
@@ -732,15 +732,15 @@ describe('mergeLoadedSessionMessages', () => {
     assert.equal(assistantMessage?.id, stableTurnId)
     assertStructuredProjectFact(
       assistantMessage?.structured?.preDialogueAwareness?.companionHeadlineLine,
-      /visibility=internal-structured|summary=/,
+      /summary=|emotional_closure=/,
     )
     assertStructuredProjectFact(
       assistantMessage?.structured?.preDialogueAwareness?.companionBriefingLine,
-      /phase1_local_digital_life|continuity_anchor=|visibility=internal-structured/,
+      /summary=|landed=|open=|next=/,
     )
     assertStructuredProjectFact(
       assistantMessage?.structured?.preDialogueAwareness?.awarenessLine,
-      /visibility=internal|affective_closure=anthropomorphic-emotional-closure|observability=continuity-inward-carry/,
+      /emotional_closure=anthropomorphic_emotional_closure|evidence=inward_carry/,
     )
   })
 

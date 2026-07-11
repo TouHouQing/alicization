@@ -132,8 +132,11 @@ describe('structured project state', () => {
     })
 
     expect(rebuilt.preDialogueAwarenessLine).not.toBe(legacyHeadline)
-    expect(rebuilt.preDialogueAwarenessLine).toContain('continuity=embodiment')
-    expect(rebuilt.preDialogueAwarenessLine).toContain('status=pending-rejoin')
+    expect(rebuilt.preDialogueAwarenessLine).toContain('landed=continuity_progress=partial')
+    expect(rebuilt.preDialogueAwarenessLine).toContain('open=memory_dialogue_embodiment_closure')
+    expect(rebuilt.preDialogueAwarenessLine).toContain('next=embodiment_scale_validation')
+    expect(rebuilt.preDialogueAwarenessLine).not.toContain('continuity=embodiment')
+    expect(rebuilt.preDialogueAwarenessLine).not.toContain('pending_rejoin=')
     expect(rebuilt.preDialogueAwarenessSummary).toBe(rebuilt.preDialogueAwarenessLine)
     expect(rebuilt.awarenessLine).toBe(rebuilt.preDialogueAwarenessLine)
     expectNoFixedTemplateResidue(rebuilt)
@@ -153,7 +156,7 @@ describe('structured project state', () => {
 
     expect(rebuilt.preflightSummary).not.toBe('same digital life | landed | open closure')
     expect(rebuilt.preflightSummary).toContain('open=memory_dialogue_embodiment_closure')
-    expect(rebuilt.preflightSummary).toContain('next=cross_modal_continuity_proof')
+    expect(rebuilt.preflightSummary).toContain('next=embodiment_scale_validation')
     expectNoFixedTemplateResidue(rebuilt)
   })
 
@@ -217,13 +220,13 @@ describe('structured project state', () => {
     })
 
     expect(rebuilt.sameHerHoldDetail).toBe(
-      'continuity_hold=repair-before-closeness; owner=project_state_continuity; visibility=internal; pace=settle-before-closeness.',
+      'continuity_hold=repair-before-closeness; owner=project_state_review; pace=settle-before-closeness.',
     )
     expect(rebuilt.continuityCue).toBe(
-      'continuity_cue=repair-before-closeness; surface_timing=after-repair-settles; visibility=internal-first.',
+      'continuity_cue=repair-before-closeness; surface_timing=after-repair-settles.',
     )
     expect(rebuilt.preDialogueAwarenessLine).toContain('open=memory_dialogue_embodiment_closure')
-    expect(rebuilt.preDialogueAwarenessLine).toContain('next=cross_modal_continuity_proof')
+    expect(rebuilt.preDialogueAwarenessLine).toContain('next=embodiment_scale_validation')
     expect(rebuilt.preDialogueAwarenessSummary).toBe(rebuilt.preDialogueAwarenessLine)
     expect(rebuilt.awarenessLine).toBe(rebuilt.preDialogueAwarenessLine)
     expectNoFixedTemplateResidue(rebuilt)

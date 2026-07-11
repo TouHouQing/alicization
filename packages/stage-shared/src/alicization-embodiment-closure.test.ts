@@ -17,27 +17,23 @@ function expectStructuredEmbodimentClosure(
   value: string,
   expected: {
     lane: string
-    status?: 'pending-rejoin' | 'closed'
-    pendingRejoin?: string
-    perspective?: 'headline' | 'reminder'
+    status?: 'partial' | 'closed'
+    missingLanes?: string
     evidence?: string
   },
 ) {
-  const status = expected.status ?? 'pending-rejoin'
+  const status = expected.status ?? 'partial'
+  const lane = expected.lane.replace(/-only$/u, '')
 
-  expect(value).toContain('continuity=embodiment')
-  expect(value).toContain(`lane=${expected.lane}`)
+  expect(value).toContain(`embodiment_lanes=${lane}`)
   expect(value).toContain(`status=${status}`)
-  expect(value).toContain(
-    `closure=${status === 'closed' ? 'full-cross-modal-closed' : 'full-cross-modal-open'}`,
-  )
-  if (expected.pendingRejoin)
-    expect(value).toContain(`pending_rejoin=${expected.pendingRejoin}`)
+  if (expected.missingLanes)
+    expect(value).toContain(`missing_lanes=${expected.missingLanes}`)
   if (expected.evidence)
     expect(value).toContain(`evidence=${expected.evidence}`)
-  expect(value).toContain(expected.perspective === 'headline'
-    ? 'visibility=renderer-internal'
-    : 'surface=structured')
+  expect(value).not.toContain('continuity=embodiment')
+  expect(value).not.toContain('pending_rejoin=')
+  expect(value).not.toContain('visibility=')
   expectNoFixedTemplateResidue(value)
 }
 
@@ -50,7 +46,7 @@ describe('alicization embodiment closure', () => {
       }),
       {
         lane: 'lipsync-only',
-        pendingRejoin: 'body+face+motion+voice',
+        missingLanes: 'body+face+motion+voice',
       },
     )
 
@@ -61,8 +57,7 @@ describe('alicization embodiment closure', () => {
       }),
       {
         lane: 'face+motion-only',
-        pendingRejoin: 'body+lipsync+voice',
-        perspective: 'headline',
+        missingLanes: 'body+lipsync+voice',
       },
     )
   })
@@ -75,7 +70,7 @@ describe('alicization embodiment closure', () => {
       }),
       {
         lane: 'voice-only',
-        pendingRejoin: 'body+face+motion+lipsync',
+        missingLanes: 'body+face+motion+lipsync',
       },
     )
 
@@ -86,7 +81,7 @@ describe('alicization embodiment closure', () => {
       }),
       {
         lane: 'body+voice-only',
-        pendingRejoin: 'face+motion+lipsync',
+        missingLanes: 'face+motion+lipsync',
       },
     )
 
@@ -97,7 +92,7 @@ describe('alicization embodiment closure', () => {
       }),
       {
         lane: 'body+lipsync+voice-only',
-        pendingRejoin: 'face+motion',
+        missingLanes: 'face+motion',
       },
     )
   })
@@ -110,7 +105,7 @@ describe('alicization embodiment closure', () => {
       }),
       {
         lane: 'lipsync-only',
-        pendingRejoin: 'body+face+motion+voice',
+        missingLanes: 'body+face+motion+voice',
         evidence: 'long-horizon-emotion-memory',
       },
     )
@@ -122,7 +117,7 @@ describe('alicization embodiment closure', () => {
       }),
       {
         lane: 'face+motion+lipsync+voice-only',
-        pendingRejoin: 'body',
+        missingLanes: 'body',
         evidence: 'runtime-lane-authority',
       },
     )
@@ -136,7 +131,7 @@ describe('alicization embodiment closure', () => {
       }),
       {
         lane: 'body+face+motion-only',
-        pendingRejoin: 'lipsync+voice',
+        missingLanes: 'lipsync+voice',
         evidence: 'low-pressure-inward-carry+runtime-lane-authority',
       },
     )
@@ -149,8 +144,6 @@ describe('alicization embodiment closure', () => {
       {
         lane: 'body+face+motion+lipsync+voice',
         status: 'closed',
-        pendingRejoin: 'none',
-        perspective: 'headline',
         evidence: 'full-cross-modal-lock',
       },
     )
@@ -175,11 +168,11 @@ describe('alicization embodiment closure', () => {
       primaryOpenLoop: 'Memory still needs stronger end-to-end closure.',
     })
 
-    expect(briefing).toContain('continuity=project-state')
     expect(briefing).toContain('identity=project_state_owner=ProjectStateGovernance')
     expect(briefing).toContain('phase=runtime_context=local_runtime')
     expect(briefing).toContain('open=Memory still needs stronger end-to-end closure.')
-    expect(briefing).toContain('surface=structured')
+    expect(briefing).not.toContain('continuity=project-state')
+    expect(briefing).not.toContain('surface=structured')
     expectNoFixedTemplateResidue(briefing)
 
     expect(describeAlicizationProjectClosureBriefing({
@@ -189,9 +182,9 @@ describe('alicization embodiment closure', () => {
     })).toBe('')
 
     const nextClosure = describeAlicizationProjectNextClosure({
-      nextClosureTarget: 'Keep every dialogue entry path aware of the same project closure target before speaking.',
+      nextClosureTarget: 'Validate dialogue entry path closure from runtime facts.',
     })
-    expect(nextClosure).toBe('next=Keep every dialogue entry path aware of the same project closure target before speaking. | surface=structured')
+    expect(nextClosure).toBe('next=Validate dialogue entry path closure from runtime facts.')
     expectNoFixedTemplateResidue(nextClosure)
 
     expect(describeAlicizationProjectNextClosure({

@@ -182,6 +182,8 @@ describe('alicization prompt composer', () => {
     expect(String(result.messages[1]?.content)).not.toContain('visibility=internal')
     expect(String(result.messages[1]?.content)).not.toContain('continuity_anchor=Keep one continuous her explicit')
     expect(String(result.messages[1]?.content)).not.toContain('continuity_hold=same-her hold:')
+    expect(String(result.messages[1]?.content)).not.toContain('continuity_drift_risk=')
+    expect(String(result.messages[1]?.content)).not.toContain('continuity_hold=')
     expect(String(result.messages[1]?.content)).not.toContain('emotional_closure=same-her closure seam:')
     expect(String(result.messages[1]?.content)).not.toContain('same-her hold:')
     expect(String(result.messages[1]?.content)).not.toContain('same living line')

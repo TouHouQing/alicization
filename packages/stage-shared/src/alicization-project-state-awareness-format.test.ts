@@ -111,12 +111,13 @@ describe('alicization project-state awareness format', () => {
     expect(block).not.toContain('continuity_identity=local_desktop_life_loop')
   })
 
-  it('strips structured continuity anchor prefixes for non-phase anchors', () => {
+  it('drops structured continuity anchor fields instead of provider-facing prompt facts', () => {
     const block = renderAlicizationProjectStateStructuredBlock({
       continuityAnchor: 'continuity_anchor=embodiment_runtime | lane=face+motion+voice | status=pending_rejoin',
     })
 
-    expect(block).toContain('continuity_anchor=embodiment_runtime')
+    expect(block).toBe('')
+    expect(block).not.toContain('continuity_anchor=embodiment_runtime')
     expect(block).not.toContain('continuity_anchor=continuity_anchor=')
   })
 

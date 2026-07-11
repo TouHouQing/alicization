@@ -290,9 +290,7 @@ function buildPreDialogueContinuityFacts(input: {
     ['next', nextClosureLine],
     ['awareness_status', awareness?.status ?? null],
     ['closure_status', snapshot?.status ?? null],
-    ['continuity_drift_risk', projectState?.sameHerDriftRisk],
     ['initiative_gap', projectState?.proactiveSameHerGap],
-    ['continuity_hold', projectState?.sameHerHoldDetail],
     ['embodiment_carry_status', embodimentCarryReason ? 'present' : null],
     ['relationship_cadence_status', companionshipReason ? 'bounded' : null],
   ])
@@ -716,10 +714,7 @@ export function composeAlicizationPromptMessages(input: {
       nextClosureTarget: projectStateContinuitySnapshot.nextClosureTarget,
       summary: projectStateContinuitySnapshot.continuitySummary,
       status: projectStateContinuitySnapshot.nonHumanAuthoredStatus,
-      sameHerSelfLine: projectStateContinuitySnapshot.sameHerSelfLine,
-      sameHerHoldDetail: projectStateContinuitySnapshot.sameHerHoldDetail,
       proactiveSameHerGap: projectStateContinuitySnapshot.proactiveSameHerGap,
-      emotionalClosureCue: projectStateContinuitySnapshot.emotionalClosureCue,
     }))
   }
 

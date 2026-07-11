@@ -475,17 +475,17 @@ describe('buildPreDialogueSendIdentityFromSnapshots', () => {
     expect(result).toEqual(expect.objectContaining({
       status: 'partial',
       summaryLine: null,
-      companionHeadlineLine: expect.stringContaining('continuity=embodiment'),
-      awarenessLine: expect.stringContaining('visibility=renderer-internal'),
+      companionHeadlineLine: expect.stringContaining('embodiment_lanes='),
+      awarenessLine: expect.stringContaining('embodiment_lanes='),
       projectState: expect.objectContaining({
         preflightSummary: null,
         preDialogueAwarenessSummary: null,
-        companionHeadlineLine: expect.stringContaining('lane=lipsync+voice-only'),
+        companionHeadlineLine: expect.stringContaining('embodiment_lanes='),
       }),
       reasonPreview: [
         'lane=lipsync+voice-only',
         'remaining-open=body+face+motion',
-        expect.stringContaining('continuity=embodiment'),
+        expect.stringContaining('embodiment_lanes='),
       ],
     }))
   })

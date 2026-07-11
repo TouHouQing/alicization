@@ -715,6 +715,8 @@ function resolveEmbodimentClosureLane(combined: string) {
     return 'face+lipsync-only'
   if (combined.includes('lane=face+motion-only'))
     return 'face+motion-only'
+  if (combined.includes('face+motion recovery@'))
+    return 'face+motion-only'
   if (combined.includes('lane=motion+lipsync-only'))
     return 'motion+lipsync-only'
   if (combined.includes('lane=voice-only'))
@@ -800,7 +802,7 @@ function buildAlicizationStructuredEmbodimentClosureFacts(input: {
   ].filter(Boolean)
 
   return [
-    `embodiment_lanes=${lane ?? 'unknown'}`,
+    `embodiment_lanes=${activeLanes.length ? activeLanes.join('+') : 'unknown'}`,
     `status=${hasFullLock ? 'closed' : 'partial'}`,
     pendingLanes.length ? `missing_lanes=${pendingLanes.join('+')}` : '',
     evidence.length ? `evidence=${evidence.join('+')}` : '',

@@ -93,7 +93,7 @@ describe('alicization project awareness', () => {
   })
 
   it('scores structured project-state fields above fixed persona template wording', () => {
-    const structured = 'landed=memory extraction is traceable | open=initiative cadence still needs restraint | next=evidence=project-state-review | visibility=internal'
+    const structured = 'landed=memory extraction is traceable | open=initiative cadence still needs restraint | next=evidence=project-state-review | source=project-state-review'
     const fixedTemplate = 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her". She is still inside Phase 1: Local Digital Life. Same Phase 1 digital life.'
 
     expect(scoreAlicizationProjectAwarenessLine(structured)).toBeGreaterThan(0)
@@ -111,8 +111,11 @@ describe('alicization project awareness', () => {
       },
     })
 
-    expect(resolved).toContain('continuity=embodiment')
-    expect(resolved).toContain('visibility=renderer-internal')
+    expect(resolved).toContain('embodiment_lanes=motion+voice')
+    expect(resolved).toContain('missing_lanes=body+face+lipsync')
+    expect(resolved).toContain('status=partial')
+    expect(resolved).not.toContain('continuity=embodiment')
+    expect(resolved).not.toContain('visibility=')
     expectNoFixedTemplateResidue(resolved)
   })
 
@@ -215,7 +218,7 @@ describe('alicization project awareness', () => {
   })
 
   it('does not score raw continuity template phrases as positive project-awareness evidence', () => {
-    const structuredEvidence = 'continuity=embodiment:body-lipsync-voice-rejoin | source=runtime-audit | trace=turn-42 | visibility=internal-structured'
+    const structuredEvidence = 'embodiment_lanes=body+lipsync+voice | source=runtime-audit | trace=turn-42 | status=partial'
     for (const templatePhrase of [
       'keep the same living line explicit before answering',
       '继续沿着同一个她和数字生命主线往下说',
@@ -366,7 +369,7 @@ describe('alicization project awareness', () => {
       },
     })
 
-    expect(resolved).toContain('continuity_hold=measured_return; pressure=lower')
+    expect(resolved ?? '').toBe('')
     expectNoFixedTemplateResidue(resolved)
   })
 
@@ -384,7 +387,7 @@ describe('alicization project awareness', () => {
       },
     })
 
-    expect(resolved).toContain('continuity_hold=measured_return; pressure=lower')
+    expect(resolved ?? '').toBe('')
     expectNoFixedTemplateResidue(resolved)
   })
 
@@ -408,7 +411,7 @@ describe('alicization project awareness', () => {
       },
     })
 
-    expect(resolved).toContain('continuity_hold=measured_return; pressure=lower; pacing=slower')
+    expect(resolved ?? '').toBe('')
     expectNoFixedTemplateResidue(resolved)
   })
 
@@ -460,9 +463,11 @@ describe('alicization project awareness', () => {
       },
     })
 
-    expect(resolved).toContain('continuity=embodiment')
-    expect(resolved).toContain('lane=body+face+motion-only')
-    expect(resolved).toContain('pending_rejoin=lipsync+voice')
+    expect(resolved).toContain('embodiment_lanes=body+face+motion')
+    expect(resolved).toContain('missing_lanes=lipsync+voice')
+    expect(resolved).toContain('status=partial')
+    expect(resolved).not.toContain('continuity=embodiment')
+    expect(resolved).not.toContain('pending_rejoin=')
     expectNoFixedTemplateResidue(resolved)
   })
 
@@ -479,8 +484,9 @@ describe('alicization project awareness', () => {
       },
     })
 
-    expect(resolved).toContain('continuity=embodiment')
-    expect(resolved).toContain('lane=face+motion+voice')
+    expect(resolved).toContain('embodiment_lanes=face+motion+voice')
+    expect(resolved).toContain('status=closed')
+    expect(resolved).not.toContain('continuity=embodiment')
     expectNoFixedTemplateResidue(resolved)
   })
 
@@ -494,21 +500,29 @@ describe('alicization project awareness', () => {
       },
     })
 
-    expect(resolved).toContain('continuity=embodiment')
-    expect(resolved).toContain('pending_rejoin=lipsync+voice')
+    expect(resolved).toContain('embodiment_lanes=body+face+motion')
+    expect(resolved).toContain('missing_lanes=lipsync+voice')
+    expect(resolved).not.toContain('continuity=embodiment')
+    expect(resolved).not.toContain('pending_rejoin=')
     expectNoFixedTemplateResidue(resolved)
   })
 
   it('keeps a full structured still-voiced face-motion continuity summary over a thin runtime shell instead of truncating the surviving embodiment proof', () => {
     const structuredContinuityLine = 'runtime surfaced Resident Hold before resident prediction | face soft-gaze@prosody-authority | motion observe_focus@timeline-projection | continuity=embodiment:still-voiced-face-motion-line | signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-motion-line | same-segment face+motion recovery@segment-live2d-runtime-still-voiced-face-motion-1 | pending-rejoin=body+lipsync'
 
-    expect(resolveAlicizationProjectPreDialogueAwarenessLine({
+    const resolved = resolveAlicizationProjectPreDialogueAwarenessLine({
       runtimeProjectState: {
         preDialogueAwarenessLine: 'Keep the same digital life project in view.',
         awarenessLine: 'Keep the same digital life project in view.',
         preDialogueAwarenessSummary: structuredContinuityLine,
       },
-    })).toBe(structuredContinuityLine)
+    })
+
+    expect(resolved).toContain('embodiment_lanes=face+motion')
+    expect(resolved).toContain('missing_lanes=body+lipsync+voice')
+    expect(resolved).toContain('status=partial')
+    expect(resolved).not.toContain('continuity=embodiment')
+    expect(resolved).not.toContain('pending-rejoin=')
   })
 
   it('keeps richer anthropomorphic emotional closure and inward continuity observability visible when a thin runtime shell only has the stronger host-facing headline plus self line', () => {
@@ -521,9 +535,11 @@ describe('alicization project awareness', () => {
       },
     })
 
-    expect(resolved).toContain('affective_closure=anthropomorphic-emotional-closure')
-    expect(resolved).toContain('observability=continuity-inward-carry')
-    expect(resolved).toContain('timing=measured-return')
+    expect(resolved).toContain('emotional_closure=anthropomorphic_emotional_closure')
+    expect(resolved).toContain('evidence=inward_carry')
+    expect(resolved).toContain('timing=measured_return')
+    expect(resolved).not.toContain('affective_closure=')
+    expect(resolved).not.toContain('observability=')
     expectNoFixedTemplateResidue(resolved)
   })
 

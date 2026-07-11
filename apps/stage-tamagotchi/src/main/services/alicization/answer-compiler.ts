@@ -1719,13 +1719,13 @@ export function buildAnswerCompiler(input: {
         ? `${openingDirective} Stay aligned with the stabilizing learned procedure.`
         : openingDirective
   const continuityGovernanceAdjustedOpeningDirective = activeContinuityGovernance?.mode === continuityBaselineMode
-    ? `${learningAdjustedOpeningDirective} continuity_baseline=current; visible_style_must_not_override_baseline=true.`
+    ? `${learningAdjustedOpeningDirective} style_baseline=current; style_override=blocked.`
     : learningAdjustedOpeningDirective
   const selfEvolutionAdjustedOpeningDirective = selfEvolutionSupportsLowerPressureOpening(selfEvolution)
     ? `${continuityGovernanceAdjustedOpeningDirective} relationship_cadence=lower_pressure; closeness_widening=defer.`
     : continuityGovernanceAdjustedOpeningDirective
   const continuityReturnAdjustedOpeningDirective = hasHeldAutonomyContinuity(runtimeSurface)
-    ? `${selfEvolutionAdjustedOpeningDirective} held_autonomy_return=present; opening_restart=blocked.`
+    ? `${selfEvolutionAdjustedOpeningDirective} autonomy_return=held; restart=blocked.`
     : selfEvolutionAdjustedOpeningDirective
   const openingClaim = resolveOpeningClaim({
     discourseState,
@@ -1779,13 +1779,13 @@ export function buildAnswerCompiler(input: {
   const effectiveOpeningDirective = uniqueList([
     replyDeliberationOpeningAdjustedDirective,
     projectNarratorShellSuppressionRequired
-      ? 'project_narrator_shell=avoid; project_state_timing=inward_first_until_payoff'
+      ? 'status_narration=avoid; project_fact_timing=after_live_payoff'
       : null,
     projectStateCarryOpeningDisciplineRequired
       ? 'landed_progress_timing=after_live_payoff; next_closure_timing=after_live_payoff'
       : null,
     projectEmotionalClosureOpeningDisciplineRequired
-      ? 'emotional_closure_timing=inward_until_live_payoff; pressure=low'
+      ? 'emotional_timing=after_live_payoff; pressure=low'
       : null,
   ], 4).join(' ')
   const primaryTurnAnchor = resolvePrimaryTurnAnchor({
@@ -1988,11 +1988,11 @@ export function buildAnswerCompiler(input: {
       ? 'learned_procedure=constrain_answer; older_habits=avoid'
       : null,
     activeContinuityGovernance?.mode === continuityBaselineMode
-      ? 'continuity_baseline=current; off_baseline_style=avoid'
+      ? 'style_baseline=current; style_drift=avoid'
       : null,
     lowerPressureTimingMustDo,
     heldAutonomyContinuity
-      ? 'held_autonomy_return=present; restart_shell=avoid'
+      ? 'autonomy_return=held; restart=avoid'
       : null,
     callbackClosureCarryDisciplineRequired
       ? 'callback_context=required; detached_tool_notification=avoid'
@@ -2007,13 +2007,13 @@ export function buildAnswerCompiler(input: {
       ? 'warmth_cap=active; learned_confidence_over_room=avoid'
       : null,
     learningTuningAdvice?.focusDimensions.includes('avoidGenericProjectShell')
-      ? 'project_state_answer=inward_first_until_payoff; project_narrator_shell=avoid'
+      ? 'status_narration=avoid; project_fact_timing=after_live_payoff'
       : null,
     projectStateCarryDisciplineRequired
-      ? 'project_state_answer=inward_first; landed_progress=after_payoff; next_closure=after_payoff'
+      ? 'project_fact_timing=inward_first; landed_progress=after_payoff; next_step=after_payoff'
       : null,
     projectEmotionalClosureDisciplineRequired
-      ? 'emotional_closure=inward_until_payoff; pressure=low'
+      ? 'emotional_timing=inward_until_payoff; pressure=low'
       : null,
     memoryDeliberationKernel?.surfacePolicy === 'procedural-carry'
       ? 'procedure_carry=label_as_remembered_prior_procedure'
@@ -2068,7 +2068,7 @@ export function buildAnswerCompiler(input: {
       ? 'avoid=older_unstable_procedures'
       : null,
     activeContinuityGovernance?.mode === continuityBaselineMode
-      ? 'avoid=style_drift_over_continuity_baseline'
+      ? 'avoid=style_drift_over_current_baseline'
       : null,
     selfEvolutionSupportsLowerPressureOpening(selfEvolution)
       ? 'avoid=eager_warmth_or_old_closeness_fast_reopen'

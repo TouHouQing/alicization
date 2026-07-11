@@ -350,7 +350,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
 
   function buildCompactAnthropomorphicHostFacingAwarenessLine() {
     return sanitizeSessionStructuredText(
-      'source=companion_briefing; affective_closure=anthropomorphic-emotional-closure; observability=continuity-inward-carry; timing=measured-return',
+      'source=companion_briefing; emotional_closure=anthropomorphic_emotional_closure; evidence=inward_carry; timing=measured_return',
     )
   }
 

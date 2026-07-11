@@ -29,7 +29,6 @@ import {
   resolvePreparedRuntimeProjectPreDialogueAwarenessSummary,
   resolvePreparedRuntimeProjectState,
   resolvePreparedRuntimeProjectStateSnapshot,
-  resolvePreparedRuntimeSelfContinuityAuthority,
 } from '../prepared-runtime-continuity'
 import {
   buildAlicizationOpeningGuidanceBlockedReason,
@@ -303,30 +302,6 @@ function formatRelationshipTruthDoctrineForRewrite(raw: unknown) {
     'source_text=withheld_non_structured_instruction',
     'visible_wording=false',
   ].filter(Boolean).join('; ')
-}
-
-function looksLikeProjectStateAnswerStancePreserveLine(value: string | null | undefined) {
-  const normalized = sanitizeBoundedText(value, 320).toLowerCase()
-  if (!normalized)
-    return false
-  if (containsAlicizationFixedTemplateResidue(normalized))
-    return false
-
-  const namesProjectState
-    = /(?:^|[;|,\s])(?:answer_subject|project_state_answer|project_state_review|project_state_question|project_context_follow_through|preserve_field)=/u.test(normalized)
-      || /preserve_field=project_state\./u.test(normalized)
-  const carriesStructuredContinuity
-    = /(?:^|[;|,\s])(?:continuity_anchor|continuity_field|continuity_cue|continuity_hold|runtime_loop_validation|runtime_personhood)=/u.test(normalized)
-      || /runtime_personhood|memory_dialogue_embodiment_closure|embodiment_scale_validation/u.test(normalized)
-
-  return namesProjectState && carriesStructuredContinuity
-}
-
-function resolveProjectStateAnswerStancePreserveLine(values: string[]) {
-  return values
-    .map(value => sanitizeBoundedText(value, 320))
-    .find(value => looksLikeProjectStateAnswerStancePreserveLine(value))
-    ?? null
 }
 
 function carriesStructuredEmbodimentContinuityProof(value: string | null | undefined) {
@@ -607,7 +582,6 @@ export function buildAlicizationSecondPassTransportFailureReply(input: {
         latestLandedProgress: projectState.latestLandedProgress,
         primaryOpenLoop: projectState.primaryOpenLoop,
         nextClosureTarget: projectState.nextClosureTarget,
-        sameHerSelfLine: projectState.sameHerSelfLine,
       })
     : null
   const transportFailureAwarenessLine
@@ -638,11 +612,11 @@ export function buildAlicizationSecondPassTransportFailureReply(input: {
     latestLandedProgress: sanitizeSecondPassProviderText(projectState.latestLandedProgress, 520),
     primaryOpenLoop: sanitizeSecondPassProviderText(projectState.primaryOpenLoop, 520),
     nextClosureTarget: sanitizeSecondPassProviderText(projectState.nextClosureTarget, 520),
-    sameHerSelfLine: sanitizeSecondPassProviderStructuredLine(projectState.sameHerSelfLine, 320),
-    sameHerHoldDetail: sanitizeSecondPassProviderText(transportFailureContinuityFields.sameHerHoldDetail, 520),
+    sameHerSelfLine: null,
+    sameHerHoldDetail: null,
     continuityArcStage: sanitizeSecondPassProviderText(transportFailureContinuityFields.continuityArcStage, 160),
-    continuityCue: sanitizeSecondPassProviderText(transportFailureContinuityFields.continuityCue, 520),
-    sameHerDriftRisk: sanitizeSecondPassProviderText(projectState.sameHerDriftRisk, 520),
+    continuityCue: null,
+    sameHerDriftRisk: null,
   }
   return {
     fullText: JSON.stringify({
@@ -705,8 +679,10 @@ function sanitizeSecondPassOutputRecord(raw: unknown) {
 
 function sanitizeSecondPassOutputProjectState(raw: unknown) {
   const sanitized = sanitizeSecondPassOutputMetadata(raw) as Record<string, unknown>
-  if (typeof sanitized.sameHerSelfLine === 'string' && !/[=;]/u.test(sanitized.sameHerSelfLine))
-    sanitized.sameHerSelfLine = null
+  sanitized.sameHerSelfLine = null
+  sanitized.sameHerHoldDetail = null
+  sanitized.continuityCue = null
+  sanitized.sameHerDriftRisk = null
   return sanitized
 }
 
@@ -1264,16 +1240,6 @@ function inferContinuityPreferredTimingForRewrite(input: {
   return null
 }
 
-function resolveProjectStateCarryInwardLineForRewrite(prepared: AlicizationPreparedMainChatExecutionResult) {
-  const selfContinuityAuthority = resolvePreparedRuntimeSelfContinuityAuthority(prepared)
-  const sourceTags = selfContinuityAuthority?.sourceTags ?? []
-  if (!sourceTags.includes('project-state-carry'))
-    return null
-
-  const inwardLine = sanitizeBoundedText(selfContinuityAuthority?.inwardLine ?? null, 320)
-  return inwardLine || null
-}
-
 function looksLikeSameHerProjectFollowThroughRewrite(prepared: AlicizationPreparedMainChatExecutionResult) {
   const latestUserText = normalizeLowerText(prepared.messages
     ?.slice()
@@ -1529,12 +1495,8 @@ function buildSecondPassProviderMindTurnContractPrompt(raw: unknown) {
       ? {
           preDialogueAwarenessLine: sanitizeSecondPassProviderStructuredLine(projectState.preDialogueAwarenessLine, 260),
           sameHerSelfLine: sanitizeSecondPassProviderStructuredLine(projectState.sameHerSelfLine, 260),
-          sameHerHoldDetail: projectState.sameHerHoldDetail
-            ? 'continuity_hold=present; source_text=withheld_non_structured_instruction; visible_wording=false'
-            : null,
-          continuityCue: projectState.continuityCue
-            ? 'continuity_cue=present; source_text=withheld_non_structured_instruction; visible_wording=false'
-            : null,
+          sameHerHoldDetail: null,
+          continuityCue: null,
           continuityPreferredTiming: sanitizeBoundedText(projectState.continuityPreferredTiming, 80) || null,
         }
       : null,
@@ -2035,8 +1997,6 @@ function buildSecondPassRewriteMessages(input: {
     ...readStringList(rewriteRequest?.mustPreserve),
     ...(input.mustPreserve ?? []),
   ])
-  const projectStateAnswerStancePreserveLine = resolveProjectStateAnswerStancePreserveLine(mergedMustPreserve)
-  const projectStateCarryInwardLine = resolveProjectStateCarryInwardLineForRewrite(input.prepared)
   const providerSafeRewriteRequest = rewriteRequest
     ? {
         ...rewriteRequest,
@@ -2051,36 +2011,24 @@ function buildSecondPassRewriteMessages(input: {
     latestLandedProgress: sanitizeSecondPassProviderText(projectState.latestLandedProgress, 520),
     primaryOpenLoop: sanitizeSecondPassProviderText(projectState.primaryOpenLoop, 520),
     nextClosureTarget: sanitizeSecondPassProviderText(projectState.nextClosureTarget, 520),
-    sameHerSelfLine: sanitizeSecondPassProviderStructuredLine(projectState.sameHerSelfLine, 240),
+    sameHerSelfLine: null,
     companionHeadlineLine: sanitizeSecondPassProviderText(projectState.companionHeadlineLine, 520),
     companionBriefingLine: sanitizeSecondPassProviderText(projectState.companionBriefingLine, 520),
     preDialogueAwarenessLine: sanitizeSecondPassProviderText(projectStatePreDialogueAwarenessLine, SECOND_PASS_PROJECT_AWARENESS_MAX_CHARS),
-    sameHerDriftRisk: sanitizeSecondPassProviderText(projectState.sameHerDriftRisk, 520),
+    sameHerDriftRisk: null,
   }
   const providerSafeProjectStateContinuityFields = {
-    sameHerHoldDetail: projectStateContinuityFields.sameHerHoldDetail
-      ? 'continuity_hold=present; source_text=withheld_non_structured_instruction; visible_wording=false'
-      : null,
+    sameHerHoldDetail: null,
     continuityArcStage: sanitizeSecondPassProviderText(projectStateContinuityFields.continuityArcStage, 160),
-    continuityCue: projectStateContinuityFields.continuityCue
-      ? 'continuity_cue=present; source_text=withheld_non_structured_instruction; visible_wording=false'
-      : null,
+    continuityCue: null,
   }
   const providerSafeProjectStateEmbodimentClosureSummary = sanitizeSecondPassProviderText(
     projectStateEmbodimentClosureSummary,
     SECOND_PASS_EMBODIMENT_CLOSURE_MAX_CHARS,
   )
-  const providerSafeProjectStateCarryInwardLine = projectStateCarryInwardLine
-    ? 'project_state_carry_inward=present; source_text=withheld_non_structured_instruction; visible_wording=false'
-    : null
-  const providerSafeProjectStateAnswerStancePreserveLine = projectStateAnswerStancePreserveLine
-    ? 'project_state_answer_stance=present; source_text=withheld_non_structured_instruction; visible_wording=false'
-    : null
-  const providerSafeProjectStateSameHerDriftRisk = sanitizeSecondPassProviderText(
-    sanitizeBoundedText(projectStateAudit?.sameHerDriftRiskSummary ?? null, 320)
-    || projectState.sameHerDriftRisk,
-    520,
-  )
+  const providerSafeProjectStateCarryInwardLine = null
+  const providerSafeProjectStateAnswerStancePreserveLine = null
+  const providerSafeProjectStateSameHerDriftRisk = null
   const outwardContinuityRewriteGuidance = resolveOutwardContinuityRewriteGuidance({
     governance,
     prepared: input.prepared,
@@ -2226,8 +2174,8 @@ function buildSecondPassRewriteMessages(input: {
     '[HELD_AUTONOMY_REWRITE_GUIDANCE]',
     rewriteRequest?.reasonCodes.includes('held-autonomy-opening-shell')
       ? [
-          'held_autonomy_return=true',
-          'restraint_shell=blocked',
+          'autonomy_return=held',
+          'restart=blocked',
           'first_sentence=answer_deferred_context',
         ].join('\n')
       : '(none)',
