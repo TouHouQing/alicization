@@ -6,16 +6,16 @@ import type {
 import { sanitizeAlicizationStructuredInternalText } from './alicization-fixed-template-sanitizer'
 
 const measuredReturnInwardCarryReason
-  = 'continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower; visibility=internal'
+  = 'cadence=measured_return; direction=inward; widening=deferred; pressure=lower'
 
 const repairBeforeClosenessReason
-  = 'continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred; visibility=internal'
+  = 'cadence=repair_before_closeness; target=callback; repair=settle_first; widening=deferred'
 
 const rememberedBoundaryPreserveReason
-  = 'relationship_cadence=remembered_boundary; room=preserve_before_widening; visibility=internal'
+  = 'relationship_cadence=remembered_boundary; room=preserve_before_widening'
 
 const rememberedBoundaryMoreRoomReason
-  = 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal'
+  = 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager'
 
 function normalizeSummaryString(raw: unknown) {
   if (typeof raw !== 'string')
@@ -41,7 +41,19 @@ function finalizeCompanionshipReason(value: string | null | undefined) {
   if (!normalized)
     return null
 
-  return sanitizeAlicizationStructuredInternalText(normalized, 360, '')
+  const neutralized = normalized
+    .replace(/\bcontinuity_hold=/giu, 'cadence=')
+    .replace(/\bcontinuity_anchor=/giu, 'anchor=')
+    .replace(/\bproject_state_continuity\b/giu, 'project_state_review')
+    .replace(/\blife_loop_continuity\b/giu, 'life_loop_review')
+    .replace(/\bcross_modal_continuity_proof\b/giu, 'embodiment_scale_validation')
+    .replace(/\s*(?:[;|,]\s*)?visibility=internal(?:[-_][a-z0-9]+)?\.?/giu, '')
+    .trim()
+
+  return sanitizeAlicizationStructuredInternalText(neutralized, 360, '')
+    .replace(/\bcontinuity_hold=/giu, 'cadence=')
+    .replace(/\s*(?:[;|,]\s*)?visibility=internal(?:[-_][a-z0-9]+)?\.?/giu, '')
+    .trim()
 }
 
 function readProjectStateDigest(digest: AlicizationDigitalLifeSpineDigest | null | undefined) {
@@ -63,7 +75,7 @@ function hasStructuredContinuityCarryEvidence(value: string | null | undefined) 
   if (!normalized)
     return false
 
-  return /(?:^|[\s|;])(?:continuity_hold|continuity_anchor|project_state_continuity|life_loop_continuity|memory_dialogue_embodiment_closure|cross_modal_continuity_proof|callback_continuity|relationship_cadence|closure_gap|open_loop|owner|evidence|trace|source)=/u.test(normalized)
+  return /(?:^|[\s|;])(?:cadence|continuity_hold|continuity_anchor|project_state_continuity|life_loop_continuity|memory_dialogue_embodiment_closure|cross_modal_continuity_proof|callback_continuity|relationship_cadence|closure_gap|open_loop|owner|evidence|trace|source)=/u.test(normalized)
     || /(?:^|[\s|;])local_desktop_life_loop(?:[\s|;]|$)/u.test(normalized)
 }
 
@@ -72,7 +84,7 @@ function hasInwardRestraintEvidence(value: string | null | undefined) {
   if (!normalized)
     return false
 
-  return /(?:^|[\s|;])(?:direction=inward|widening=deferred|pressure=lower|room=more|reopen_from_scratch=false|timing=next_open_window|continuity_hold=(?:measured_return|repair_before_closeness|rest_protective|quiet_companionship|inward)|relationship_cadence=remembered_boundary)/u.test(normalized)
+  return /(?:^|[\s|;])(?:direction=inward|widening=deferred|pressure=lower|room=more|reopen_from_scratch=false|timing=next_open_window|(?:cadence|continuity_hold)=(?:measured_return|repair_before_closeness|rest_protective|quiet_companionship|inward)|relationship_cadence=remembered_boundary)/u.test(normalized)
 }
 
 function detectSameHerInwardCarryFromProjectState(input: {
@@ -217,14 +229,14 @@ function extractConcreteLifeLoopGapReason(input: {
     || merged.includes('narration')
 
   if (hasSameHerLine && hasProjectShellRisk) {
-    return `closure_gap=${gapLabels}; project_shell_risk=true; widening=deferred; visibility=internal`
+    return `closure_gap=${gapLabels}; risk=project_shell; widening=deferred`
   }
 
   if (hasSameHerLine) {
-    return `closure_gap=${gapLabels}; continuity_identity=true; widening=deferred; visibility=internal`
+    return `closure_gap=${gapLabels}; status=open; widening=deferred`
   }
 
-  return `closure_gap=${gapLabels}; widening=deferred; visibility=internal`
+  return `closure_gap=${gapLabels}; widening=deferred`
 }
 
 export function detectRememberedSeamCompanionshipReopen(input: {
@@ -417,7 +429,7 @@ export function resolveAlicizationCompanionshipReasonSummary(input: {
     }
 
     if (memoryDeliberationRepairCadence) {
-      return finalizeCompanionshipReason('memory_deliberation=repair_before_closeness; repair=settle_first; widening=deferred; visibility=internal')
+      return finalizeCompanionshipReason('memory_deliberation=repair_before_closeness; repair=settle_first; widening=deferred')
     }
 
     if (sameHerInwardCarry) {
@@ -430,7 +442,7 @@ export function resolveAlicizationCompanionshipReasonSummary(input: {
       ?? openingGuidance
       ?? latestInflection
       ?? manifestationCadenceSummary
-      ?? 'continuity_hold=repair_before_closeness; repair=settle_first; widening=deferred; visibility=internal',
+      ?? 'cadence=repair_before_closeness; repair=settle_first; widening=deferred',
     )
   }
 
@@ -459,7 +471,7 @@ export function resolveAlicizationCompanionshipReasonSummary(input: {
     }
 
     if (memoryDeliberationMeasuredCadence) {
-      return finalizeCompanionshipReason('memory_deliberation=measured_return; pressure=lower; widening=deferred; visibility=internal')
+      return finalizeCompanionshipReason('memory_deliberation=measured_return; pressure=lower; widening=deferred')
     }
 
     const thinAffectiveResidueRoomMakingLine = extractThinAffectiveResidueRoomMakingLine({
@@ -487,7 +499,7 @@ export function resolveAlicizationCompanionshipReasonSummary(input: {
       ?? openingGuidance
       ?? latestInflection
       ?? relationshipDoctrine
-      ?? 'continuity_hold=measured_return; pressure=lower; room=preserve; visibility=internal',
+      ?? 'cadence=measured_return; pressure=lower; room=preserve',
     )
   }
 

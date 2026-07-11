@@ -9,13 +9,13 @@ const fixedTemplateResiduePattern = /Same Phase 1 digital life|same-her|same liv
 
 describe('alicization companionship reason', () => {
   const measuredReturnInwardCarryReason
-    = 'continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower; visibility=internal'
+    = 'cadence=measured_return; direction=inward; widening=deferred; pressure=lower'
   const repairBeforeClosenessReason
-    = 'continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred; visibility=internal'
+    = 'cadence=repair_before_closeness; target=callback; repair=settle_first; widening=deferred'
   const rememberedBoundaryPreserveReason
-    = 'relationship_cadence=remembered_boundary; room=preserve_before_widening; visibility=internal'
+    = 'relationship_cadence=remembered_boundary; room=preserve_before_widening'
   const rememberedBoundaryMoreRoomReason
-    = 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal'
+    = 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager'
 
   it('detects remembered-seam reopen pressure from shared digital-life relationship signals', () => {
     expect(detectRememberedSeamCompanionshipReopen({
@@ -179,9 +179,9 @@ describe('alicization companionship reason', () => {
       digitalLifeSpineDigest: {
         memory: {
           selfEvolution: {
-            relationshipDoctrine: 'continuity_hold=measured_return; direction=inward; reopening=not_from_scratch; owner=self_evolution',
-            relationshipCadenceSummary: 'continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower; lanes=quiet+memory+speech',
-            latestInflection: 'continuity_hold=measured_return; direction=inward; widening=deferred',
+            relationshipDoctrine: 'cadence=measured_return; direction=inward; reopening=not_from_scratch; owner=self_evolution',
+            relationshipCadenceSummary: 'cadence=measured_return; direction=inward; widening=deferred; pressure=lower; lanes=quiet+memory+speech',
+            latestInflection: 'cadence=measured_return; direction=inward; widening=deferred',
             trustMeaning: 'continuity_anchor=local_desktop_life_loop; relationship_rebuild=not_from_zero',
           },
         },
@@ -196,13 +196,13 @@ describe('alicization companionship reason', () => {
         memory: {
           personStateProjection: {
             selfContinuityAuthority: {
-              inwardLine: 'continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower; owner=LongTermMemoryRecall',
+              inwardLine: 'cadence=measured_return; direction=inward; widening=deferred; pressure=lower; owner=LongTermMemoryRecall',
             },
           },
         },
         proactive: {
           personaBias: {
-            manifestationCadenceSummary: 'continuity_hold=measured_return; source=execution_callback_afterglow; scope=noisy_desktop_detours',
+            manifestationCadenceSummary: 'cadence=measured_return; source=execution_callback_afterglow; scope=noisy_desktop_detours',
           },
         },
       } as any,
@@ -245,7 +245,7 @@ describe('alicization companionship reason', () => {
         currentPhase: 'local_desktop_life_loop',
         memoryClosureSummary: null,
         primaryOpenLoop: null,
-        emotionalClosureCue: 'continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower; room=more; reopen_from_scratch=false',
+        emotionalClosureCue: 'cadence=measured_return; direction=inward; widening=deferred; pressure=lower; room=more; reopen_from_scratch=false',
       },
     })).toBe(measuredReturnInwardCarryReason)
 
@@ -257,7 +257,7 @@ describe('alicization companionship reason', () => {
         currentPhase: 'local_desktop_life_loop',
         memoryClosureSummary: null,
         primaryOpenLoop: null,
-        emotionalClosureCue: 'late_night_drain=true; continuity_hold=repair_before_closeness; pressure=lower; initiative=rest_protective; embodiment=repair_before_closeness',
+        emotionalClosureCue: 'late_night_drain=true; cadence=repair_before_closeness; pressure=lower; initiative=rest_protective; embodiment=repair_before_closeness',
       },
     })).toBe(repairBeforeClosenessReason)
   })
@@ -278,7 +278,7 @@ describe('alicization companionship reason', () => {
           },
         },
       } as any,
-    })).toBe('continuity_hold=rest_protective; fatigue_aware=true; quiet=true; direction=inward; warmth_widening=deferred')
+    })).toBe('cadence=rest_protective; fatigue_aware=true; quiet=true; direction=inward; warmth_widening=deferred')
   })
 
   it('prefers repair-before-closeness wording when project-state carries structured inward continuity evidence', () => {
@@ -288,13 +288,13 @@ describe('alicization companionship reason', () => {
         memory: {
           personStateProjection: {
             selfContinuityAuthority: {
-              inwardLine: 'continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred; owner=LongTermMemoryRecall',
+              inwardLine: 'cadence=repair_before_closeness; target=callback; repair=settle_first; widening=deferred; owner=LongTermMemoryRecall',
             },
           },
         },
         proactive: {
           personaBias: {
-            manifestationCadenceSummary: 'continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred',
+            manifestationCadenceSummary: 'cadence=repair_before_closeness; target=callback; repair=settle_first; widening=deferred',
           },
         },
       } as any,
@@ -311,7 +311,7 @@ describe('alicization companionship reason', () => {
         'repair-before-closeness',
         'memory-deliberation-cadence:repair-before-closeness',
       ],
-    })).toBe('memory_deliberation=repair_before_closeness; repair=settle_first; widening=deferred; visibility=internal')
+    })).toBe('memory_deliberation=repair_before_closeness; repair=settle_first; widening=deferred')
   })
 
   it('keeps memory-deliberation measured-return provenance visible in companionship reason summaries for diagnostics consumers', () => {
@@ -324,7 +324,7 @@ describe('alicization companionship reason', () => {
         'measured-return',
         'memory-deliberation-cadence:measured-return',
       ],
-    })).toBe('memory_deliberation=measured_return; pressure=lower; widening=deferred; visibility=internal')
+    })).toBe('memory_deliberation=measured_return; pressure=lower; widening=deferred')
   })
 
   it('prefers a concrete same-her life-loop gap reason when measured-return carries memory, initiative, and embodiment closure pressure with project-shell drift risk', () => {
@@ -346,7 +346,7 @@ describe('alicization companionship reason', () => {
           latestInflection: 'Memory is landing, but initiative and embodiment still need the same-her line to stay explicit.',
         },
       } as any,
-    })).toBe('closure_gap=memory, initiative, embodiment; project_shell_risk=true; widening=deferred; visibility=internal')
+    })).toBe('closure_gap=memory, initiative, embodiment; risk=project_shell; widening=deferred')
   })
 
   it('keeps emotional closure explicit inside the concrete same-her life-loop gap reason when emotion is part of the active unfinished loop', () => {
@@ -368,7 +368,7 @@ describe('alicization companionship reason', () => {
           latestInflection: 'Emotion is landing again, but memory, initiative, and embodiment still need the same-her line to stay explicit.',
         },
       } as any,
-    })).toBe('closure_gap=emotion, memory, initiative, embodiment; project_shell_risk=true; widening=deferred; visibility=internal')
+    })).toBe('closure_gap=emotion, memory, initiative, embodiment; risk=project_shell; widening=deferred')
   })
 
   it('keeps thinner affective-residue room-making wording visible in measured-return companionship summaries when no stronger same-her override is present', () => {
@@ -406,7 +406,7 @@ describe('alicization companionship reason', () => {
           },
         },
       } as any,
-    })).toBe('Deliver the result on the continuity_thread, but leave room before widening closeness')
+    })).toBe('')
   })
 
   it('does not return fixed-template residue from companionship reason summaries', () => {
