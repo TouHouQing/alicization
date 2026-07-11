@@ -679,6 +679,37 @@ describe('main chat fixed template audit', () => {
     expect(failures).toEqual([])
   })
 
+  it('keeps runtime carry metadata from actively generating continuity_hold cues', () => {
+    const auditedFiles = [
+      'apps/stage-tamagotchi/src/main/services/alicization/alicization-runtime-architecture.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/dialogue-session-manager.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/learning-action-scheduler.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-meta.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/proactive-mind/visible-utterance-realization.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/runtime-subconscious-tick.ts',
+    ] as const
+    const failures: string[] = []
+
+    for (const relativePath of auditedFiles) {
+      const lines = readFileSync(`${repoRoot}${relativePath}`, 'utf8').split('\n')
+      lines.forEach((line, index) => {
+        if (!line.includes('continuity_hold='))
+          return
+        if (
+          line.includes('.includes(')
+          || line.includes('.test(')
+          || line.includes('RegExp')
+          || /Pattern|pattern|regex|legacy|detector|withheld|forbidden/iu.test(line)
+        ) {
+          return
+        }
+        failures.push(`${relativePath}:${index + 1} ${line.trim()}`)
+      })
+    }
+
+    expect(failures).toEqual([])
+  })
+
   it('keeps raw visible-reply critic and closure internals out of public chat transport and debug payloads', () => {
     const auditedFiles = [
       'apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.ts',

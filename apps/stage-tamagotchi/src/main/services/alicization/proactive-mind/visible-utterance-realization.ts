@@ -594,13 +594,13 @@ function deriveSelfRevisionPatchSameHerHoldDetail(selfRevisionPatch?: Alicizatio
   if (rawExplicitSameHerHoldDetail) {
     const loweredExplicitHold = rawExplicitSameHerHoldDetail.toLowerCase()
     if (/repair-before-closeness|repair before closeness|repair-first|repair first/u.test(loweredExplicitHold))
-      return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens'
+      return 'cadence=repair_before_closeness; timing=before_closeness_widens'
     if (/vulnerable-care|vulnerable care|care-before-analysis|care before analysis/u.test(loweredExplicitHold))
-      return 'continuity_hold=rest_protective_vulnerable_care; care_timing=before_analysis; closeness=lighter'
+      return 'cadence=rest_protective_vulnerable_care; care_timing=before_analysis; closeness=lighter'
     if (/rest-protective|rest protective|fatigue-aware|fatigue aware|quiet-companionship|quiet companionship/u.test(loweredExplicitHold))
-      return 'continuity_hold=rest_protective; fatigue_aware=true; direction=inward'
+      return 'cadence=rest_protective; fatigue_aware=true; direction=inward'
     if (/measured-return|measured return|lower-pressure|lower pressure|leave more room|more room/u.test(loweredExplicitHold))
-      return 'continuity_hold=measured_return; pressure=lower; room=more; widening=deferred'
+      return 'cadence=measured_return; pressure=lower; room=more; widening=deferred'
   }
 
   const explicitSameHerHoldDetail = sanitizeProjectStateAuditText(rawExplicitSameHerHoldDetail, 220) || null
@@ -616,17 +616,17 @@ function deriveSelfRevisionPatchSameHerHoldDetail(selfRevisionPatch?: Alicizatio
     return null
 
   if (/repair-before-closeness|repair before closeness|repair-first|repair first/u.test(merged))
-    return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens'
+    return 'cadence=repair_before_closeness; timing=before_closeness_widens'
 
   if (
     /vulnerable-care|vulnerable care|fragile care|care-before-analysis|care before analysis|care arrive before analysis|care arrives before analysis|analysis-heavy|analysis heavy/u.test(merged)
     && /same living line|same line|same-her|same her|line stays inward|holds inward|direction=inward/u.test(merged)
   ) {
-    return 'continuity_hold=rest_protective_vulnerable_care; care_timing=before_analysis; closeness=lighter'
+    return 'cadence=rest_protective_vulnerable_care; care_timing=before_analysis; closeness=lighter'
   }
 
   if (/rest-protective|rest protective|rest protection|quiet-companionship|quiet companionship|fatigue-aware|late-night-drain|line holds inward|holds inward|quietly inward/u.test(merged)) {
-    return 'continuity_hold=rest_protective; fatigue_aware=true; direction=inward'
+    return 'cadence=rest_protective; fatigue_aware=true; direction=inward'
   }
 
   return null

@@ -606,7 +606,7 @@ function buildProjectThreadContinuityCue(input: {
   if (!hasProjectCarry || !sameThreadCarry || !measuredReturn || (!callbackContinuationSummary && !callbackLikeProjectCarry))
     return null
 
-  return 'same_thread_callback_carry | project_context=runtime_personhood | continuity_hold=continuity_line | route=desktop_runtime | unresolved=callback_seam'
+  return 'same_thread_callback_carry | project_context=runtime_personhood | cadence=measured_return | route=desktop_runtime | unresolved=callback_seam'
 }
 
 function resolveRuntimeProjectContinuityCue(input: {

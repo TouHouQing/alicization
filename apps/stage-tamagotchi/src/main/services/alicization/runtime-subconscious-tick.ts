@@ -161,7 +161,7 @@ function resolvePresenceOnlyHoldStructuredTokens(raw: string) {
     = /repair-before-closeness|repair before closeness|repair-first|repair first|continuity_hold=repair_before_closeness|before_closeness_widens|先修复|修复优先/iu.test(normalized)
   if (carriesRepairBeforeCloseness) {
     tokens.push(
-      'continuity_hold=repair_before_closeness',
+      'cadence=repair_before_closeness',
       'timing=before_closeness_widens',
     )
   }
@@ -170,7 +170,7 @@ function resolvePresenceOnlyHoldStructuredTokens(raw: string) {
     = /rest-protective|rest protective|rest protection|rest-guard|quiet-companionship|quiet companionship|fatigue-aware|continuity_hold=rest_protective|fatigue_aware=true|protect rest|protecting rest|late-night-drain|line holds inward|holds inward|quietly inward|stay inward|body stay inward|休息保护|先收住|先往内收|别把身体再往外推/iu.test(normalized)
   if (carriesRestProtective) {
     tokens.push(
-      'continuity_hold=rest_protective',
+      'cadence=rest_protective',
       'direction=inward',
       'fatigue_aware=true',
     )
@@ -185,7 +185,7 @@ function resolvePresenceOnlyHoldStructuredTokens(raw: string) {
     && /callback line|same callback|same-thread|same thread|before widening outward/iu.test(normalized)
   if (explicitMeasuredReturn || implicitMeasuredReturn) {
     tokens.push(
-      'continuity_hold=measured_return',
+      'cadence=measured_return',
       'pressure=lower',
       'reopen_from_scratch=false',
     )
@@ -561,7 +561,7 @@ function resolvePresenceOnlyHoldSameHerHoldDetail(input: {
 
   return current
     || candidate
-    || 'continuity_hold=measured_return; pressure=lower'
+    || 'cadence=measured_return; pressure=lower'
 }
 
 export function buildPresenceOnlyHoldContinuityProjection(input: {
@@ -625,10 +625,10 @@ export function buildPresenceOnlyHoldContinuityProjection(input: {
   const sameHerHoldDetail = rememberedSeamMoreRoomCarry
     ? resolveRememberedSeamMoreRoomHoldDetail()
     : input.continuityRestraint === 'repair-before-closeness'
-      ? 'continuity_hold=repair_before_closeness; timing=before_closeness_widens'
+      ? 'cadence=repair_before_closeness; timing=before_closeness_widens'
       : input.continuityRestraint === 'rest-protective'
-        ? 'continuity_hold=rest_protective; timing=fatigue_aware'
-        : 'continuity_hold=measured_return; pressure=lower'
+        ? 'cadence=rest_protective; timing=fatigue_aware'
+        : 'cadence=measured_return; pressure=lower'
   const inwardLine = [
     normalizePresenceOnlyHoldCarryText(previousProjection?.selfContinuityAuthority?.inwardLine, 240),
     normalizePresenceOnlyHoldCarryText(input.projectContinuityCue, 240),
@@ -1521,10 +1521,10 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
       candidate:
         input.holdDetail
         ?? (input.continuityRestraint === 'repair-before-closeness'
-          ? 'continuity_hold=repair_before_closeness; timing=before_closeness_widens'
+          ? 'cadence=repair_before_closeness; timing=before_closeness_widens'
           : input.continuityRestraint === 'rest-protective'
-            ? 'continuity_hold=rest_protective; timing=fatigue_aware'
-            : 'continuity_hold=measured_return; pressure=lower'),
+            ? 'cadence=rest_protective; timing=fatigue_aware'
+            : 'cadence=measured_return; pressure=lower'),
       continuityCue: input.projectStateCarry?.continuityCue,
       continuityRestraint: input.continuityRestraint,
     }),

@@ -143,10 +143,10 @@ function fixedMirrorTemplateStructuredFact(raw: unknown, maxChars = 320) {
       ? 'template_residue_risk=generic_shell; closure_status=unfinished'
       : null,
     /repair-before-closeness|repair first|repair settles|修复/u.test(lowered)
-      ? 'continuity_hold=repair_before_closeness; timing=before_closeness_widens'
+      ? 'cadence=repair_before_closeness; timing=before_closeness_widens'
       : null,
     /measured-return|lower-pressure|low-pressure|leave room|留白|放轻/u.test(lowered)
-      ? 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred'
+      ? 'cadence=lower_pressure_return; pacing=slower; widening=deferred'
       : null,
   ])
 
@@ -1165,7 +1165,7 @@ function deriveExecutionLikeSameHerHoldDetail(input: {
   const genericRepairMenu = /measured-return\s*\/\s*repair-before-closeness|one measured-return,\s*repair-before-closeness,\s*or rest-protective|measured-return,\s*repair-before-closeness,\s*or rest-protective/u.test(combined)
 
   if (explicitRepairAuthority && !genericRepairMenu) {
-    return 'continuity_hold=repair_before_closeness; timing=before_closeness_widens'
+    return 'cadence=repair_before_closeness; timing=before_closeness_widens'
   }
 
   if (/reopened too eagerly|too eagerly|more room this time|keep more room this time|leave more room|do not reopen it with the same eagerness|不要重开得太快|这次更要留白|这次要更慢一点|上次太急/u.test(combined)) {
@@ -1173,7 +1173,7 @@ function deriveExecutionLikeSameHerHoldDetail(input: {
   }
 
   if (/measured-return|lower-pressure|one step more reversible|still settling|leave room|留白|放轻|别立刻把温度放大/u.test(combined)) {
-    return 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred'
+    return 'cadence=lower_pressure_return; pacing=slower; widening=deferred'
   }
 
   return ''

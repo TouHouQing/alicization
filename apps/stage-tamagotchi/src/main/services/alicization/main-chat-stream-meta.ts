@@ -51,13 +51,13 @@ const pendingSameHerEmbodimentRepairPressureReasonTags = [
 ] as const
 
 const structuredMeasuredReturnInwardCarry
-  = 'continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower'
+  = 'cadence=measured_return; direction=inward; widening=deferred; pressure=lower'
 const structuredRepairBeforeClosenessCallbackCarry
-  = 'continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred'
+  = 'cadence=repair_before_closeness; target=callback; repair=settle_first; widening=deferred'
 
 function isStructuredMeasuredReturnInwardCarry(raw: string | null | undefined) {
   return typeof raw === 'string'
-    && raw.includes('continuity_hold=measured_return')
+    && (raw.includes('cadence=measured_return') || raw.includes('continuity_hold=measured_return'))
     && raw.includes('direction=inward')
     && raw.includes('widening=deferred')
 }

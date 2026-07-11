@@ -33,10 +33,10 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     const resolved = resolveAlicizationProactiveVisibleUtterance({
       kind: 'subconscious-proactive',
       structured: {
-        thought: 'continuity_hold=quiet_companionship; direction=inward; widening=deferred; visibility=internal-structured',
+        thought: 'cadence=quiet_companionship; direction=inward; widening=deferred',
         proactive: {
           style: 'silent-observe',
-          openingGuidance: 'continuity_hold=measured_return; direction=inward; pressure=lower; visibility=internal-structured',
+          openingGuidance: 'cadence=measured_return; direction=inward; pressure=lower',
         },
       },
       hasMindAuthoredStructured: true,
@@ -44,7 +44,7 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('continuity_hold=quiet_companionship')
+    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('cadence=quiet_companionship')
     expect(String(resolved.visibleReplyRealization.sameHerInwardCarry ?? '')).not.toMatch(/same-her|same living line|Same Phase 1|同一个她/iu)
     expect(resolved.visibleReplyRealization.companionshipHoldMode).toBe('quiet-companionship')
     expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
@@ -88,7 +88,7 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
     expect(resolved.visibleReplyRealization.openingGuidanceHoldDetail).toBe(
-      'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; visibility=internal-structured',
+      'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred',
     )
     expect(resolved.visibleReplyRealization.companionshipHoldMode).toBe('quiet-companionship')
     expect(resolved.visibleReplyRealization.sameHerInwardCarry).toBeUndefined()
@@ -409,8 +409,8 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.visibleReplyRealization.projectStateAudit).toEqual(expect.objectContaining({
-      emotionalClosureSummary: expect.stringContaining('continuity_hold=measured_return'),
-      continuitySummary: expect.stringContaining('closure=continuity_hold=measured_return'),
+      emotionalClosureSummary: expect.stringContaining('cadence=measured_return'),
+      continuitySummary: expect.stringContaining('closure=cadence=measured_return'),
     }))
     expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
@@ -519,15 +519,15 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
-    expect(String(resolved.visibleReplyRealization.sameHerInwardCarry ?? '')).toContain('continuity_hold=repair_before_closeness')
+    expect(String(resolved.visibleReplyRealization.sameHerInwardCarry ?? '')).toContain('cadence=repair_before_closeness')
     expect(String(resolved.visibleReplyRealization.sameHerInwardCarry ?? '')).not.toMatch(/same-her|same living line|Same Phase 1/iu)
     expect(resolved.visibleReplyRealization.projectStateAudit).toEqual(expect.objectContaining({
       sameHerHoldDetail: expect.stringContaining('continuity_identity hold'),
       sameHerSummary: expect.stringContaining('local_desktop_life_loop'),
-      emotionalClosureSummary: expect.stringContaining('continuity_hold=repair_before_closeness'),
+      emotionalClosureSummary: expect.stringContaining('cadence=repair_before_closeness'),
       continuitySummary: expect.stringContaining('hold=continuity_identity hold'),
     }))
-    expect(String(resolved.visibleReplyRealization.projectStateAudit?.continuitySummary ?? '')).toContain('closure=continuity_hold=repair_before_closeness')
+    expect(String(resolved.visibleReplyRealization.projectStateAudit?.continuitySummary ?? '')).toContain('closure=cadence=repair_before_closeness')
     expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
   })
 
@@ -596,12 +596,12 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('continuity_hold=rest_protective')
+    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('cadence=rest_protective')
     expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('fatigue_aware=true')
     expect(String(resolved.visibleReplyRealization.sameHerInwardCarry ?? '')).not.toMatch(/same-her|same living line|Same Phase 1/iu)
     expect(resolved.visibleReplyRealization.projectStateAudit).toEqual(expect.objectContaining({
       sameHerSummary: expect.stringContaining('local_desktop_life_loop'),
-      emotionalClosureSummary: expect.stringContaining('continuity_hold=inward'),
+      emotionalClosureSummary: expect.stringContaining('cadence=inward'),
       continuitySummary: expect.stringContaining('closure=late-night-drain closure'),
     }))
     expectNoFixedTemplateResidue(resolved.visibleReplyRealization)
@@ -672,7 +672,7 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('continuity_hold=rest_protective_vulnerable_care')
+    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('cadence=rest_protective_vulnerable_care')
     expect(resolved.visibleReplyRealization.sameHerInwardCarry).toContain('care_timing=before_analysis')
     expect(String(resolved.visibleReplyRealization.sameHerInwardCarry ?? '')).not.toMatch(/same-her|same living line|Same Phase 1/iu)
     expect(resolved.visibleReplyRealization.projectStateAudit).toEqual(expect.objectContaining({

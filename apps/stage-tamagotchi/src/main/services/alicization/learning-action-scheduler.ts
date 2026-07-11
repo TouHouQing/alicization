@@ -368,7 +368,7 @@ function buildTaskMessage(input: {
     `learning-action=${input.nextLearningAction}`,
     input.nextLearningReason ? `reason=${input.nextLearningReason}` : '',
     sameHerLearningConstraint,
-    sameHerHoldDetail ? `continuity_hold=${sameHerHoldDetail}` : '',
+    sameHerHoldDetail ? `cadence_detail=${sameHerHoldDetail}` : '',
     proactiveSameHerGap ? `continuity_gap=${proactiveSameHerGap}` : '',
     input.activeLearningFocuses.length > 0 ? `focus=${input.activeLearningFocuses.join(' | ')}` : '',
   ].filter(Boolean).join(' ; ')
@@ -406,7 +406,7 @@ function appendSameHerContinuityGuard(input: {
   const fragments = [
     base,
     `project_anchor=${continuityGuard.sameHerSelfLine}`,
-    continuityGuard.sameHerHoldDetail ? `continuity_hold=${continuityGuard.sameHerHoldDetail}` : '',
+    continuityGuard.sameHerHoldDetail ? `cadence_detail=${continuityGuard.sameHerHoldDetail}` : '',
     `guard=${continuityGuard.sameHerDriftRisk}`,
     continuityGuard.proactiveSameHerGap ? `continuity_gap=${continuityGuard.proactiveSameHerGap}` : '',
   ].filter(Boolean)

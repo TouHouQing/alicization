@@ -1552,7 +1552,7 @@ describe('dialogue session manager', () => {
 
     expect(mirror.continuityArcSummary).toContain('restraint=measured-return')
     expect(mirror.continuityArcSummary).toContain('cue=continuity_anchor=local_desktop_life_loop')
-    expect(mirror.continuityArcSummary).toContain('continuity_hold=lower_pressure_return')
+    expect(mirror.continuityArcSummary).toContain('cadence=lower_pressure_return')
 
     const block = manager.buildSessionMirrorSystemBlock({
       cardId: 'default',
@@ -1561,7 +1561,7 @@ describe('dialogue session manager', () => {
 
     expect(block).toContain('restraint=measured-return')
     expect(block).toContain('cue=continuity_anchor=local_desktop_life_loop')
-    expect(block).toContain('continuity_hold=lower_pressure_return')
+    expect(block).toContain('cadence=lower_pressure_return')
     expectNoFixedTemplateResidue(block)
   })
 
@@ -1621,7 +1621,7 @@ describe('dialogue session manager', () => {
       getNow: () => 83,
     })
 
-    const holdDetail = 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred; visibility=internal-structured'
+    const holdDetail = 'cadence=lower_pressure_return; pacing=slower; widening=deferred'
     const mirror = manager.ingestPreparedExecution({
       agentSession: {
         ...createAgentSessionSnapshot(),
@@ -1673,7 +1673,7 @@ describe('dialogue session manager', () => {
       getNow: () => 83,
     })
 
-    const holdDetail = 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred; visibility=internal-structured'
+    const holdDetail = 'cadence=lower_pressure_return; pacing=slower; widening=deferred'
     const agentSession = createAgentSessionSnapshot()
     agentSession.digitalLifeSpine = deriveAlicizationDigitalLifeSpineFromSurface(createRuntimeSurface().digitalLifeRuntimeSurface!)
     agentSession.lastActiveAt = 82
@@ -1866,7 +1866,7 @@ describe('dialogue session manager', () => {
       getNow: () => 83,
     })
 
-    const holdDetail = 'continuity_hold=lower_pressure_return; pacing=slower; widening=deferred; visibility=internal-structured'
+    const holdDetail = 'cadence=lower_pressure_return; pacing=slower; widening=deferred'
     const agentSession = createAgentSessionSnapshot()
     agentSession.digitalLifeSpine = deriveAlicizationDigitalLifeSpineFromSurface(createRuntimeSurface().digitalLifeRuntimeSurface!)
     agentSession.lastActiveAt = 82

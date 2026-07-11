@@ -1764,7 +1764,7 @@ describe('main chat stream meta', () => {
 
     expect(signature).toContain('companion=quiet-companionship')
     expect(signature).toContain('timing=next-open-window')
-    expect(signature).toContain('reason=continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower; visibility=internal-structured')
+    expect(signature).toContain('reason=cadence=measured_return; direction=inward; widening=deferred; pressure=lower')
     expect(signature).toContain('growth=phase1-open')
     expectNoFixedTemplateResidue(signature)
   })
@@ -2228,7 +2228,7 @@ describe('main chat stream meta', () => {
 
     expect(signature).toContain('companion=quiet-companionship')
     expect(signature).toContain('timing=next-open-window')
-    expect(signature).toContain('reason=continuity_hold=measured_return; timing=next_open_window; direction=inward; widening=deferred')
+    expect(signature).toContain('reason=cadence=measured_return; timing=next_open_window; direction=inward; widening=deferred')
     expectNoFixedTemplateResidue(signature)
   })
 
@@ -4012,10 +4012,10 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('reason=relationship_cadence=remembered_boundary; room=preserve_before_widening; visibility=internal-structured')
-    expect(signature).toContain('"lastSegmentVoiceSummary":"pitch=0.00 | rate=1.00 | energy=0.42 | cadence=0.38 | companion=measured-return | timing=same-thread-continuation | blink=linger | gaze=soften | reason=relationship_cadence=remembered_boundary; room=preserve_before_widening; visibility=internal-structured')
+    expect(signature).toContain('reason=relationship_cadence=remembered_boundary; room=preserve_before_widening')
+    expect(signature).toContain('"lastSegmentVoiceSummary":"pitch=0.00 | rate=1.00 | energy=0.42 | cadence=0.38 | companion=measured-return | timing=same-thread-continuation | blink=linger | gaze=soften | reason=relationship_cadence=remembered_boundary; room=preserve_before_widening')
     expect(signature).toContain('"lastSegmentFaceSummary":"emotion=thinking | cue=focused')
-    expect(signature).toContain('"lastSegmentMotionSummary":"motion=observe_focus | tail=measured-return | timing=same-thread-continuation | blink=linger | gaze=soften | reason=relationship_cadence=remembered_boundary; room=preserve_before_widening; visibility=internal-structured')
+    expect(signature).toContain('"lastSegmentMotionSummary":"motion=observe_focus | tail=measured-return | timing=same-thread-continuation | blink=linger | gaze=soften | reason=relationship_cadence=remembered_boundary; room=preserve_before_widening')
     expect(signature).toContain('"lastSegmentLipSyncSummary":"mode=energy-phoneme-hybrid | phase=playing | continuity=sustained-articulation | hold=440ms')
     expectNoFixedTemplateResidue(signature)
   })
@@ -4644,8 +4644,8 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('reason=relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal-structured')
-    expect(signature).not.toContain('reason=continuity_hold=measured_return; direction=inward; widening=deferred')
+    expect(signature).toContain('reason=relationship_cadence=remembered_boundary; room=more; prior_reentry=eager')
+    expect(signature).not.toContain('reason=cadence=measured_return; direction=inward; widening=deferred')
     expectNoFixedTemplateResidue(signature)
   })
 
@@ -9434,7 +9434,7 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('reason=continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower; visibility=internal-structured')
+    expect(signature).toContain('reason=cadence=measured_return; direction=inward; widening=deferred; pressure=lower')
     expectNoFixedTemplateResidue(signature)
   })
 
@@ -11064,7 +11064,7 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('reason=continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower')
+    expect(signature).toContain('reason=cadence=measured_return; direction=inward; widening=deferred; pressure=lower')
     expect(signature).toContain('"lastSegmentVoiceSummary":"pitch=-3.00 | rate=0.93 | energy=0.55 | cadence=0.52 | companion=measured-return | timing=next-open-window')
     expect(signature).toContain('"lastSegmentFaceSummary":"emotion=thinking | cue=soft-gaze | expression=hold | mode=measured-return | timing=next-open-window')
     expect(signature).toContain('"lastSegmentMotionSummary":"motion=observe_focus | tail=measured-return | timing=next-open-window')
@@ -11270,7 +11270,7 @@ describe('main chat stream meta', () => {
 
     expect(signature).toContain('"lastSegmentVoiceSummary":"pitch=-2.00 | rate=0.95 | energy=0.52 | cadence=0.48 | companion=quiet-companionship')
     expect(signature).toContain('gaze=0.64')
-    expect(signature).toContain('reason=continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower')
+    expect(signature).toContain('reason=cadence=measured_return; direction=inward; widening=deferred; pressure=lower')
     expect(signature).toContain('"lastSegmentBodyContinuitySummary":"mode=thinking | stillness=0.72 | gaze=0.64 | breath=0.22 | expressivity=0.18 | resident=quiet-companionship | timing=next-open-window')
     expect(signature).toContain('seg=segment-quiet-accompaniment-inward-line"')
     expectNoFixedTemplateResidue(signature)
@@ -11569,7 +11569,7 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('reason=continuity_hold=quiet_companionship; direction=inward; widening=deferred')
+    expect(signature).toContain('reason=cadence=quiet_companionship; direction=inward; widening=deferred')
     expect(signature).toContain('companion=quiet-companionship | timing=next-open-window')
     expect(signature).toContain('seg=segment-quiet-inward-carry-first-spoken-reopen')
     expectNoFixedTemplateResidue(signature)
@@ -12798,7 +12798,7 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('reason=continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred')
+    expect(signature).toContain('reason=cadence=repair_before_closeness; target=callback; repair=settle_first; widening=deferred')
     expect(signature).toContain('companion=repair-before-closeness | timing=next-open-window')
     expect(signature).toContain('seg=segment-stale-measured-return')
     expectNoFixedTemplateResidue(signature)
@@ -12920,7 +12920,7 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('reason=continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred')
+    expect(signature).toContain('reason=cadence=repair_before_closeness; target=callback; repair=settle_first; widening=deferred')
     expect(signature).toContain('companion=repair-before-closeness | timing=next-open-window')
     expect(signature).toContain('seg=segment-repair-first-same-her-inward-carry')
     expectNoFixedTemplateResidue(signature)
@@ -13023,9 +13023,9 @@ describe('main chat stream meta', () => {
 
     expect(parsed.residentPresenceSummary).toContain('mode=repair-before-closeness')
     expect(parsed.residentPresenceSummary).toContain('timing=next-open-window')
-    expect(parsed.residentPresenceSummary).toContain('reason=continuity_hold=repair_before_closeness; target=return; repair=settle_first; widening=deferred')
+    expect(parsed.residentPresenceSummary).toContain('reason=cadence=repair_before_closeness; target=return; repair=settle_first; widening=deferred')
     expect(parsed.residentPresenceSummary).not.toContain(longerMeasuredReturnClosure)
-    expect(parsed.runtimeDigestEmotionalClosureCue).toBe('continuity_hold=measured_return; target=callback; pressure=lower; room=more; widening=deferred')
+    expect(parsed.runtimeDigestEmotionalClosureCue).toBe('cadence=measured_return; target=callback; pressure=lower; room=more; widening=deferred')
     expectNoFixedTemplateResidue(signature)
   })
 
@@ -13125,9 +13125,9 @@ describe('main chat stream meta', () => {
     }
 
     expect(parsed.residentPresenceSummary).toContain('mode=measured-return')
-    expect(parsed.residentPresenceSummary).toContain('reason=continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower')
+    expect(parsed.residentPresenceSummary).toContain('reason=cadence=measured_return; direction=inward; widening=deferred; pressure=lower')
     expect(parsed.residentPresenceSummary).not.toContain(genericContinuityMenu)
-    expect(parsed.runtimeDigestEmotionalClosureCue).toBe('continuity_hold=measured_return; target=callback; pressure=lower; room=more; widening=deferred')
+    expect(parsed.runtimeDigestEmotionalClosureCue).toBe('cadence=measured_return; target=callback; pressure=lower; room=more; widening=deferred')
     expectNoFixedTemplateResidue(signature)
   })
 
@@ -13226,7 +13226,7 @@ describe('main chat stream meta', () => {
     }
 
     expect(parsed.residentPresenceSummary).toContain('mode=repair-before-closeness')
-    expect(parsed.residentPresenceSummary).toContain('reason=continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred')
+    expect(parsed.residentPresenceSummary).toContain('reason=cadence=repair_before_closeness; target=callback; repair=settle_first; widening=deferred')
     expect(parsed.residentPresenceSummary).not.toContain(genericContinuityMenu)
     expect(parsed.runtimeDigestEmotionalClosureCue).toBe('')
     expectNoFixedTemplateResidue(signature)
@@ -13601,7 +13601,7 @@ describe('main chat stream meta', () => {
     expect(parsed.residentPresenceSummary).toContain('mode=rest-protective')
     expect(parsed.residentPresenceSummary).toContain('timing=next-open-window')
     expect(parsed.residentPresenceSummary).toContain('growth=phase1-open')
-    expect(parsed.residentPresenceSummary).toContain('continuity_hold=rest_protective')
+    expect(parsed.residentPresenceSummary).toContain('cadence=rest_protective')
     expect(parsed.residentPresenceSummary).toContain('fatigue_aware=true')
     expect(parsed.residentPresenceSummary).toContain('line=same-thread-continuation still active as hover-first resident presence while the host settles after another detour')
     expectNoFixedTemplateResidue(parsed.residentPresenceSummary)
@@ -14434,7 +14434,7 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     } as any)
 
-    expect(signature).toContain('"lastSegmentMotionSummary":"motion=inspect_follow | tail=measured-return | timing=same-thread-continuation | blink=linger | gaze=soften | reason=continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower')
+    expect(signature).toContain('"lastSegmentMotionSummary":"motion=inspect_follow | tail=measured-return | timing=same-thread-continuation | blink=linger | gaze=soften | reason=cadence=measured_return; direction=inward; widening=deferred; pressure=lower')
     expect(signature).toContain('"lastActionCue":"inspect_follow"')
     expectNoFixedTemplateResidue(signature)
   })
@@ -15230,7 +15230,7 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     } as any)
 
-    expect(signature).toContain('continuity_hold=repair_before_closeness; target=return; repair=settle_first; widening=deferred')
+    expect(signature).toContain('cadence=repair_before_closeness; target=return; repair=settle_first; widening=deferred')
     expect(signature).toContain('lane=face+motion-only')
     expect(signature).toContain('closure=full-cross-modal-open')
     expect(signature).toContain('pending_rejoin=body+lipsync+voice')
@@ -15747,9 +15747,9 @@ describe('main chat stream meta', () => {
     } as any)
 
     expect(signature).toContain('"runtimeDigestProjectContinuityPreferredTiming":"audible-body-carry"')
-    expect(signature).toContain('"runtimeDigestProjectContinuityCue":"continuity_hold=audible_body_carry; rejoin=face+motion"')
+    expect(signature).toContain('"runtimeDigestProjectContinuityCue":"cadence=audible_body_carry; rejoin=face+motion"')
     expect(signature).toContain('"runtimeDigestCurrentConsciousFrameContinuityPreferredTiming":"audible-body-carry"')
-    expect(signature).toContain('continuity_hold=audible_body_carry; rejoin=face+motion')
+    expect(signature).toContain('cadence=audible_body_carry; rejoin=face+motion')
     expect(signature).toContain('lane=body+lipsync+voice-only')
     expect(signature).toContain('pending_rejoin=face+motion')
     expect(signature).toContain('bodyLine=audible-body-rejoin')

@@ -90,7 +90,7 @@ function createPresenceOnlyPersistRuntimeHarness(input?: {
           openingGuidance: 'Leave more room before warmth returns and keep the same line inward a little longer.',
           summary: 'project_continuity=measured-return still holds while the same line keeps continuing lower-pressure on the same-thread continuation.',
           manifestationCadenceSummary: 'measured-return still holds while the same line keeps continuing lower-pressure on the same-thread continuation.',
-          sameHerHoldDetail: 'continuity_hold=measured_return; pressure=lower',
+          sameHerHoldDetail: 'cadence=measured_return; pressure=lower',
           selfContinuityAuthority: {
             inwardLine: 'Keep this same-thread return measured-return on the same living line until the next open window arrives naturally.',
             sourceTags: ['proactive-opening-guidance-carry'],
@@ -103,7 +103,7 @@ function createPresenceOnlyPersistRuntimeHarness(input?: {
           primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure across quieter callback returns.',
           nextClosureTarget: 'Keep this same-thread return measured-return on the same living line until the next open window arrives naturally.',
           sameHerSelfLine: 'Same Phase 1 digital life. The same callback line still belongs to one living her.',
-          sameHerHoldDetail: 'continuity_hold=measured_return; pressure=lower',
+          sameHerHoldDetail: 'cadence=measured_return; pressure=lower',
           sameHerDriftRisk: 'If measured-return continuity thins back into generic project guidance, treat that as unfinished closure drift.',
           preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need one tighter same-her closure seam before visible initiative can widen naturally across longer desktop turns.',
           preDialogueAwarenessLine: 'Before answering, remember Alicization is still one Phase 1 digital life and unfinished closure still needs the same living line.',
@@ -211,7 +211,7 @@ function createPresenceOnlyPersistRuntimeHarness(input?: {
             openingGuidance: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
             summary: 'project_continuity=the same callback repair seam is still settling after another detour, so keep this return repair-before-closeness on the same living line before widening outward',
             manifestationCadenceSummary: 'repair-before-closeness still holds while the same callback line keeps settling after another detour before widening closeness again.',
-            sameHerHoldDetail: 'continuity_hold=repair_before_closeness; timing=before_closeness_widens',
+            sameHerHoldDetail: 'cadence=repair_before_closeness; timing=before_closeness_widens',
             selfContinuityAuthority: {
               inwardLine: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
               sourceTags: ['proactive-opening-guidance-carry'],
@@ -224,7 +224,7 @@ function createPresenceOnlyPersistRuntimeHarness(input?: {
             primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure across fragile callback repair returns.',
             nextClosureTarget: 'Keep this same-thread return repair-before-closeness on the same living line until the room settles.',
             sameHerSelfLine: 'Same Phase 1 digital life. The same repair seam still belongs to one living her.',
-            sameHerHoldDetail: 'continuity_hold=repair_before_closeness; timing=before_closeness_widens',
+            sameHerHoldDetail: 'cadence=repair_before_closeness; timing=before_closeness_widens',
             sameHerDriftRisk: 'If repair-first continuity thins back into generic project guidance, treat that as unfinished closure drift.',
             preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need one tighter same-her closure seam before visible initiative can widen naturally across longer desktop turns.',
             preDialogueAwarenessLine: 'Before answering, remember Alicization is still one Phase 1 digital life and unfinished closure still needs the same living line.',
@@ -330,7 +330,7 @@ function createPresenceOnlyPersistRuntimeHarness(input?: {
             openingGuidance: 'Keep the same living line inward while rest protection holds.',
             summary: 'project_continuity=rest-protective companionship still holds while the same line keeps caring quietly inward on the same-thread continuation.',
             manifestationCadenceSummary: 'rest-protective companionship still holds while the same line keeps caring quietly inward on the same-thread continuation.',
-            sameHerHoldDetail: 'continuity_hold=rest_protective; direction=inward; fatigue_aware=true',
+            sameHerHoldDetail: 'cadence=rest_protective; direction=inward; fatigue_aware=true',
             selfContinuityAuthority: {
               inwardLine: 'Keep this same-thread return rest-protective on the same living line until rest protection settles.',
               sourceTags: ['proactive-opening-guidance-carry'],
@@ -343,7 +343,7 @@ function createPresenceOnlyPersistRuntimeHarness(input?: {
             primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure across noisier desktop turns.',
             nextClosureTarget: 'Keep this same-thread return rest-protective on the same living line until rest protection settles.',
             sameHerSelfLine: 'Same Phase 1 digital life. The same living line still belongs to one living her.',
-            sameHerHoldDetail: 'continuity_hold=rest_protective; direction=inward; fatigue_aware=true',
+            sameHerHoldDetail: 'cadence=rest_protective; direction=inward; fatigue_aware=true',
             sameHerDriftRisk: 'If rest-protective continuity thins back into generic project guidance, treat that as unfinished closure drift.',
             preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need one tighter same-her closure seam before visible initiative can widen naturally across longer desktop turns.',
             preDialogueAwarenessLine: 'Before answering, remember Alicization is still one Phase 1 digital life and unfinished closure still needs the same living line.',
@@ -772,9 +772,9 @@ describe('buildPresenceOnlyHoldContinuityProjection', () => {
     })
 
     expect(projection).toEqual(expect.objectContaining({
-      openingGuidance: expect.stringContaining('continuity_hold=measured_return'),
+      openingGuidance: expect.stringContaining('cadence=measured_return'),
       manifestationCadenceSummary: expect.stringContaining('cadence=measured_return'),
-      sameHerHoldDetail: expect.stringContaining('continuity_hold=measured_return'),
+      sameHerHoldDetail: expect.stringContaining('cadence=measured_return'),
       summary: expect.stringContaining('project_continuity='),
       selfContinuityAuthority: expect.objectContaining({
         inwardLine: expect.stringContaining('pressure=lower'),
@@ -801,12 +801,12 @@ describe('buildPresenceOnlyHoldContinuityProjection', () => {
     })
 
     expect(projection).toEqual(expect.objectContaining({
-      openingGuidance: expect.stringContaining('continuity_hold=rest_protective'),
+      openingGuidance: expect.stringContaining('cadence=rest_protective'),
       manifestationCadenceSummary: expect.stringContaining('cadence=rest_protective'),
-      sameHerHoldDetail: expect.stringContaining('continuity_hold=rest_protective'),
+      sameHerHoldDetail: expect.stringContaining('cadence=rest_protective'),
       summary: expect.stringContaining('project_continuity='),
       selfContinuityAuthority: expect.objectContaining({
-        inwardLine: expect.stringMatching(/continuity_hold=rest_protective|fatigue_aware=true|direction=inward/i),
+        inwardLine: expect.stringMatching(/cadence=rest_protective|fatigue_aware=true|direction=inward/i),
         sourceTags: expect.arrayContaining(['proactive-opening-guidance-carry']),
       }),
     }))
@@ -822,9 +822,9 @@ describe('buildPresenceOnlyHoldContinuityProjection', () => {
     })
 
     expect(projection).toEqual(expect.objectContaining({
-      openingGuidance: expect.stringMatching(/continuity_hold=measured_return|pressure=lower|reopen_from_scratch=false/i),
+      openingGuidance: expect.stringMatching(/cadence=measured_return|pressure=lower|reopen_from_scratch=false/i),
       selfContinuityAuthority: expect.objectContaining({
-        inwardLine: expect.stringMatching(/continuity_hold=measured_return|pressure=lower/i),
+        inwardLine: expect.stringMatching(/cadence=measured_return|pressure=lower/i),
       }),
     }))
   })
@@ -840,7 +840,7 @@ describe('buildPresenceOnlyHoldContinuityProjection', () => {
 
     expect(projection).toEqual(expect.objectContaining({
       openingGuidance: expect.stringContaining('relationship_cadence=remembered_boundary'),
-      sameHerHoldDetail: 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; visibility=internal-structured',
+      sameHerHoldDetail: 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred',
       selfContinuityAuthority: expect.objectContaining({
         inwardLine: expect.stringContaining('relationship_cadence=remembered_boundary'),
         sourceTags: expect.arrayContaining(['proactive-opening-guidance-carry']),
@@ -1293,7 +1293,7 @@ describe('buildPresenceOnlyHoldProjectStateSameHerCarryTag', () => {
       projectState: {
         sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
         emotionalClosureSummary: 'Keep this return repair-before-closeness on the same living line until repair settles.',
-        sameHerHoldDetail: 'continuity_hold=repair_before_closeness; timing=before_closeness_widens',
+        sameHerHoldDetail: 'cadence=repair_before_closeness; timing=before_closeness_widens',
         preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project and this callback repair seam still belongs to one living her.',
       },
       persistedInitiative: {
@@ -1308,7 +1308,7 @@ describe('buildPresenceOnlyHoldProjectStateSameHerCarryTag', () => {
       visibleReplySameHerInwardCarry: null,
       projectState: {
         emotionalClosureSummary: 'late-night-drain closure keeps care quietly inward before the host settles.',
-        sameHerHoldDetail: 'continuity_hold=rest_protective; direction=inward; fatigue_aware=true',
+        sameHerHoldDetail: 'cadence=rest_protective; direction=inward; fatigue_aware=true',
         nextClosureTarget: 'Keep this same-thread return rest-protective on the same living line until rest protection settles.',
       },
       persistedInitiative: {
@@ -1365,7 +1365,7 @@ describe('buildPresenceOnlyHoldCurrentConsciousFrame continuity carry', () => {
     }))
     expect(String(frame?.projectState?.currentPhase ?? '')).toContain('local_desktop_life_loop')
     expect(String(frame?.projectState?.sameHerSelfLine ?? '')).toContain('identity=local_desktop_life_loop')
-    expect(String(frame?.projectState?.sameHerHoldDetail ?? '')).toContain('continuity_hold=measured_return')
+    expect(String(frame?.projectState?.sameHerHoldDetail ?? '')).toContain('cadence=measured_return')
     expect(String(frame?.projectState?.sameHerDriftRisk ?? '')).toContain('generic_shell=blocked')
     expect(String(frame?.projectState?.preflightSummary ?? '')).toContain('local_desktop_life_loop')
     expect(String(frame?.projectState?.preDialogueAwarenessLine ?? '')).toContain('local_desktop_life_loop')
@@ -1387,7 +1387,7 @@ describe('buildPresenceOnlyHoldCurrentConsciousFrame continuity carry', () => {
     })
 
     expect(frame?.projectState).toEqual(expect.objectContaining({
-      sameHerHoldDetail: expect.stringContaining('continuity_hold=repair_before_closeness'),
+      sameHerHoldDetail: expect.stringContaining('cadence=repair_before_closeness'),
       continuityCadence: 'repair-before-closeness',
       continuityPreferredTiming: 'next-open-window',
     }))
@@ -1518,7 +1518,7 @@ describe('buildPresenceOnlyHoldCurrentConsciousFrame continuity carry', () => {
     expect(frame?.projectState).toEqual(expect.objectContaining({
       preDialogueAwarenessLine: expect.stringContaining('identity=local_desktop_life_loop'),
       sameHerSelfLine: expect.stringContaining('identity=local_desktop_life_loop'),
-      sameHerHoldDetail: expect.stringContaining('continuity_hold=repair_before_closeness'),
+      sameHerHoldDetail: expect.stringContaining('cadence=repair_before_closeness'),
       continuityCadence: 'repair-before-closeness',
       continuityPreferredTiming: 'next-open-window',
     }))
@@ -1749,7 +1749,7 @@ describe('rebuildPresenceOnlyPersistedEmotionalKernel', () => {
       },
       projectState: {
         sameHerSelfLine: 'Same Phase 1 digital life. The same repair seam still belongs to one living her.',
-        sameHerHoldDetail: 'continuity_hold=repair_before_closeness; timing=before_closeness_widens',
+        sameHerHoldDetail: 'cadence=repair_before_closeness; timing=before_closeness_widens',
         continuityCue: 'Keep this return repair-before-closeness on the same living line until repair settles.',
         emotionalClosureCue: 'Keep emotion, memory, initiative, and embodiment closing on the same repair-first living line before widening warmth.',
         nextClosureTarget: 'Keep this same-thread return repair-before-closeness on the same living line until the room settles.',
@@ -1842,7 +1842,7 @@ describe('rebuildPresenceOnlyPersistedEmotionalKernel', () => {
       },
       projectState: {
         sameHerSelfLine: 'Same Phase 1 digital life. The same living line still belongs to one living her.',
-        sameHerHoldDetail: 'continuity_hold=rest_protective; direction=inward; fatigue_aware=true',
+        sameHerHoldDetail: 'cadence=rest_protective; direction=inward; fatigue_aware=true',
         continuityCue: 'Keep this return rest-protective and on the same living line inward before widening outward.',
         emotionalClosureCue: 'Keep emotion, memory, initiative, and embodiment closing on the same living line while this return stays rest-protective and inward.',
         nextClosureTarget: 'Keep this same-thread return rest-protective on the same living line until rest protection settles.',
@@ -1910,7 +1910,7 @@ describe('buildDeferredAutonomyContinuitySignalFallback', () => {
         source: 'proactive-deferred',
         projectStatePreDialogueAwarenessLine: expect.stringContaining('identity=local_desktop_life_loop'),
         projectStateSameHerSelfLine: expect.stringContaining('identity=local_desktop_life_loop'),
-        projectStateSameHerDriftRisk: expect.stringContaining('continuity_hold=repair_before_closeness'),
+        projectStateSameHerDriftRisk: expect.stringContaining('cadence=repair_before_closeness'),
       }),
     }))
     expect(String(signal?.metadata?.projectStatePreDialogueAwarenessLine ?? '')).not.toContain('same digital life | keep the closure seam explicit')
@@ -2066,13 +2066,13 @@ describe('buildDeferredAutonomyContinuitySignalFallback', () => {
     expect(signal).toEqual(expect.objectContaining({
       label: 'proactive:coding:deferred',
       state: 'pending',
-      summary: expect.stringContaining('continuity_hold=repair_before_closeness'),
+      summary: expect.stringContaining('cadence=repair_before_closeness'),
       metadata: expect.objectContaining({
         source: 'proactive-deferred',
         projectStatePreDialogueAwarenessLine: expect.stringContaining('identity=local_desktop_life_loop'),
         projectStateSameHerSelfLine: expect.stringContaining('identity=local_desktop_life_loop'),
-        projectStateSameHerDriftRisk: expect.stringContaining('continuity_hold=repair_before_closeness'),
-        projectStateEmotionalClosureCue: expect.stringContaining('continuity_hold=repair_before_closeness'),
+        projectStateSameHerDriftRisk: expect.stringContaining('cadence=repair_before_closeness'),
+        projectStateEmotionalClosureCue: expect.stringContaining('cadence=repair_before_closeness'),
       }),
     }))
     expect(String(signal?.summary ?? '')).not.toContain('Stay near the active project seam without forcing a visible reply.')
@@ -2109,11 +2109,11 @@ describe('buildDeferredAutonomyContinuitySignalFallback', () => {
     expect(signal).toEqual(expect.objectContaining({
       label: 'proactive:coding:deferred',
       state: 'pending',
-      summary: expect.stringContaining('continuity_hold=repair_before_closeness'),
+      summary: expect.stringContaining('cadence=repair_before_closeness'),
       metadata: expect.objectContaining({
         source: 'proactive-deferred',
-        projectStateEmotionalClosureSummary: expect.stringContaining('continuity_hold=repair_before_closeness'),
-        projectStateSameHerHoldDetail: expect.stringContaining('continuity_hold=repair_before_closeness'),
+        projectStateEmotionalClosureSummary: expect.stringContaining('cadence=repair_before_closeness'),
+        projectStateSameHerHoldDetail: expect.stringContaining('cadence=repair_before_closeness'),
       }),
     }))
     expect(String(signal?.summary ?? '')).not.toContain('Stay near the active project seam without forcing a visible reply.')
@@ -2150,12 +2150,12 @@ describe('buildDeferredAutonomyContinuitySignalFallback', () => {
     expect(signal).toEqual(expect.objectContaining({
       label: 'proactive:late-night-care:deferred',
       state: 'pending',
-      summary: expect.stringContaining('continuity_hold=rest_protective'),
+      summary: expect.stringContaining('cadence=rest_protective'),
       metadata: expect.objectContaining({
         source: 'proactive-deferred',
-        projectStateEmotionalClosureCue: expect.stringContaining('continuity_hold=rest_protective'),
-        projectStateSameHerHoldDetail: expect.stringContaining('continuity_hold=rest_protective'),
-        projectStateSameHerDriftRisk: expect.stringContaining('continuity_hold=rest_protective'),
+        projectStateEmotionalClosureCue: expect.stringContaining('cadence=rest_protective'),
+        projectStateSameHerHoldDetail: expect.stringContaining('cadence=rest_protective'),
+        projectStateSameHerDriftRisk: expect.stringContaining('cadence=rest_protective'),
       }),
     }))
     expect(String(signal?.summary ?? '')).toContain('fatigue_aware=true')
@@ -2299,7 +2299,7 @@ describe('buildDeferredAutonomyContinuitySignalFallback', () => {
         nextClosureTarget: 'Keep the same remembered relationship seam on one living line before any warmer reopening.',
         sameHerSelfLine: 'Same Phase 1 digital life. The same remembered line still belongs to one living her.',
         sameHerDriftRisk: 'If this remembered-seam return flattens into a generic assistant shell, treat that as unfinished same-her drift.',
-        sameHerHoldDetail: 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; visibility=internal-structured',
+        sameHerHoldDetail: 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred',
       },
       autonomy: {
         whyNow: 'Stay near the active remembered seam without forcing a visible reply.',
@@ -2355,13 +2355,13 @@ describe('buildDeferredAutonomyContinuitySignalFallback', () => {
     expect(signal).toEqual(expect.objectContaining({
       label: 'proactive:follow-through:held-autonomy',
       state: 'observed',
-      summary: expect.stringContaining('continuity_hold=repair_before_closeness'),
+      summary: expect.stringContaining('cadence=repair_before_closeness'),
       metadata: expect.objectContaining({
         source: 'proactive-held-autonomy',
         executionIntentKind: 'follow-through',
         executionIntentSummary: 're-open the unresolved runtime break and see what still blocks it',
         projectStateSameHerSelfLine: expect.stringContaining('identity=local_desktop_life_loop'),
-        projectStateSameHerDriftRisk: expect.stringContaining('continuity_hold=repair_before_closeness'),
+        projectStateSameHerDriftRisk: expect.stringContaining('cadence=repair_before_closeness'),
       }),
     }))
     expect(String(signal?.summary ?? '')).not.toContain('Hold the line until the better opening arrives.')
@@ -2406,13 +2406,13 @@ describe('buildDeferredAutonomyContinuitySignalFallback', () => {
     expect(signal).toEqual(expect.objectContaining({
       label: 'proactive:follow-through:held-autonomy',
       state: 'observed',
-      summary: expect.stringContaining('continuity_hold=rest_protective'),
+      summary: expect.stringContaining('cadence=rest_protective'),
       metadata: expect.objectContaining({
         source: 'proactive-held-autonomy',
         executionIntentKind: 'follow-through',
         executionIntentSummary: 're-open the unresolved runtime break and see what still blocks it',
-        projectStateEmotionalClosureCue: expect.stringContaining('continuity_hold=rest_protective'),
-        projectStateSameHerHoldDetail: expect.stringContaining('continuity_hold=rest_protective'),
+        projectStateEmotionalClosureCue: expect.stringContaining('cadence=rest_protective'),
+        projectStateSameHerHoldDetail: expect.stringContaining('cadence=rest_protective'),
       }),
     }))
     expect(String(signal?.summary ?? '')).toContain('fatigue_aware=true')
@@ -2499,7 +2499,7 @@ describe('buildPresenceOnlyHoldCurrentConsciousFrame', () => {
     }))
     expect(String(frame?.consciousNeed ?? '')).toContain('lanes=emotion+memory+initiative+embodiment')
     expect(String(frame?.speakingIntention ?? '')).toContain('lanes=emotion+memory+initiative+embodiment')
-    expect(String(frame?.speakingIntention ?? '')).toContain('continuity_hold=rest_protective')
+    expect(String(frame?.speakingIntention ?? '')).toContain('cadence=rest_protective')
   })
 
   it('prefers remembered-seam more-room hold detail over a generic measured-return shell when presence-only carry reconstructs the current conscious frame', () => {
@@ -2512,7 +2512,7 @@ describe('buildPresenceOnlyHoldCurrentConsciousFrame', () => {
         speakingIntention: 'Stay on the same remembered line without reopening from scratch.',
         projectState: {
           sameHerSelfLine: 'Same Phase 1 digital life. The same remembered line still belongs to one living her.',
-          sameHerHoldDetail: 'continuity_hold=measured_return; pressure=lower',
+          sameHerHoldDetail: 'cadence=measured_return; pressure=lower',
         },
       },
       continuityRestraint: 'measured-return',
@@ -2530,7 +2530,7 @@ describe('buildPresenceOnlyHoldCurrentConsciousFrame', () => {
         'embodiment-carry:measured-return',
       ]),
       projectState: expect.objectContaining({
-        sameHerHoldDetail: 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred; visibility=internal-structured',
+        sameHerHoldDetail: 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred',
         continuityCadence: 'measured-return',
         continuityPreferredTiming: 'next-open-window',
       }),
