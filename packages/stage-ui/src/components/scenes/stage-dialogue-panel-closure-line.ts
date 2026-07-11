@@ -6,7 +6,7 @@ import {
 } from '@proj-alicization/stage-shared'
 
 const dialoguePanelInternalResiduePattern
-  = /continuity evidence|renderer continuity|identity-continuity|phase1_local_digital_life|visibility=internal-structured|content_withheld|owner=|source=|project_anchor=|continuity_anchor=|continuity=|embodiment_lanes=|missing_lanes=|pending=|pending[_-]rejoin=|recovery@|same[- ]her|same living line|one living her|one continuous her|同一个\s*her|同一个她|同一条数字生命线|数字生命主线|普通项目播报|下一步还要继续收住/iu
+  = /continuity evidence|renderer continuity|identity-continuity|phase1_local_digital_life|visibility=internal-structured|content_withheld|owner=|source=|surface=structured|project_anchor=|continuity_anchor=|continuity=|embodiment_lanes=|missing_lanes=|pending=|pending[_-]rejoin=|recovery@|same[- ]her|same living line|one living her|one continuous her|同一个\s*her|同一个她|同一条数字生命线|数字生命主线|普通项目播报|next=|next,\s*help me close:|下一步(?:还要继续收住|状态：|：)/iu
 
 function normalizeVisibleClosureLine(line: string | null | undefined) {
   const trimmed = typeof line === 'string' ? line.trim() : ''
@@ -258,6 +258,7 @@ function resolvePreferredFallbackAwarenessLine(
   ]
     .map(candidate => candidate?.trim() || null)
     .filter((candidate, index, entries): candidate is string => Boolean(candidate) && entries.indexOf(candidate) === index)
+    .filter(candidate => Boolean(normalizeVisibleClosureLine(candidate)))
 
   if (candidates.length === 0)
     return null
@@ -318,6 +319,7 @@ function resolvePreferredSameHerFallbackAwarenessLine(
   ]
     .map(candidate => candidate?.trim() || null)
     .filter((candidate, index, entries): candidate is string => Boolean(candidate) && entries.indexOf(candidate) === index)
+    .filter(candidate => Boolean(normalizeVisibleClosureLine(candidate)))
 
   if (candidates.length === 0)
     return null

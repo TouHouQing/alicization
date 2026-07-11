@@ -18,7 +18,7 @@ const proofRows = [
     file: './stage-quick-reply-closure.test.ts',
     snippets: [
       'does not surface fixed persona templates in headline, briefing, next line, or TTS-facing text',
-      'strips structured next closure markup before surfacing the next step',
+      'keeps structured next closure markup internal instead of surfacing it as reply copy',
       '项目状态待同步，记忆依据待补齐',
     ],
   },

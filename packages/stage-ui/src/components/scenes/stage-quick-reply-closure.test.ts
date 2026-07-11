@@ -104,7 +104,7 @@ describe('stage quick reply closure diagnostic entry', () => {
     }))
   })
 
-  it('strips structured next closure markup before surfacing the next step', () => {
+  it('keeps structured next closure markup internal instead of surfacing it as reply copy', () => {
     const entry = buildStageQuickReplyClosureDiagnosticEntry({
       status: 'partial',
       summaryLine: '项目状态还需要继续收束。',
@@ -116,7 +116,7 @@ describe('stage quick reply closure diagnostic entry', () => {
       reasons: [],
     })
 
-    expect(entry.nextClosureLine).toBe('Keep memory grounded without prompt templates.')
+    expect(entry.nextClosureLine).toBeNull()
     expectNoFixedTemplateResidue(entry)
   })
 

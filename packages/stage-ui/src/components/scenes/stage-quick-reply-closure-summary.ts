@@ -10,7 +10,7 @@ const fixedTemplateQuickReplyClosureSummaryLine
   = ''
 
 const internalStructuredQuickReplyClosurePattern
-  = /surface=structured|content_withheld|continuity evidence/iu
+  = /surface=structured|content_withheld|continuity evidence|identity-continuity|visibility=(?:internal-structured|renderer-internal)|owner=|source=|project_anchor=|continuity_anchor=|continuity=|embodiment_lanes=|missing_lanes=|signature=|lane=|focus=|pending(?:[_-]rejoin)?=|recovery@|^next=|^next,\s*help me close:|^下一步(?:还要继续收住|状态：|：)/iu
 
 function applyProjectStateTone(line: string | null, status: string | undefined) {
   void status
@@ -104,14 +104,14 @@ function normalizeProjectStateNextClosureLine(line: string | null | undefined) {
 
   const structuredNextMatch = /^next=(.*?)\s*(?:\|\s*surface=structured)?$/iu.exec(normalizedLine)
   if (structuredNextMatch?.[1]?.trim())
-    return sanitizeQuickReplyClosureSummaryLine(structuredNextMatch[1].trim())
+    return null
 
   const normalizedEnglishLine = normalizedLine.replace(/^Next, help me close:\s*/i, '').trim()
   if (normalizedEnglishLine !== normalizedLine)
-    return sanitizeQuickReplyClosureSummaryLine(normalizedEnglishLine)
+    return null
 
   if (/^下一步还要继续收住\s*/u.test(normalizedLine))
-    return sanitizeQuickReplyClosureSummaryLine(normalizedLine.replace(/^下一步还要继续收住\s*/u, '').trim())
+    return null
 
   return sanitizeQuickReplyClosureSummaryLine(normalizedLine)
 }

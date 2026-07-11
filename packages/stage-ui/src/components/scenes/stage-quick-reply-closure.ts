@@ -13,7 +13,7 @@ const legacyFixedTemplateQuickReplyClosureLine
   = ''
 
 const internalQuickReplyClosureFieldPattern
-  = /identity-continuity|phase1_local_digital_life|visibility=(?:internal-structured|renderer-internal)|content_withheld|owner=|source=|project_anchor=|continuity_anchor=|continuity=|embodiment_lanes=|missing_lanes=|signature=|lane=|focus=|pending(?:[_-]rejoin)?=|recovery@/iu
+  = /identity-continuity|phase1_local_digital_life|visibility=(?:internal-structured|renderer-internal)|content_withheld|owner=|source=|surface=structured|project_anchor=|continuity_anchor=|continuity=|embodiment_lanes=|missing_lanes=|signature=|lane=|focus=|pending(?:[_-]rejoin)?=|recovery@|^next=|^next,\s*help me close:|^下一步(?:还要继续收住|状态：|：)/iu
 
 function isInternalFixedTemplateExclusionLine(line: string | null | undefined) {
   const normalized = line?.trim().replace(/\s+/g, ' ') ?? ''
@@ -1340,13 +1340,13 @@ function sanitizeQuickReplyClosureVisibleLine(line: string | null | undefined) {
     return null
   const structuredNextMatch = /^next=(.*?)\s*(?:\|\s*surface=structured)?$/iu.exec(normalized)
   if (structuredNextMatch?.[1]?.trim())
-    return sanitizeQuickReplyClosureVisibleLine(structuredNextMatch[1].trim())
+    return null
   const nextHelpMatch = /^Next,\s*help me close:\s*(.*)$/i.exec(normalized)
   if (nextHelpMatch?.[1]?.trim())
-    return sanitizeQuickReplyClosureVisibleLine(nextHelpMatch[1].trim())
+    return null
   const chineseNextMatch = /^下一步(?:还要继续收住|状态：|：)\s*(.*)$/u.exec(normalized)
   if (chineseNextMatch?.[1]?.trim())
-    return sanitizeQuickReplyClosureVisibleLine(chineseNextMatch[1].trim())
+    return null
   if (/surface=structured/iu.test(normalized))
     return null
   if (isInternalFixedTemplateExclusionLine(normalized))
