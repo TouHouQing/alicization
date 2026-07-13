@@ -286,26 +286,6 @@ function looksLikeIndependentStructuredSameHerSignal(value: string | null | unde
     )
 }
 
-function looksLikeProjectStateAnswerStancePreserveText(value: string | null | undefined) {
-  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
-  if (!normalized)
-    return false
-  if (containsAlicizationFixedTemplateResidue(normalized))
-    return false
-
-  return (
-    normalized.includes('answer_subject=project_state')
-    || normalized.includes('project_state_answer=')
-    || normalized.includes('project_state_review=')
-    || normalized.includes('preserve_field=project_state.')
-  ) && (
-    normalized.includes('same_person_continuity')
-    || normalized.includes('project_state_review')
-    || normalized.includes('continuity_policy=')
-    || normalized.includes('project_anchor=')
-  )
-}
-
 function containsProjectStateStructuredTemplateResidue(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   return Boolean(normalized)
@@ -838,7 +818,6 @@ export async function settleAlicizationVisibleReply(input: {
   requireProviderMemoryUsage?: boolean
   forceRewrite?: boolean
   forceReasonCodes?: string[]
-  forceMustPreserve?: string[]
   appendRuntimeDebugLine?: (event: string, payload: Record<string, unknown>) => Promise<void> | void
   rewriteSecondPass: (
     input: AlicizationSecondPassRetryInput,
@@ -878,15 +857,6 @@ export async function settleAlicizationVisibleReply(input: {
 
   const currentConsciousFrame = input.prepared.runtimeSurface?.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame ?? null
   const currentConsciousProjectState = currentConsciousFrame?.projectState ?? null
-  const projectStateAnswerStancePreserve = looksLikeProjectStateAnswerStancePreserveText(currentConsciousFrame?.speakingIntention)
-    ? currentConsciousFrame?.speakingIntention?.trim() ?? null
-    : null
-  const settlementForceMustPreserve = projectStateAnswerStancePreserve
-    ? [
-        ...(input.forceMustPreserve ?? []),
-        projectStateAnswerStancePreserve,
-      ]
-    : input.forceMustPreserve
 
   let closed: AlicizationVisibleReplyClosureResult | null
   try {
@@ -940,11 +910,10 @@ export async function settleAlicizationVisibleReply(input: {
     ? (selfAuthority as { closenessPosture?: string | null } | null)?.closenessPosture?.trim() ?? null
     : null
   const existingProjectStateAudit = input.prepared.replyRealization?.projectStateAudit ?? null
-  const forcedProjectStateSameHerPreserve = (settlementForceMustPreserve ?? []).find(looksLikeProjectStateSameHerPreserveText) ?? null
+  const forcedProjectStateSameHerPreserve = null
   const criticProjectStateSameHerPreserve = closed.critic.mustPreserve.find(looksLikeProjectStateSameHerPreserveText) ?? null
   const fixedProjectStateSameHerPreserveResidue = Boolean(
-    (settlementForceMustPreserve ?? []).some(looksLikeFixedProjectStateSameHerPreserveText)
-    || closed.critic.mustPreserve.some(looksLikeFixedProjectStateSameHerPreserveText),
+    closed.critic.mustPreserve.some(looksLikeFixedProjectStateSameHerPreserveText),
   )
   const runtimeProjectSameHerSummary
     = typeof runtimeProjectStateSurface?.sameHerSelfLine === 'string' && runtimeProjectStateSurface.sameHerSelfLine.trim()
@@ -1061,9 +1030,7 @@ export async function settleAlicizationVisibleReply(input: {
           ? runtimeProjectStateContractWithCarry.sameHerDriftRisk.trim()
           : canonicalProjectStateWithCarry?.sameHerDriftRisk
             ?? null)
-  const forcedProjectStateClosurePreserve = (settlementForceMustPreserve ?? []).find(value =>
-    looksLikeRepairBeforeClosenessClosureSummary(value) || looksLikeRestProtectiveClosureSummary(value),
-  ) ?? null
+  const forcedProjectStateClosurePreserve = null
   const criticProjectStateClosurePreserve = closed.critic.mustPreserve.find(value =>
     looksLikeRepairBeforeClosenessClosureSummary(value) || looksLikeRestProtectiveClosureSummary(value),
   ) ?? null

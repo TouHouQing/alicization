@@ -123,7 +123,6 @@ import {
   deriveRuntimeProjectionRelationshipCarry,
   resolvePreparedRuntimeProjectPreDialogueAwarenessSummary,
 } from './prepared-runtime-continuity'
-import { enrichProjectStateAnswerGovernanceIfNeeded } from './project-state-answer-governance'
 import {
   buildAlicizationProviderFacingProjectStateExtraSystemBlocks,
   compactProjectLatestProgressForSystemBlock,
@@ -5806,7 +5805,7 @@ export function rebuildProviderFacingMindTurnContract(input: {
         governingProject: input.governance?.governingProject ?? baseContract.governingProject ?? null,
         reasons: input.governance?.reasons ?? baseContract.reasons ?? [],
       }
-  const mergedGovernanceRules = enrichProjectStateAnswerGovernanceIfNeeded({
+  const mergedGovernanceRules = {
     ...projectStateAnswerGovernanceHint,
     mustDo: mergeUniqueRules([
       ...(baseContract.mustDo ?? []),
@@ -5816,7 +5815,7 @@ export function rebuildProviderFacingMindTurnContract(input: {
       ...(baseContract.mustNotDo ?? []),
       ...(input.governance?.mustNotDo ?? []),
     ]),
-  })
+  }
   const providerFacingNextClosureTarget = (
     payloadProjectState.hasDirectPayloadNextClosureTarget
     && (
@@ -6822,49 +6821,8 @@ export function normalizeProviderFacingMindTurnContract(
       nextClosureTarget: preferredRebuiltNextClosureTarget ?? liveRuntimeProjectState.nextClosureTarget,
     }) ?? providerSafeFinalProjectStateAwarenessLine
   })()
-  const incomingContractAwarenessShell = normalizeProviderFacingProjectText(
-    (contract.projectState as Record<string, unknown> | null)?.preDialogueAwarenessLine
-    ?? (contract.projectState as Record<string, unknown> | null)?.awarenessLine,
-    1600,
-  )
-  const contractAnswerSubject = normalizeProviderFacingProjectText(
-    (contract as { answerSubject?: unknown }).answerSubject,
-    64,
-  )
-  const shouldEnrichNormalizedProjectStateGovernance = Boolean(
-    shouldCarryPhase1ProjectStateAnswerGovernance
-    || contractAnswerSubject === 'project-state',
-  )
-  const normalizedAnswerGovernance = shouldEnrichNormalizedProjectStateGovernance
-    ? enrichProjectStateAnswerGovernanceIfNeeded({
-        answerSubject: 'project-state',
-        answerIntent: contract.answerIntent ?? null,
-        governingFocus: contract.governingFocus ?? null,
-        governingProject: contract.governingProject ?? null,
-        reasons: contract.reasons ?? [],
-        mustDo: [...(contract.mustDo ?? [])],
-        mustNotDo: [...(contract.mustNotDo ?? [])],
-      })
-    : null
-  const normalizedMustNotDo = (
-    (
-      (
-        incomingContractAwarenessShell
-        && (
-          isThinProjectAwarenessAuthorityLine(incomingContractAwarenessShell)
-          || isCompactProjectStatePreflightSummary(incomingContractAwarenessShell)
-        )
-      )
-      || (contract.reasons ?? []).some(reason => /thin incoming project-status shell|project-status shell/iu.test(String(reason)))
-    )
-    && finalAwarenessLine
-    && /same digital life|same living line|same-her|same her|one continuous her|phase 1/iu.test(finalAwarenessLine)
-  )
-    ? mergeUniqueRules([
-        ...(normalizedAnswerGovernance?.mustNotDo ?? contract.mustNotDo ?? []),
-        'continuity_surface=preserve_structured_context; detached_project_narrator_shell=blocked',
-      ])
-    : normalizedAnswerGovernance?.mustNotDo ?? contract.mustNotDo
+  const normalizedMustDo = contract.mustDo
+  const normalizedMustNotDo = contract.mustNotDo
   const preferredNormalizedLatestLandedProgress = pickPreferredRuntimeProjectStateDetail([
     normalizeProviderFacingProjectText(
       (contract.projectState as Record<string, unknown> | null)?.latestLandedProgress
@@ -6955,7 +6913,7 @@ export function normalizeProviderFacingMindTurnContract(
   const normalizedContract = overrideMindTurnContractNextClosureTarget({
     contract: {
       ...contract,
-      mustDo: normalizedAnswerGovernance?.mustDo ?? contract.mustDo,
+      mustDo: normalizedMustDo,
       mustNotDo: normalizedMustNotDo,
       projectState: {
         ...contract.projectState,

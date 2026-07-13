@@ -85,7 +85,6 @@ import {
   resolvePreparedRuntimeSelfContinuityAuthority,
   resolvePreparedRuntimeProjectState as resolveSharedPreparedRuntimeProjectState,
 } from './prepared-runtime-continuity'
-import { enrichProjectStateAnswerGovernanceIfNeeded } from './project-state-answer-governance'
 import {
   looksLikeThinProjectClosureShell,
   resolveAlicizationProjectPreDialogueAwarenessLine,
@@ -5444,7 +5443,6 @@ export async function runAlicizationMainChatBackground(
     visibleReplyExecution: AlicizationVisibleReplyExecution
     forceRewrite?: boolean
     forceReasonCodes?: string[]
-    forceMustPreserve?: string[]
   }) => {
     if (!prepared)
       return null
@@ -5459,7 +5457,6 @@ export async function runAlicizationMainChatBackground(
         requireProviderMemoryUsage: true,
         forceRewrite: rewriteInput.forceRewrite,
         forceReasonCodes: rewriteInput.forceReasonCodes,
-        forceMustPreserve: rewriteInput.forceMustPreserve,
         appendRuntimeDebugLine: input.appendRuntimeDebugLine,
         rewriteSecondPass: async secondPassInput => await rewriteAlicizationVisibleReplySecondPass({
           ...secondPassInput,
@@ -5519,7 +5516,6 @@ export async function runAlicizationMainChatBackground(
     visibleReplyExecution: AlicizationVisibleReplyExecution
     forceRewrite?: boolean
     forceReasonCodes?: string[]
-    forceMustPreserve?: string[]
     projectStateSameHerSummary?: string | null
     projectStateSameHerHoldDetail?: string | null
     projectStateContinuityArcStage?: string | null
@@ -5543,15 +5539,10 @@ export async function runAlicizationMainChatBackground(
       ...(rewriteInput.forceReasonCodes ?? []),
       ...(forceRewrite ? criticPreflight.repairReasonCodes : []),
     ]))
-    const forceMustPreserve = Array.from(new Set([
-      ...(rewriteInput.forceMustPreserve ?? []),
-      ...(forceRewrite ? criticPreflight.mustPreserve : []),
-    ]))
     const closed = await closeStructuredVisibleReplyIfNeeded({
       ...rewriteInput,
       forceRewrite,
       forceReasonCodes,
-      forceMustPreserve,
     })
     if (!closed)
       return null
@@ -5884,26 +5875,6 @@ export async function runAlicizationMainChatBackground(
     prepared = await input.preparationPromise
     if (!input.isRunActive())
       return
-
-    prepared = {
-      ...prepared,
-      governance: enrichProjectStateAnswerGovernanceIfNeeded(prepared.governance) as typeof prepared.governance,
-      mindTurnContract: prepared.mindTurnContract
-        ? {
-            ...prepared.mindTurnContract,
-            mustDo: enrichProjectStateAnswerGovernanceIfNeeded({
-              answerSubject: prepared.governance?.answerSubject ?? null,
-              mustDo: prepared.mindTurnContract.mustDo ?? [],
-              mustNotDo: prepared.mindTurnContract.mustNotDo ?? [],
-            })?.mustDo ?? prepared.mindTurnContract.mustDo,
-            mustNotDo: enrichProjectStateAnswerGovernanceIfNeeded({
-              answerSubject: prepared.governance?.answerSubject ?? null,
-              mustDo: prepared.mindTurnContract.mustDo ?? [],
-              mustNotDo: prepared.mindTurnContract.mustNotDo ?? [],
-            })?.mustNotDo ?? prepared.mindTurnContract.mustNotDo,
-          }
-        : prepared.mindTurnContract,
-    }
 
     chatConfig = prepared.chatConfig
     messages = prepared.messages
@@ -6712,7 +6683,7 @@ export async function runAlicizationMainChatBackground(
       })
     })()
     finalHostVisiblePayload = (() => {
-      if (!prepared?.memoryFailures.length)
+      if (!prepared?.memoryFailures?.length)
         return finalHostVisiblePayload
 
       const parsed = parseJsonObjectFromText(finalHostVisiblePayload)

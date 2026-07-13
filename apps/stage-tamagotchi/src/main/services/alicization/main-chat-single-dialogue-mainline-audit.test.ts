@@ -17,6 +17,19 @@ const providerFacingSources = [
   'packages/stage-ui/src/stores/character/orchestrator/agents/event-handler-spark-notify/index.ts',
 ] as const
 
+const productionDialogueFiles = [
+  'apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.ts',
+  'apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.ts',
+  'apps/stage-tamagotchi/src/main/services/alicization/main-chat-one-shot.ts',
+  'apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts',
+  'apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime-surface.ts',
+  'apps/stage-tamagotchi/src/main/services/alicization/execution-delivery-surface.ts',
+  'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.ts',
+  'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/settlement.ts',
+  'packages/stage-ui/src/stores/chat.ts',
+  'packages/stage-ui/src/composables/alicization-structured-output.ts',
+] as const
+
 describe('single memory dialogue mainline audit', () => {
   it('removes ordinary dialogue fast-path production and fixture modules', () => {
     const deletedPaths = [
@@ -79,5 +92,30 @@ describe('single memory dialogue mainline audit', () => {
       /build(?:AutobiographicalSelf|HabitPolicy|LongHorizonMemory|MindEcology|MotiveEngine)SystemBlock|describeAlicizationMainChatProviderMindRequirement/u,
     )
     expect(source).toContain('buildAlicizationProviderFactBlock')
+  })
+
+  it('keeps normal visible reply authority on the Provider mainline', () => {
+    const sources = productionDialogueFiles.map(path => ({
+      path,
+      source: readRepositoryFile(path),
+    }))
+
+    for (const { path, source } of sources) {
+      expect(source, path).not.toMatch(
+        /active-dialogue-fast-path|active-dialogue-compact|stageAssistantFallback|createStructuredFallback|repairStructuredContractLocally|structuredRetrySystemPrompt/u,
+      )
+      expect(source, path).not.toMatch(
+        /enrichProjectStateAnswerGovernanceIfNeeded|alicizationProjectStateAnswerContractLines/u,
+      )
+    }
+
+    const settlementSources = sources
+      .filter(({ path }) =>
+        path.endsWith('main-chat-background-run.ts')
+        || path.endsWith('visible-reply/settlement.ts'),
+      )
+
+    for (const { path, source } of settlementSources)
+      expect(source, path).not.toContain('forceMustPreserve')
   })
 })

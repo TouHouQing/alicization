@@ -3306,7 +3306,6 @@ export interface AlicizationProjectAwarenessTopLevelCompletenessGuardFamily {
     | 'execution-preflight'
     | 'execution-dispatch'
     | 'execution-follow-up-continuity'
-    | 'project-state-answer-governance'
     | 'runtime-dialogue-normalization'
     | 'runtime-turn-persistence'
   candidateAuditFileName: string
@@ -3358,11 +3357,6 @@ const alicizationProjectAwarenessTopLevelCompletenessGuardFamilies = [
     id: 'execution-follow-up-continuity',
     candidateAuditFileName: 'execution-follow-up-entrypoint-candidate-audit.test.ts',
     responsibility: 'Execution follow-up, callback return, ledger reopen, afterglow restraint, and callback persistence seams must stay visible to the top-level completeness guard before post-execution same-her continuity can fragment into detached task-shell carry.',
-  },
-  {
-    id: 'project-state-answer-governance',
-    candidateAuditFileName: 'project-state-answer-governance-entrypoint-candidate-audit.test.ts',
-    responsibility: 'Project-state answer surfaces must stay visible to the top-level completeness guard before status replies can widen into a thinner project shell.',
   },
   {
     id: 'runtime-dialogue-normalization',
@@ -3454,20 +3448,6 @@ export type AlicizationProjectRouteAuthorityEntry
     mode: 'persistence-authority' | 'renderer-dialogue-entry' | 'proactive-turn-entry' | 'reminder-turn-entry'
     responsibility: string
   }
-  | {
-    domain: 'project-state-answer-governance'
-    relativePath: string
-    mode:
-      | 'governance-authority'
-      | 'semantics-classification'
-      | 'answer-planning-surface'
-      | 'response-charter-surface'
-      | 'answer-governance-enricher'
-      | 'answer-contract-surface'
-      | 'reply-surface-preflight'
-      | 'visible-reply-continuity-surface'
-    responsibility: string
-  }
 
 export function resolveAlicizationProjectRouteAuthorityAllowedModes(
   domain: AlicizationProjectRouteAuthorityEntry['domain'],
@@ -3498,16 +3478,7 @@ export function resolveAlicizationProjectRouteAuthorityAllowedModes(
   }
   if (domain === 'runtime-turn-persistence')
     return ['persistence-authority', 'renderer-dialogue-entry', 'proactive-turn-entry', 'reminder-turn-entry'] as const
-  return [
-    'governance-authority',
-    'semantics-classification',
-    'answer-planning-surface',
-    'response-charter-surface',
-    'answer-governance-enricher',
-    'answer-contract-surface',
-    'reply-surface-preflight',
-    'visible-reply-continuity-surface',
-  ] as const
+  return [] as const
 }
 
 export function assertAlicizationProjectRouteAuthorityModeBelongsToDomain(
@@ -3530,37 +3501,17 @@ const alicizationProjectRouteAuthorityAllowedOverlaps = [
   {
     relativePath: '../../../renderer/App.vue',
     domains: ['pre-dialogue-transport', 'return-side-project-awareness'],
-    reason: 'Desktop renderer App.vue both sanitizes outbound pre-dialogue transport and rebuilds latest project-state observation / continuity snapshots, so desktop send-time and desktop reopen-time same-her carry stay anchored to one explicit boundary file.',
+    reason: 'Desktop renderer App.vue both sanitizes outbound pre-dialogue transport and rebuilds the latest structured memory observation for the next turn.',
   },
   {
     relativePath: '../../../../../../packages/stage-ui/src/stores/chat.ts',
     domains: ['pre-dialogue-transport', 'return-side-project-awareness'],
-    reason: 'Renderer chat-store owns both outbound pre-dialogue identity construction and inbound return-side stream ingest, so send-time and rebuild-time same-her carry stay anchored to one shared boundary file instead of splitting across parallel local registries.',
-  },
-  {
-    relativePath: 'main-chat-background-run.ts',
-    domains: ['project-state-answer-governance', 'runtime-dialogue-normalization'],
-    reason: 'Background run both re-normalizes host-visible payloads and re-applies project-state answer governance before later visible repair widens outward.',
-  },
-  {
-    relativePath: 'runtime-governance.ts',
-    domains: ['project-state-answer-governance', 'runtime-dialogue-normalization'],
-    reason: 'Host-visible normalization authority must also preserve project-state answer audit carry, so same-her / landed / open / next continuity boundaries do not flatten right before the normalized payload reaches the host.',
-  },
-  {
-    relativePath: 'runtime-delivery-reminders.ts',
-    domains: ['project-state-answer-governance', 'runtime-turn-persistence'],
-    reason: 'Reminder delivery both persists runtime-owned host-visible turns and keeps shared landed/open/next answer reminders alive during later continuity reconstruction.',
+    reason: 'Renderer chat-store owns outbound typed context construction and inbound structured stream ingest at one transport boundary.',
   },
   {
     relativePath: 'runtime-subconscious-tick.ts',
     domains: ['runtime-dialogue-normalization', 'runtime-turn-persistence'],
     reason: 'Subconscious surfacing must normalize host-visible payloads before persistence and also enter the guarded turn writer through one audited proactive carry seam.',
-  },
-  {
-    relativePath: 'runtime.ts',
-    domains: ['project-state-answer-governance', 'runtime-dialogue-normalization', 'runtime-turn-persistence'],
-    reason: 'The core runtime simultaneously owns host-visible normalization before emission, guarded turn persistence authority, and persisted-turn project-state continuity fallback reminders.',
   },
 ] as const satisfies readonly AlicizationProjectRouteAuthorityAllowedOverlap[]
 
@@ -3684,96 +3635,6 @@ const alicizationProjectRouteAuthorityRegistry = [
     relativePath: 'runtime.ts',
     mode: 'persistence-authority',
     responsibility: 'The core runtime owns appendConversationTurnWithGuards and is the single authority for guarded turn persistence into conversation history.',
-  },
-  {
-    domain: 'project-state-answer-governance',
-    relativePath: 'executive-answer-brief.ts',
-    mode: 'answer-contract-surface',
-    responsibility: 'Executive answer briefing must inject the canonical project-state answer must-do / must-not-do rules when the host directly asks what Alicization is, what has landed, and what remains open.',
-  },
-  {
-    domain: 'project-state-answer-governance',
-    relativePath: 'main-chat-background-run.ts',
-    mode: 'answer-governance-enricher',
-    responsibility: 'Background success and recovery surfaces must upgrade project-state answer governance before later host-visible replies widen outward.',
-  },
-  {
-    domain: 'project-state-answer-governance',
-    relativePath: 'main-chat-session-runtime.ts',
-    mode: 'answer-governance-enricher',
-    responsibility: 'Session-runtime provider-facing reply preparation must re-apply the canonical project-state answer governance before answer shaping begins.',
-  },
-  {
-    domain: 'project-state-answer-governance',
-    relativePath: 'project-state-answer-governance.ts',
-    mode: 'governance-authority',
-    responsibility: 'The shared project-state answer governance module owns the canonical same-her project-status answer contract, including must-do, must-not-do, and enrichment rules.',
-  },
-  {
-    domain: 'project-state-answer-governance',
-    relativePath: 'dialogue-turn-semantics.ts',
-    mode: 'semantics-classification',
-    responsibility: 'Dialogue-turn semantics must classify merge-readiness, closure-readiness, completion-timing, and language-drift follow-ups onto the same project-state same-her line before later answer planning or charter shaping begins.',
-  },
-  {
-    domain: 'project-state-answer-governance',
-    relativePath: 'answer-planner.ts',
-    mode: 'answer-planning-surface',
-    responsibility: 'Answer planning must keep direct project-state follow-ups on one same-her project line so landed progress, open closure, completion timing, and language drift do not reopen as detached status narration before visible reply shaping.',
-  },
-  {
-    domain: 'project-state-answer-governance',
-    relativePath: 'response-charter.ts',
-    mode: 'response-charter-surface',
-    responsibility: 'Response charter shaping must keep direct project-state turns inward-first on one same-her project line instead of flattening them into a fresh report opening before executive briefing or visible reply governance widen outward.',
-  },
-  {
-    domain: 'project-state-answer-governance',
-    relativePath: 'response-surface-contract.ts',
-    mode: 'visible-reply-continuity-surface',
-    responsibility: 'Response-surface contracts must carry the shared same-her project-state reminder into visible reply shaping when project status remains active.',
-  },
-  {
-    domain: 'project-state-answer-governance',
-    relativePath: 'runtime-governance.ts',
-    mode: 'visible-reply-continuity-surface',
-    responsibility: 'Host-visible dialogue normalization must preserve projectStateAudit same-her / landed / open / next / awareness carry, so the last normalized payload cannot flatten project-status boundaries right before the host sees the answer.',
-  },
-  {
-    domain: 'project-state-answer-governance',
-    relativePath: 'visible-reply/facade.ts',
-    mode: 'reply-surface-preflight',
-    responsibility: 'Visible-reply surface planning must carry canonical project preflight self-awareness into project-state resolution before executive answer briefing and response-surface contract shaping begin.',
-  },
-  {
-    domain: 'project-state-answer-governance',
-    relativePath: 'runtime-delivery-reminders.ts',
-    mode: 'visible-reply-continuity-surface',
-    responsibility: 'Reminder delivery and callback persistence must keep landed/open/next project-state reminders alive when host-visible continuity is reconstructed later.',
-  },
-  {
-    domain: 'project-state-answer-governance',
-    relativePath: 'runtime-main-gateway-one-shot.ts',
-    mode: 'answer-contract-surface',
-    responsibility: 'One-shot project-state and scene-appraisal answers must inject the canonical project-state answer contract before provider generation begins.',
-  },
-  {
-    domain: 'project-state-answer-governance',
-    relativePath: 'runtime.ts',
-    mode: 'visible-reply-continuity-surface',
-    responsibility: 'Persisted-turn project-state continuity summaries must fall back to shared landed/next closure reminders instead of decaying into generic continuity labels.',
-  },
-  {
-    domain: 'project-state-answer-governance',
-    relativePath: 'visible-reply/semantic-judge.ts',
-    mode: 'visible-reply-continuity-surface',
-    responsibility: 'Final visible-reply semantic judging must keep shared same-her, still-open closure, and next-closure reminders explicit so project-status answers cannot pass the last gate after dropping pre-dialogue project awareness.',
-  },
-  {
-    domain: 'project-state-answer-governance',
-    relativePath: 'visible-reply/critic.ts',
-    mode: 'visible-reply-continuity-surface',
-    responsibility: 'Visible reply governance must preserve the shared same-her project-state reminder when repair or second-pass rewriting keeps a project-status answer on one living line.',
   },
 ] as const satisfies readonly AlicizationProjectRouteAuthorityEntry[]
 

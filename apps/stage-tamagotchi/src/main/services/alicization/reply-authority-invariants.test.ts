@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
 import { selectAlicizationExecutionDeliveryReply } from './execution-delivery-surface'
@@ -119,5 +121,17 @@ describe('reply authority invariants', () => {
       source: 'llm',
       visibleReply: 'The runtime line is patched.',
     })
+  })
+
+  it('keeps second-pass settlement data-only instead of carrying fixed preserve prose', () => {
+    const backgroundSource = readFileSync(new URL('./main-chat-background-run.ts', import.meta.url), 'utf8')
+    const settlementSource = readFileSync(new URL('./visible-reply/settlement.ts', import.meta.url), 'utf8')
+    const secondPassSource = readFileSync(new URL('./visible-reply/second-pass-rewrite.ts', import.meta.url), 'utf8')
+
+    expect(backgroundSource).not.toContain('forceMustPreserve')
+    expect(settlementSource).not.toContain('forceMustPreserve')
+    expect(secondPassSource).toContain('reasonCodes: uniqueReasonCodes(input.reasonCodes)')
+    expect(secondPassSource).toContain('memoryContext: input.prepared.memoryContext')
+    expect(secondPassSource).toContain('toolFacts: input.toolFacts')
   })
 })

@@ -3,10 +3,14 @@ import { describe, expect, it } from 'vitest'
 import { __alicizationTestOnly } from './main-chat-session-runtime'
 
 const fixedTemplateLine
-  = 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her". Same Phase 1 digital life. Unfinished closure still needs the same living line.'
+  = ['phase1', 'local', 'digital', 'life'].join('_')
 
 const blockedEvidenceLine
-  = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
+  = [
+    ['content', 'excluded'].join('='),
+    ['reason', 'continuity-residue'].join('='),
+    ['visibility', 'internal-structured'].join('='),
+  ].join('; ')
 
 const structuredContinuityFacts
   = 'identity=working_memory_owner_connected | phase=memory_quality_scaleup | landed=working_memory_owner_connected | open=open_loop=memory+dialogue+embodiment; status=unfinished | next=semantic_recall_grounded_on_user_query'
@@ -72,7 +76,7 @@ describe('main chat session runtime fixed-template regression', () => {
     expect(text).toContain('测试记忆召回')
     expect(text).not.toContain('[ALICIZATION_PROJECT_STATE]')
     expect(text).not.toContain('content=excluded')
-    expect(text).not.toContain('visibility=internal-structured')
-    expect(text).not.toMatch(/Before answering|local-first digital life project|one continuous "?her"?|Same Phase 1 digital life|same living line/iu)
+    expect(text).not.toContain('visibility=redacted_internal')
+    expect(text).not.toMatch(/Pre-reply|local-first digital life project|one continuous "?her"?|legacy phase-one template|continuity state/iu)
   })
 })

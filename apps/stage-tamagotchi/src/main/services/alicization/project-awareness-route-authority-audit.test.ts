@@ -31,8 +31,6 @@ import { collectAlicizationExecutionPreflightCandidateFiles } from './execution-
 import { resolveAlicizationPreDialogueTransportAuditFiles } from './pre-dialogue-transport-audit'
 import { collectAlicizationPreDialogueTransportGovernedFiles } from './pre-dialogue-transport-entrypoint-audit'
 import { collectAlicizationCrossSurfaceProjectAwarenessEntrypointCandidateFiles } from './project-awareness-cross-surface-entrypoint-audit'
-import { resolveAlicizationProjectStateAnswerGovernanceAuditedFiles } from './project-state-answer-governance-audit'
-import { collectAlicizationProjectStateAnswerGovernanceFiles } from './project-state-answer-governance-entrypoint-audit'
 import {
   resolveAlicizationProjectAwarenessTopLevelCompletenessGuardFamilies,
   resolveAlicizationProjectEntrypointGovernedFiles,
@@ -66,14 +64,6 @@ describe('project awareness route authority audit', () => {
 
     expect(source.includes(staleSourceWalkerDefinition)).toBe(false)
     expect(source.includes(staleRelativePathDefinition)).toBe(false)
-  })
-
-  it('keeps project-state answer governance discovery sourced from the shared helper instead of a stale local scan', () => {
-    const source = readFileSync(new URL('./project-awareness-route-authority-audit.test.ts', import.meta.url), 'utf8')
-
-    expect(source).toContain('from \'./project-state-answer-governance-entrypoint-audit\'')
-    expect(source).toContain('collectAlicizationProjectStateAnswerGovernanceFiles(')
-    expect(/^function collectProjectStateAnswerGovernanceFiles\(/m.test(source)).toBe(false)
   })
 
   it('keeps dialogue normalization discovery sourced from the shared helper instead of a stale local scan', () => {
@@ -225,13 +215,6 @@ describe('project awareness route authority audit', () => {
       .toEqual(resolveAlicizationProjectEntrypointGovernanceAuditDomainFiles('chat-entry').slice().sort())
   })
 
-  it('keeps the governed project-state answer-governance discovery synchronized with the explicit answer-governance audit registry', () => {
-    const rootDir = new URL('.', import.meta.url).pathname
-
-    expect(collectAlicizationProjectStateAnswerGovernanceFiles(rootDir))
-      .toEqual(resolveAlicizationProjectStateAnswerGovernanceAuditedFiles().slice().sort())
-  })
-
   it('keeps the governed dialogue-normalization discovery synchronized with the explicit normalization audit registry', () => {
     const rootDir = new URL('.', import.meta.url).pathname
 
@@ -246,7 +229,7 @@ describe('project awareness route authority audit', () => {
       .toEqual(resolveAlicizationRuntimeTurnPersistenceAuditedFiles().slice().sort())
   })
 
-  it('keeps return-side route-authority discovery sourced from the shared helper instead of leaving rebuild-time same-her continuity outside the top-level completeness guard', () => {
+  it('keeps return-side route-authority discovery sourced from the shared helper instead of leaving rebuild-time identity-continuity', () => {
     const source = readFileSync(new URL('./project-awareness-route-authority-audit.test.ts', import.meta.url), 'utf8')
 
     expect(source).toContain('from \'./project-state-brief\'')
@@ -272,7 +255,6 @@ describe('project awareness route authority audit', () => {
     const expectedRouteAuthorityFiles = [...new Set([
       ...resolveAlicizationPreDialogueTransportAuditFiles(),
       ...resolveAlicizationReturnSideProjectAwarenessAuditFiles(),
-      ...resolveAlicizationProjectStateAnswerGovernanceAuditedFiles(),
       ...resolveAlicizationRuntimeDialogueNormalizationAuditedFiles(),
       ...resolveAlicizationRuntimeTurnPersistenceAuditedFiles(),
     ])].sort()
@@ -471,10 +453,6 @@ describe('project awareness route authority audit', () => {
         'collectAlicizationExecutionFollowUpCandidateFiles(',
         'resolveAlicizationExecutionFollowUpContinuityAuditFiles(',
       ],
-      'project-state-answer-governance': [
-        'collectAlicizationProjectStateAnswerGovernanceFiles(',
-        'resolveAlicizationProjectStateAnswerGovernanceAuditedFiles(',
-      ],
       'runtime-dialogue-normalization': [
         'collectAlicizationRuntimeDialogueNormalizationFiles(',
         'resolveAlicizationRuntimeDialogueNormalizationAuditedFiles(',
@@ -508,7 +486,6 @@ describe('project awareness route authority audit', () => {
       ...collectAlicizationPreDialogueTransportGovernedFiles(),
       ...collectRendererChatEntryGovernedFiles(),
       ...resolveAlicizationProjectRouteAuthorityFiles(),
-      ...collectAlicizationProjectStateAnswerGovernanceFiles(rootDir),
       ...collectAlicizationRuntimeDialogueNormalizationFiles(rootDir),
       ...collectAlicizationRuntimeTurnPersistenceFiles(rootDir),
       ...collectAlicizationDirectProviderImportFiles(rootDir),
@@ -526,7 +503,6 @@ describe('project awareness route authority audit', () => {
       ...resolveAlicizationChatEntryComposerSurfaceAuditFiles(),
       ...resolveAlicizationPreDialogueTransportAuditFiles(),
       ...resolveAlicizationReturnSideProjectAwarenessAuditFiles(),
-      ...resolveAlicizationProjectStateAnswerGovernanceAuditedFiles(),
       ...resolveAlicizationRuntimeDialogueNormalizationAuditedFiles(),
       ...resolveAlicizationRuntimeTurnPersistenceAuditedFiles(),
       ...resolveAlicizationDirectProviderImportAuditFiles(),
@@ -547,19 +523,13 @@ describe('project awareness route authority audit', () => {
     expect(missing).toEqual([])
   }, 20_000)
 
-  it('makes the current boundary explicit: neighboring project-awareness authority surfaces, including cross-surface pre-dialogue transport, return-side rebuild, and chat-entry boundaries, are now cross-checked, while wholly new route shapes still remain open', () => {
+  it('keeps the documented matrix on memory ownership and transparent failure boundaries', () => {
     const matrixSource = readFileSync(new URL('../../../../../../docs/pre-dialogue-project-awareness-matrix.md', import.meta.url), 'utf8')
 
-    expect(matrixSource).toContain('project-awareness-route-authority-audit.test.ts')
-    expect(matrixSource).toContain('Future new dialogue entrypoints | Not proven')
-    expect(matrixSource).toContain('neighboring project-awareness authority surfaces now also have a cross-registry completeness guard')
-    expect(matrixSource).toContain('provider-consumer-entrypoint-candidate-audit.test.ts')
-    expect(matrixSource).toContain('return-side-project-awareness-entrypoint-candidate-audit.test.ts')
-    expect(matrixSource).toContain('execution-preflight-entrypoint-candidate-audit.test.ts')
-    expect(matrixSource).toContain('execution-dispatch-entrypoint-candidate-audit.test.ts')
-    expect(matrixSource).toContain('provider-facing generation entry candidates')
-    expect(matrixSource).toContain('reopen-time return-side rebuild candidates')
-    expect(matrixSource).toContain('execution-preflight context-repair candidates')
-    expect(matrixSource).toContain('direct execution-dispatch bridge candidates')
+    expect(matrixSource).toContain('WorkingMemory')
+    expect(matrixSource).toContain('LongTermMemoryRecall')
+    expect(matrixSource).toContain('MemoryWorkbench')
+    expect(matrixSource).toContain('Report timeout, provider failure, tool failure, and invalid structured output directly.')
+    expect(matrixSource).toContain('Fixed reply openings.')
   })
 })

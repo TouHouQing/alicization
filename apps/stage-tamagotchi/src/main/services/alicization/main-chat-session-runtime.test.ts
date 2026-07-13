@@ -31,10 +31,6 @@ import {
 } from './main-chat-session-runtime'
 import { resolveAlicizationChatStartPayloadPreDialogueSendIdentity } from './main-chat-start-awareness'
 import { buildAlicizationPersonMemoryCapsule } from './person-memory-capsule'
-import {
-  alicizationProjectStateClosureReadinessMustDo,
-  alicizationProjectStateClosureReadinessMustNotDo,
-} from './project-state-answer-governance'
 import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 import { buildAlicizationVisibleReplyCriticArtifact } from './visible-reply/critic'
 import { buildAlicizationVisibleReplySemanticJudgeArtifact } from './visible-reply/semantic-judge'
@@ -1187,7 +1183,7 @@ describe('main chat session runtime', () => {
     }))
   })
 
-  it('keeps merge-readiness and goal-closure governance rules when rebuilding a project-state contract', () => {
+  it('does not synthesize merge-readiness reply rules when rebuilding a project-state contract', () => {
     const rebuilt = rebuildProviderFacingMindTurnContract({
       contract: null,
       governance: {
@@ -1199,15 +1195,11 @@ describe('main chat session runtime', () => {
       runtimeSurface: null,
     })
 
-    expect(rebuilt.mustDo).toEqual(expect.arrayContaining([
-      ...alicizationProjectStateClosureReadinessMustDo,
-    ]))
-    expect(rebuilt.mustNotDo).toEqual(expect.arrayContaining([
-      ...alicizationProjectStateClosureReadinessMustNotDo,
-    ]))
+    expect(rebuilt.mustDo).toEqual([])
+    expect(rebuilt.mustNotDo).toEqual([])
   })
 
-  it('keeps local-main landed vs origin-main push-readiness governance rules when rebuilding a project-state contract', () => {
+  it('does not synthesize local-main or origin-main reply rules when rebuilding a project-state contract', () => {
     const rebuilt = rebuildProviderFacingMindTurnContract({
       contract: null,
       governance: {
@@ -1219,15 +1211,11 @@ describe('main chat session runtime', () => {
       runtimeSurface: null,
     })
 
-    expect(rebuilt.mustDo).toEqual(expect.arrayContaining([
-      'If the host asks whether local main already contains the work or whether origin/main is safe to update, answer those as separate facts and keep both on the same verified project-state line.',
-    ]))
-    expect(rebuilt.mustNotDo).toEqual(expect.arrayContaining([
-      'Do not treat already being on local main, or already merging locally, as proof that origin/main is safe to push.',
-    ]))
+    expect(rebuilt.mustDo).toEqual([])
+    expect(rebuilt.mustNotDo).toEqual([])
   })
 
-  it('keeps merge-readiness and goal-closure governance rules when normalizing a project-state contract', () => {
+  it('does not synthesize merge-readiness reply rules when normalizing a project-state contract', () => {
     const canonical = resolveAlicizationProjectStateBrief()
     const normalized = normalizeProviderFacingMindTurnContract({
       version: 'mind-turn-contract-v1',
@@ -1271,15 +1259,11 @@ describe('main chat session runtime', () => {
       digitalLifeSpine: null,
     } as any)
 
-    expect(normalized?.mustDo).toEqual(expect.arrayContaining([
-      ...alicizationProjectStateClosureReadinessMustDo,
-    ]))
-    expect(normalized?.mustNotDo).toEqual(expect.arrayContaining([
-      ...alicizationProjectStateClosureReadinessMustNotDo,
-    ]))
+    expect(normalized?.mustDo).toEqual([])
+    expect(normalized?.mustNotDo).toEqual([])
   })
 
-  it('keeps completion-timing and language-drift governance rules when rebuilding a project-state contract', () => {
+  it('does not synthesize completion-timing or language-drift reply rules when rebuilding a project-state contract', () => {
     const rebuilt = rebuildProviderFacingMindTurnContract({
       contract: null,
       governance: {
@@ -1291,15 +1275,11 @@ describe('main chat session runtime', () => {
       runtimeSurface: null,
     })
 
-    expect(rebuilt.mustDo).toEqual(expect.arrayContaining([
-      ...alicizationProjectStateClosureReadinessMustDo,
-    ]))
-    expect(rebuilt.mustNotDo).toEqual(expect.arrayContaining([
-      ...alicizationProjectStateClosureReadinessMustNotDo,
-    ]))
+    expect(rebuilt.mustDo).toEqual([])
+    expect(rebuilt.mustNotDo).toEqual([])
   })
 
-  it('keeps completion-timing and language-drift governance rules when normalizing a project-state contract', () => {
+  it('does not synthesize completion-timing or language-drift reply rules when normalizing a project-state contract', () => {
     const canonical = resolveAlicizationProjectStateBrief()
     const normalized = normalizeProviderFacingMindTurnContract({
       version: 'mind-turn-contract-v1',
@@ -1343,12 +1323,8 @@ describe('main chat session runtime', () => {
       digitalLifeSpine: null,
     } as any)
 
-    expect(normalized?.mustDo).toEqual(expect.arrayContaining([
-      ...alicizationProjectStateClosureReadinessMustDo,
-    ]))
-    expect(normalized?.mustNotDo).toEqual(expect.arrayContaining([
-      ...alicizationProjectStateClosureReadinessMustNotDo,
-    ]))
+    expect(normalized?.mustDo).toEqual([])
+    expect(normalized?.mustNotDo).toEqual([])
   })
 
   it('keeps runtime same-her hold detail and continuity arc in provider-facing mind-turn contract project-state', () => {
@@ -15362,7 +15338,6 @@ describe('main chat session runtime', () => {
       } as Message],
     })
     const strongerPayloadHeadline = 'Before answering, stay on the same living line: this Phase 1 digital life still needs memory, initiative, and embodiment closure without splitting her continuity.'
-    const normalizedStrongerPayloadHeadline = 'Before answering, stay on the same living line: this Phase 1 digital life still needs emotion, memory, initiative, and embodiment closure without splitting her continuity.'
     payloadPrelude.perceptionAugmentation.digitalLifeRuntimeSurface = {
       ...payloadPrelude.perceptionAugmentation.digitalLifeRuntimeSurface,
       dialogue: {
@@ -16631,7 +16606,6 @@ describe('main chat session runtime', () => {
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const strongerPayloadHeadline = 'Before answering, stay on the same living line: this Phase 1 digital life still needs memory, initiative, and embodiment closure without splitting her continuity.'
-    const normalizedStrongerPayloadHeadline = 'Before answering, stay on the same living line: this Phase 1 digital life still needs emotion, memory, initiative, and embodiment closure without splitting her continuity.'
     const prelude = createReflectivePrelude({
       messages: [{
         role: 'user',
