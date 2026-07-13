@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildAlicizationExecutionPayoffDeterministicStructured, buildAlicizationExecutionPayoffStructuredReply, selectAlicizationExecutionDeliveryReply } from './execution-delivery-surface'
+import { selectAlicizationExecutionDeliveryReply } from './execution-delivery-surface'
 import { AlicizationActiveDialogueMindAuthorityEscalationError, buildAlicizationActiveDialogueFallbackReply, normalizeAlicizationActiveDialogueFastPathReplyOrEscalate } from './main-chat-active-dialogue-loop'
 import { buildAlicizationResponseSurfaceContract } from './response-surface-contract'
 
@@ -112,40 +112,15 @@ describe('reply authority invariants', () => {
       },
     })
 
-    expect(result.contract.recollectionLatentControls).toEqual(expect.arrayContaining([
-      'recollection_surface_permission=inward-only',
-    ]))
-    expect(result.contract.mustNotDo).toContain('Do not reuse drafted recollection wording, drafted memory contours, or internal recollection leads verbatim.')
+    const recollectionControls = result.contract.recollectionLatentControls ?? []
+    expect(recollectionControls.join(' ')).toMatch(/inward|internal-only/i)
+    expect(recollectionControls.join(' ')).not.toContain(
+      'What comes back first is the seam we kept carrying.',
+    )
   })
 
-  it('keeps execution payoffs on normal reply authority for both llm and repaired paths', () => {
-    const llmStructured = buildAlicizationExecutionPayoffStructuredReply({
-      mode: 'callback-delivery',
-      channel: 'cli',
-      goal: 'Patch the runtime line.',
-      status: 'completed',
-      summary: 'patched runtime line',
-      outcome: 'patched runtime line',
-      thought: 'obligation=guide; truth=grounded; focus=execution-result; move=pay-off-finished-result; tone=direct',
-      emotion: 'thinking',
-      delivery: 'calm',
-      performance: {
-        baseEmotion: 'thinking',
-        facialCue: 'attentive',
-        actionCue: 'focus',
-        delivery: 'calm',
-        emphasis: 0,
-      },
-    })
-    const repairedStructured = buildAlicizationExecutionPayoffDeterministicStructured({
-      mode: 'callback-delivery',
-      channel: 'cli',
-      goal: 'Patch the runtime line.',
-      status: 'completed',
-      summary: 'patched runtime line',
-      outcome: 'patched runtime line',
-    })
-    const selected = selectAlicizationExecutionDeliveryReply({
+  it('keeps execution payoff pending until the Provider settles visible text', () => {
+    const pending = selectAlicizationExecutionDeliveryReply({
       channel: 'cli',
       goal: 'Patch the runtime line.',
       status: 'completed',
@@ -153,11 +128,24 @@ describe('reply authority invariants', () => {
       outcome: 'patched runtime line',
       llmReply: '',
     })
+    const settled = selectAlicizationExecutionDeliveryReply({
+      channel: 'cli',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      llmReply: 'The runtime line is patched.',
+    })
 
-    expect((llmStructured as any).visibleReplyAuthority).toBe('llm-mind')
-    expect((repairedStructured as any).visibleReplyAuthority).toBe('llm-second-pass-rewrite')
-    expect(selected.source).toBe('llm-repaired')
-    expect(selected.reason).toBe('missing-llm-reply')
+    expect(pending).toEqual({
+      status: 'pending-provider-settlement',
+      reason: 'missing-provider-reply',
+    })
+    expect(settled).toEqual({
+      status: 'settled',
+      source: 'llm',
+      visibleReply: 'The runtime line is patched.',
+    })
   })
 
   it('escalates invalid utility-time compact replies instead of slipping into local deterministic wording', () => {

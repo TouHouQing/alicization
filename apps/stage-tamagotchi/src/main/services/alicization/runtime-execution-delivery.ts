@@ -40,9 +40,8 @@ import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
 import { hasAlicizationExecutionDeliveryRetainedState } from './execution-delivery-runtime'
 import {
-  buildAlicizationExecutionPayoffDeterministicStructured,
   buildAlicizationExecutionPayoffPrompt,
-  buildAlicizationExecutionPayoffStructuredReply,
+  normalizeAlicizationProviderExecutionStructured,
   selectAlicizationExecutionDeliveryReply,
 } from './execution-delivery-surface'
 import { deriveExecutionResultDeliveryPolicy } from './execution-interaction-learning'
@@ -1380,32 +1379,6 @@ export function createAlicizationRuntimeExecutionDelivery(
     return queued
   }
 
-  const buildExecutionDeliveryDeterministicStructured = (input: {
-    channel: string
-    goal: string
-    outcome: string
-    status: AlicizationTaskThreadRecord['status']
-    summary: string
-    policy?: AlicizationExecutionResultDeliveryPolicy | null
-    personStateProjection?: AlicizationPersonStateProjection | null
-    selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
-    hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
-  }) => {
-    return buildAlicizationExecutionPayoffDeterministicStructured({
-      mode: 'callback-delivery',
-      channel: sanitizeExecutionLedgerText(input.channel, 48) || 'executor',
-      goal: input.goal,
-      status: input.status,
-      summary: input.summary,
-      outcome: input.outcome,
-      policy: input.policy,
-      personStateProjection: input.personStateProjection ?? null,
-      selfContinuityAuthority: input.selfContinuityAuthority,
-      hostPersonModel: input.hostPersonModel ?? null,
-      visibleReplyAuthority: 'llm-second-pass-rewrite',
-    })
-  }
-
   const selectExecutionDeliveryReplySurface = (input: {
     channel: string
     goal: string
@@ -1533,20 +1506,8 @@ export function createAlicizationRuntimeExecutionDelivery(
       selfContinuityAuthority: input.selfContinuityAuthority,
     })
 
-    return {
-      ...buildAlicizationExecutionPayoffStructuredReply({
-        mode: 'callback-delivery',
-        channel: sanitizeExecutionLedgerText(input.channel, 48) || 'executor',
-        goal: sanitizeExecutionLedgerText(input.goal, 180) || 'the current task',
-        status: formatExecutionDeliveryStatus(input.status),
-        summary: sanitizeExecutionLedgerText(input.summary, 220),
-        outcome: sanitizeExecutionLedgerText(input.outcome, 240),
-        personStateProjection: normalizedProjection,
-        thought,
-        emotion: performance.baseEmotion,
-        delivery: clampedDelivery,
-        performance: performance as any,
-      }),
+    return normalizeAlicizationProviderExecutionStructured({
+      parsed,
       reply,
       thought,
       emotion: performance.baseEmotion,
@@ -1554,8 +1515,8 @@ export function createAlicizationRuntimeExecutionDelivery(
       performance: {
         ...performance,
         delivery: clampedDelivery,
-      } as any,
-    }
+      },
+    })
   }
 
   const resolveExecutionResultDeliveryPolicyForRuntime = async (input: {
@@ -1835,7 +1796,6 @@ export function createAlicizationRuntimeExecutionDelivery(
     persistExecutionDeliveryState,
     restoreExecutionDeliveryState,
     queueExecutionDeliveryCandidate,
-    buildExecutionDeliveryDeterministicStructured,
     selectExecutionDeliveryReplySurface,
     generateExecutionCallbackStructuredWithGateway,
     resolveExecutionResultDeliveryPolicyForRuntime,

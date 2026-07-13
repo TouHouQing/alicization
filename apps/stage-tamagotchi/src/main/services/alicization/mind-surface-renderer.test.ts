@@ -72,4 +72,65 @@ describe('mind surface renderer', () => {
       expect(result.reply).not.toMatch(/我接住|我是|我能|我把|I caught|I am Alice|I can|I am dropping/iu)
     }
   })
+
+  it('does not locally author execution listing or execution detail replies', () => {
+    const riskyMoves = [
+      {
+        kind: 'execution-listing',
+        scope: 'desktop',
+        count: 2,
+        previewItems: ['secret.txt', 'project'],
+        extraCount: 0,
+        mode: 'callback',
+      },
+      {
+        kind: 'execution-detail',
+        status: 'completed',
+        detail: '构建完成',
+        summary: '构建完成',
+        channelLabel: 'CLI',
+        mode: 'callback',
+      },
+    ] as const
+
+    for (const move of riskyMoves) {
+      const result = renderAlicizationMindSurface({
+        governance: createGovernance(),
+        userText: '执行结果怎么样',
+        moves: [move as any],
+      })
+
+      expect(result.reply).toContain('没有产出模型文本')
+      expect(result.reply).toContain('本地 mind surface 不代写')
+      expect(result.reply).not.toContain('secret.txt')
+      expect(result.reply).not.toContain('构建完成')
+    }
+  })
+
+  it('does not locally author follow-up or capability repair replies', () => {
+    const riskyMoves = [
+      {
+        kind: 'follow-up',
+        variant: 'continue',
+        anchor: '继续刚才的话题',
+      },
+      {
+        kind: 'repair',
+        target: 'capability',
+        capabilities: ['读文件', '运行命令'],
+      },
+    ] as const
+
+    for (const move of riskyMoves) {
+      const result = renderAlicizationMindSurface({
+        governance: createGovernance(),
+        userText: '继续',
+        moves: [move as any],
+      })
+
+      expect(result.reply).toContain('没有产出模型文本')
+      expect(result.reply).toContain('本地 mind surface 不代写')
+      expect(result.reply).not.toMatch(/我能|I can|继续刚才/u)
+    }
+  })
 })

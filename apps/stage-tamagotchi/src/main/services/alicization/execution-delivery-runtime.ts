@@ -54,6 +54,7 @@ export interface AlicizationPendingExecutionDelivery {
   projectState?: AlicizationPendingExecutionDeliveryProjectState | null
   queuedAt: number
   completedAt: number
+  providerSettlementAttempts?: number
 }
 
 export interface AlicizationExecutionDeliveryStateSnapshot {
@@ -290,6 +291,7 @@ export function createAlicizationExecutionDeliveryRuntime(
     projectState?: AlicizationPendingExecutionDeliveryProjectState | null
     queuedAt?: number
     completedAt: number
+    providerSettlementAttempts?: number
   }) {
     prune()
 
@@ -346,6 +348,9 @@ export function createAlicizationExecutionDeliveryRuntime(
         ? Math.max(completedAt, Math.floor(Number(input.queuedAt)))
         : getNow(),
       completedAt,
+      providerSettlementAttempts: Number.isFinite(input.providerSettlementAttempts)
+        ? Math.max(0, Math.floor(Number(input.providerSettlementAttempts)))
+        : 0,
     }
 
     queue.push(entry)
@@ -618,6 +623,9 @@ export function createAlicizationExecutionDeliveryRuntime(
           : undefined,
         completedAt: Number.isFinite(pending.completedAt)
           ? Math.max(0, Math.floor(Number(pending.completedAt)))
+          : 0,
+        providerSettlementAttempts: Number.isFinite(pending.providerSettlementAttempts)
+          ? Math.max(0, Math.floor(Number(pending.providerSettlementAttempts)))
           : 0,
       })
     }

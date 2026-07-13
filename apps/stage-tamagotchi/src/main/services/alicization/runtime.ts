@@ -7002,9 +7002,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return parseCoreIncarnationReforgePayload(raw)
   }
 
-  const buildExecutionDeliveryDeterministicStructured
-    = runtimeExecutionDelivery.buildExecutionDeliveryDeterministicStructured
-
   const selectExecutionDeliveryReplySurface
     = runtimeExecutionDelivery.selectExecutionDeliveryReplySurface
 
@@ -7244,7 +7241,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     executionDeliveryRuntime,
     buildExecutionDeliveryAction,
     generateExecutionCallbackStructuredWithGateway,
-    buildExecutionDeliveryDeterministicStructured,
     selectExecutionDeliveryReplySurface,
     resolveExecutionResultDeliveryPolicy: resolveExecutionResultDeliveryPolicyForRuntime,
     resolveExecutionSelfContinuityAuthority: resolveExecutionSelfContinuityAuthorityForRuntime,

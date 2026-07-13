@@ -49,7 +49,6 @@ import { deriveAlicizationRuntimeSnapshot, projectAlicizationRuntimeDigest } fro
 import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import { deriveAlicizationDigitalLifeSpineFromSurface, projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
 import {
-  buildAlicizationExecutionPayoffDeterministicStructured,
   buildAlicizationExecutionPayoffPrompt,
   normalizeAlicizationExecutionPayoffEmotion,
   normalizeAlicizationExecutionPayoffPerformance,
@@ -6257,102 +6256,28 @@ export async function runAlicizationMainChatBackground(
       throw new AlicizationMindAuthoredReplyRequiredError('mind-authored-execution-payoff-required:execution-inline-payoff-unprepared')
     }
     const preparedTrace = resolvePreparedTraceFallback()
-
-    const surfaceInput = asAlicizationInlineExecutionSurfaceInput(recoveryResult.toolName, recoveryResult.toolResult)
-    if (!surfaceInput) {
-      const rewritten = await rewriteStructuredVisibleReplyIfNeeded({
-        fullText: recoveryResult.fullText,
-        visibleReplyExecution: resolveAlicizationPreparedVisibleReplyExecution({
-          prepared,
-          mode: 'provider-one-shot',
-          actualVisibleReplyAuthority: 'local-deterministic-fallback',
-          providerMindExecuted: false,
-          reason: 'execution-inline-payoff-second-pass-required:unsupported-surface',
-        }),
-        forceRewrite: true,
-        forceReasonCodes: ['execution-inline-payoff-unsupported-surface'],
-        projectStateSameHerSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateSameHerSummary,
-        projectStateSameHerHoldDetail: resolvePreparedVisibleReplyProjectStateAuditSeed().sameHerHoldDetail,
-        projectStateContinuityArcStage: resolvePreparedVisibleReplyProjectStateAuditSeed().continuityArcStage,
-        projectStateContinuityCue: resolvePreparedVisibleReplyProjectStateAuditSeed().continuityCue,
-        projectStateCurrentPhaseSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateCurrentPhaseSummary,
-        projectStateLandedProgressSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateLandedProgressSummary,
-        projectStateOpenClosureSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateOpenClosureSummary,
-        projectStateNextClosureTargetSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateNextClosureTargetSummary,
-        projectStateSameHerDriftRiskSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().sameHerDriftRiskSummary,
-        projectStateProactiveSameHerGapSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateProactiveSameHerGapSummary,
-        emotionalClosureSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().emotionalClosureSummary,
-        projectStatePreDialogueAwarenessSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().projectStatePreDialogueAwarenessSummary,
-      })
-      if (rewritten) {
-        return normalizeRecoveredResolvedReplyAwareness(buildHostVisibleResolvedReply(buildAlicizationResolvedVisibleReply({
-          ...rewritten,
-          projectStateSameHerSummary: rewritten.projectStateSameHerSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateSameHerSummary,
-          projectStateSameHerHoldDetail: rewritten.projectStateSameHerHoldDetail ?? resolvePreparedVisibleReplyProjectStateAuditSeed().sameHerHoldDetail,
-          projectStateContinuityArcStage: rewritten.projectStateContinuityArcStage ?? resolvePreparedVisibleReplyProjectStateAuditSeed().continuityArcStage,
-          projectStateContinuityCue: rewritten.projectStateContinuityCue ?? resolvePreparedVisibleReplyProjectStateAuditSeed().continuityCue,
-          projectStateSameHerDriftRiskSummary: rewritten.projectStateSameHerDriftRiskSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().sameHerDriftRiskSummary,
-          projectStateProactiveSameHerGapSummary: rewritten.projectStateProactiveSameHerGapSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateProactiveSameHerGapSummary,
-          projectStateCurrentPhaseSummary: rewritten.projectStateCurrentPhaseSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateCurrentPhaseSummary,
-          projectStateLandedProgressSummary: rewritten.projectStateLandedProgressSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateLandedProgressSummary,
-          projectStateOpenClosureSummary: rewritten.projectStateOpenClosureSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateOpenClosureSummary,
-          projectStateNextClosureTargetSummary: rewritten.projectStateNextClosureTargetSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateNextClosureTargetSummary,
-          emotionalClosureCue: preferRicherProjectStateAuditText({
-            current: rewritten.emotionalClosureSummary,
-            candidate: resolvePreparedVisibleReplyProjectStateAuditSeed().emotionalClosureSummary,
-          }),
-          projectStateEmotionalClosureSummary: preferRicherProjectStateAuditText({
-            current: rewritten.emotionalClosureSummary,
-            candidate: resolvePreparedVisibleReplyProjectStateAuditSeed().emotionalClosureSummary,
-          }),
-          projectStatePreDialogueAwarenessSummary: preferStrongerSameHerHeadlineOverAwareness({
-            awarenessLine:
-              rewritten.projectStatePreDialogueAwarenessSummary
-              ?? resolveStructuredPreDialogueAwarenessSummary(parseJsonObjectFromText(rewritten.fullText))
-              ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStatePreDialogueAwarenessSummary
-              ?? null,
-            companionHeadlineLine:
-              sanitizeText(
-                (
-                  parseJsonObjectFromText(rewritten.fullText)?.projectState
-                  && typeof parseJsonObjectFromText(rewritten.fullText)?.projectState === 'object'
-                    ? ((parseJsonObjectFromText(rewritten.fullText)?.projectState as Record<string, unknown>).companionHeadlineLine
-                      ?? (parseJsonObjectFromText(rewritten.fullText)?.projectState as Record<string, unknown>).preDialogueAwarenessLine)
-                    : null
-                ) ?? '',
-                '',
-              )
-              || sanitizeText(
-                (
-                  parseJsonObjectFromText(rewritten.fullText)?.preDialogueAwareness
-                  && typeof parseJsonObjectFromText(rewritten.fullText)?.preDialogueAwareness === 'object'
-                    ? (parseJsonObjectFromText(rewritten.fullText)?.preDialogueAwareness as Record<string, unknown>).awarenessLine
-                    : null
-                ) ?? '',
-                '',
-              )
-              || null,
-          }),
-          prepared,
-        })))
-      }
-      throw new AlicizationMindAuthoredReplyRequiredError('mind-authored-execution-payoff-required:execution-inline-payoff-unsupported-surface')
+    const surfaceInput = asAlicizationInlineExecutionSurfaceInput(
+      recoveryResult.toolName,
+      recoveryResult.toolResult,
+    ) ?? {
+      channel: recoveryResult.toolName,
+      status: recoveryResult.executionFact.status === 'succeeded'
+        ? 'completed' as const
+        : recoveryResult.executionFact.status === 'denied'
+          ? 'blocked' as const
+          : 'failed' as const,
+      goal: sanitizeText(
+        input.payload.messages.at(-1)?.role === 'user'
+          ? String(input.payload.messages.at(-1)?.content ?? '')
+          : '',
+        '',
+      ) || recoveryResult.executionFact.summary || recoveryResult.toolName,
+      summary: recoveryResult.executionFact.summary,
+      outcome: JSON.stringify(recoveryResult.executionFact.result),
     }
 
     const continuityInputs = resolveAlicizationExecutionPayoffContinuityInputs({
       runtimeSurface: prepared.runtimeSurface,
-    })
-    const deterministicStructured = buildAlicizationExecutionPayoffDeterministicStructured({
-      mode: 'inline-execution',
-      channel: surfaceInput.channel,
-      goal: surfaceInput.goal,
-      status: surfaceInput.status,
-      summary: surfaceInput.summary,
-      outcome: surfaceInput.outcome,
-      personStateProjection: continuityInputs.personStateProjection,
-      selfContinuityAuthority: continuityInputs.selfContinuityAuthority,
-      hostPersonModel: continuityInputs.hostPersonModel,
-      visibleReplyAuthority: 'llm-second-pass-rewrite',
     })
 
     try {
@@ -6420,123 +6345,38 @@ export async function runAlicizationMainChatBackground(
         selfContinuityAuthority: continuityInputs.selfContinuityAuthority,
         hostPersonModel: continuityInputs.hostPersonModel,
       })
+      if (selectedReply.status !== 'settled') {
+        throw new AlicizationMindAuthoredReplyRequiredError(
+          `mind-authored-execution-payoff-required:${selectedReply.reason}`,
+        )
+      }
+      const parsedThought = sanitizeText(parsed.thought, '')
+      if (!parsedThought)
+        throw new Error('execution-payoff-missing-thought')
       const emotion = normalizeAlicizationExecutionPayoffEmotion(
         parsed.emotion,
-        deterministicStructured.emotion,
+        'thinking',
       )
       const performance = normalizeAlicizationExecutionPayoffPerformance(
         parsed.performance,
         emotion,
-        deterministicStructured.performance,
+        {
+          baseEmotion: emotion,
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
       )
       const structured = {
-        ...deterministicStructured,
-        thought: sanitizeText(parsed.thought, '') || deterministicStructured.thought,
+        ...parsed,
+        format: 'mind-turn-v1',
+        parsePath: 'json',
+        thought: parsedThought,
         emotion,
-        reply: selectedReply.reply,
+        reply: selectedReply.visibleReply,
         performance,
-        visibleReplyAuthority: selectedReply.source === 'llm'
-          ? 'llm-mind'
-          : 'llm-second-pass-rewrite',
-      }
-      if (selectedReply.source !== 'llm') {
-        const enrichedStructuredFullText = enrichStructuredFullTextWithLifeAuthority({
-          fullText: JSON.stringify(structured),
-          reply: selectedReply.reply,
-          thought: typeof structured.thought === 'string' ? structured.thought : null,
-        })
-        const rewritten = await rewriteStructuredVisibleReplyIfNeeded({
-          fullText: enrichedStructuredFullText,
-          visibleReplyExecution: resolveAlicizationPreparedVisibleReplyExecution({
-            prepared,
-            mode: 'provider-one-shot',
-            actualVisibleReplyAuthority: 'local-deterministic-fallback',
-            providerMindExecuted: false,
-            reason: `execution-inline-payoff-second-pass-required:${selectedReply.reason ?? 'llm-repaired'}`,
-          }),
-          forceRewrite: true,
-          forceReasonCodes: [`execution-inline-payoff:${selectedReply.reason ?? 'llm-repaired'}`],
-          projectStateSameHerSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateSameHerSummary,
-          projectStateSameHerHoldDetail: resolvePreparedVisibleReplyProjectStateAuditSeed().sameHerHoldDetail,
-          projectStateContinuityArcStage: resolvePreparedVisibleReplyProjectStateAuditSeed().continuityArcStage,
-          projectStateContinuityCue: resolvePreparedVisibleReplyProjectStateAuditSeed().continuityCue,
-          projectStateCurrentPhaseSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateCurrentPhaseSummary,
-          projectStateLandedProgressSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateLandedProgressSummary,
-          projectStateOpenClosureSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateOpenClosureSummary,
-          projectStateNextClosureTargetSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateNextClosureTargetSummary,
-          projectStateSameHerDriftRiskSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().sameHerDriftRiskSummary,
-          projectStateProactiveSameHerGapSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateProactiveSameHerGapSummary,
-          emotionalClosureSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().emotionalClosureSummary,
-          projectStatePreDialogueAwarenessSummary: resolvePreparedVisibleReplyProjectStateAuditSeed().projectStatePreDialogueAwarenessSummary,
-        })
-        if (!rewritten) {
-          throw new AlicizationMindAuthoredReplyRequiredError(
-            `mind-authored-execution-payoff-required:${selectedReply.reason ?? 'llm-repaired'}`,
-          )
-        }
-        await input.appendRuntimeDebugLine('chat-stream.execution-payoff-finished', {
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          channel: surfaceInput.channel,
-          status: surfaceInput.status,
-          source: 'llm-second-pass-rewrite',
-          surfaceReason: selectedReply.reason ?? null,
-        })
-        currentStructuredPerformance = normalizeAlicizationPerformancePayload(
-          structured.performance,
-          structured.emotion as AlicizationDialoguePerformancePayload['baseEmotion'],
-        )
-        currentStructuredThought = typeof structured.thought === 'string' ? structured.thought : null
-        return buildHostVisibleResolvedReply(buildAlicizationResolvedVisibleReply({
-          ...rewritten,
-          projectStateSameHerSummary: rewritten.projectStateSameHerSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateSameHerSummary,
-          projectStateSameHerHoldDetail: rewritten.projectStateSameHerHoldDetail ?? resolvePreparedVisibleReplyProjectStateAuditSeed().sameHerHoldDetail,
-          projectStateContinuityArcStage: rewritten.projectStateContinuityArcStage ?? resolvePreparedVisibleReplyProjectStateAuditSeed().continuityArcStage,
-          projectStateContinuityCue: rewritten.projectStateContinuityCue ?? resolvePreparedVisibleReplyProjectStateAuditSeed().continuityCue,
-          projectStateSameHerDriftRiskSummary: rewritten.projectStateSameHerDriftRiskSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().sameHerDriftRiskSummary,
-          projectStateProactiveSameHerGapSummary: rewritten.projectStateProactiveSameHerGapSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateProactiveSameHerGapSummary,
-          projectStateCurrentPhaseSummary: rewritten.projectStateCurrentPhaseSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateCurrentPhaseSummary,
-          projectStateLandedProgressSummary: rewritten.projectStateLandedProgressSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateLandedProgressSummary,
-          projectStateOpenClosureSummary: rewritten.projectStateOpenClosureSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateOpenClosureSummary,
-          projectStateNextClosureTargetSummary: rewritten.projectStateNextClosureTargetSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateNextClosureTargetSummary,
-          emotionalClosureCue: preferRicherProjectStateAuditText({
-            current: rewritten.emotionalClosureSummary,
-            candidate: resolvePreparedVisibleReplyProjectStateAuditSeed().emotionalClosureSummary,
-          }),
-          projectStateEmotionalClosureSummary: preferRicherProjectStateAuditText({
-            current: rewritten.emotionalClosureSummary,
-            candidate: resolvePreparedVisibleReplyProjectStateAuditSeed().emotionalClosureSummary,
-          }),
-          projectStatePreDialogueAwarenessSummary: preferStrongerSameHerHeadlineOverAwareness({
-            awarenessLine:
-              rewritten.projectStatePreDialogueAwarenessSummary
-              ?? resolveStructuredPreDialogueAwarenessSummary(parseJsonObjectFromText(rewritten.fullText))
-              ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStatePreDialogueAwarenessSummary
-              ?? null,
-            companionHeadlineLine:
-              sanitizeText(
-                (
-                  parseJsonObjectFromText(rewritten.fullText)?.projectState
-                  && typeof parseJsonObjectFromText(rewritten.fullText)?.projectState === 'object'
-                    ? ((parseJsonObjectFromText(rewritten.fullText)?.projectState as Record<string, unknown>).companionHeadlineLine
-                      ?? (parseJsonObjectFromText(rewritten.fullText)?.projectState as Record<string, unknown>).preDialogueAwarenessLine)
-                    : null
-                ) ?? '',
-                '',
-              )
-              || sanitizeText(
-                (
-                  parseJsonObjectFromText(rewritten.fullText)?.preDialogueAwareness
-                  && typeof parseJsonObjectFromText(rewritten.fullText)?.preDialogueAwareness === 'object'
-                    ? (parseJsonObjectFromText(rewritten.fullText)?.preDialogueAwareness as Record<string, unknown>).awarenessLine
-                    : null
-                ) ?? '',
-                '',
-              )
-              || null,
-          }),
-          prepared,
-        }))
+        visibleReplyAuthority: 'llm-mind',
       }
       await input.appendRuntimeDebugLine('chat-stream.execution-payoff-finished', {
         cardId: input.payload.cardId,
@@ -6544,7 +6384,7 @@ export async function runAlicizationMainChatBackground(
         channel: surfaceInput.channel,
         status: surfaceInput.status,
         source: selectedReply.source,
-        surfaceReason: selectedReply.reason ?? null,
+        surfaceReason: null,
       })
       currentStructuredPerformance = normalizeAlicizationPerformancePayload(
         structured.performance,
@@ -6554,7 +6394,7 @@ export async function runAlicizationMainChatBackground(
       return normalizeRecoveredResolvedReplyAwareness(buildHostVisibleResolvedReply(buildAlicizationResolvedVisibleReply({
         fullText: enrichStructuredFullTextWithLifeAuthority({
           fullText: JSON.stringify(structured),
-          reply: selectedReply.reply,
+          reply: selectedReply.visibleReply,
           thought: typeof structured.thought === 'string' ? structured.thought : null,
         }),
         visibleReplyExecution: resolveAlicizationPreparedVisibleReplyExecution({

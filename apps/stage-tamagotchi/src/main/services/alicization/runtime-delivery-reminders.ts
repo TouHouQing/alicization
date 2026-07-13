@@ -4,7 +4,10 @@ import type {
   AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
 import type { AlicizationAgentTurnRuntime } from './agent-runtime'
-import type { AlicizationExecutionMemorySurfaceRestraint } from './execution-delivery-surface'
+import type {
+  AlicizationExecutionDeliveryReplySelection,
+  AlicizationExecutionMemorySurfaceRestraint,
+} from './execution-delivery-surface'
 import type { AlicizationExecutionResultDeliveryPolicy } from './execution-interaction-learning'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
@@ -16,6 +19,7 @@ import {
   containsAlicizationFixedTemplateResidue,
   describeAlicizationEmbodimentClosureReminder,
   formatAlicizationProjectStateAwarenessFields,
+  resolveAlicizationChatFailureSurface,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
@@ -46,6 +50,7 @@ type CallbackPersistenceSelfContinuityAuthority = Partial<AlicizationSelfContinu
 }
 
 const continuityBaselineTag = ['same', 'her-baseline'].join('-')
+const executionProviderSettlementRetryBudget = 3
 
 type ProjectStateAuditFieldKind
   = | 'phase'
@@ -509,7 +514,6 @@ interface CreateAlicizationDeliveryReminderRuntimeOptions {
   }
   buildExecutionDeliveryAction: (entry: any) => any
   generateExecutionCallbackStructuredWithGateway: (input: any) => Promise<any>
-  buildExecutionDeliveryDeterministicStructured: (input: any) => any
   selectExecutionDeliveryReplySurface: (input: {
     channel: string
     goal: string
@@ -527,11 +531,7 @@ interface CreateAlicizationDeliveryReminderRuntimeOptions {
       stronglyValidatedProcedureCount?: number | null
       contradictionHeavyFactCount?: number | null
     } | null
-  }) => {
-    reply: string
-    source: 'llm' | 'llm-repaired' | 'deterministic'
-    reason?: string
-  }
+  }) => AlicizationExecutionDeliveryReplySelection
   resolveExecutionResultDeliveryPolicy: (input: {
     agentTurn?: AlicizationAgentTurnRuntime | null
     cardId: string
@@ -1827,17 +1827,6 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         knowledgeEvidence,
         projectState: callbackProjectState,
       })
-      const deterministicStructured = options.buildExecutionDeliveryDeterministicStructured({
-        channel: pendingDelivery.channel,
-        goal: pendingDelivery.goal,
-        outcome: pendingDelivery.outcome,
-        status: pendingDelivery.status,
-        summary: pendingDelivery.summary,
-        policy: deliveryPolicy,
-        personStateProjection,
-        selfContinuityAuthority,
-        hostPersonModel,
-      })
       const selectedReply = options.selectExecutionDeliveryReplySurface({
         channel: pendingDelivery.channel,
         goal: pendingDelivery.goal,
@@ -1850,29 +1839,90 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         selfContinuityAuthority,
         hostPersonModel,
       })
-      const structured = selectedReply.source === 'llm' && llmStructured
-        ? {
-            ...llmStructured,
-            reply: selectedReply.reply,
+      if (selectedReply.status !== 'settled' || !llmStructured) {
+        const providerSettlementAttempts = Math.max(
+          0,
+          Number(pendingDelivery.providerSettlementAttempts ?? 0),
+        ) + 1
+        if (providerSettlementAttempts >= executionProviderSettlementRetryBudget) {
+          const failureSurface = resolveAlicizationChatFailureSurface({
+            kind: 'structured-contract',
+          })
+          const persistedFailure = await options.appendConversationTurnWithGuards({
+            turnId: firedTurnId,
+            sessionId: pendingDelivery.sessionId,
+            assistantText: failureSurface.reply,
+            structured: {
+              format: 'alicization-chat-failure-v1',
+              ...failureSurface,
+            },
+            origin: resolveAlicizationAutonomousDialogueOrigin('proactive'),
+            createdAt: Date.now(),
+          })
+          if (persistedFailure) {
+            options.executionDeliveryRuntime.markDelivered(pendingDelivery)
+            await options.persistExecutionDeliveryState(options.getActiveCardId())
+            await options.appendAuditLog({
+              level: 'critical',
+              category: 'alicization.executor.delivery',
+              action: 'provider-settlement-failed',
+              message: 'Execution callback failed because the Provider did not settle a visible reply within the retry budget.',
+              payload: {
+                trigger,
+                threadId: pendingDelivery.threadId,
+                sessionId: pendingDelivery.sessionId,
+                status: pendingDelivery.status,
+                settlementStatus: selectedReply.status,
+                reason: selectedReply.reason,
+                providerSettlementAttempts,
+              },
+            })
+            return true
           }
-        : {
-            ...deterministicStructured,
-            reply: selectedReply.reply,
-          }
+        }
+        options.executionDeliveryRuntime.requeue({
+          ...pendingDelivery,
+          providerSettlementAttempts,
+        })
+        await options.persistExecutionDeliveryState(options.getActiveCardId())
+        options.queueSubconsciousWake(
+          options.getActiveCardId(),
+          `execution-delivery-requeue:${pendingDelivery.threadId}`,
+          1_500,
+        )
+        await options.appendAuditLog({
+          level: 'warning',
+          category: 'alicization.executor.delivery',
+          action: 'pending-provider-settlement',
+          message: 'Execution callback remains pending because the Provider did not settle a visible reply.',
+          payload: {
+            trigger,
+            threadId: pendingDelivery.threadId,
+            sessionId: pendingDelivery.sessionId,
+            status: pendingDelivery.status,
+            settlementStatus: selectedReply.status,
+            reason: selectedReply.reason,
+            providerSettlementAttempts,
+          },
+        })
+        return false
+      }
+      const structured = {
+        ...llmStructured,
+        reply: selectedReply.visibleReply,
+      }
       const deliverySource = selectedReply.source
       const activeSelfRevisionPatch = await options.getActiveSelfRevisionStatePatch?.().catch(() => null) ?? null
-      const rawMindCallbackVisibleUtterance = llmStructured
-        ? resolveAlicizationProactiveVisibleUtterance({
-            kind: 'execution-callback',
-            structured: llmStructured,
-            hasMindAuthoredStructured: true,
-            actualVisibleReplyAuthority: 'llm-mind',
-            reason: 'mind-authored-execution-callback-preflight',
-            allowDeterministicVisibleFallback: true,
-            selfRevisionPatch: activeSelfRevisionPatch,
-          })
-        : null
-      if (rawMindCallbackVisibleUtterance && !rawMindCallbackVisibleUtterance.shouldPersistVisibleUtterance) {
+      const rawMindCallbackVisibleUtterance = resolveAlicizationProactiveVisibleUtterance({
+        kind: 'execution-callback',
+        structured,
+        hasMindAuthoredStructured: true,
+        actualVisibleReplyAuthority: 'llm-mind',
+        reason: 'mind-authored-execution-callback-preflight',
+        allowDeterministicVisibleFallback: false,
+        selfRevisionPatch: activeSelfRevisionPatch,
+      })
+      if (!rawMindCallbackVisibleUtterance.shouldPersistVisibleUtterance) {
         options.executionDeliveryRuntime.requeue(pendingDelivery)
         await options.persistExecutionDeliveryState(options.getActiveCardId())
         options.queueSubconsciousWake(options.getActiveCardId(), `execution-delivery-requeue:${pendingDelivery.threadId}`, 1_500)
@@ -1887,30 +1937,20 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
             sessionId: pendingDelivery.sessionId,
             status: pendingDelivery.status,
             source: 'llm-preflight',
-            surfaceReason: selectedReply.reason ?? null,
+            surfaceReason: null,
             visibleUtteranceDecision: rawMindCallbackVisibleUtterance.decision,
             visibleReplyRealization: rawMindCallbackVisibleUtterance.visibleReplyRealization,
           },
         })
         return false
       }
-      const hasMindAuthoredCallbackSurface = Boolean(llmStructured) || selectedReply.source === 'llm-repaired'
-      const allowDeterministicCallbackVisibleFallback = selectedReply.source === 'deterministic'
       const callbackVisibleUtterance = resolveAlicizationProactiveVisibleUtterance({
         kind: 'execution-callback',
         structured,
-        hasMindAuthoredStructured: hasMindAuthoredCallbackSurface,
-        actualVisibleReplyAuthority: selectedReply.source === 'llm'
-          ? 'llm-mind'
-          : hasMindAuthoredCallbackSurface
-            ? 'llm-second-pass-rewrite'
-            : allowDeterministicCallbackVisibleFallback
-              ? 'local-deterministic-fallback'
-              : undefined,
-        reason: selectedReply.source === 'llm'
-          ? 'mind-authored-execution-callback'
-          : `execution-callback-visible-fallback-blocked:${selectedReply.reason ?? selectedReply.source}`,
-        allowDeterministicVisibleFallback: allowDeterministicCallbackVisibleFallback,
+        hasMindAuthoredStructured: true,
+        actualVisibleReplyAuthority: 'llm-mind',
+        reason: 'mind-authored-execution-callback',
+        allowDeterministicVisibleFallback: false,
         selfRevisionPatch: activeSelfRevisionPatch,
       })
       await options.appendRuntimeDebugLine('execution-delivery.structured-selected', {

@@ -1,12 +1,12 @@
 import type { Message } from '@xsai/shared-chat'
 
-import type { AlicizationExecutionOutcomeSurfaceStatus } from './execution-delivery-surface'
+import type { AlicizationExecutionDeliveryFact } from './execution-delivery-surface'
 
 import { randomUUID } from 'node:crypto'
 
 import { resolveAlicizationKnownWebsiteInText } from '@proj-alicization/stage-shared'
 
-import { buildAlicizationExecutionPayoffDeterministicStructured } from './execution-delivery-surface'
+import { buildAlicizationExecutionDeliveryFact } from './execution-delivery-surface'
 import { extractAlicizationRequiredToolNames } from './main-chat-required-tool'
 
 interface AlicizationDeterministicCallableTool {
@@ -43,6 +43,7 @@ export interface AlicizationDeterministicRequiredToolRecoveryResult {
   toolName: string
   toolInput: Record<string, unknown>
   toolResult: unknown
+  executionFact: AlicizationExecutionDeliveryFact
   fullText: string
 }
 
@@ -650,83 +651,27 @@ function asRecord(raw: unknown): Record<string, unknown> | null {
     : null
 }
 
-function normalizeExecutorChannel(toolName: string, result: Record<string, unknown>) {
-  const selectedChannel = sanitizeText(result.selectedChannel, 48)
-  if (selectedChannel)
-    return selectedChannel
-  if (toolName === 'executor_run_cli')
-    return 'cli'
-  if (toolName === 'executor_run_codex')
-    return 'codex'
-  if (toolName === 'executor_run_claude_code')
-    return 'claude-code'
-  if (toolName === 'executor_run_local_visual') {
-    const channelHint = `${sanitizeText(result.kind, 48)} ${sanitizeText(result.goal, 120)} ${sanitizeText(result.summary, 120)}`.toLowerCase()
-    if (/browser|page|tab|网页|浏览器|页面/u.test(channelHint))
-      return 'browser'
-    if (/software|app|应用|软件/u.test(channelHint))
-      return 'software'
-    return 'desktop'
-  }
-  if (toolName === 'executor_run_openclaw')
-    return 'openclaw'
-  if (toolName === 'browser_open_url'
-    || toolName === 'browser_search_web'
-    || toolName === 'browser_read_page'
-    || toolName === 'browser_click_element'
-    || toolName === 'browser_type_text'
-    || toolName === 'browser_navigate'
-    || toolName === 'browser_scroll'
-    || toolName === 'browser_wait') {
-    return 'browser'
-  }
-  if (toolName === 'desktop_inspect_scene'
-    || toolName === 'desktop_list_interactables'
-    || toolName === 'desktop_click_element'
-    || toolName === 'desktop_type_text'
-    || toolName === 'desktop_press_keys'
-    || toolName === 'desktop_open_application'
-    || toolName === 'desktop_wait') {
-    return 'desktop'
-  }
-  return 'executor'
-}
-
-function normalizeInlineExecutionStatus(result: Record<string, unknown>): AlicizationExecutionOutcomeSurfaceStatus {
-  const threadStatus = sanitizeText(result.threadStatus, 48).toLowerCase()
-  if (threadStatus === 'completed' || threadStatus === 'cancelled' || threadStatus === 'blocked' || threadStatus === 'failed' || threadStatus === 'queued' || threadStatus === 'running')
-    return threadStatus
-  const status = sanitizeText(result.status, 48).toLowerCase()
-  if (status === 'completed' || status === 'cancelled' || status === 'blocked' || status === 'failed' || status === 'queued' || status === 'running')
-    return status
-  return 'failed'
-}
-
-function buildDeterministicRecoveryStructuredText(input: {
-  fullText: string
+function buildRequiredToolExecutionFact(input: {
   toolName: string
   toolResult: unknown
 }) {
   const payload = asRecord(input.toolResult)
-  if (!payload)
-    return input.fullText
-
-  const status = normalizeInlineExecutionStatus(payload)
-  const channel = normalizeExecutorChannel(input.toolName, payload)
-  const summary = sanitizeText(payload.summary, 220)
-  const output = sanitizeText(payload.output, 220)
-  const goal = sanitizeText(payload.goal, 220) || summary || 'the current task'
-  const structured = buildAlicizationExecutionPayoffDeterministicStructured({
-    mode: 'inline-execution',
-    channel,
-    goal,
-    status,
-    summary,
-    outcome: output || summary,
-    visibleReplyAuthority: 'llm-second-pass-rewrite',
+  const rawStatus = sanitizeText(payload?.threadStatus ?? payload?.status, 48).toLowerCase()
+  const failed = rawStatus === 'failed' || Boolean(payload?.errorMessage)
+  const denied = rawStatus === 'blocked' || rawStatus === 'cancelled' || rawStatus === 'denied'
+  const timedOut = rawStatus === 'timed-out' || rawStatus === 'timeout'
+  return buildAlicizationExecutionDeliveryFact({
+    toolName: input.toolName,
+    status: timedOut
+      ? 'timed-out'
+      : denied
+        ? 'denied'
+        : failed
+          ? 'failed'
+          : 'succeeded',
+    summary: readDeterministicRecoveryReply(input.toolResult),
+    result: input.toolResult,
   })
-
-  return JSON.stringify(structured)
 }
 
 function pickDeterministicRecoveryTool(input: {
@@ -802,21 +747,18 @@ export async function recoverAlicizationRequiredToolDeterministically(
     result: toolResult,
   })
 
-  const replyText = readDeterministicRecoveryReply(toolResult)
-  const fullText = buildDeterministicRecoveryStructuredText({
-    fullText: replyText,
+  const executionFact = buildRequiredToolExecutionFact({
     toolName: selected.toolName,
     toolResult,
   })
-  if (!fullText) {
-    throw new Error(`Deterministic required-tool recovery produced no reply text: ${selected.toolName}`)
-  }
+  const fullText = JSON.stringify(executionFact)
 
   return {
     toolCallId,
     toolName: selected.toolName,
     toolInput,
     toolResult,
+    executionFact,
     fullText,
   }
 }
