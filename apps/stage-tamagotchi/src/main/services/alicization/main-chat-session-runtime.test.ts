@@ -107,14 +107,6 @@ function countWorkingMemoryBlocks(messages: Message[]) {
   ).length
 }
 
-function findWorkingMemoryOwnerBlock(messages: Message[]) {
-  return messages.find(message =>
-    message.role === 'system'
-    && typeof message.content === 'string'
-    && message.content.includes('[ALICIZATION_WORKING_MEMORY_OWNER]'),
-  )?.content as string | undefined
-}
-
 function findLongTermMemoryRecallBlock(messages: Message[]) {
   return messages.find(message =>
     message.role === 'system'
@@ -8166,8 +8158,32 @@ describe('main chat session runtime', () => {
         content: '继续这个本地数字生命的工作记忆线。',
       } as Message],
     })
+    const mustDoSentinel = 'preserve-existing-answer-planner-must-do'
+    const mustNotDoSentinel = 'preserve-existing-answer-planner-must-not-do'
+    prelude.perceptionAugmentation.digitalLifeRuntimeSurface.dialogue.answerPlanner = {
+      act: 'answer',
+      evidenceMode: 'dialogue-grounded',
+      confidence: 0.5,
+      governingFocus: 'existing answer planner',
+      governingProject: null,
+      openingMove: '',
+      answerIntent: '',
+      relationshipPosture: 'restrained',
+      activeClosenessContext: null,
+      activeClosenessRung: null,
+      shouldAskForGrounding: false,
+      shouldAcknowledgeRepair: false,
+      mustDo: [],
+      mustNotDo: [],
+      narrative: [],
+      updatedAt: 10,
+    }
+    prelude.perceptionAugmentation.digitalLifeRuntimeSurface.dialogue.answerPlanner.mustDo.push(mustDoSentinel)
+    prelude.perceptionAugmentation.digitalLifeRuntimeSurface.dialogue.answerPlanner.mustNotDo.push(mustNotDoSentinel)
+    const originalEpisodes = prelude.perceptionAugmentation.digitalLifeRuntimeSurface.memory.workingMemoryEpisodes
+    const originalEpisodesSnapshot = structuredClone(originalEpisodes)
 
-    const result = await runtime.prepareExecution({
+    await runtime.prepareExecution({
       payload: {
         cardId: 'default',
         turnId: 'turn-working-memory-owner',
@@ -8180,13 +8196,10 @@ describe('main chat session runtime', () => {
       prelude,
     })
 
-    const ownerBlock = findWorkingMemoryOwnerBlock(result.messages)
-    expect(ownerBlock).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
-    expect(ownerBlock).toContain('owner=working-memory')
-    expect(ownerBlock).toContain('authority=WorkingMemory is the authoritative short-term dialogue state')
-
     const episodes = prelude.perceptionAugmentation.digitalLifeRuntimeSurface.memory.workingMemoryEpisodes
     const ownerEpisode = episodes.find(episode => episode.scene === 'working-memory-owner')
+    expect(originalEpisodes).toEqual(originalEpisodesSnapshot)
+    expect(episodes).not.toBe(originalEpisodes)
     expect(ownerEpisode).toEqual(expect.objectContaining({
       scene: 'working-memory-owner',
       emotionalTension: 'focused-flow',
@@ -8196,12 +8209,15 @@ describe('main chat session runtime', () => {
     expect(ownerEpisode?.summary).toContain('thread=继续这个本地数字生命的工作记忆线。')
 
     const answerPlanner = prelude.perceptionAugmentation.digitalLifeRuntimeSurface.dialogue.answerPlanner
-    expect(answerPlanner?.mustDo).toEqual(expect.arrayContaining([
-      expect.stringContaining('Carry WorkingMemory execution state plainly: execution_callback_channel:cli'),
-    ]))
-    expect(answerPlanner?.mustNotDo).toEqual(expect.arrayContaining([
+    expect(answerPlanner?.mustDo ?? []).toContain(mustDoSentinel)
+    expect(answerPlanner?.mustNotDo ?? []).toContain(mustNotDoSentinel)
+    expect((answerPlanner?.mustDo ?? []).some(rule => rule.includes('Carry WorkingMemory'))).toBe(false)
+    expect(answerPlanner?.mustNotDo ?? []).not.toContain(
       'Do not replace WorkingMemory owner state with generic project-status narration or fixed fallback wording.',
-    ]))
+    )
+    expect(answerPlanner?.mustNotDo ?? []).not.toContain(
+      'Do not treat WorkingMemory failure/audit-only turns as learned personality or long-term memory.',
+    )
   })
 
   it('flows correction and failure signals into the short-term memory snapshot', async () => {
@@ -8315,7 +8331,7 @@ describe('main chat session runtime', () => {
     expect(drainWorkingMemoryLongTermQueue).toHaveBeenCalledWith(4)
   })
 
-  it('injects recalled long-term memory after WorkingMemory owner context', async () => {
+  it('injects recalled long-term memory after the WorkingMemory data block', async () => {
     const retrieveLongTermMemoryEvidence = vi.fn(async () => ({
       intent: {
         mode: 'episodic' as const,
@@ -8391,7 +8407,7 @@ describe('main chat session runtime', () => {
       currentUserText: '我们去打游戏吧',
       limit: 5,
     }))
-    expect(text).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
+    expect(text).not.toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
     expect(text).toContain('[ALICIZATION_RECALLED_MEMORY]')
     expect(recallBlock).toContain('intent=episodic')
     expect(recallBlock).toContain('Minecraft')
@@ -8449,7 +8465,7 @@ describe('main chat session runtime', () => {
     expect(countWorkingMemoryBlocks(secondResult.messages)).toBe(1)
   })
 
-  it('keeps project-state engineering blocks out of ordinary dialogue while keeping memory owner blocks', async () => {
+  it('keeps project-state engineering blocks out of ordinary dialogue while keeping WorkingMemory data blocks', async () => {
     const { runtime } = createWorkingMemoryRuntimeFixture({
       buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [
         '[ALICIZATION_PROJECT_STATE]\nidentity=Alicization is a local-first digital life project.',
@@ -8504,7 +8520,7 @@ describe('main chat session runtime', () => {
         .map(message => String(message.content))
         .join('\n')
 
-      expect(systemText).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
+      expect(systemText).not.toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
       expect(systemText).toContain('[ALICIZATION_WORKING_MEMORY]')
       expect(systemText).not.toContain('[ALICIZATION_PROJECT_STATE]')
       expect(systemText).not.toContain('[ALICIZATION_PROJECT_STATE_CONTINUITY]')
@@ -8578,7 +8594,7 @@ describe('main chat session runtime', () => {
       .map(message => String(message.content))
       .join('\n')
 
-    expect(systemText).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
+    expect(systemText).not.toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
     expect(systemText).toContain('[ALICIZATION_WORKING_MEMORY]')
     expect(systemText).toContain('[ALICIZATION_FACT_LEDGER]')
     expect(systemText).not.toContain('[ALICIZATION_PROJECT_STATE_CONTINUITY]')
@@ -18394,7 +18410,7 @@ describe('main chat session runtime', () => {
       preDialogueClosure: mindTurnContract?.preDialogueClosure ?? null,
     })
 
-    expect(providerSystemText).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
+    expect(providerSystemText).not.toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
     expect(providerSystemText).toContain('[ALICIZATION_WORKING_MEMORY]')
     expect(providerSystemText).not.toContain('[ALICIZATION_PROJECT_STATE]')
     expect(providerSystemText).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')

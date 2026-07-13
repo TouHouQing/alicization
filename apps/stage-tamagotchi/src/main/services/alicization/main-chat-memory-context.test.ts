@@ -8,7 +8,7 @@ import { buildAlicizationMainChatMemoryContext } from './main-chat-memory-contex
 const authorityCue = 'fixed reply governance cue'
 const pendingCandidateText = 'pending review candidate must stay out'
 
-const workingMemoryFixture: WorkingMemoryOwnerContext = {
+const workingMemoryFixture: WorkingMemoryOwnerContext & { authorityLine: string } = {
   version: 'working-memory-owner-context-v1',
   owner: 'working-memory',
   authorityLine: authorityCue,

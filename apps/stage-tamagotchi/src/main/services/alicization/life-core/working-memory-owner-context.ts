@@ -21,7 +21,6 @@ import { buildWorkingMemoryLongTermCandidateQueue } from './working-memory-long-
 export interface WorkingMemoryOwnerContext {
   version: 'working-memory-owner-context-v1'
   owner: 'working-memory'
-  authorityLine: string
   scope: {
     cardId: string
     sessionId: string
@@ -105,7 +104,6 @@ export function buildWorkingMemoryOwnerContext(snapshot: WorkingMemorySnapshot):
   return {
     version: 'working-memory-owner-context-v1',
     owner: 'working-memory',
-    authorityLine: 'WorkingMemory is the authoritative short-term dialogue state for this turn; older runtime hints are inputs, not competing owners.',
     scope: {
       cardId: compact(snapshot.cardId, 120) || 'default',
       sessionId: compact(snapshot.sessionId, 160) || 'detached',
@@ -131,68 +129,6 @@ export function buildWorkingMemoryOwnerContext(snapshot: WorkingMemorySnapshot):
       notes: uniqueLines(snapshot.audit.notes, 8),
     },
     longTermQueue: buildWorkingMemoryLongTermCandidateQueue(snapshot),
-  }
-}
-
-function renderOwnerList(label: string, values: string[]) {
-  return `${label}=${values.length > 0 ? values.join(' ; ') : 'none'}`
-}
-
-export function buildWorkingMemoryOwnerSystemBlock(context: WorkingMemoryOwnerContext) {
-  const lines = [
-    '[ALICIZATION_WORKING_MEMORY_OWNER]',
-    `owner=${context.owner}`,
-    `authority=${context.authorityLine}`,
-    context.current.threadTitle
-      ? `thread=${[
-        context.current.threadTitle,
-        context.current.threadMode ? `mode=${context.current.threadMode}` : '',
-        `hold=${context.current.shouldHoldThread ? 'yes' : 'no'}`,
-        context.current.currentUserMove ? `user=${context.current.currentUserMove}` : '',
-      ].filter(Boolean).join(' | ')}`
-      : 'thread=none',
-    context.current.activeTask && context.current.taskStatus
-      ? `task=${context.current.taskStatus}:${context.current.activeTask}`
-      : 'task=none',
-    renderOwnerList('obligations', context.obligations),
-    renderOwnerList('memory_query_hints', context.queryHints),
-    renderOwnerList('failure_audit_only', context.audit.failureTurnIds),
-    renderOwnerList('excluded_long_term', context.audit.excludedLongTermCandidateTurnIds),
-  ]
-  return uniqueWorkingMemoryTexts(lines, lines.length, 500).join('\n')
-}
-
-function obligationPayload(line: string, prefix: RegExp) {
-  return compact(line.replace(prefix, ''), 240)
-}
-
-export function buildWorkingMemoryOwnerReplyGovernance(context: WorkingMemoryOwnerContext) {
-  const mustDo = uniqueWorkingMemoryTexts(context.obligations.map((line) => {
-    if (line.startsWith('respect_correction('))
-      return `Respect WorkingMemory correction: ${obligationPayload(line, /^respect_correction\([^)]*\):/u)}`
-    if (line.startsWith('answer_unresolved_question:'))
-      return `Answer WorkingMemory unresolved question before widening: ${obligationPayload(line, /^answer_unresolved_question:/u)}`
-    if (line.startsWith('honor_commitment:'))
-      return `Honor WorkingMemory commitment: ${obligationPayload(line, /^honor_commitment:/u)}`
-    if (line.startsWith('carry_task('))
-      return `Carry WorkingMemory active task: ${obligationPayload(line, /^carry_task\(([^)]*)\):/u).replace(/^/u, `${line.match(/^carry_task\(([^)]*)\):/u)?.[1] ?? 'active'}:`)}`
-    if (line.startsWith('hold_thread:'))
-      return `Stay on WorkingMemory thread: ${obligationPayload(line, /^hold_thread:/u)}`
-    if (line.startsWith('carry_execution:'))
-      return `Carry WorkingMemory execution state plainly: ${obligationPayload(line, /^carry_execution:/u)}`
-    return ''
-  }), 12, 320)
-
-  const mustNotDo = uniqueWorkingMemoryTexts([
-    'Do not replace WorkingMemory owner state with generic project-status narration or fixed fallback wording.',
-    context.audit.failureTurnIds.length > 0
-      ? 'Do not treat WorkingMemory failure/audit-only turns as learned personality or long-term memory.'
-      : '',
-  ], 4, 320)
-
-  return {
-    mustDo,
-    mustNotDo,
   }
 }
 

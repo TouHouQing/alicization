@@ -1,15 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import { createEmptyWorkingMemorySnapshot } from './working-memory'
-import {
-  buildWorkingMemoryOwnerContext,
-  buildWorkingMemoryOwnerReplyGovernance,
-  buildWorkingMemoryOwnerSystemBlock,
-  projectWorkingMemoryOwnerEpisodes,
-} from './working-memory-owner-context'
+
+import * as workingMemoryOwnerContextModule from './working-memory-owner-context'
 
 describe('working memory owner context', () => {
-  it('promotes snapshot state into an authoritative short-term owner context', () => {
+  it('promotes snapshot state into a short-term owner context without fixed reply governance APIs', () => {
     const snapshot = createEmptyWorkingMemorySnapshot({
       cardId: 'default',
       sessionId: 'session-1',
@@ -60,11 +56,10 @@ describe('working memory owner context', () => {
       allowTraining: true,
     }]
 
-    const context = buildWorkingMemoryOwnerContext(snapshot)
-    const block = buildWorkingMemoryOwnerSystemBlock(context)
+    const context = workingMemoryOwnerContextModule.buildWorkingMemoryOwnerContext(snapshot)
 
     expect(context.owner).toBe('working-memory')
-    expect(context.authorityLine).toContain('authoritative short-term dialogue state')
+    expect(context).not.toHaveProperty('authorityLine')
     expect(context.current.threadTitle).toBe('B 线短期记忆 owner')
     expect(context.current.taskStatus).toBe('active')
     expect(context.obligations[0]).toContain('respect_correction(persona):不要固定模板回复')
@@ -79,27 +74,11 @@ describe('working memory owner context', () => {
       status: 'pending-cleaning',
       summary: '不要固定模板回复，要数字生命自身人格',
     }))
-    expect(block).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
-    expect(block).toContain('owner=working-memory')
-    expect(block).toContain('thread=B 线短期记忆 owner')
-    expect(block).toContain('task=active:让 WorkingMemory 成为短期记忆链路 owner')
-    expect(block).toContain('failure_audit_only=turn-failed:alice')
-    expect(block).not.toContain('long_term_queue=')
-
-    const replyGovernance = buildWorkingMemoryOwnerReplyGovernance(context)
-    expect(replyGovernance.mustDo).toEqual(expect.arrayContaining([
-      'Respect WorkingMemory correction: 不要固定模板回复，要数字生命自身人格',
-      'Answer WorkingMemory unresolved question before widening: 如何避免它只是另一个提示块？',
-      'Honor WorkingMemory commitment: 先做短期记忆 owner，再做长期记忆',
-      'Carry WorkingMemory active task: active:让 WorkingMemory 成为短期记忆链路 owner',
-    ]))
-    expect(replyGovernance.mustNotDo).toEqual(expect.arrayContaining([
-      'Do not replace WorkingMemory owner state with generic project-status narration or fixed fallback wording.',
-      'Do not treat WorkingMemory failure/audit-only turns as learned personality or long-term memory.',
-    ]))
+    expect(workingMemoryOwnerContextModule).not.toHaveProperty('buildWorkingMemoryOwnerReplyGovernance')
+    expect(workingMemoryOwnerContextModule).not.toHaveProperty('buildWorkingMemoryOwnerSystemBlock')
   })
 
-  it('sanitizes fixed-template residue before rendering provider-facing owner context', () => {
+  it('sanitizes fixed-template residue inside the owner context', () => {
     const snapshot = createEmptyWorkingMemorySnapshot({
       cardId: 'default',
       sessionId: 'session-template-owner',
@@ -124,14 +103,11 @@ describe('working memory owner context', () => {
       '失败面透明',
     ]
 
-    const context = buildWorkingMemoryOwnerContext(snapshot)
-    const block = buildWorkingMemoryOwnerSystemBlock(context)
+    const context = workingMemoryOwnerContextModule.buildWorkingMemoryOwnerContext(snapshot)
+    const serializedContext = JSON.stringify(context)
 
-    expect(block).toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
-    expect(block).toContain('correction=fixed_template_rejection; visible_wording=false')
-    expect(block).toContain('失败面透明')
-    expect(block).not.toContain('不要使用固定模板')
-    expect(block).not.toMatch(/Before speaking|same-her|one continuous her|Same Phase 1 digital life|same living line/u)
+    expect(context.queryHints).toContain('失败面透明')
+    expect(serializedContext).not.toMatch(/Before speaking|same-her|one continuous her|Same Phase 1 digital life|same living line/u)
   })
 
   it('projects the owner context into runtime working-memory episodes without marking it as sediment', () => {
@@ -170,7 +146,7 @@ describe('working memory owner context', () => {
       importance: 1,
     }]
 
-    const episodes = projectWorkingMemoryOwnerEpisodes(snapshot, [{
+    const episodes = workingMemoryOwnerContextModule.projectWorkingMemoryOwnerEpisodes(snapshot, [{
       scene: 'older visual context',
       summary: 'keep this existing visual episode',
       beganAt: 100,
