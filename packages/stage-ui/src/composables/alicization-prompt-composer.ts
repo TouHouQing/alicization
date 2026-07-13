@@ -3,11 +3,10 @@ import type { Message } from '@xsai/shared-chat'
 import type { ContextMessage } from '../types/chat'
 
 import {
+  buildAlicizationProviderFactBlock,
+  containsAlicizationFixedTemplateResidue,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
-import {
-  renderAlicizationProjectStateStructuredBlock,
-} from '@proj-alicization/stage-shared/alicization-prompting'
 
 interface AlicizationPersonalityState {
   obedience: number
@@ -46,8 +45,6 @@ export interface ComposeAlicizationPromptMessagesResult {
 }
 
 const personalityLowThreshold = 0.2
-const personalityDirectiveHeader = '[ALICIZATION_PERSONALITY_EXTREME_STATE]'
-const personalityStateHeader = '[ALICIZATION_PERSONALITY_STATE]'
 
 function looksLikeThinContinuityNextClosureLine(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
@@ -96,28 +93,26 @@ function normalizeStructuredProjectStateFactValue(key: string, value: string | n
   const normalized = sanitizeAlicizationProviderFacingText(value, 800)
   if (!normalized)
     return null
+  if (/\b[a-z][\w-]+\s*=/iu.test(normalized))
+    return null
   return normalized
 }
 
 function buildStructuredProjectStateFactsBlock(
-  header: string,
+  type: string,
   fields: Array<[string, string | null | undefined]>,
 ) {
-  const normalizedFields = fields
+  const data = Object.fromEntries(fields
     .map(([key, value]) => {
       const normalized = normalizeStructuredProjectStateFactValue(key, value)
-      return normalized ? `${key}=${normalized}` : ''
+      return normalized ? [key, normalized] : null
     })
-    .filter(Boolean)
+    .filter((entry): entry is [string, string] => entry !== null))
 
-  if (normalizedFields.length === 0)
+  if (Object.keys(data).length === 0)
     return null
 
-  return [
-    header,
-    'owner=ProjectStateGovernance',
-    ...normalizedFields,
-  ].join('\n')
+  return buildAlicizationProviderFactBlock(type, data)
 }
 
 function isEmbodimentCarryReason(value: string | null | undefined) {
@@ -234,8 +229,8 @@ function buildPreDialogueContinuityFacts(input: {
     || awareness?.status === 'drift'
     || awareness?.status === 'partial'
     || normalizedReasons.some(reason =>
-      reason.includes('project-state-same-her-continuity-required')
-      || reason.includes('semantic-judge:project-state-same-her-missing')
+      reason.includes('project-state-continuity-required')
+      || reason.includes('semantic-judge:project-state-continuity-missing')
       || reason.includes('primary open life loop still centers on')
       || reason.includes('next closure target is still')
       || reason.includes('same-her embodiment is now only being carried by'),
@@ -281,7 +276,7 @@ function buildPreDialogueContinuityFacts(input: {
         closureSnapshotNextClosureLine,
       )
       ?? null
-  return buildStructuredProjectStateFactsBlock('[ALICIZATION_PRE_DIALOGUE_CONTINUITY_FACTS]', [
+  return buildStructuredProjectStateFactsBlock('alicization-pre-dialogue-continuity', [
     ['identity', identityLine],
     ['phase', currentPhaseLine],
     ['landed', landedProgressLine],
@@ -387,77 +382,34 @@ function readPersonalityStateFromSoul(content: string): AlicizationPersonalitySt
 }
 
 export function translatePersonalityToDirectives(personality: AlicizationPersonalityState): AlicizationPersonalityDirectiveResult | null {
-  const directives: string[] = []
   const triggered: Array<'obedience' | 'liveliness' | 'sensibility'> = []
 
-  if (personality.liveliness <= personalityLowThreshold) {
+  if (personality.liveliness <= personalityLowThreshold)
     triggered.push('liveliness')
-    directives.push('axis=liveliness; band=low; reply_energy=max_low; avoid=high_arousal_claims')
-  }
 
-  if (personality.sensibility <= personalityLowThreshold) {
+  if (personality.sensibility <= personalityLowThreshold)
     triggered.push('sensibility')
-    directives.push('axis=sensibility; band=low; affect_rendering=minimal; avoid=unearned_empathy')
-  }
 
-  if (personality.obedience <= personalityLowThreshold) {
+  if (personality.obedience <= personalityLowThreshold)
     triggered.push('obedience')
-    directives.push('axis=obedience; band=low; instruction_acceptance=bounded; require=policy_consistency')
-  }
 
-  if (directives.length === 0)
+  if (triggered.length === 0)
     return null
 
   return {
-    block: `${personalityDirectiveHeader}\n${directives.join('\n')}`,
+    block: buildAlicizationProviderFactBlock('alicization-personality-thresholds', {
+      lowAxes: triggered,
+    }),
     triggered,
   }
 }
 
-function formatPersonalityStateLine(personality: AlicizationPersonalityState) {
-  return `obedience=${personality.obedience.toFixed(2)}, liveliness=${personality.liveliness.toFixed(2)}, sensibility=${personality.sensibility.toFixed(2)}`
-}
-
-function describeAxisImplication(axis: 'obedience' | 'liveliness' | 'sensibility', value: number) {
-  if (axis === 'liveliness') {
-    if (value <= personalityLowThreshold)
-      return 'axis=liveliness; band=low; reply_energy=max_low; avoid=high_arousal_claims'
-    if (value < 0.45)
-      return 'axis=liveliness; band=lower_mid; reply_energy=restrained'
-    if (value > 0.8)
-      return 'axis=liveliness; band=high; reply_energy=available; require=context_match'
-    return 'axis=liveliness; band=mid; reply_energy=natural'
-  }
-
-  if (axis === 'sensibility') {
-    if (value <= personalityLowThreshold)
-      return 'axis=sensibility; band=low; affect_rendering=minimal; avoid=unearned_empathy'
-    if (value < 0.45)
-      return 'axis=sensibility; band=lower_mid; affect_rendering=brief'
-    if (value > 0.8)
-      return 'axis=sensibility; band=high; affect_rendering=available; require=evidence_match'
-    return 'axis=sensibility; band=mid; affect_rendering=balanced'
-  }
-
-  if (value <= personalityLowThreshold)
-    return 'axis=obedience; band=low; instruction_acceptance=bounded; avoid=over_compliance'
-  if (value < 0.45)
-    return 'axis=obedience; band=lower_mid; instruction_acceptance=cautious'
-  if (value > 0.8)
-    return 'axis=obedience; band=high; instruction_acceptance=cooperative; require=policy_boundary'
-  return 'axis=obedience; band=mid; instruction_acceptance=balanced'
-}
-
-function buildPersonalityStateDirective(personality: AlicizationPersonalityState) {
-  return [
-    personalityStateHeader,
-    `state=${formatPersonalityStateLine(personality)}`,
-    'source_priority=frontmatter.personality_over_persona_notes',
-    describeAxisImplication('obedience', personality.obedience),
-    describeAxisImplication('liveliness', personality.liveliness),
-    describeAxisImplication('sensibility', personality.sensibility),
-    'contract=thought_emotion_reply_consistency',
-  ].join('\n')
+function buildPersonalityStateFact(personality: AlicizationPersonalityState) {
+  return buildAlicizationProviderFactBlock('alicization-personality-state', {
+    obedience: personality.obedience,
+    liveliness: personality.liveliness,
+    sensibility: personality.sensibility,
+  })
 }
 
 export function stripLegacySystemMessages(messages: Message[]) {
@@ -473,18 +425,11 @@ function providerSafeOptionalFactValue(value: unknown, maxChars = 800) {
   return sanitized || null
 }
 
-function buildSoulFactsBlock(input: {
-  soulContent?: string | null
-  personality?: AlicizationPersonalityState | null
-}) {
-  if (!input.soulContent && !input.personality)
-    return null
-
-  return [
-    '[ALICIZATION_SOUL_FACTS]',
-    `soul_source=${input.soulContent ? 'present' : 'absent'}`,
-    `personality_state=${input.personality ? 'present' : 'absent'}`,
-  ].join('\n')
+function compactContextFactValue(value: unknown, maxChars = 1200) {
+  if (typeof value !== 'string')
+    return ''
+  const compacted = value.trim().replace(/\s+/gu, ' ').slice(0, maxChars)
+  return containsAlicizationFixedTemplateResidue(compacted) ? '' : compacted
 }
 
 function buildHostFactsBlock(hostName: string) {
@@ -492,12 +437,9 @@ function buildHostFactsBlock(hostName: string) {
   if (!safeHostName)
     return null
 
-  return [
-    '[ALICIZATION_HOST_FACTS]',
-    `host_name=${safeHostName}`,
-    'direct_address_name_use=natural_when_addressing_host',
-    'forced_name_repetition=blocked',
-  ].join('\n')
+  return buildAlicizationProviderFactBlock('alicization-host', {
+    name: safeHostName,
+  })
 }
 
 function buildContextFactBlock(input: {
@@ -517,43 +459,35 @@ function buildContextFactBlock(input: {
     if (!iso && !local)
       return null
 
-    return [
-      'current_datetime',
-      `source=${source}`,
-      iso ? `iso=${iso}` : '',
-      local ? `local=${local}` : '',
-    ].filter(Boolean).join('\n')
+    return buildAlicizationProviderFactBlock('alicization-datetime', {
+      source,
+      iso: iso || null,
+      local: local || null,
+    })
   }
 
-  const header = input.kind === 'memory'
-    ? 'memory_facts'
-    : input.kind === 'sensory'
-      ? 'current_sensory_state'
-      : 'context_facts'
-  const content = providerSafeFactValue(input.content, 1200)
+  const content = compactContextFactValue(input.content, 1200)
   if (!content)
     return null
 
-  return [
-    header,
-    `source=${source}`,
-    `content=${content}`,
-  ].join('\n')
+  return buildAlicizationProviderFactBlock(
+    input.kind === 'memory'
+      ? 'alicization-memory-context'
+      : input.kind === 'sensory'
+        ? 'alicization-sensory-context'
+        : 'alicization-generic-context',
+    {
+      source,
+      content,
+    },
+  )
 }
 
 function pushProviderSystemSection(sections: string[], section: string | null | undefined) {
-  if (!section)
+  const normalized = section?.trim()
+  if (!normalized)
     return
-  const lines = section
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean)
-  const hasPayloadLine = lines.some(line =>
-    !line.startsWith('[')
-    && line !== 'owner=ProjectStateGovernance',
-  )
-  if (hasPayloadLine)
-    sections.push(section)
+  sections.push(normalized)
 }
 
 function buildAlicizationContextSections(contextsSnapshot: Record<string, ContextMessage[]>) {
@@ -670,30 +604,13 @@ export function composeAlicizationPromptMessages(input: {
 
   if (soulContent) {
     const personality = input.personalityState ?? readPersonalityStateFromSoul(soulContent)
-    const soulFactsBlock = buildSoulFactsBlock({
-      soulContent,
-      personality,
-    })
-    if (soulFactsBlock)
-      anchorSystemSections.push(soulFactsBlock)
-    if (personality) {
-      anchorSystemSections.push(buildPersonalityStateDirective(personality))
+    anchorSystemSections.push(soulContent)
+    if (personality)
       personalityDirectiveResult = translatePersonalityToDirectives(personality)
-      if (personalityDirectiveResult)
-        anchorSystemSections.push(personalityDirectiveResult.block)
-    }
   }
   else if (input.personalityState) {
-    const soulFactsBlock = buildSoulFactsBlock({
-      soulContent: null,
-      personality: input.personalityState,
-    })
-    if (soulFactsBlock)
-      anchorSystemSections.push(soulFactsBlock)
-    anchorSystemSections.push(buildPersonalityStateDirective(input.personalityState))
+    anchorSystemSections.push(buildPersonalityStateFact(input.personalityState))
     personalityDirectiveResult = translatePersonalityToDirectives(input.personalityState)
-    if (personalityDirectiveResult)
-      anchorSystemSections.push(personalityDirectiveResult.block)
   }
 
   if (hostName) {
@@ -705,21 +622,24 @@ export function composeAlicizationPromptMessages(input: {
   const projectStateContinuitySnapshot = input.projectStateContinuitySnapshot
   if (projectStateContinuitySnapshot) {
     const latestLandedProgress = resolveProjectStateLatestLandedProgress(projectStateContinuitySnapshot)
-    pushProviderSystemSection(runtimeSystemSections, renderAlicizationProjectStateStructuredBlock({
-      identity: projectStateContinuitySnapshot.identity,
-      currentPhase: projectStateContinuitySnapshot.currentPhase,
-      latestLandedProgress,
-      primaryOpenLoop: projectStateContinuitySnapshot.primaryOpenLoop,
-      nextClosureTarget: projectStateContinuitySnapshot.nextClosureTarget,
-      summary: projectStateContinuitySnapshot.continuitySummary,
-      status: projectStateContinuitySnapshot.nonHumanAuthoredStatus,
-      proactiveSameHerGap: projectStateContinuitySnapshot.proactiveSameHerGap,
-    }))
+    pushProviderSystemSection(runtimeSystemSections, buildStructuredProjectStateFactsBlock(
+      'alicization-project-state',
+      [
+        ['identity', projectStateContinuitySnapshot.identity],
+        ['currentPhase', projectStateContinuitySnapshot.currentPhase],
+        ['latestLandedProgress', latestLandedProgress],
+        ['primaryOpenLoop', projectStateContinuitySnapshot.primaryOpenLoop],
+        ['nextClosureTarget', projectStateContinuitySnapshot.nextClosureTarget],
+        ['summary', projectStateContinuitySnapshot.continuitySummary],
+        ['status', projectStateContinuitySnapshot.nonHumanAuthoredStatus],
+        ['initiativeGap', projectStateContinuitySnapshot.proactiveSameHerGap],
+      ],
+    ))
   }
 
   const preDialogueAwarenessSnapshot = input.preDialogueAwarenessSnapshot
   if (preDialogueAwarenessSnapshot) {
-    pushProviderSystemSection(runtimeSystemSections, buildStructuredProjectStateFactsBlock('[ALICIZATION_PRE_DIALOGUE_AWARENESS_FACTS]', [
+    pushProviderSystemSection(runtimeSystemSections, buildStructuredProjectStateFactsBlock('alicization-pre-dialogue-awareness', [
       ['status', preDialogueAwarenessSnapshot.status],
       ['summary_status', preDialogueAwarenessSnapshot.summaryLine ? 'present' : null],
       ['awareness_status', preDialogueAwarenessSnapshot.awarenessLine ? 'present' : null],
@@ -730,7 +650,7 @@ export function composeAlicizationPromptMessages(input: {
 
   const preDialogueClosureSnapshot = input.preDialogueClosureSnapshot
   if (preDialogueClosureSnapshot) {
-    pushProviderSystemSection(runtimeSystemSections, buildStructuredProjectStateFactsBlock('[ALICIZATION_PRE_DIALOGUE_CLOSURE_FACTS]', [
+    pushProviderSystemSection(runtimeSystemSections, buildStructuredProjectStateFactsBlock('alicization-pre-dialogue-closure', [
       ['status', preDialogueClosureSnapshot.status],
       ['summary_status', preDialogueClosureSnapshot.summaryLine ? 'present' : null],
       ['drift_risk_status', preDialogueClosureSnapshot.sameHerDriftRiskLine ? 'present' : null],
@@ -750,19 +670,7 @@ export function composeAlicizationPromptMessages(input: {
     runtimeSystemSections.push(preDialogueContinuityFacts)
 
   const { sections: contextSections, sensorySections } = buildAlicizationContextSections(input.contextsSnapshot ?? {})
-  if (contextSections.length > 0) {
-    runtimeSystemSections.push([
-      '[ALICIZATION_CONTEXT_FACTS]',
-      ...contextSections,
-    ].join('\n\n'))
-  }
-
-  if (sensorySections.length > 0) {
-    runtimeSystemSections.push([
-      '[ALICIZATION_CONTEXT_FACTS]',
-      ...sensorySections,
-    ].join('\n\n'))
-  }
+  runtimeSystemSections.push(...contextSections, ...sensorySections)
 
   const finalMessages: Message[] = []
   if (anchorSystemSections.length > 0) {

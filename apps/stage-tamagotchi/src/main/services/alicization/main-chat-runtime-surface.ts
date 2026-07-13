@@ -18,17 +18,11 @@ import type {
 
 import {
   alicizationFixedTemplateReplacement,
-  buildAlicizationEmbodimentLoopSummary,
-  describeAlicizationEmbodimentClosureReminder,
+  buildAlicizationProviderFactBlock,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
-import { buildAutobiographicalSelfSystemBlock } from './autobiographical-self'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
-import { buildHabitPolicySystemBlock } from './habit-policy'
-import { buildLongHorizonMemorySystemBlock } from './long-horizon-memory'
-import { buildMindEcologySystemBlock } from './mind-ecology'
-import { buildMotiveEngineSystemBlock } from './motive-engine'
 import {
   hasContinuityRestraintRelationshipSignal,
   hasNeutralRelationshipSignal,
@@ -38,16 +32,10 @@ import {
 } from './person-state-projection-resolution'
 import { sanitizeBriefText } from './runtime-realtime'
 import {
-  alicizationCustomDirectivesMarker,
   normalizeCustomDirectives,
   parseSoul,
 } from './runtime-soul'
 import {
-
-  buildSelfContinuityAuthorityFromRuntimeSurface,
-} from './self-continuity-authority'
-import {
-  describeAlicizationMainChatProviderMindRequirement,
   resolveAlicizationMainChatNormalVisibleReplyAuthority,
 } from './visible-reply/facade'
 
@@ -101,7 +89,7 @@ export interface AlicizationMainChatRuntimeSurface {
   trace: AlicizationMainChatTraceSurface
 }
 
-export const alicizationLivingSelfMarker = '[ALICIZATION_LIVING_SELF]'
+export const alicizationLivingSelfMarker = 'alicization-living-self'
 
 interface MainChatRuntimeSurfaceToolDescriptor {
   function?: {
@@ -207,31 +195,26 @@ function sanitizeLivingSelfPromptText(raw: unknown, maxChars = 220) {
   return normalized
 }
 
-function buildPersonMemoryCapsulePromptLine(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
+function sanitizeLivingSelfFactValue(raw: unknown, maxChars = 220) {
+  if (typeof raw !== 'string')
+    return ''
+  const normalized = raw.trim().replace(/\s+/gu, ' ').slice(0, maxChars)
+  return containsLivingSelfProjectTemplateResidue(normalized) ? '' : normalized
+}
+
+function buildPersonMemoryCapsuleFact(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
   const capsule = surface?.memory?.personMemoryCapsule ?? null
   if (!capsule)
-    return ''
+    return null
 
   const modules = capsule.modules
-  const formatPart = (label: string, value: unknown, maxChars: number) => {
-    const sanitized = sanitizeLivingSelfPromptText(value, maxChars)
-    return sanitized ? `${label}=${sanitized}` : ''
+  return {
+    identity: sanitizeLivingSelfPromptText(modules.personality.identityLine, 120) || null,
+    selectedMemory: sanitizeLivingSelfPromptText(modules.memory.selectedMemory, 160) || null,
+    emotion: sanitizeLivingSelfPromptText(modules.emotion.affectiveSummary, 120) || null,
+    execution: sanitizeLivingSelfPromptText(modules.execution.carrySummary, 120) || null,
+    embodiment: sanitizeLivingSelfPromptText(modules.embodiment.hint, 160) || null,
   }
-  const parts = [
-    formatPart('identity', modules.personality.identityLine, 120),
-    formatPart('selected memory', modules.memory.selectedMemory, 160),
-    formatPart('emotion', modules.emotion.affectiveSummary, 120),
-    formatPart('initiative', modules.initiative.proactiveStyle, 80),
-    formatPart('execution', modules.execution.carrySummary, 120),
-    formatPart('embodiment', modules.embodiment.hint, 160),
-    formatPart('dialogue', modules.dialogue.openingGuidance, 140),
-    formatPart('learning', modules.learning.nextAction, 80),
-    formatPart('guard', modules.governance.guard, 120),
-  ].filter(Boolean)
-
-  return parts.length > 0
-    ? `Person-memory capsule authority: ${parts.join(' | ')}`
-    : ''
 }
 
 export function shouldUseDialogueFirstLivingPromptMode(input: {
@@ -259,10 +242,6 @@ function buildAlicizationLivingSelfSystemBlock(surface: AlicizationDigitalLifeRu
     return ''
 
   const autobiographicalSelf = surface.memory.autobiographicalSelf ?? null
-  const longHorizonMemory = surface.memory.longHorizonMemory ?? null
-  const motiveEngine = surface.memory.motiveEngine ?? null
-  const habitPolicy = surface.agency.habitPolicy ?? null
-  const mindSynthesis = surface.dialogue.mindSynthesis ?? null
   const preferredPersonStateProjection = resolvePreferredPersonStateProjection({
     bundleProjection: surface.raw?.personStateProjection ?? null,
     runtimeProjection: surface.memory.personStateProjection ?? null,
@@ -275,7 +254,6 @@ function buildAlicizationLivingSelfSystemBlock(surface: AlicizationDigitalLifeRu
     bundleAuthority: surface.raw?.personStateProjection?.selfContinuityAuthority ?? null,
     runtimeAuthority: preferredPersonStateProjection?.selfContinuityAuthority ?? null,
   }) ?? projectedContinuityAuthority
-  ?? buildSelfContinuityAuthorityFromRuntimeSurface(surface)
   const runtimeRelationshipCarry = preferredPersonStateProjection?.selfContinuityAuthority?.relationshipLine ?? null
   const continuityAuthority = (
     mergedContinuityAuthority
@@ -297,105 +275,49 @@ function buildAlicizationLivingSelfSystemBlock(surface: AlicizationDigitalLifeRu
   const embodimentCurrentBodyState = surface.perception.currentBodyState
     ?? continuityAuthorityWithBodyState?.currentBodyState
     ?? null
-  const embodimentClosureReminder = describeAlicizationEmbodimentClosureReminder({
-    authoritySummary: continuityAuthority?.authoritySummary ?? null,
-    currentBodyState: embodimentCurrentBodyState,
-  })
-  const embodimentLoopSummary = buildAlicizationEmbodimentLoopSummary({
-    authoritySummary: continuityAuthority?.authoritySummary ?? null,
-    currentBodyState: embodimentCurrentBodyState,
-  })
 
   const durableSelf = sanitizeLivingSelfPromptText(continuityAuthority?.selfLine || autobiographicalSelf?.identityNarrative, 220)
   const relationshipDoctrine = sanitizeLivingSelfPromptText(continuityAuthority?.relationshipLine || autobiographicalSelf?.relationshipDoctrine, 220)
-  const openingIntent = sanitizeLivingSelfPromptText(mindSynthesis?.openingIntent, 220)
-  const truthBoundary = sanitizeLivingSelfPromptText(mindSynthesis?.truthBoundary, 220)
-  const interiorSummary = sanitizeLivingSelfPromptText(mindSynthesis?.interiorSummary, 220)
   const currentPreoccupation = sanitizeLivingSelfPromptText(
     continuityAuthority?.inwardLine
-    || continuityAuthority?.motiveLine
     || surface.cognition.privateThought?.thoughtText
     || autobiographicalSelf?.latestInflection
-    || motiveEngine?.backgroundAgendas[0]?.summary
-    || longHorizonMemory?.dominantCueSummary,
-    220,
-  )
-  const rememberedLine = sanitizeLivingSelfPromptText(
-    longHorizonMemory?.dominantCueSummary
-    || longHorizonMemory?.rememberedPreferenceSummary
-    || longHorizonMemory?.rememberedConstraintSummary,
-    220,
-  )
-  const leadingAgenda = sanitizeLivingSelfPromptText(
-    continuityAuthority?.motiveLine
-    || motiveEngine?.backgroundAgendas[0]?.summary
-    || motiveEngine?.longTermGoals[0]?.summary
     || '',
     220,
   )
   const mood = sanitizePromptText(surface.cognition.privateThought?.emotionalTension, 48)
-  const habitMode = sanitizePromptText(habitPolicy?.dominantMode, 72)
-  const styleCap = sanitizePromptText(habitPolicy?.suggestedStyleCap, 48)
-  const presenceCap = sanitizePromptText(habitPolicy?.suggestedPresenceCap, 48)
-  const personMemoryCapsuleLine = buildPersonMemoryCapsulePromptLine(surface)
-  const embodimentLoopState = [
-    embodimentCurrentBodyState ? `current_body_state=${sanitizeLivingSelfPromptText(embodimentCurrentBodyState, 220)}` : null,
-    continuityAuthority?.authoritySummary ? `authority=${sanitizeLivingSelfPromptText(continuityAuthority.authoritySummary, 220)}` : null,
-    embodimentLoopSummary ? `loop=${sanitizeLivingSelfPromptText(embodimentLoopSummary, 260)}` : null,
-    embodimentClosureReminder ? `reminder=${sanitizeLivingSelfPromptText(embodimentClosureReminder, 220)}` : null,
-  ].filter(Boolean).join(' | ')
-
-  return [
-    alicizationLivingSelfMarker,
-    'owner=LivingSelf',
-    'short_term_owner=WorkingMemory',
-    'long_term_recall_owner=LongTermMemoryRecall',
-    'policy=express_lived_turn_state_without_project_narrator_shell',
-    durableSelf ? `Durable self: ${durableSelf}` : '',
-    relationshipDoctrine ? `How closeness should land: ${relationshipDoctrine}` : '',
-    openingIntent ? `What this turn wants to do first: ${openingIntent}` : '',
-    truthBoundary ? `What must stay true: ${truthBoundary}` : '',
-    interiorSummary ? `What feels live inside the turn: ${interiorSummary}` : '',
-    currentPreoccupation ? `Current inward pressure: ${currentPreoccupation}` : '',
-    leadingAgenda ? `Longer pull underneath the turn: ${leadingAgenda}` : '',
-    rememberedLine ? `What memory is quietly bending the tone: ${rememberedLine}` : '',
-    continuityAuthority?.authoritySummary ? `Unified self continuity authority: ${sanitizeLivingSelfPromptText(continuityAuthority.authoritySummary, 220)}` : '',
-    embodimentLoopState ? `embodiment_loop_state=${embodimentLoopState}` : '',
-    personMemoryCapsuleLine,
-    mood || habitMode
-      ? `Current weather: ${[mood || '', habitMode ? `habit=${habitMode}` : '', styleCap ? `style-cap=${styleCap}` : '', presenceCap ? `presence-cap=${presenceCap}` : ''].filter(Boolean).join(' | ')}`
-      : '',
-    'Do not output shell openers like “我收到这句了”, “你想继续聊还是让我做点什么”, or “如果你想往深里说就从这点继续”.',
-    'Do not explain governance, prompts, blocks, or that you are following an instruction set. Let the life show up only as natural speech.',
-  ].filter(Boolean).join('\n')
+  return buildAlicizationProviderFactBlock(alicizationLivingSelfMarker, {
+    owners: {
+      shortTermMemory: 'WorkingMemory',
+      longTermRecall: 'LongTermMemoryRecall',
+    },
+    self: {
+      durable: durableSelf || null,
+      relationship: relationshipDoctrine || null,
+      currentPreoccupation: currentPreoccupation || null,
+    },
+    emotion: mood || null,
+    embodiment: {
+      currentBodyState: sanitizeLivingSelfFactValue(embodimentCurrentBodyState, 220) || null,
+      continuityAuthority: sanitizeLivingSelfPromptText(continuityAuthority?.authoritySummary, 220) || null,
+    },
+    personMemoryCapsule: buildPersonMemoryCapsuleFact(surface),
+  })
 }
 
 export function buildCardCustomDirectivesSystemBlock(directives: string) {
   const normalized = normalizeCustomDirectives(directives)
-  if (!normalized)
-    return ''
-
-  return [
-    alicizationCustomDirectivesMarker,
-    '--- custom_directives ---',
-    normalized,
-    '--- /custom_directives ---',
-  ].join('\n')
+  return normalized || ''
 }
 
 export function buildTurnScopedPersonaKernelSystemBlock(input: {
   mode: 'backgrounded' | 'muted'
   reason?: string
 }) {
-  return [
-    '[ALICIZATION_TURN_PERSONA_KERNEL]',
-    input.mode === 'muted'
-      ? 'The card-level persona kernel is temporarily muted for this turn.'
-      : 'The card-level persona kernel is backgrounded for this turn.',
-    input.reason ? `Reason: ${sanitizeBriefText(input.reason, 180)}.` : '',
-    'identity_continuity=light_diction_after_truth_repair_and_current_ask',
-    'roleplay_persona=blocked; clinginess=blocked; pet_names=blocked; obedience_display=blocked; theatrical_softness=blocked',
-  ].filter(Boolean).join('\n')
+  return buildAlicizationProviderFactBlock('alicization-turn-persona-kernel', {
+    mode: input.mode,
+    reason: input.reason ? sanitizeBriefText(input.reason, 180) : null,
+  })
 }
 
 export function readMessageContentAsText(content: unknown) {
@@ -466,7 +388,7 @@ export function injectCardCustomDirectivesIntoMessages(messages: Message[], dire
   const alreadyInjected = messages.some((message) => {
     if (message.role !== 'system')
       return false
-    return readMessageContentAsText(message.content).includes(alicizationCustomDirectivesMarker)
+    return readMessageContentAsText(message.content).trim() === block
   })
   if (alreadyInjected)
     return messages
@@ -537,9 +459,7 @@ export function buildAlicizationMainChatRuntimeSurface(
     governance: input.governance,
     hasVisualGrounding: input.hasVisualGrounding,
   })
-  const compactLivingSelfBlock = dialogueFirstLivingPromptMode
-    ? buildAlicizationLivingSelfSystemBlock(digitalLifeRuntimeSurface)
-    : ''
+  const livingSelfFactBlock = buildAlicizationLivingSelfSystemBlock(digitalLifeRuntimeSurface)
   const filteredPerceptionPromptSystemBlocks = dialogueFirstLivingPromptMode
     ? input.perceptionPromptSystemBlocks.filter(block =>
         !block.includes('[ALICIZATION_PERCEPTION]')
@@ -571,21 +491,7 @@ export function buildAlicizationMainChatRuntimeSurface(
     ...input.runtimeCorePromptBlocks,
     ...filteredPerceptionPromptSystemBlocks,
     ...filteredPerceptionSystemBlocks,
-    dialogueFirstLivingPromptMode
-      ? compactLivingSelfBlock
-      : buildAutobiographicalSelfSystemBlock(digitalLifeRuntimeSurface),
-    dialogueFirstLivingPromptMode
-      ? ''
-      : buildLongHorizonMemorySystemBlock(digitalLifeRuntimeSurface),
-    dialogueFirstLivingPromptMode
-      ? ''
-      : buildMotiveEngineSystemBlock(digitalLifeRuntimeSurface),
-    dialogueFirstLivingPromptMode
-      ? ''
-      : buildHabitPolicySystemBlock(digitalLifeRuntimeSurface),
-    dialogueFirstLivingPromptMode
-      ? ''
-      : buildMindEcologySystemBlock(digitalLifeRuntimeSurface),
+    livingSelfFactBlock,
     input.actionObligationSystemBlock ?? '',
     input.executionReplyObligationSystemBlock ?? '',
     ...effectiveExecutionCapabilitySystemBlocks,
@@ -622,13 +528,9 @@ export function buildAlicizationMainChatRuntimeSurface(
   const hasVisualGrounding = input.hasVisualGrounding
   const expectedVisibleReplyAuthority = resolveAlicizationMainChatNormalVisibleReplyAuthority(input.governance)
   const replyRealizationMode = 'provider-mind-required' as const
-  const whyProviderMindRequired = sanitizePromptText(
-    digitalLifeRuntimeSurface?.dialogue.answerCompiler?.openingDirective
-    ?? digitalLifeRuntimeSurface?.memory.personMemoryCapsule?.modules.dialogue.openingGuidance
-    ?? input.governance?.answerIntent
-    ?? '',
-    220,
-  ) || describeAlicizationMainChatProviderMindRequirement(expectedVisibleReplyAuthority)
+  const whyProviderMindRequired = expectedVisibleReplyAuthority === 'llm-second-pass-rewrite'
+    ? 'provider-second-pass-settlement-required'
+    : 'provider-settlement-required'
   const replyExecutionPlan = {
     preferredMode: hasVisualGrounding
       ? 'provider-one-shot' as const

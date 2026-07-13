@@ -18,15 +18,13 @@ import type { AlicizationTimeQueryMode } from './time-query-semantics'
 import type { AlicizationResolvedTimeZoneSource } from './time-zone-governor'
 
 import {
-  alicizationFixedCoreSystemInstruction,
-  alicizationFixedHostNameDirectiveTemplate,
   alicizationFixedTemplateReplacement,
   buildAlicizationEmbodimentLoopSummary,
+  buildAlicizationProviderFactBlock,
   describeAlicizationEmbodimentClosureReminder,
   detectAlicizationRealtimeQueryIntent,
   formatAlicizationProjectStateAwarenessFields,
   normalizeAlicizationDigitalLifeSpineDigest,
-  renderAlicizationPromptTemplate,
   resolveGovernedMindEmotion,
   resolveGovernedMindObligation,
   resolveGovernedMindTone,
@@ -3079,17 +3077,14 @@ export function buildAlicizationActiveDialogueFastPathMessages(input: {
     : ''
 
   const systemBlocks = [
-    alicizationFixedCoreSystemInstruction,
     projectStateSystemBlock,
     projectStateClosureDashboard,
     buildFastPathProjectStateAnswerContractBlock(input.decision),
     buildCompactPersonaProfileBlock(input.prepared.personaKernel),
     hostName
-      ? renderAlicizationPromptTemplate(alicizationFixedHostNameDirectiveTemplate, { hostName })
+      ? buildAlicizationProviderFactBlock('alicization-host', { name: hostName })
       : '',
-    customDirectives
-      ? `[ALICIZATION_CARD_DIRECTIVES_COMPACT]\n${customDirectives}`
-      : '',
+    customDirectives,
     ...carriedAgentSessionBlocks,
     ...carriedMemoryOwnerBlocks,
     buildCompactDialogueMindBlock(input.decision),

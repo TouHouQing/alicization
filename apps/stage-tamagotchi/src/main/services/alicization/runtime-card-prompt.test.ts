@@ -4,7 +4,7 @@ import { createAlicizationCardPromptRuntime } from './runtime-card-prompt'
 import { buildSoulBody, normalizeFrontmatter, toSoulContent, withNeedsGenesis } from './runtime-soul'
 
 describe('runtime card prompt persona kernel', () => {
-  it('resolves persona kernel from soul and injects persona profile block into main prompt blocks', async () => {
+  it('resolves persona kernel from soul and injects persona profile facts into main prompt blocks', async () => {
     const frontmatter = normalizeFrontmatter({
       initialized: true,
       custom_directives: '说话真实一点。',
@@ -51,9 +51,23 @@ describe('runtime card prompt persona kernel', () => {
     })
 
     expect(personaKernel?.profile.alicizationName).toBe('小艾')
-    expect(blocks.some(block => block.includes('[ALICIZATION_PERSONA_PROFILE]'))).toBe(true)
-    expect(blocks.some(block => block.includes('"alicizationName":"小艾"'))).toBe(true)
-    expect(blocks.some(block => block.includes('"relationship":"女仆"'))).toBe(true)
+    expect(blocks.map(block => JSON.parse(block))).toContainEqual({
+      type: 'alicization-persona-profile',
+      data: {
+        ownerName: '指挥官',
+        hostName: '主人',
+        alicizationName: '小艾',
+        relationship: '女仆',
+        gender: 'female',
+        mindAge: 18,
+      },
+    })
+    expect(blocks.map(block => JSON.parse(block))).toContainEqual({
+      type: 'alicization-host',
+      data: {
+        name: '主人',
+      },
+    })
     expect(JSON.stringify(blocks)).not.toMatch(
       /Response contract|Output contract|Return (?:exactly )?one (?:strict )?JSON/iu,
     )
@@ -77,11 +91,10 @@ describe('runtime card prompt persona kernel', () => {
       personaKernel: null,
     })
 
-    expect(blocks.some(block => block.includes('[ALICIZATION_PROJECT_STATE]'))).toBe(false)
-    expect(blocks.some(block => block.includes('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]'))).toBe(false)
+    expect(blocks.map(block => JSON.parse(block)).some(block => block.type === 'alicization-project-state')).toBe(false)
   })
 
-  it('injects canonical project-state continuity blocks when project-state context is explicitly requested', async () => {
+  it('injects project-state facts when project-state context is explicitly requested', async () => {
     const runtime = createAlicizationCardPromptRuntime({
       getActiveCardId: () => 'default',
       getSoulSnapshot: () => null,
@@ -99,7 +112,10 @@ describe('runtime card prompt persona kernel', () => {
       personaKernel: null,
     })
 
-    expect(blocks.some(block => block.includes('[ALICIZATION_PROJECT_STATE]'))).toBe(true)
-    expect(blocks.some(block => block.includes('[ALICIZATION_PROJECT_GOVERNANCE_DASHBOARD]'))).toBe(true)
+    const facts = blocks.map(block => JSON.parse(block))
+    expect(facts.some(block => block.type === 'alicization-project-state')).toBe(true)
+    expect(JSON.stringify(facts)).not.toMatch(
+      /Action policy|Template policy|Remaining focus|before answering|reply posture/iu,
+    )
   })
 })

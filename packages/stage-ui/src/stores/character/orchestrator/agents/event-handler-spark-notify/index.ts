@@ -5,7 +5,7 @@ import type { Message } from '@xsai/shared-chat'
 import type { StreamEvent } from '../../../../llm'
 
 import { errorMessageFrom } from '@moeru/std'
-import { renderAlicizationSparkHandlingInstruction } from '@proj-alicization/stage-shared/alicization-prompting'
+import { buildAlicizationProviderFactBlock } from '@proj-alicization/stage-shared'
 import { tool } from '@xsai/tool'
 import { nanoid } from 'nanoid'
 import { validate } from 'xsschema'
@@ -137,7 +137,10 @@ export function setupAgentSparkNotifyHandler(deps: SparkNotifyAgentDeps) {
       parameters: z.object({}).strict(),
       execute: async () => {
         noResponse = true
-        return 'Alicization System: Acknowledged, no response or action will be processed.'
+        return {
+          type: 'spark-no-response',
+          acknowledged: true,
+        }
       },
     })
 
@@ -180,10 +183,17 @@ export function setupAgentSparkNotifyHandler(deps: SparkNotifyAgentDeps) {
           }))
         }
         catch (error) {
-          return `Alicization System: Error - invalid spark_command parameters: ${errorMessageFrom(error)}`
+          return {
+            type: 'spark-command-error',
+            error: errorMessageFrom(error),
+          }
         }
 
-        return 'Alicization System: Acknowledged, command fired.'
+        return {
+          type: 'spark-command-result',
+          status: 'accepted',
+          commandCount: commandDrafts.length,
+        }
       },
     })
 
@@ -191,7 +201,10 @@ export function setupAgentSparkNotifyHandler(deps: SparkNotifyAgentDeps) {
       role: 'system',
       content: [
         deps.getSystemPrompt(),
-        renderAlicizationSparkHandlingInstruction(getEventSourceKey(event)),
+        buildAlicizationProviderFactBlock('alicization-spark-event', {
+          source: getEventSourceKey(event),
+          event: 'spark:notify',
+        }),
       ].filter(Boolean).join('\n\n'),
     }
 

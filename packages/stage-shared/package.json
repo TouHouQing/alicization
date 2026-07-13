@@ -17,7 +17,6 @@
   "exports": {
     ".": "./src/index.ts",
     "./alicization-chat-entry-dispatch": "./src/alicization-chat-entry-dispatch.ts",
-    "./alicization-prompting": "./src/alicization-prompting.ts",
     "./beat-sync": "./src/beat-sync/index.ts",
     "./electron-renderer": "./src/electron-renderer.d.ts",
     "./composables": "./src/composables/index.ts"

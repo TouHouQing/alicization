@@ -10,10 +10,8 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 import {
-  alicizationFixedCoreSystemInstruction,
-  alicizationFixedHostNameDirectiveTemplate,
+  buildAlicizationProviderFactBlock,
   hasAlicizationPersonaIdentity,
-  renderAlicizationPromptTemplate,
   resolveAlicizationPersonaKernel,
 } from '@proj-alicization/stage-shared'
 
@@ -21,16 +19,11 @@ import {
   extractCustomDirectivesFromMessages,
   extractHostNameFromMessages,
 } from './main-chat-runtime-surface'
-import {
-  buildAlicizationProviderFacingProjectStateClosureDashboard,
-  buildAlicizationProviderFacingProjectStateSystemBlock,
-} from './project-state-brief'
+import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 import {
   normalizeCustomDirectives,
   parseSoul,
 } from './runtime-soul'
-
-const alicizationPersonaProfileMarker = '[ALICIZATION_PERSONA_PROFILE]'
 
 interface CreateAlicizationCardPromptRuntimeOptions {
   getActiveCardId: () => string
@@ -156,17 +149,14 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
   function buildPersonaProfileSystemBlock(personaKernel?: AlicizationPersonaKernelSnapshot | null) {
     if (!personaKernel || !hasAlicizationPersonaIdentity(personaKernel.profile))
       return ''
-    return [
-      alicizationPersonaProfileMarker,
-      JSON.stringify({
-        ownerName: personaKernel.profile.ownerName,
-        hostName: personaKernel.profile.hostName,
-        alicizationName: personaKernel.profile.alicizationName,
-        relationship: personaKernel.profile.relationship,
-        gender: personaKernel.profile.gender,
-        mindAge: personaKernel.profile.mindAge,
-      }),
-    ].join('\n')
+    return buildAlicizationProviderFactBlock('alicization-persona-profile', {
+      ownerName: personaKernel.profile.ownerName,
+      hostName: personaKernel.profile.hostName,
+      alicizationName: personaKernel.profile.alicizationName,
+      relationship: personaKernel.profile.relationship,
+      gender: personaKernel.profile.gender,
+      mindAge: personaKernel.profile.mindAge,
+    })
   }
 
   function buildMainRuntimeCorePromptBlocks(input: {
@@ -176,24 +166,19 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
   }) {
     const blocks: string[] = []
     if (input.includeProjectStateContext) {
-      blocks.push(buildAlicizationProviderFacingProjectStateSystemBlock())
-      blocks.push(buildAlicizationProviderFacingProjectStateClosureDashboard())
+      const projectState = resolveAlicizationProjectStateBrief()
+      blocks.push(buildAlicizationProviderFactBlock('alicization-project-state', {
+        identity: projectState.identity,
+        currentPhase: projectState.currentPhase,
+        latestLandedProgress: projectState.latestProgress,
+        primaryOpenLoop: projectState.openLoops[0] ?? null,
+        nextClosureTarget: projectState.nextClosureTarget,
+      }))
     }
-
-    if (alicizationFixedCoreSystemInstruction.trim())
-      blocks.push(alicizationFixedCoreSystemInstruction.trim())
 
     const hostName = sanitizeText(input.hostName, '')
-    if (hostName) {
-      blocks.push(renderAlicizationPromptTemplate(alicizationFixedHostNameDirectiveTemplate, {
-        hostName,
-        source: 'host',
-        content: '',
-        iso: '',
-        local: '',
-        moduleName: '',
-      }).trim())
-    }
+    if (hostName)
+      blocks.push(buildAlicizationProviderFactBlock('alicization-host', { name: hostName }))
 
     const personaProfileBlock = buildPersonaProfileSystemBlock(input.personaKernel)
     if (personaProfileBlock)

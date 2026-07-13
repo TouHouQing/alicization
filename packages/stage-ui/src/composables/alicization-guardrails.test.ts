@@ -5,6 +5,10 @@ import { describe, expect, it } from 'vitest'
 import { applyPromptBudget, compactMessagesForPromptAssembly, sanitizeAssistantOutputForDisplay, sanitizeForRemoteModel } from './alicization-guardrails'
 import { composeAlicizationPromptMessages } from './alicization-prompt-composer'
 
+function fact(type: string, data: unknown) {
+  return JSON.stringify({ type, data })
+}
+
 describe('alicization guardrails', () => {
   it('redacts sensitive values before outbound model call', () => {
     const messages: Message[] = [
@@ -127,8 +131,17 @@ describe('alicization guardrails', () => {
     expect(report.truncated).toBe(true)
     expect(report.totalAfterTokens).toBeLessThanOrEqual(600)
     expect(report.safeMode.activated).toBe(true)
-    expect(String(nextMessages[0]?.content)).toContain('# Alicization SOUL (SAFE MODE)')
-    expect(String(nextMessages[1]?.content ?? '')).toContain('SOUL overflow safe mode')
+    expect(JSON.parse(String(nextMessages[0]?.content))).toMatchObject({
+      type: 'alicization-soul-overflow',
+    })
+    expect(JSON.parse(String(nextMessages[1]?.content ?? ''))).toEqual({
+      type: 'alicization-prompt-budget-state',
+      data: {
+        reason: 'soul-overflow',
+        memoryIncluded: false,
+        historyIncluded: false,
+      },
+    })
     expect(String(nextMessages[1]?.content ?? '')).not.toMatch(/Output contract|Response contract|strict JSON/iu)
 
     const currentTurn = nextMessages.at(-1)
@@ -199,12 +212,14 @@ describe('alicization guardrails', () => {
       {
         role: 'system',
         content: [
-          'current_sensory_state',
-          '[System Context: Sensory], '.concat('battery=20%,cpu=35%,memory=66%,'.repeat(120)),
-          '',
-          'Runtime facts.',
-          'mode=desktop',
-        ].join('\n'),
+          fact('alicization-sensory-context', {
+            source: 'desktop',
+            content: 'battery=20%,cpu=35%,memory=66%,'.repeat(120),
+          }),
+          fact('runtime-facts', {
+            mode: 'desktop',
+          }),
+        ].join('\n\n'),
       },
       { role: 'user', content: '继续' },
     ]
@@ -214,18 +229,21 @@ describe('alicization guardrails', () => {
 
     expect(report.sections.sensory.beforeTokens).toBeGreaterThan(0)
     expect(report.sections.sensory.afterTokens).toBeLessThanOrEqual(report.sections.sensory.beforeTokens)
-    expect(runtimeSystem).toContain('Runtime facts.')
+    expect(runtimeSystem).toContain('"type":"runtime-facts"')
+    expect(runtimeSystem).toContain('"degraded":true')
     expect(runtimeSystem).not.toMatch(/Output contract|Response contract|strict JSON/iu)
   })
 
   it('keeps runtime system message protected under extreme budget pressure', () => {
     const runtime = [
-      'current_sensory_state',
-      '[System Context: Sensory], time=2026-03-11 10:00:00,battery=20%,cpu=35%,memory=66%,location=desktop-host,'.repeat(80),
-      '',
-      'Runtime facts.',
-      'mode=desktop',
-    ].join('\n')
+      fact('alicization-sensory-context', {
+        source: 'desktop',
+        content: 'time=2026-03-11 10:00:00,battery=20%,cpu=35%,memory=66%,location=desktop-host,'.repeat(80),
+      }),
+      fact('runtime-facts', {
+        mode: 'desktop',
+      }),
+    ].join('\n\n')
 
     const { messages: nextMessages, report } = applyPromptBudget([
       { role: 'system', content: '# SOUL' },
@@ -237,16 +255,16 @@ describe('alicization guardrails', () => {
 
     const runtimeSystem = nextMessages.find((message, index) => index !== 0 && message.role === 'system')
     expect(runtimeSystem).toBeTruthy()
-    expect(String(runtimeSystem?.content ?? '')).toContain('Runtime facts.')
+    expect(String(runtimeSystem?.content ?? '')).toContain('"type":"runtime-facts"')
     expect(String(runtimeSystem?.content ?? '')).not.toMatch(/Output contract|Response contract|strict JSON/iu)
     expect(report.runtimeContractAnchorRecovered).toBe(false)
   })
 
   it('does not append a natural-language response contract when runtime context lacks one', () => {
-    const runtimeWithoutAnchor = [
-      'current_sensory_state',
-      '[System Context: Sensory], time=2026-03-11 10:00:00,battery=20%,cpu=35%,memory=66%',
-    ].join('\n')
+    const runtimeWithoutAnchor = fact('alicization-sensory-context', {
+      source: 'desktop',
+      content: 'time=2026-03-11 10:00:00,battery=20%,cpu=35%,memory=66%',
+    })
 
     const { messages: nextMessages, report } = applyPromptBudget([
       { role: 'system', content: '# SOUL' },
@@ -262,12 +280,14 @@ describe('alicization guardrails', () => {
   it('keeps SOUL anchor untouched under sensory-heavy runtime pressure', () => {
     const soul = '---\n{"profile":{"alicizationName":"Alicization"}}\n---\n# SOUL\n人格锚点'
     const runtime = [
-      'current_sensory_state',
-      '[System Context: Sensory], '.concat('battery=19%,cpu=88%,memory=91%,'.repeat(220)),
-      '',
-      'Runtime facts.',
-      'mode=desktop',
-    ].join('\n')
+      fact('alicization-sensory-context', {
+        source: 'desktop',
+        content: 'battery=19%,cpu=88%,memory=91%,'.repeat(220),
+      }),
+      fact('runtime-facts', {
+        mode: 'desktop',
+      }),
+    ].join('\n\n')
 
     const { messages: nextMessages, report } = applyPromptBudget([
       { role: 'system', content: soul },
@@ -278,7 +298,7 @@ describe('alicization guardrails', () => {
     expect(report.safeMode.activated).toBe(false)
     expect(report.anchorPreserved).toBe(true)
     expect(String(nextMessages[0]?.content)).toBe(soul)
-    expect(String(nextMessages[1]?.content)).toContain('Runtime facts.')
+    expect(String(nextMessages[1]?.content)).toContain('"type":"runtime-facts"')
     expect(String(nextMessages[1]?.content)).not.toMatch(/Output contract|Response contract|strict JSON/iu)
     expect(report.sections.sensory.afterTokens).toBeLessThanOrEqual(report.sections.sensory.beforeTokens)
   })

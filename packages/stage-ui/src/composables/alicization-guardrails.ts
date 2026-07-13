@@ -1,9 +1,8 @@
 import type { Message } from '@xsai/shared-chat'
 
-import { defaultAlicizationProfile } from '@proj-alicization/stage-shared'
 import {
-  alicizationFixedSensoryContextHeader,
-} from '@proj-alicization/stage-shared/alicization-prompting'
+  buildAlicizationProviderFactBlock,
+} from '@proj-alicization/stage-shared'
 
 interface PromptBudgetOptions {
   totalTokens?: number
@@ -107,10 +106,12 @@ const defaultPromptAssembly: Required<PromptAssemblyOptions> = {
   minTailMessages: 4,
 }
 
-const runtimeSensoryHeader = alicizationFixedSensoryContextHeader
-const safeModeRuntimeNotice = [
-  '[SYSTEM NOTICE] Memory and history are skipped for this turn due to SOUL overflow safe mode.',
-].join('\n')
+const runtimeSensoryFactType = 'alicization-sensory-context'
+const safeModeRuntimeNotice = buildAlicizationProviderFactBlock('alicization-prompt-budget-state', {
+  reason: 'soul-overflow',
+  memoryIncluded: false,
+  historyIncluded: false,
+})
 
 const defaultSanitizeOptions: Required<SanitizeOptions> = {
   timeBudgetMs: 50,
@@ -359,65 +360,49 @@ function trimMemoryByConfidence(text: string, budgetTokens: number) {
 
 function isMemoryMessage(message: Message) {
   const text = readMessageText(message)
-  return /Relevant memory facts:/i.test(text) || /confidence\s*=/i.test(text)
+  return /"type":"alicization-memory-context"/u.test(text)
+    || /Relevant memory facts:/i.test(text)
+    || /confidence\s*=/i.test(text)
+}
+
+function readProviderFactBlock(raw: string) {
+  try {
+    const parsed = JSON.parse(raw) as { type?: unknown, data?: unknown }
+    return typeof parsed.type === 'string' ? parsed : null
+  }
+  catch {
+    return null
+  }
+}
+
+function splitRuntimeFactBlocks(text: string) {
+  return text.split(/\n{2,}/u)
 }
 
 function estimateSensoryTokens(text: string) {
-  const headerIndex = text.indexOf(runtimeSensoryHeader)
-  if (headerIndex < 0)
-    return 0
-
-  const boundaryIndex = text.indexOf('\n\n', headerIndex)
-  const sensorySegment = boundaryIndex > headerIndex
-    ? text.slice(headerIndex, boundaryIndex)
-    : text.slice(headerIndex)
-  return estimateTokens(sensorySegment)
+  return splitRuntimeFactBlocks(text).reduce((total, block) => {
+    return readProviderFactBlock(block)?.type === runtimeSensoryFactType
+      ? total + estimateTokens(block)
+      : total
+  }, 0)
 }
 
 function compressRuntimeSensory(text: string, budgetTokens = 48) {
-  const headerIndex = text.indexOf(runtimeSensoryHeader)
-  if (headerIndex < 0)
-    return text
+  return splitRuntimeFactBlocks(text)
+    .map((block) => {
+      const fact = readProviderFactBlock(block)
+      if (fact?.type !== runtimeSensoryFactType || estimateTokens(block) <= budgetTokens)
+        return block
 
-  const boundaryIndex = text.indexOf('\n\n', headerIndex)
-  const sensorySegment = boundaryIndex > headerIndex
-    ? text.slice(headerIndex, boundaryIndex)
-    : text.slice(headerIndex)
-
-  if (estimateTokens(sensorySegment) <= budgetTokens)
-    return text
-
-  const degradedSegment = sensorySegment
-    .split('\n')
-    .map((line) => {
-      if (!line.includes('='))
-        return line
-
-      return line
-        .split(',')
-        .map((segment) => {
-          const equalsIndex = segment.indexOf('=')
-          if (equalsIndex < 0)
-            return segment
-
-          const keyPrefix = segment.slice(0, equalsIndex + 1)
-          if (!keyPrefix.trim())
-            return segment
-
-          return `${keyPrefix}[DEGRADED]`
-        })
-        .join(',')
+      const source = fact.data && typeof fact.data === 'object' && !Array.isArray(fact.data)
+        ? String((fact.data as { source?: unknown }).source ?? '')
+        : ''
+      return buildAlicizationProviderFactBlock(runtimeSensoryFactType, {
+        source: source || null,
+        degraded: true,
+      })
     })
-    .join('\n')
-  const compactedSegment = estimateTokens(degradedSegment) <= budgetTokens
-    ? degradedSegment
-    : `${runtimeSensoryHeader}\n[System Context: Sensory], telemetry=[DEGRADED]\n\n`
-
-  if (boundaryIndex > headerIndex) {
-    return `${text.slice(0, headerIndex)}${compactedSegment}${text.slice(boundaryIndex + 2)}`
-  }
-
-  return `${text.slice(0, headerIndex)}${compactedSegment}`.trim()
+    .join('\n\n')
 }
 
 function getLastUserIndex(messages: Message[]) {
@@ -463,7 +448,7 @@ function readNestedString(payload: Record<string, unknown> | null, path: string[
   return typeof current === 'string' ? current.trim() : fallback
 }
 
-function readNestedNumber(payload: Record<string, unknown> | null, path: string[], fallback = 0) {
+function readNestedNumber(payload: Record<string, unknown> | null, path: string[], fallback: number | null = null) {
   if (!payload)
     return fallback
 
@@ -485,34 +470,22 @@ function readNestedNumber(payload: Record<string, unknown> | null, path: string[
   return fallback
 }
 
-function formatSafeModePercent(value: number) {
-  return Math.min(1, Math.max(0, value)).toFixed(2)
-}
-
 function buildSafeModeSoulAnchor(content: string) {
   const frontmatter = parseSoulFrontmatter(content)
-  const hostName = readNestedString(frontmatter, ['profile', 'hostName'], defaultAlicizationProfile.hostName)
-  const alicizationName = readNestedString(frontmatter, ['profile', 'alicizationName'], defaultAlicizationProfile.alicizationName)
-  const relationship = readNestedString(frontmatter, ['profile', 'relationship'], defaultAlicizationProfile.relationship)
-  const gender = readNestedString(frontmatter, ['profile', 'gender'], defaultAlicizationProfile.gender)
-  const mindAge = readNestedNumber(frontmatter, ['profile', 'mindAge'], defaultAlicizationProfile.mindAge)
-  const obedience = readNestedNumber(frontmatter, ['personality', 'obedience'], 0.5)
-  const liveliness = readNestedNumber(frontmatter, ['personality', 'liveliness'], 0.5)
-  const sensibility = readNestedNumber(frontmatter, ['personality', 'sensibility'], 0.5)
-
-  return [
-    '# Alicization SOUL (SAFE MODE)',
-    '',
-    '[SYSTEM WARNING] SOUL context overflow detected. Current turn is running in safety degradation mode.',
-    '',
-    'Identity skeleton:',
-    `- Name: ${alicizationName}`,
-    `- Host: ${hostName}`,
-    `- Relationship: ${relationship}`,
-    `- Gender: ${gender}`,
-    `- Mind age: ${Math.max(1, Math.floor(mindAge))}`,
-    `- Personality: obedience=${formatSafeModePercent(obedience)}, liveliness=${formatSafeModePercent(liveliness)}, sensibility=${formatSafeModePercent(sensibility)}`,
-  ].join('\n')
+  return buildAlicizationProviderFactBlock('alicization-soul-overflow', {
+    profile: {
+      alicizationName: readNestedString(frontmatter, ['profile', 'alicizationName']) || null,
+      hostName: readNestedString(frontmatter, ['profile', 'hostName']) || null,
+      relationship: readNestedString(frontmatter, ['profile', 'relationship']) || null,
+      gender: readNestedString(frontmatter, ['profile', 'gender']) || null,
+      mindAge: readNestedNumber(frontmatter, ['profile', 'mindAge']),
+    },
+    personality: {
+      obedience: readNestedNumber(frontmatter, ['personality', 'obedience']),
+      liveliness: readNestedNumber(frontmatter, ['personality', 'liveliness']),
+      sensibility: readNestedNumber(frontmatter, ['personality', 'sensibility']),
+    },
+  })
 }
 
 export function applyPromptBudget(messages: Message[], options?: PromptBudgetOptions): PromptBudgetResult {
