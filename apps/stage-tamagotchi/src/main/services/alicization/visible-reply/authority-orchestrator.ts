@@ -1,18 +1,8 @@
+import type { AlicizationChatFailureKind } from '@proj-alicization/stage-shared'
+
 import type { AlicizationVisibleReplyExecution } from '../../../../shared/eventa'
-import type { AlicizationActiveDialogueFastPathDecision } from '../main-chat-active-dialogue-loop'
 
-import {
-  resolveAlicizationChatFailureSurface,
-  type AlicizationChatFailureKind,
-} from '@proj-alicization/stage-shared'
-
-import { shouldAlicizationReplyStayProviderAuthored } from './reply-authority-policy'
-
-export interface AlicizationVisibleReplyAuthorityDecision {
-  allowed: boolean
-  reason: string
-  reasonCodes: string[]
-}
+import { resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
 
 function uniqueList(values: Array<string | null | undefined>, maxItems = 12) {
   const result: string[] = []
@@ -25,40 +15,6 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 12) {
       break
   }
   return result
-}
-
-export function decideAlicizationActiveDialogueCompactAuthority(
-  decision: Pick<AlicizationActiveDialogueFastPathDecision, 'lane' | 'strategy' | 'reasonCodes'> | null | undefined,
-): AlicizationVisibleReplyAuthorityDecision {
-  if (!decision) {
-    return {
-      allowed: false,
-      reason: 'no-active-dialogue-decision',
-      reasonCodes: ['no-active-dialogue-decision'],
-    }
-  }
-
-  if (decision.strategy !== 'compact-one-shot') {
-    return {
-      allowed: false,
-      reason: 'infra-only-strategy',
-      reasonCodes: uniqueList(['infra-only-strategy', ...decision.reasonCodes]),
-    }
-  }
-
-  if (shouldAlicizationReplyStayProviderAuthored(decision)) {
-    return {
-      allowed: false,
-      reason: 'mind-authored-lane',
-      reasonCodes: uniqueList(['mind-authored-lane', ...decision.reasonCodes]),
-    }
-  }
-
-  return {
-    allowed: true,
-    reason: 'compact-provider-mind-authority',
-    reasonCodes: uniqueList(['compact-provider-mind-authority', ...decision.reasonCodes]),
-  }
 }
 
 export function isAlicizationNonHumanAuthoredVisibleReply(

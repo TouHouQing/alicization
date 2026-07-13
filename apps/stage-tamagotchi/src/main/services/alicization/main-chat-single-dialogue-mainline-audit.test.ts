@@ -18,6 +18,33 @@ const providerFacingSources = [
 ] as const
 
 describe('single memory dialogue mainline audit', () => {
+  it('removes ordinary dialogue fast-path production and fixture modules', () => {
+    const deletedPaths = [
+      'apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-loop.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-loop.test.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-fast-path-project-state-provider.test.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/main-chat-follow-up-payoff.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/main-chat-follow-up-payoff.test.ts',
+    ] as const
+
+    for (const path of deletedPaths)
+      expect(existsSync(resolve(repositoryRoot, path)), path).toBe(false)
+
+    const productionSources = [
+      'apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/main-chat-run-lifecycle.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/authority-orchestrator.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/realization-engine.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade.ts',
+    ].map(readRepositoryFile)
+
+    for (const source of productionSources) {
+      expect(source).not.toMatch(
+        /main-chat-active-dialogue-loop|active-dialogue-fast-path|active-dialogue-compact|active-dialogue-local|active-dialogue-deterministic/u,
+      )
+    }
+  })
+
   it('removes the fixed prompting module and all production imports', () => {
     expect(existsSync(resolve(
       repositoryRoot,
@@ -26,7 +53,6 @@ describe('single memory dialogue mainline audit', () => {
 
     const productionSources = [
       ...providerFacingSources,
-      'apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-loop.ts',
       'packages/stage-shared/src/index.ts',
       'packages/stage-shared/package.json',
     ].map(readRepositoryFile)

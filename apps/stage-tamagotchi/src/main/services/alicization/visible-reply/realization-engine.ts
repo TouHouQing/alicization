@@ -9,7 +9,6 @@ import {
   alicizationFixedTemplateReplacement,
   buildAlicizationEmbodimentLoopSummary,
   containsAlicizationFixedTemplateResidue,
-  describeAlicizationEmbodimentClosureHeadline,
   describeAlicizationEmbodimentClosureReminder,
   formatAlicizationProjectStateAwarenessFields,
   isAlicizationNormalVisibleReplyAuthority,
@@ -1467,29 +1466,6 @@ function looksLikeEmbodimentClosureHeadline(value: string | null | undefined) {
     && !/before answering|before i answer/iu.test(normalized)
 }
 
-function synthesizeAuthorityOnlyEmbodimentCompanionHeadline(input: {
-  authoritySummary?: string | null
-  currentBodyState?: string | null
-} | null | undefined) {
-  const authoritySummary = typeof input?.authoritySummary === 'string'
-    ? input.authoritySummary.trim() || null
-    : null
-  const currentBodyState = typeof input?.currentBodyState === 'string'
-    ? input.currentBodyState.trim() || null
-    : null
-  if (!authoritySummary && !currentBodyState)
-    return null
-
-  const synthesizedHeadline = describeAlicizationEmbodimentClosureHeadline({
-    authoritySummary,
-    currentBodyState,
-  }).trim() || null
-
-  return synthesizedHeadline && looksLikeEmbodimentClosureHeadline(synthesizedHeadline)
-    ? synthesizedHeadline
-    : null
-}
-
 function resolveTimeoutRecoveredProjectAwarenessSummary(input: {
   preferredAwarenessSummary: string | null
   companionHeadlineLine: string | null
@@ -2422,14 +2398,6 @@ export function resolveAlicizationTimeoutRecoveredVisibleReply(input: {
   recoveryMode: string
 }): AlicizationResolvedVisibleReply {
   const localFallback = input.recoveryMode === 'local-fallback'
-  const preferredRuntimeSurface = resolvePreferredPreparedRuntimeSurface(input.prepared?.runtimeSurface)
-  const rawRuntimeProjectState
-    = preferredRuntimeSurface?.raw?.runtimeDigest?.projectState
-      ?? preferredRuntimeSurface?.cognition?.runtimeDigest?.projectState
-      ?? input.prepared?.runtimeDigest?.projectState
-      ?? null
-  const rawCurrentConsciousProjectState = preferredRuntimeSurface?.dialogue?.currentConsciousFrame?.projectState ?? null
-  const rawContractProjectState = input.prepared?.mindTurnContract?.projectState ?? null
   const canonicalProjectState = resolveAlicizationProjectStateBrief()
   const explicitRuntimeProjectState = resolvePreparedRuntimeProjectState(input.prepared)
   const runtimeProjectState = resolvePreparedRuntimeProjectStateSnapshot(input.prepared)
@@ -2465,42 +2433,11 @@ export function resolveAlicizationTimeoutRecoveredVisibleReply(input: {
     ?? explicitRuntimeProjectState?.awarenessLine
     ?? explicitRuntimeProjectState?.companionBriefingLine
     ?? null
-  const rawExplicitRuntimeCompanionHeadlineLine = [
-    rawCurrentConsciousProjectState?.companionHeadlineLine,
-    rawRuntimeProjectState?.companionHeadlineLine,
-    rawContractProjectState?.companionHeadlineLine,
-  ].map(value => typeof value === 'string' ? value.trim() || null : null).find((value): value is string => Boolean(value))
-  ?? null
-  const rawExplicitRuntimeAwarenessWithoutPreflight = pickStrongerPreparedAwarenessLine(
-    rawCurrentConsciousProjectState?.preDialogueAwarenessLine ?? null,
-    rawCurrentConsciousProjectState?.awarenessLine ?? null,
-    rawCurrentConsciousProjectState?.preDialogueAwarenessSummary ?? null,
-    rawRuntimeProjectState?.preDialogueAwarenessLine ?? null,
-    rawRuntimeProjectState?.awarenessLine ?? null,
-    rawRuntimeProjectState?.preDialogueAwarenessSummary ?? null,
-    rawContractProjectState?.preDialogueAwarenessLine ?? null,
-    rawContractProjectState?.awarenessLine ?? null,
-    rawContractProjectState?.preDialogueAwarenessSummary ?? null,
-  )
-  // Keep renderer/body rejoin truth host-visible during compact timeout recovery when the runtime
-  // only preserved embodiment authority and never surfaced a same-her companion headline.
-  const authorityOnlyEmbodimentHeadline = input.recoveryMode === 'active-dialogue-compact'
-    && !rawExplicitRuntimeCompanionHeadlineLine
-    && (
-      !rawExplicitRuntimeAwarenessWithoutPreflight
-      || shouldTreatAsThinAwarenessShell(rawExplicitRuntimeAwarenessWithoutPreflight)
-    )
-    ? synthesizeAuthorityOnlyEmbodimentCompanionHeadline({
-        authoritySummary: recoveredEmbodimentAuthority.authoritySummary,
-        currentBodyState: recoveredEmbodimentAuthority.currentBodyState,
-      })
-    : null
-  const preferredRecoveredProjectAwarenessSummaryForRecovery = authorityOnlyEmbodimentHeadline
-    ?? preferredRecoveredProjectAwarenessSummary
+  const preferredRecoveredProjectAwarenessSummaryForRecovery
+    = preferredRecoveredProjectAwarenessSummary
   const resolvedRecoveredProjectAwarenessSummary = resolveTimeoutRecoveredProjectAwarenessSummary({
     preferredAwarenessSummary: preferredRecoveredProjectAwarenessSummaryForRecovery,
-    companionHeadlineLine: authorityOnlyEmbodimentHeadline
-      ?? explicitRuntimeProjectState?.companionHeadlineLine
+    companionHeadlineLine: explicitRuntimeProjectState?.companionHeadlineLine
       ?? null,
     embodimentClosureSummary: recoveredEmbodimentClosureSummary,
     canonicalProjectAwarenessLine: canonicalProjectState.preDialogueAwarenessLine ?? null,
@@ -2571,13 +2508,8 @@ export function resolveAlicizationTimeoutRecoveredVisibleReply(input: {
     || looksLikeMeaningfulTimeoutRecoveryProjectCarry(timeoutRecoveredLandedProgress)
     || looksLikeMeaningfulTimeoutRecoveryProjectCarry(timeoutRecoveredOpenClosure)
   )
-  const timeoutRecoveryShouldKeepAuthorityOnlyEmbodimentHeadline = Boolean(
-    authorityOnlyEmbodimentHeadline
-    && resolvedRecoveredProjectAwarenessSummary === authorityOnlyEmbodimentHeadline,
-  )
   const shouldPreferCompactTimeoutRecoveryAwareness = Boolean(
-    !timeoutRecoveryShouldKeepAuthorityOnlyEmbodimentHeadline
-    && hasMeaningfulTimeoutRecoveryProjectCarry
+    hasMeaningfulTimeoutRecoveryProjectCarry
     && (
       !resolvedRecoveredProjectAwarenessSummary
       || !/\bopen=/u.test(resolvedRecoveredProjectAwarenessSummary)

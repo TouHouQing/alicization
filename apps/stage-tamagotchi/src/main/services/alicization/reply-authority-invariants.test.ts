@@ -1,34 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import { selectAlicizationExecutionDeliveryReply } from './execution-delivery-surface'
-import { AlicizationActiveDialogueMindAuthorityEscalationError, buildAlicizationActiveDialogueFallbackReply, normalizeAlicizationActiveDialogueFastPathReplyOrEscalate } from './main-chat-active-dialogue-loop'
 import { buildAlicizationResponseSurfaceContract } from './response-surface-contract'
 
 describe('reply authority invariants', () => {
-  it('forbids deterministic visible fallbacks for ordinary humanlike dialogue lanes', () => {
-    const cases = [
-      { lane: 'greeting', userText: '你好呀' },
-      { lane: 'identity', userText: '你是谁' },
-      { lane: 'presence-critique', userText: '你说话不像真人' },
-      { lane: 'dialogue', userText: '我现在很难过' },
-    ] as const
-
-    for (const item of cases) {
-      expect(() => buildAlicizationActiveDialogueFallbackReply({
-        actionKind: 'answer',
-        conversationMessages: [
-          { role: 'user', content: item.userText },
-        ],
-      })).toThrow(AlicizationActiveDialogueMindAuthorityEscalationError)
-      expect(() => buildAlicizationActiveDialogueFallbackReply({
-        actionKind: 'answer',
-        conversationMessages: [
-          { role: 'user', content: item.userText },
-        ],
-      })).toThrow(`active-dialogue-fallback-visible-reply-forbidden:${item.lane}`)
-    }
-  })
-
   it('keeps normal reply contracts on provider-mind authority instead of a later local wording layer', () => {
     const result = buildAlicizationResponseSurfaceContract({
       brief: {
@@ -64,8 +39,6 @@ describe('reply authority invariants', () => {
 
     expect(result.contract.replyRealizationMode).toBe('provider-mind-required')
     expect(result.contract.expectedVisibleReplyAuthority).toBe('llm-mind')
-    expect(result.contract.mustDo).toContain('Fully realize the visible reply inside this provider-mind turn instead of leaving payoff wording for a later local fallback layer.')
-    expect(result.contract.mustNotDo).toContain('Do not stop at a thin shell that assumes a local deterministic layer will finish the real visible reply for you.')
   })
 
   it('keeps inward-only recollection from stealing visible reply authority', () => {
@@ -146,33 +119,5 @@ describe('reply authority invariants', () => {
       source: 'llm',
       visibleReply: 'The runtime line is patched.',
     })
-  })
-
-  it('escalates invalid utility-time compact replies instead of slipping into local deterministic wording', () => {
-    expect(() => normalizeAlicizationActiveDialogueFastPathReplyOrEscalate({
-      decision: {
-        lane: 'utility-time',
-        strategy: 'compact-one-shot',
-        latestUserText: '后面按东京时间回答，现在几点了？',
-        previousUserText: '',
-        previousAssistantText: '',
-        continuityAnchor: '',
-        preparedExecutionCarryText: '',
-        runtimeDigest: null,
-        sessionMirror: null,
-        governance: null,
-        personaKernel: null,
-        digitalLifeSpine: null,
-        resolvedTimeZone: 'Asia/Tokyo',
-        resolvedTimeZoneSource: 'user-directive',
-        timeoutMs: 6500,
-        reasonCodes: ['utility-time'],
-      } as any,
-      rawText: JSON.stringify({
-        reply: '现在是 99:99，星期二。',
-        thought: 'obligation=answer; truth=live-grounded; focus=local time; move=direct-reply; tone=direct',
-        emotion: 'thinking',
-      }),
-    })).toThrow('active-dialogue-invalid-compact-reply:utility-time')
   })
 })

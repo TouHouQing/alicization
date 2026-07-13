@@ -33,13 +33,8 @@ import {
   buildRecollectionSpeechVisibleSurfaceRules,
 } from '../response-surface-contract'
 
-export type {
-  AlicizationVisibleReplyAuthorityDecision,
-} from './authority-orchestrator'
-
 export {
   buildAlicizationMindAuthoringFailureArtifact,
-  decideAlicizationActiveDialogueCompactAuthority,
   isAlicizationNonHumanAuthoredVisibleReply,
 } from './authority-orchestrator'
 

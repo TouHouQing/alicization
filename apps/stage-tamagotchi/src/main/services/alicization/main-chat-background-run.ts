@@ -15,9 +15,7 @@ import type {
   AlicizationVisibleReplyExecution,
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
-import type { AlicizationActiveDialogueFastPathDecision } from './main-chat-active-dialogue-loop'
 import type { AlicizationInlineExecutionReceipt } from './main-chat-background-rules'
-import type { AlicizationMainChatTimeoutRecoveryMode } from './main-chat-run-lifecycle'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
 import type { AlicizationMainGatewayReachabilitySnapshot } from './main-gateway-health'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
@@ -36,9 +34,7 @@ import type {
 } from './visible-reply/facade'
 
 import {
-  alicizationMainGatewayOneShotRecoveryBudget,
   deriveAlicizationResidentPerformanceSnapshot,
-  describeAlicizationEmbodimentClosureHeadline,
   normalizeAlicizationDigitalLifeSpineDigest,
   normalizeAlicizationPerformancePayload,
   sanitizeAlicizationProviderFacingText,
@@ -55,25 +51,13 @@ import {
   selectAlicizationExecutionDeliveryReply,
 } from './execution-delivery-surface'
 import {
-
-  AlicizationActiveDialogueMindAuthorityEscalationError,
-  buildAlicizationActiveDialogueFastPathMessages,
-  deriveAlicizationActiveDialogueFastPathDecision,
-  normalizeAlicizationActiveDialogueFastPathReplyOrEscalate,
-} from './main-chat-active-dialogue-loop'
-import {
   alicizationExecutorToolNames,
 
   asAlicizationInlineExecutionSurfaceInput,
   buildAlicizationMinimalContextRecoveryMessages,
   readAlicizationInlineExecutionReceipt,
-  shouldUseAlicizationExecutionFirstFastPath,
 } from './main-chat-background-rules'
-import {
-  generateAlicizationMainChatNonStreaming,
-  recoverAlicizationMainChatFromTimeout,
-} from './main-chat-one-shot'
-import { carriesAlicizationCanonicalProjectState } from './main-chat-project-state-guard'
+import { generateAlicizationMainChatNonStreaming } from './main-chat-one-shot'
 import { isAlicizationRequiredToolMissingError } from './main-chat-required-tool'
 import {
   recoverAlicizationRequiredToolDeterministically,
@@ -90,9 +74,7 @@ import {
   createAlicizationChatStreamMetaEmitter,
   repairContinuitySourceTagsFromRuntimeDigest,
 } from './main-chat-stream-meta'
-import { createAbortError } from './main-chat-stream-primitives'
 import { runAlicizationMainChatStream } from './main-chat-stream-runner'
-import { buildAlicizationMainGatewayTimeoutFallbackReply } from './main-chat-timeout-fallback'
 import {
   mergePreferredSelfContinuityAuthority,
   resolvePreferredPersonStateProjection,
@@ -105,7 +87,6 @@ import {
 } from './prepared-runtime-continuity'
 import { enrichProjectStateAnswerGovernanceIfNeeded } from './project-state-answer-governance'
 import {
-  buildAlicizationProviderFacingProjectStateExtraSystemBlocks,
   looksLikeThinProjectClosureShell,
   resolveAlicizationProjectPreDialogueAwarenessLine,
   resolveAlicizationProjectStateBrief,
@@ -114,13 +95,11 @@ import { buildAlicizationChatStreamEmbodimentMeta, buildPrioritizedProjectStateR
 import {
   mainChatFirstEventTimeoutMs,
   mainChatFirstEventTimeoutWithVisualGroundingMs,
-  mainChatTimeoutRecoveryMs,
-  mainChatTimeoutRecoveryWithVisualGroundingMs,
   normalizeCardId,
   sanitizeText,
 } from './runtime-soul'
 import { resolvePreferredRuntimeSurface } from './runtime-surface-continuity-selection'
-import { parseJsonObjectFromText, readTransportContentAsText } from './runtime-transport-content'
+import { parseJsonObjectFromText } from './runtime-transport-content'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 import { resolveCanonicalStructuredProjectState } from './structured-project-state'
 import { buildAlicizationTurnGraphFromSettlements } from './turn-os/turn-graph'
@@ -130,10 +109,8 @@ import {
   buildAlicizationResolvedVisibleReply,
   buildAlicizationSecondPassTransportFailureReply,
   buildAlicizationVisibleReplyCriticArtifact,
-  decideAlicizationActiveDialogueCompactAuthority,
   deriveAlicizationVisibleReplyText,
   resolveAlicizationPreparedVisibleReplyExecution,
-  resolveAlicizationTimeoutRecoveredVisibleReply,
   rewriteAlicizationVisibleReplySecondPass,
   settleAlicizationVisibleReply,
 } from './visible-reply/facade'
@@ -157,12 +134,6 @@ type AlicizationBackgroundProjectStateAudit = Partial<{
   rewriteClosureApplied: boolean
 }> & Record<string, unknown>
 
-type AlicizationProjectStateGovernanceShape = {
-  answerSubject?: string | null
-  mustDo?: string[] | null
-  mustNotDo?: string[] | null
-} & Record<string, unknown>
-
 interface AlicizationRuntimeProjectStateContinuityShape {
   continuityArcStage?: string | null
   continuityPreferredTiming?: string | null
@@ -183,23 +154,6 @@ function readRecord(raw: unknown): Record<string, unknown> | null {
 
 function sanitizeProviderFacingRecoveryCarry(raw: unknown, maxChars = 1600) {
   return sanitizeAlicizationProviderFacingText(raw, maxChars, '') || ''
-}
-
-function isActiveDialogueFastPathTimeoutError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error ?? '')
-  const normalized = message.toLowerCase()
-  return normalized.includes('main-gateway-timeout-recovery')
-    || normalized.includes('main-gateway-timeout')
-    || normalized.includes('timeout')
-    || normalized.includes('timed out')
-}
-
-function createActiveDialogueFastPathTimeoutAbortError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error ?? '')
-  const normalizedReason = message.includes('chat-first-event-timeout')
-    ? 'chat-first-event-timeout'
-    : `chat-first-event-timeout|recovery-mode=active-dialogue-compact|recovery-failed=${message || 'active-dialogue-fast-path-timeout'}`
-  return createAbortError(normalizedReason)
 }
 
 function readEmotionalKernelSnapshot(raw: unknown): AlicizationRuntimeEmotionalKernelShape | null {
@@ -390,152 +344,6 @@ function resolvePreferredEmbodimentClosureSummary(...values: Array<unknown>) {
     ?.normalized ?? null
 }
 
-function resolvePreferredEmbodimentClosureAuthority(input: {
-  authoritySummaryCandidates: Array<string | null | undefined>
-  currentBodyStateCandidates: Array<string | null | undefined>
-}) {
-  const candidateCount = Math.max(
-    input.authoritySummaryCandidates.length,
-    input.currentBodyStateCandidates.length,
-  )
-
-  let best: {
-    authoritySummary: string | null
-    currentBodyState: string | null
-    score: number
-    completenessScore: number
-  } | null = null
-
-  const scoreEmbodimentLane = (value: string | null | undefined) => {
-    const normalized = sanitizeText(value ?? '', '').toLowerCase()
-    if (!normalized)
-      return 0
-
-    let score = 0
-    if (normalized.includes('face'))
-      score += 1
-    if (normalized.includes('motion'))
-      score += 1
-    if (normalized.includes('lipsync'))
-      score += 1
-    if (normalized.includes('voice'))
-      score += 1
-    if (normalized.includes('body'))
-      score += 1
-    if (/full cross-modal|same living segment|visible same-her line has already rejoined without body carry/u.test(normalized))
-      score += 4
-    if (/living audio thread|still-voiced|resident body line|rejoin/u.test(normalized))
-      score += 2
-    return score
-  }
-
-  for (let index = 0; index < candidateCount; index += 1) {
-    const authoritySummary = input.authoritySummaryCandidates[index]?.trim() || null
-    const currentBodyState = input.currentBodyStateCandidates[index]?.trim() || null
-    if (!authoritySummary && !currentBodyState)
-      continue
-
-    const score = Math.max(
-      scoreEmbodimentLane(authoritySummary),
-      scoreEmbodimentLane(currentBodyState),
-    )
-    const completenessScore
-      = (authoritySummary ? 1 : 0)
-        + (currentBodyState ? 2 : 0)
-
-    if (
-      !best
-      || score > best.score
-      || (score === best.score && completenessScore > best.completenessScore)
-    ) {
-      best = {
-        authoritySummary,
-        currentBodyState,
-        score,
-        completenessScore,
-      }
-    }
-  }
-
-  return {
-    authoritySummary: best?.authoritySummary ?? null,
-    currentBodyState: best?.currentBodyState ?? null,
-  }
-}
-
-function readEmbodimentAwareCurrentBodyState(
-  authority: { currentBodyState?: unknown } | null | undefined,
-) {
-  return typeof authority?.currentBodyState === 'string'
-    ? authority.currentBodyState.trim() || null
-    : null
-}
-
-function readPreparedRuntimeDigestSelfContinuityAuthority(
-  prepared: AlicizationPreparedMainChatExecutionResult | null | undefined,
-  source: 'raw' | 'cognition',
-) {
-  const runtimeDigest = source === 'raw'
-    ? prepared?.runtimeSurface?.digitalLifeRuntimeSurface?.raw?.runtimeDigest
-    : prepared?.runtimeSurface?.digitalLifeRuntimeSurface?.cognition?.runtimeDigest
-
-  return (
-    runtimeDigest as {
-      currentConsciousFrame?: {
-        selfContinuityAuthority?: {
-          authoritySummary?: string | null
-          currentBodyState?: string | null
-        } | null
-      } | null
-    } | null | undefined
-  )?.currentConsciousFrame?.selfContinuityAuthority ?? null
-}
-
-function resolvePreparedRuntimeEmbodimentClosureAuthority(
-  prepared?: AlicizationPreparedMainChatExecutionResult | null,
-) {
-  const runtimePerceptionCurrentBodyState
-    = typeof prepared?.runtimeSurface?.digitalLifeRuntimeSurface?.perception?.currentBodyState === 'string'
-      ? prepared.runtimeSurface.digitalLifeRuntimeSurface.perception.currentBodyState.trim() || null
-      : null
-  const preferredRuntimeSelfContinuityAuthority
-    = resolvePreparedRuntimeSelfContinuityAuthority(prepared) as {
-      authoritySummary?: string | null
-      currentBodyState?: string | null
-    } | null | undefined
-  const rawRuntimeDigestSelfContinuityAuthority = readPreparedRuntimeDigestSelfContinuityAuthority(prepared, 'raw')
-  const cognitionRuntimeDigestSelfContinuityAuthority = readPreparedRuntimeDigestSelfContinuityAuthority(prepared, 'cognition')
-  const runtimeProjectionSelfContinuityAuthority
-    = prepared?.runtimeSurface?.digitalLifeRuntimeSurface?.memory?.personStateProjection?.selfContinuityAuthority as {
-      authoritySummary?: string | null
-      currentBodyState?: string | null
-    } | null | undefined
-  const spineProjectionSelfContinuityAuthority
-    = prepared?.runtimeSurface?.digitalLifeSpine?.memory?.personStateProjection?.selfContinuityAuthority as {
-      authoritySummary?: string | null
-      currentBodyState?: string | null
-    } | null | undefined
-
-  return resolvePreferredEmbodimentClosureAuthority({
-    authoritySummaryCandidates: [
-      null,
-      preferredRuntimeSelfContinuityAuthority?.authoritySummary ?? null,
-      rawRuntimeDigestSelfContinuityAuthority?.authoritySummary ?? null,
-      cognitionRuntimeDigestSelfContinuityAuthority?.authoritySummary ?? null,
-      runtimeProjectionSelfContinuityAuthority?.authoritySummary ?? null,
-      spineProjectionSelfContinuityAuthority?.authoritySummary ?? null,
-    ],
-    currentBodyStateCandidates: [
-      runtimePerceptionCurrentBodyState,
-      readEmbodimentAwareCurrentBodyState(preferredRuntimeSelfContinuityAuthority),
-      readEmbodimentAwareCurrentBodyState(rawRuntimeDigestSelfContinuityAuthority),
-      readEmbodimentAwareCurrentBodyState(cognitionRuntimeDigestSelfContinuityAuthority),
-      readEmbodimentAwareCurrentBodyState(runtimeProjectionSelfContinuityAuthority),
-      readEmbodimentAwareCurrentBodyState(spineProjectionSelfContinuityAuthority),
-    ],
-  })
-}
-
 function preferProjectStateEmbodimentClosureSummary(input: {
   current?: unknown
   candidate?: unknown
@@ -599,16 +407,6 @@ function looksLikeSameHerSelfLine(value: string | null | undefined) {
   return /same digital life|same-her|same her|one continuous her|同一个 her|同一个她|same living line/u.test(normalized)
 }
 
-function ensureTimeoutRecoveryCarriesCanonicalProjectState(messages: Message[]) {
-  if (carriesAlicizationCanonicalProjectState(messages))
-    return messages
-
-  return [
-    ...buildAlicizationProviderFacingProjectStateExtraSystemBlocks().map(content => ({ role: 'system', content }) as Message),
-    ...messages,
-  ]
-}
-
 function strengthenSameHerSelfLineForPersistence(value: string | null | undefined) {
   const normalized = sanitizeText(value, '')
   if (!normalized)
@@ -630,54 +428,6 @@ export const mainChatBackgroundRunTestInternals = {
   preferRicherProjectStateAuditText,
   preferProjectStateEmbodimentClosureSummary,
   resolvePreferredEmbodimentClosureSummary,
-  shouldUseProjectStateTimeoutRecovery,
-}
-
-function shouldUpgradeDeferredDecisionToProjectState(decision: AlicizationActiveDialogueFastPathDecision | null | undefined) {
-  if (!decision)
-    return false
-
-  return decision.reasonCodes.includes('project-state-progress-open-loop-follow-up')
-    || decision.reasonCodes.includes('project-state-closure-readiness-follow-up')
-    || decision.reasonCodes.includes('project-state-same-her-continuity-required')
-}
-
-function preparedExecutionHasExplicitProjectStateTimeoutIntent(preparedExecution: PreparedMainChatExecution) {
-  const governance = preparedExecution.governance as AlicizationProjectStateGovernanceShape | null | undefined
-  const contract = (preparedExecution as PreparedMainChatExecution & {
-    mindTurnContract?: (AlicizationProjectStateGovernanceShape & {
-      answerIntent?: string | null
-    }) | null
-  }).mindTurnContract
-  const normalizedContract = contract as (AlicizationProjectStateGovernanceShape & {
-    answerIntent?: string | null
-  }) | null | undefined
-  if (governance?.answerSubject === 'project-state' || normalizedContract?.answerSubject === 'project-state')
-    return true
-
-  const answerIntent = sanitizeText(normalizedContract?.answerIntent, '').toLowerCase()
-  return Boolean(
-    answerIntent
-    && (
-      answerIntent.includes('project-state')
-      || answerIntent.includes('项目状态')
-      || answerIntent.includes('current phase 1 continuity work has landed')
-    ),
-  )
-}
-
-function shouldUseProjectStateTimeoutRecovery(input: {
-  toolingRequired: boolean
-  timeoutActiveDialogueDecision: AlicizationActiveDialogueFastPathDecision | null
-  timeoutProjectStateQuestionDetected: boolean
-  preparedExecution: PreparedMainChatExecution
-}) {
-  if (input.toolingRequired)
-    return false
-
-  return shouldUpgradeDeferredDecisionToProjectState(input.timeoutActiveDialogueDecision)
-    || input.timeoutProjectStateQuestionDetected
-    || preparedExecutionHasExplicitProjectStateTimeoutIntent(input.preparedExecution)
 }
 
 function preferRicherProjectStateAuditText(input: {
@@ -1090,11 +840,6 @@ interface RunAlicizationMainChatBackgroundOptions {
       threadId: string
     }>
   }) => Promise<void> | void
-  resolveActiveDialogueDeterministicReply?: (input: {
-    conversationMessages: Message[]
-    decision: AlicizationActiveDialogueFastPathDecision
-    prepared: AlicizationPreparedMainChatExecutionResult
-  }) => Promise<string | null> | string | null
 }
 
 class AlicizationMindAuthoredReplyRequiredError extends Error {
@@ -2025,48 +1770,7 @@ function preferStrongerSameHerHeadlineOverAwareness(input: {
   return awarenessLine
 }
 
-function synthesizeAuthorityOnlyEmbodimentCompanionHeadline(input: {
-  authoritySummary?: string | null
-  currentBodyState?: string | null
-} | null | undefined) {
-  const authoritySummary = sanitizeText(input?.authoritySummary ?? '', '') || null
-  const currentBodyState = sanitizeText(input?.currentBodyState ?? '', '') || null
-  if (!authoritySummary && !currentBodyState)
-    return null
-
-  const synthesizedHeadline = sanitizeText(describeAlicizationEmbodimentClosureHeadline({
-    authoritySummary,
-    currentBodyState,
-  }), '') || null
-
-  return synthesizedHeadline && looksLikeStrongSameHerCarryLine(synthesizedHeadline)
-    ? synthesizedHeadline
-    : null
-}
-
-function resolveRawPreparedRuntimeExplicitCompanionHeadlineLine(
-  prepared: AlicizationPreparedMainChatExecutionResult | null | undefined,
-) {
-  const preferredRuntimeSurface = resolvePreferredPreparedRuntimeSurface(prepared?.runtimeSurface)
-  const rawRuntimeProjectState
-    = preferredRuntimeSurface?.raw?.runtimeDigest?.projectState
-      ?? preferredRuntimeSurface?.cognition?.runtimeDigest?.projectState
-      ?? prepared?.runtimeDigest?.projectState
-      ?? null
-  const rawCurrentConsciousProjectState = preferredRuntimeSurface?.dialogue?.currentConsciousFrame?.projectState ?? null
-  const rawContractProjectState = prepared?.mindTurnContract?.projectState ?? null
-
-  return [
-    rawCurrentConsciousProjectState?.companionHeadlineLine,
-    rawRuntimeProjectState?.companionHeadlineLine,
-    rawContractProjectState?.companionHeadlineLine,
-  ]
-    .map(value => sanitizeProviderFacingRecoveryCarry(value) || null)
-    .find((value): value is string => Boolean(value))
-    ?? null
-}
-
-function preferCompactRecoveryPayloadHeadlineOverFallback(input: {
+function preferPayloadCompanionHeadlineOverFallback(input: {
   awarenessLine?: string | null
   payloadAwarenessLine?: string | null
   payloadCompanionBriefingLine?: string | null
@@ -2323,8 +2027,6 @@ export async function runAlicizationMainChatBackground(
   let messages: Message[] = []
   let tools: PreparedMainChatExecution['tools']
   let toolChoice: PreparedMainChatExecution['toolChoice']
-  let timeoutRecoveryMode: AlicizationMainChatTimeoutRecoveryMode = 'original'
-  let timeoutRecoveryMs = mainChatTimeoutRecoveryMs
   const nonProgressEventTypes = new Set<string>()
   let pendingAffirmationToolInputOverrides: Record<string, Record<string, unknown>> | undefined
   let preparedExecutionToolInputOverrides: Record<string, Record<string, unknown>> | undefined
@@ -2343,7 +2045,6 @@ export async function runAlicizationMainChatBackground(
     return merged
   }
   let currentVisibleReplyExecution: AlicizationVisibleReplyExecution | null = null
-  let latestResolvedVisibleReply: AlicizationResolvedVisibleReply | null = null
   let releasedVisibleReplyText = ''
   const suppressedFreshExecutionReplyKeys = new Set<string>()
   const resolveDigitalLifeSpineFromPrepared = () => {
@@ -3863,43 +3564,6 @@ export async function runAlicizationMainChatBackground(
     return recovered
   }
 
-  const shouldForceStructuredRecoveredText = (mode: AlicizationMainChatTimeoutRecoveryMode) => {
-    return mode === 'tools-disabled' || mode === 'minimal-context-non-streaming'
-  }
-
-  const shouldAttemptRecoveredReplySecondPass = (inputSurface: {
-    fullText: string
-    visibleReplyExecution: AlicizationVisibleReplyExecution
-  }) => {
-    if (!inputSurface.visibleReplyExecution.providerMindExecuted)
-      return false
-
-    const parsed = parseJsonObjectFromText(inputSurface.fullText)
-    if (!parsed)
-      return false
-
-    const reply = typeof parsed.reply === 'string'
-      ? parsed.reply.trim()
-      : ''
-    if (!reply)
-      return false
-
-    const visibleReplyRewriteRequest = parsed.visibleReplyRewriteRequest
-      && typeof parsed.visibleReplyRewriteRequest === 'object'
-      ? parsed.visibleReplyRewriteRequest as { required?: unknown }
-      : null
-    if (visibleReplyRewriteRequest?.required === true)
-      return true
-
-    const parsePath = typeof parsed.parsePath === 'string'
-      ? parsed.parsePath.trim()
-      : ''
-    if (parsePath === 'repair-json' || parsePath === 'forced-unstructured-visible-draft')
-      return false
-
-    return typeof parsed.format === 'string' && parsed.format.trim() === 'mind-turn-v1'
-  }
-
   const noteInlineExecutionReceipt = (result: unknown) => {
     const receipt = readAlicizationInlineExecutionReceipt(result)
     if (!receipt)
@@ -3983,25 +3647,6 @@ export async function runAlicizationMainChatBackground(
     }))
   }
 
-  let activeDialogueCompactTimeoutRecoveryContext = false
-
-  const withActiveDialogueCompactTimeoutRecoveryContext = <T>(
-    enabled: boolean,
-    run: () => T,
-  ) => {
-    if (!enabled)
-      return run()
-
-    const previous = activeDialogueCompactTimeoutRecoveryContext
-    activeDialogueCompactTimeoutRecoveryContext = true
-    try {
-      return run()
-    }
-    finally {
-      activeDialogueCompactTimeoutRecoveryContext = previous
-    }
-  }
-
   const rebuildPreparedTurnGraph = (nextPrepared: AlicizationPreparedMainChatExecutionResult, surface: ReturnType<typeof buildAlicizationVisibleReplyRealizationArtifact> | AlicizationResolvedVisibleReply['realization'] | null) => {
     return buildAlicizationTurnGraphFromSettlements({
       prepared: nextPrepared,
@@ -4021,7 +3666,6 @@ export async function runAlicizationMainChatBackground(
   }
 
   const rememberResolvedVisibleReply = (reply: AlicizationResolvedVisibleReply) => {
-    latestResolvedVisibleReply = reply
     currentVisibleReplyExecution = reply.visibleReplyExecution
   }
 
@@ -4160,7 +3804,6 @@ export async function runAlicizationMainChatBackground(
       }),
     } satisfies Record<string, string | null>
     const preparedRuntimePreferredAwarenessLine = resolvePreparedVisibleReplyPreDialogueAwarenessSeed()
-    const preparedRuntimeExplicitCompanionHeadlineLine = resolveRawPreparedRuntimeExplicitCompanionHeadlineLine(prepared)
     const preparedRuntimeCompanionHeadlineLine = sanitizeText(
       preparedRuntimeProjectState?.companionHeadlineLine
       ?? preparedRuntimeProjectState?.preDialogueAwarenessLine
@@ -4197,15 +3840,9 @@ export async function runAlicizationMainChatBackground(
     const payloadCompanionHeadlineLine = rawPayloadCompanionHeadlineLine
       || sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionHeadlineLine)
       || null
-    const isActiveDialogueCompactTimeoutRecovery
-      = activeDialogueCompactTimeoutRecoveryContext
-        || /active-dialogue-compact/u.test(reply.visibleReplyExecution.reason ?? '')
     const payloadPreferredPreDialogueAwarenessSummary
-      = isActiveDialogueCompactTimeoutRecovery
-        ? rawPayloadPreferredPreDialogueAwarenessSummary
-        ?? resolvePayloadPreferredPreDialogueAwarenessCarry(payload)
-        : rawPayloadPreferredPreDialogueAwarenessSummary
-          ?? resolvePayloadPreDialogueAwarenessSummary(payload)
+      = rawPayloadPreferredPreDialogueAwarenessSummary
+        ?? resolvePayloadPreDialogueAwarenessSummary(payload)
     const mergedProjectStateEmbodimentClosureSummary = resolvePreferredEmbodimentClosureSummary(
       existingProjectStateAudit?.embodimentClosureSummary,
       replyProjectStateAudit?.embodimentClosureSummary,
@@ -4216,7 +3853,7 @@ export async function runAlicizationMainChatBackground(
     const resolvedStructuredPreDialogueAwarenessSummary = resolveStructuredPreDialogueAwarenessSummary(
       parseJsonObjectFromText(reply.fullText),
     )
-    const payloadAwareReplyProjectAwarenessSummary = preferCompactRecoveryPayloadHeadlineOverFallback({
+    const payloadAwareReplyProjectAwarenessSummary = preferPayloadCompanionHeadlineOverFallback({
       awarenessLine:
         replyProjectStateAudit?.preDialogueAwarenessSummary
         ?? resolvedStructuredPreDialogueAwarenessSummary
@@ -4240,38 +3877,12 @@ export async function runAlicizationMainChatBackground(
         && !looksLikeStructuredProjectAwarenessSummaryShell(explicitPayloadProjectAwarenessSummaryCandidate)
         ? explicitPayloadProjectAwarenessSummaryCandidate
         : null
-    const shouldPreferGroundedPayloadProjectAwarenessSummary
-      = isActiveDialogueCompactTimeoutRecovery
-        && payloadGroundingStatus === 'grounded'
-        && Boolean(explicitPayloadProjectAwarenessSummary)
-    const explicitResolvedReplyCompanionHeadlineLine
-      = sanitizeText((resolvedReplyProjectState as { companionHeadlineLine?: unknown } | null)?.companionHeadlineLine, '')
-        || null
-    const explicitParsedProjectStateCompanionHeadlineLine
-      = sanitizeText((parsed.projectState as { companionHeadlineLine?: unknown } | null)?.companionHeadlineLine, '')
-        || null
     const preparedClosureSnapshot = buildPreparedProjectStateClosureSnapshot(prepared)
     const preparedSelfContinuityAuthority = resolvePreparedRuntimeSelfContinuityAuthority(prepared) as ({
       authoritySummary?: string | null
       currentBodyState?: string | null
       closenessPosture?: string | null
     } & Record<string, unknown>) | null
-    const preparedEmbodimentClosureAuthority = resolvePreparedRuntimeEmbodimentClosureAuthority(prepared)
-    const preparedRuntimeAuthorityOnlyCompanionHeadlineLine
-      = isActiveDialogueCompactTimeoutRecovery
-        ? synthesizeAuthorityOnlyEmbodimentCompanionHeadline({
-            authoritySummary: sanitizeText(preparedEmbodimentClosureAuthority.authoritySummary ?? '', '') || null,
-            currentBodyState: sanitizeText(preparedEmbodimentClosureAuthority.currentBodyState ?? '', '') || null,
-          })
-        : null
-    const shouldPreferAuthorityOnlyRuntimeCompanionHeadline
-      = isActiveDialogueCompactTimeoutRecovery
-        && Boolean(preparedRuntimeAuthorityOnlyCompanionHeadlineLine)
-        && !shouldPreferGroundedPayloadProjectAwarenessSummary
-        && !payloadCompanionHeadlineLine
-        && !preparedRuntimeExplicitCompanionHeadlineLine
-        && !explicitResolvedReplyCompanionHeadlineLine
-        && !explicitParsedProjectStateCompanionHeadlineLine
     const fallbackSelfAuthorityAudit
       = preparedSelfContinuityAuthority
         && (
@@ -4313,32 +3924,28 @@ export async function runAlicizationMainChatBackground(
       ?? resolvedStructuredPreDialogueAwarenessSummary
       ?? existingProjectStateAuditAwarenessSummary
       ?? null
-    const mergedProjectStateAuditPreDialogueAwarenessSummary = shouldPreferGroundedPayloadProjectAwarenessSummary
-      ? explicitPayloadProjectAwarenessSummary
-      : shouldPreferAuthorityOnlyRuntimeCompanionHeadline
-        ? preparedRuntimeAuthorityOnlyCompanionHeadlineLine
-        : explicitPayloadProjectAwarenessSummary
-          || promoteSameHerDriftRiskOverThinAwareness({
-            awarenessLine: preferExplicitProjectAwarenessOverCanonicalReanchor({
-              current: preferExplicitProjectAwarenessOverCanonicalReanchor({
-                current: preferStrongerSameHerHeadlineOverAwareness({
-                  awarenessLine:
+    const mergedProjectStateAuditPreDialogueAwarenessSummary
+      = explicitPayloadProjectAwarenessSummary
+        || promoteSameHerDriftRiskOverThinAwareness({
+          awarenessLine: preferExplicitProjectAwarenessOverCanonicalReanchor({
+            current: preferExplicitProjectAwarenessOverCanonicalReanchor({
+              current: preferStrongerSameHerHeadlineOverAwareness({
+                awarenessLine:
                 replyPreferredProjectAwarenessSummary
                 ?? preparedProjectStateAuditSeed.preDialogueAwarenessSummary
                 ?? null,
-                  companionHeadlineLine:
+                companionHeadlineLine:
                 sanitizeText((resolvedReplyProjectState as { companionHeadlineLine?: unknown } | null)?.companionHeadlineLine, '')
                 || sanitizeText((resolvedReplyProjectState as { preDialogueAwarenessLine?: unknown } | null)?.preDialogueAwarenessLine, '')
-                || preparedRuntimeAuthorityOnlyCompanionHeadlineLine
                 || preparedRuntimeCompanionHeadlineLine
                 || null,
-                }),
-                candidate: preparedRuntimePreferredAwarenessLine,
               }),
-              candidate: payloadPreferredPreDialogueAwarenessSummary,
+              candidate: preparedRuntimePreferredAwarenessLine,
             }),
-            sameHerDriftRisk: mergedProjectStateSameHerDriftRiskSummary,
-          })
+            candidate: payloadPreferredPreDialogueAwarenessSummary,
+          }),
+          sameHerDriftRisk: mergedProjectStateSameHerDriftRiskSummary,
+        })
     const replyProjectStateAuditSameHerSummary = replyProjectStateAudit?.sameHerSummary
     const replyProjectStateAuditEmotionalClosureSummary = replyProjectStateAudit?.emotionalClosureSummary
     const mergedSameHerSummary = preferStrongerSameHerProjectStateText({
@@ -4592,12 +4199,10 @@ export async function runAlicizationMainChatBackground(
           }
         : null,
     }
-    const mergedProjectStatePreDialogueAwarenessLineRaw = shouldPreferGroundedPayloadProjectAwarenessSummary
-      ? explicitPayloadProjectAwarenessSummary
-      : shouldPreferAuthorityOnlyRuntimeCompanionHeadline
-        ? preparedRuntimeAuthorityOnlyCompanionHeadlineLine
-        : preferStrongerSameHerHeadlineOverAwareness({
-            awarenessLine:
+    const mergedProjectStatePreDialogueAwarenessLineRaw
+      = explicitPayloadProjectAwarenessSummary
+        || preferStrongerSameHerHeadlineOverAwareness({
+          awarenessLine:
             sanitizeText(mergedProjectStateAudit?.preDialogueAwarenessSummary ?? '', '')
             || sanitizeText((resolvedReplyProjectState as { preDialogueAwarenessLine?: unknown } | null)?.preDialogueAwarenessLine, '')
             || resolvedStructuredPreDialogueAwarenessSummary
@@ -4605,10 +4210,9 @@ export async function runAlicizationMainChatBackground(
             || preparedProjectStateAuditSeed.preDialogueAwarenessSummary
             || sanitizeText((parsed.projectState as { preDialogueAwarenessLine?: unknown } | null)?.preDialogueAwarenessLine, '')
             || null,
-            companionHeadlineLine:
+          companionHeadlineLine:
             sanitizeText((resolvedReplyProjectState as { companionHeadlineLine?: unknown } | null)?.companionHeadlineLine, '')
             || sanitizeText((resolvedReplyProjectState as { preDialogueAwarenessLine?: unknown } | null)?.preDialogueAwarenessLine, '')
-            || preparedRuntimeAuthorityOnlyCompanionHeadlineLine
             || preparedRuntimeCompanionHeadlineLine
             || sanitizeText((parsed.projectState as { companionHeadlineLine?: unknown } | null)?.companionHeadlineLine, '')
             || sanitizeText((parsed.preDialogueAwareness && typeof parsed.preDialogueAwareness === 'object'
@@ -4616,7 +4220,7 @@ export async function runAlicizationMainChatBackground(
               : null) ?? '', '')
             || sanitizeText((parsed.projectState as { preDialogueAwarenessLine?: unknown } | null)?.preDialogueAwarenessLine, '')
             || null,
-          })
+        })
     const mergedProjectStatePreDialogueAwarenessLine = (() => {
       const preferredAwarenessLine = sanitizeText(mergedProjectStatePreDialogueAwarenessLineRaw ?? '', '') || null
       if (!preferredAwarenessLine)
@@ -4645,21 +4249,18 @@ export async function runAlicizationMainChatBackground(
           : null) ?? '', '')
         || null
     const mergedProjectStateCompanionHeadlineLine
-      = shouldPreferAuthorityOnlyRuntimeCompanionHeadline
-        ? preparedRuntimeAuthorityOnlyCompanionHeadlineLine
-        : preferProjectAwareClosureSummary({
-          current: preferExplicitProjectAwarenessOverCanonicalReanchor({
-            current:
-                  sanitizeText((resolvedReplyProjectState as { companionHeadlineLine?: unknown } | null)?.companionHeadlineLine, '')
-                  || preparedRuntimeAuthorityOnlyCompanionHeadlineLine
-                  || preparedRuntimeCompanionHeadlineLine
-                  || sanitizeText((parsed.projectState as { companionHeadlineLine?: unknown } | null)?.companionHeadlineLine, '')
-                  || null,
-            candidate: mergedProjectStatePreDialogueAwarenessLine,
-          }),
+      = preferProjectAwareClosureSummary({
+        current: preferExplicitProjectAwarenessOverCanonicalReanchor({
+          current:
+            sanitizeText((resolvedReplyProjectState as { companionHeadlineLine?: unknown } | null)?.companionHeadlineLine, '')
+            || preparedRuntimeCompanionHeadlineLine
+            || sanitizeText((parsed.projectState as { companionHeadlineLine?: unknown } | null)?.companionHeadlineLine, '')
+            || null,
           candidate: mergedProjectStatePreDialogueAwarenessLine,
-        })
-        || mergedProjectStatePreDialogueAwarenessLine
+        }),
+        candidate: mergedProjectStatePreDialogueAwarenessLine,
+      })
+      || mergedProjectStatePreDialogueAwarenessLine
     const parsedPerformance = parsed.performance && typeof parsed.performance === 'object'
       ? parsed.performance as Record<string, unknown>
       : null
@@ -5296,93 +4897,6 @@ export async function runAlicizationMainChatBackground(
       ...reply,
       fullText: effectiveFullText,
       realization: normalizedRealization,
-    }
-  }
-
-  const preserveVerbatimProjectAwarenessLineOnResolvedReply = (inputSurface: {
-    reply: AlicizationResolvedVisibleReply
-    exactAwarenessLine?: string | null
-  }) => {
-    const exactAwarenessLine = typeof inputSurface.exactAwarenessLine === 'string'
-      ? inputSurface.exactAwarenessLine
-      : null
-    if (!exactAwarenessLine)
-      return inputSurface.reply
-
-    const parsed = parseJsonObjectFromText(inputSurface.reply.fullText)
-    if (!parsed)
-      return inputSurface.reply
-
-    const projectState = parsed.projectState && typeof parsed.projectState === 'object'
-      ? parsed.projectState as Record<string, unknown>
-      : null
-    const preDialogueAwareness = parsed.preDialogueAwareness && typeof parsed.preDialogueAwareness === 'object'
-      ? parsed.preDialogueAwareness as Record<string, unknown>
-      : null
-    const preDialogueClosure = parsed.preDialogueClosure && typeof parsed.preDialogueClosure === 'object'
-      ? parsed.preDialogueClosure as Record<string, unknown>
-      : null
-    const visibleReplyRealization = parsed.visibleReplyRealization && typeof parsed.visibleReplyRealization === 'object'
-      ? parsed.visibleReplyRealization as Record<string, unknown>
-      : null
-    const projectStateAudit = visibleReplyRealization?.projectStateAudit
-      && typeof visibleReplyRealization.projectStateAudit === 'object'
-      ? visibleReplyRealization.projectStateAudit as Record<string, unknown>
-      : null
-
-    return {
-      ...inputSurface.reply,
-      realization: {
-        ...inputSurface.reply.realization,
-        projectStateAudit: inputSurface.reply.realization.projectStateAudit
-          ? {
-              ...inputSurface.reply.realization.projectStateAudit,
-              preDialogueAwarenessSummary: exactAwarenessLine,
-            }
-          : inputSurface.reply.realization.projectStateAudit,
-      },
-      fullText: JSON.stringify({
-        ...parsed,
-        projectState: {
-          ...projectState,
-          preDialogueAwarenessLine: exactAwarenessLine,
-          awarenessLine: exactAwarenessLine,
-          preDialogueAwarenessSummary: exactAwarenessLine,
-          companionHeadlineLine: exactAwarenessLine,
-        },
-        preDialogueAwareness: preDialogueAwareness
-          ? {
-              ...preDialogueAwareness,
-              awarenessLine: exactAwarenessLine,
-            }
-          : {
-              awarenessLine: exactAwarenessLine,
-            },
-        preDialogueClosure: preDialogueClosure
-          ? {
-              ...preDialogueClosure,
-              summaryLine: exactAwarenessLine,
-              companionBriefingLine:
-                sanitizeText(preDialogueClosure?.companionBriefingLine ?? '', '')
-                || exactAwarenessLine,
-            }
-          : {
-              status: 'partial',
-              summaryLine: exactAwarenessLine,
-              companionBriefingLine: exactAwarenessLine,
-            },
-        visibleReplyRealization: visibleReplyRealization
-          ? {
-              ...visibleReplyRealization,
-              projectStateAudit: projectStateAudit
-                ? {
-                    ...projectStateAudit,
-                    preDialogueAwarenessSummary: exactAwarenessLine,
-                  }
-                : visibleReplyRealization.projectStateAudit,
-            }
-          : parsed.visibleReplyRealization,
-      }),
     }
   }
 
@@ -6159,7 +5673,7 @@ export async function runAlicizationMainChatBackground(
 
   const attemptDeterministicRequiredToolRecovery = async (recoveryInput: {
     error?: unknown
-    origin: 'execution-first' | 'stream' | 'timeout-recovery'
+    origin: 'stream'
     requiredToolNames?: string[]
     toolInputOverrides?: Record<string, Record<string, unknown>>
   }) => {
@@ -6177,17 +5691,6 @@ export async function runAlicizationMainChatBackground(
     if (!Array.isArray(prepared.tools) || prepared.tools.length === 0)
       return null
 
-    const recoveryStartAudit = recoveryInput.origin === 'execution-first'
-      ? {
-          level: 'notice' as const,
-          action: 'execution-first-inline-started',
-          message: 'Explicit execution turn routed directly into deterministic executor dispatch before model streaming.',
-        }
-      : {
-          level: 'warning' as const,
-          action: 'required-tool-recovery-started',
-          message: 'Model skipped required executor tool call; switched to deterministic executor recovery.',
-        }
     await input.appendRuntimeDebugLine('chat-stream.required-tool-recovery-started', {
       cardId: input.payload.cardId,
       turnId: input.payload.turnId,
@@ -6195,10 +5698,10 @@ export async function runAlicizationMainChatBackground(
       requiredToolNames,
     })
     await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
-      level: recoveryStartAudit.level,
+      level: 'warning',
       category: 'alicization.main-gateway',
-      action: recoveryStartAudit.action,
-      message: recoveryStartAudit.message,
+      action: 'required-tool-recovery-started',
+      message: 'Model skipped required executor tool call; switched to deterministic executor recovery.',
       payload: {
         cardId: input.payload.cardId,
         turnId: input.payload.turnId,
@@ -6219,15 +5722,6 @@ export async function runAlicizationMainChatBackground(
     })
     noteInlineExecutionReceipt(recoveryResult.toolResult)
 
-    const recoveryFinishAudit = recoveryInput.origin === 'execution-first'
-      ? {
-          action: 'execution-first-inline-finished',
-          message: 'Execution-first inline executor dispatch completed before model streaming.',
-        }
-      : {
-          action: 'required-tool-recovery-finished',
-          message: 'Deterministic executor recovery completed and produced a user-facing answer.',
-        }
     await input.appendRuntimeDebugLine('chat-stream.required-tool-recovery-finished', {
       cardId: input.payload.cardId,
       turnId: input.payload.turnId,
@@ -6238,8 +5732,8 @@ export async function runAlicizationMainChatBackground(
     await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
       level: 'notice',
       category: 'alicization.main-gateway',
-      action: recoveryFinishAudit.action,
-      message: recoveryFinishAudit.message,
+      action: 'required-tool-recovery-finished',
+      message: 'Deterministic executor recovery completed and returned typed tool facts to Provider dialogue.',
       payload: {
         cardId: input.payload.cardId,
         turnId: input.payload.turnId,
@@ -6493,12 +5987,6 @@ export async function runAlicizationMainChatBackground(
       prepared.executionToolInputOverrides as Record<string, Record<string, unknown>> | undefined,
       pendingAffirmationToolInputOverrides,
     )
-    timeoutRecoveryMode = !toolChoice && Array.isArray(tools) && tools.length > 0
-      ? 'tools-disabled'
-      : 'original'
-    timeoutRecoveryMs = prepared.hasVisualGrounding
-      ? mainChatTimeoutRecoveryWithVisualGroundingMs
-      : mainChatTimeoutRecoveryMs
     const firstEventTimeoutMs = prepared.hasVisualGrounding
       ? mainChatFirstEventTimeoutWithVisualGroundingMs
       : mainChatFirstEventTimeoutMs
@@ -6566,298 +6054,11 @@ export async function runAlicizationMainChatBackground(
       cardId: input.runState.cardId,
       turnId: input.runState.turnId,
       firstEventTimeoutMs,
-      timeoutRecoveryMs,
-      timeoutRecoveryMode,
       hasVisualGrounding: prepared.hasVisualGrounding,
       waitForTools: prepared.waitForTools,
       toolCount: Array.isArray(tools) ? tools.length : 0,
       messageCount: messages.length,
     })
-    if (shouldUseAlicizationExecutionFirstFastPath({
-      prepared,
-      enforcedExecutionTools,
-    })) {
-      try {
-        await input.appendRuntimeDebugLine('chat-stream.execution-first-inline-started', {
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          enforcedExecutionTools,
-          actionKind: prepared.runtimeSurface.action?.kind ?? null,
-        })
-        const deterministicRecovery = await attemptDeterministicRequiredToolRecovery({
-          origin: 'execution-first',
-          requiredToolNames: enforcedExecutionTools,
-          toolInputOverrides: preparedExecutionToolInputOverrides,
-        })
-        if (deterministicRecovery) {
-          const inlineExecutionPayoffReply = await attemptInlineExecutionPayoff(deterministicRecovery)
-          const normalizedPayoffReply = normalizeRecoveredResolvedReplyAwareness(inlineExecutionPayoffReply)
-          const shouldPreserveVerbatimPayloadAwarenessLine = Boolean(
-            payload.preDialogueSendIdentity?.awarenessLine
-            && !sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionHeadlineLine)
-            && !sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionBriefingLine)
-            && looksLikeThinProjectAwarenessShell(payload.preDialogueSendIdentity?.summaryLine),
-          )
-          const payoffReply = shouldPreserveVerbatimPayloadAwarenessLine
-            ? preserveVerbatimProjectAwarenessLineOnResolvedReply({
-                reply: normalizedPayoffReply,
-                exactAwarenessLine: payload.preDialogueSendIdentity?.awarenessLine ?? null,
-              })
-            : normalizedPayoffReply
-          await emitResolvedVisibleReply(payoffReply)
-          await suppressInlineExecutionDeliveries()
-          await input.appendRuntimeDebugLine('chat-stream.execution-first-inline-finished', {
-            cardId: input.payload.cardId,
-            turnId: input.payload.turnId,
-            fullTextChars: payoffReply.fullText.length,
-            toolName: deterministicRecovery.toolName,
-          })
-          input.runStateController.finishRun(input.key, {
-            status: 'completed',
-            finishReason: 'execution-first-inline',
-            fullText: payoffReply.fullText,
-            visibleReplyExecution: payoffReply.visibleReplyExecution,
-            visibleReplyRealization: payoffReply.realization,
-          })
-          return
-        }
-      }
-      catch (error) {
-        await input.appendRuntimeDebugLine('chat-stream.execution-first-inline-failed', {
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          reason: error instanceof Error ? error.message : String(error),
-        })
-        if (error instanceof AlicizationMindAuthoredReplyRequiredError)
-          throw error
-      }
-    }
-    const activeDialogueDecision = deriveAlicizationActiveDialogueFastPathDecision({
-      conversationMessages,
-      prepared,
-      runtimeDigest: resolveRuntimeDigestFromPrepared(),
-    })
-    const activeDialogueCompactAuthority = decideAlicizationActiveDialogueCompactAuthority(activeDialogueDecision)
-    const activeDialogueUsesCompactFastPath = activeDialogueDecision
-      && activeDialogueCompactAuthority.allowed
-    if (activeDialogueDecision && !activeDialogueUsesCompactFastPath) {
-      if (shouldUpgradeDeferredDecisionToProjectState(activeDialogueDecision) && prepared) {
-        const preparedGovernanceForProjectState = prepared.governance as AlicizationProjectStateGovernanceShape | null | undefined
-        const upgradedGovernance = enrichProjectStateAnswerGovernanceIfNeeded({
-          ...preparedGovernanceForProjectState,
-          answerSubject: 'project-state',
-        })
-        const upgradedMindTurnContract = prepared.mindTurnContract
-          ? enrichProjectStateAnswerGovernanceIfNeeded({
-              answerSubject: 'project-state',
-              mustDo: prepared.mindTurnContract.mustDo ?? [],
-              mustNotDo: prepared.mindTurnContract.mustNotDo ?? [],
-            })
-          : null
-
-        prepared = {
-          ...prepared,
-          governance: upgradedGovernance
-            ? {
-                ...preparedGovernanceForProjectState,
-                ...upgradedGovernance,
-                answerSubject: 'project-state',
-              } as unknown as AlicizationMindTurnGovernance
-            : prepared.governance,
-          mindTurnContract: prepared.mindTurnContract
-            ? {
-                ...prepared.mindTurnContract,
-                mustDo: upgradedMindTurnContract?.mustDo ?? prepared.mindTurnContract.mustDo,
-                mustNotDo: upgradedMindTurnContract?.mustNotDo ?? prepared.mindTurnContract.mustNotDo,
-              }
-            : prepared.mindTurnContract,
-        }
-      }
-      await input.appendRuntimeDebugLine('chat-stream.active-dialogue-deferred-to-main-runtime', {
-        cardId: input.payload.cardId,
-        turnId: input.payload.turnId,
-        lane: activeDialogueDecision.lane,
-        strategy: activeDialogueDecision.strategy,
-        reasonCodes: activeDialogueDecision.reasonCodes,
-        deferredReason: activeDialogueCompactAuthority.reason,
-      })
-    }
-    if (activeDialogueDecision && activeDialogueUsesCompactFastPath) {
-      const resolveActiveDialogueMindReply = async (decision: AlicizationActiveDialogueFastPathDecision) => {
-        const compactMessages = buildAlicizationActiveDialogueFastPathMessages({
-          conversationMessages,
-          decision,
-          prepared: prepared!,
-        })
-        const oneShotTimeoutMs = Math.max(
-          decision.timeoutMs,
-          decision.strategy === 'compact-one-shot' ? 6_500 : 9_000,
-        )
-        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-mind-started', {
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          lane: decision.lane,
-          strategy: decision.strategy,
-          timeoutMs: oneShotTimeoutMs,
-          messageCount: compactMessages.length,
-        })
-        const compactReply = await recoverAlicizationMainChatFromTimeout({
-          chatConfig: chatConfig!,
-          messages: compactMessages,
-          headers: input.headers,
-          emotionalKernel: resolvePreparedMainChatOneShotEmotionalKernel(prepared),
-          timeoutMs: oneShotTimeoutMs,
-          maxSteps: 2,
-        })
-        return normalizeAlicizationActiveDialogueFastPathReplyOrEscalate({
-          decision,
-          rawText: compactReply,
-        })
-      }
-      await input.appendRuntimeDebugLine('chat-stream.active-dialogue-lane-selected', {
-        cardId: input.payload.cardId,
-        turnId: input.payload.turnId,
-        lane: activeDialogueDecision.lane,
-        strategy: activeDialogueDecision.strategy,
-        timeoutMs: activeDialogueDecision.timeoutMs,
-        resolvedTimeZone: activeDialogueDecision.resolvedTimeZone,
-        resolvedTimeZoneSource: activeDialogueDecision.resolvedTimeZoneSource,
-        reasonCodes: activeDialogueDecision.reasonCodes,
-      })
-
-      try {
-        const normalizedReply = await resolveActiveDialogueMindReply(activeDialogueDecision)
-        const enrichedReply = enrichStructuredFullTextWithLifeAuthority({
-          fullText: normalizedReply,
-        })
-        const preparedExecution = prepared!
-        const resolvedReply = buildAlicizationResolvedVisibleReply({
-          fullText: enrichedReply,
-          visibleReplyExecution: resolveAlicizationPreparedVisibleReplyExecution({
-            prepared: preparedExecution,
-            mode: 'provider-one-shot',
-            providerMindExecuted: true,
-            reason: 'active-dialogue-fast-path',
-          }),
-          emotionalClosureCue: preparedExecution.mindTurnContract?.emotionalClosureCue ?? null,
-          projectStateEmotionalClosureSummary: preparedExecution.mindTurnContract?.emotionalClosureCue ?? null,
-          ...resolvePreparedVisibleReplyProjectStateAuditSeed(),
-        })
-        const rewritten = await rewriteStructuredVisibleReplyIfNeeded({
-          fullText: resolvedReply.fullText,
-          visibleReplyExecution: resolvedReply.visibleReplyExecution,
-          projectStateSameHerSummary: resolvedReply.realization.projectStateAudit?.sameHerSummary ?? null,
-          projectStateSameHerHoldDetail: resolvedReply.realization.projectStateAudit?.sameHerHoldDetail ?? null,
-          projectStateContinuityArcStage: resolvedReply.realization.projectStateAudit?.continuityArcStage ?? null,
-          projectStateContinuityCue: resolvedReply.realization.projectStateAudit?.continuityCue ?? null,
-          projectStateLandedProgressSummary: resolvedReply.realization.projectStateAudit?.landedProgressSummary ?? null,
-          projectStateOpenClosureSummary: resolvedReply.realization.projectStateAudit?.openClosureSummary ?? null,
-          projectStateNextClosureTargetSummary: resolvedReply.realization.projectStateAudit?.nextClosureTargetSummary ?? null,
-          projectStateProactiveSameHerGapSummary: resolvedReply.realization.projectStateAudit?.proactiveSameHerGapSummary ?? null,
-          emotionalClosureSummary: resolvedReply.realization.projectStateAudit?.emotionalClosureSummary ?? null,
-          projectStatePreDialogueAwarenessSummary: resolvedReply.realization.projectStateAudit?.preDialogueAwarenessSummary ?? null,
-        })
-        const finalReply = rewritten
-          ? buildHostVisibleResolvedReply(buildAlicizationResolvedVisibleReply({
-              ...rewritten,
-              projectStateSameHerSummary: rewritten.projectStateSameHerSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateSameHerSummary,
-              projectStateSameHerHoldDetail: rewritten.projectStateSameHerHoldDetail ?? resolvePreparedVisibleReplyProjectStateAuditSeed().sameHerHoldDetail,
-              projectStateContinuityArcStage: rewritten.projectStateContinuityArcStage ?? resolvePreparedVisibleReplyProjectStateAuditSeed().continuityArcStage,
-              projectStateContinuityCue: rewritten.projectStateContinuityCue ?? resolvePreparedVisibleReplyProjectStateAuditSeed().continuityCue,
-              projectStateProactiveSameHerGapSummary: rewritten.projectStateProactiveSameHerGapSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateProactiveSameHerGapSummary,
-              projectStateCurrentPhaseSummary: rewritten.projectStateCurrentPhaseSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateCurrentPhaseSummary,
-              projectStateLandedProgressSummary: rewritten.projectStateLandedProgressSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateLandedProgressSummary,
-              projectStateOpenClosureSummary: rewritten.projectStateOpenClosureSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateOpenClosureSummary,
-              projectStateNextClosureTargetSummary: rewritten.projectStateNextClosureTargetSummary ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStateNextClosureTargetSummary,
-              emotionalClosureCue: preferRicherProjectStateAuditText({
-                current: rewritten.emotionalClosureSummary,
-                candidate: resolvePreparedVisibleReplyProjectStateAuditSeed().emotionalClosureSummary,
-              }),
-              projectStateEmotionalClosureSummary: preferRicherProjectStateAuditText({
-                current: rewritten.emotionalClosureSummary,
-                candidate: resolvePreparedVisibleReplyProjectStateAuditSeed().emotionalClosureSummary,
-              }),
-              projectStatePreDialogueAwarenessSummary: preferStrongerSameHerHeadlineOverAwareness({
-                awarenessLine:
-                  rewritten.projectStatePreDialogueAwarenessSummary
-                  ?? resolveStructuredPreDialogueAwarenessSummary(parseJsonObjectFromText(rewritten.fullText))
-                  ?? resolvePreparedVisibleReplyProjectStateAuditSeed().projectStatePreDialogueAwarenessSummary
-                  ?? null,
-                companionHeadlineLine:
-                  sanitizeText(
-                    (
-                      parseJsonObjectFromText(rewritten.fullText)?.projectState
-                      && typeof parseJsonObjectFromText(rewritten.fullText)?.projectState === 'object'
-                        ? ((parseJsonObjectFromText(rewritten.fullText)?.projectState as Record<string, unknown>).companionHeadlineLine
-                          ?? (parseJsonObjectFromText(rewritten.fullText)?.projectState as Record<string, unknown>).preDialogueAwarenessLine)
-                        : null
-                    ) ?? '',
-                    '',
-                  )
-                  || sanitizeText(
-                    (
-                      parseJsonObjectFromText(rewritten.fullText)?.preDialogueAwareness
-                      && typeof parseJsonObjectFromText(rewritten.fullText)?.preDialogueAwareness === 'object'
-                        ? (parseJsonObjectFromText(rewritten.fullText)?.preDialogueAwareness as Record<string, unknown>).awarenessLine
-                        : null
-                    ) ?? '',
-                    '',
-                  )
-                  || null,
-              }),
-              prepared,
-            }))
-          : buildHostVisibleResolvedReply(resolvedReply)
-        const parsedFinalStructured = parseJsonObjectFromText(finalReply.fullText)
-        currentStructuredGovernance = parsedFinalStructured?.governance && typeof parsedFinalStructured.governance === 'object'
-          ? parsedFinalStructured.governance as AlicizationMindTurnGovernance
-          : currentStructuredGovernance
-        currentStructuredPerformance = resolveStructuredPerformancePayload(parsedFinalStructured?.performance)
-          ?? currentStructuredPerformance
-        currentStructuredThought = typeof parsedFinalStructured?.thought === 'string'
-          ? parsedFinalStructured.thought
-          : currentStructuredThought
-        const parsedFinalDigitalLifeSpine = normalizeAlicizationDigitalLifeSpineDigest(parsedFinalStructured?.digitalLifeSpine ?? null)
-        if (parsedFinalDigitalLifeSpine)
-          currentStructuredDigitalLifeSpine = reconcileStructuredDigitalLifeRuntimeState(parsedFinalDigitalLifeSpine).digitalLifeSpine
-        await emitResolvedVisibleReply(finalReply)
-        await suppressFreshExecutionReplyDeliveryIfNeeded()
-        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-mind-finished', {
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          lane: activeDialogueDecision.lane,
-          strategy: activeDialogueDecision.strategy,
-          fullTextChars: finalReply.fullText.length,
-        })
-        input.runStateController.finishRun(input.key, {
-          status: 'completed',
-          finishReason: 'active-dialogue-fast-path',
-          fullText: finalReply.fullText,
-          visibleReplyExecution: finalReply.visibleReplyExecution,
-          visibleReplyRealization: finalReply.realization,
-        })
-        return
-      }
-      catch (error) {
-        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-fast-failed', {
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          lane: activeDialogueDecision.lane,
-          strategy: activeDialogueDecision.strategy,
-          reason: error instanceof Error ? error.message : String(error),
-        })
-        if (isActiveDialogueFastPathTimeoutError(error))
-          throw createActiveDialogueFastPathTimeoutAbortError(error)
-        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-escalated-to-main-runtime', {
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          lane: activeDialogueDecision.lane,
-          strategy: activeDialogueDecision.strategy,
-          escalationReason: error instanceof Error ? error.message : String(error),
-          mindAuthorityEscalation: error instanceof AlicizationActiveDialogueMindAuthorityEscalationError,
-        })
-      }
-    }
     const streamResult = await runAlicizationMainChatStream({
       payload: input.payload,
       prepared: prepared!,
@@ -6981,10 +6182,11 @@ export async function runAlicizationMainChatBackground(
     const maybePerformance = parsedStructured?.performance
     const maybeThought = parsedStructured?.thought
     const parsedStructuredDigitalLifeSpine = normalizeAlicizationDigitalLifeSpineDigest(parsedStructured?.digitalLifeSpine ?? null)
+    const currentStructuredDigitalLifeSpineBeforeMerge = resolveCurrentDigitalLifeSpine()
     const parsedStructuredProjection = parsedStructuredDigitalLifeSpine?.memory?.personStateProjection as AlicizationPersonStateProjectionShape | null | undefined
-    const currentStructuredProjection = currentStructuredDigitalLifeSpine?.memory?.personStateProjection as AlicizationPersonStateProjectionShape | null | undefined
+    const currentStructuredProjection = currentStructuredDigitalLifeSpineBeforeMerge?.memory?.personStateProjection as AlicizationPersonStateProjectionShape | null | undefined
     const parsedStructuredAuthority = parsedStructuredDigitalLifeSpine?.memory?.personStateProjection?.selfContinuityAuthority as AlicizationSelfContinuityAuthorityShape | null | undefined
-    const currentStructuredAuthority = currentStructuredDigitalLifeSpine?.memory?.personStateProjection?.selfContinuityAuthority as AlicizationSelfContinuityAuthorityShape | null | undefined
+    const currentStructuredAuthority = currentStructuredDigitalLifeSpineBeforeMerge?.memory?.personStateProjection?.selfContinuityAuthority as AlicizationSelfContinuityAuthorityShape | null | undefined
     const preferredParsedProjection = resolvePreferredPersonStateProjection({
       bundleProjection: parsedStructuredProjection ?? null,
       runtimeProjection: currentStructuredProjection ?? null,
@@ -7005,7 +6207,7 @@ export async function runAlicizationMainChatBackground(
             ? {
                 ...preferredParsedProjection,
                 summary: preferContinuityRichProjectionText({
-                  persisted: currentStructuredDigitalLifeSpine?.memory?.personStateProjection?.summary ?? null,
+                  persisted: currentStructuredDigitalLifeSpineBeforeMerge?.memory?.personStateProjection?.summary ?? null,
                   derived: preferredParsedProjection.summary,
                   requireProjectContinuity: true,
                 }) ?? preferredParsedProjection.summary ?? null,
@@ -7636,720 +6838,10 @@ export async function runAlicizationMainChatBackground(
       prepared,
       controller: input.runState.controller,
       mainGateway: input.mainGateway,
-      chatConfig,
-      messages,
-      headers: input.headers,
-      tools,
-      toolChoice,
-      timeoutRecoveryMode,
-      timeoutRecoveryMs,
       payload: input.payload,
       dispatchBound: input.runState.hasLoggedDispatchBinding === true,
       nonProgressEventTypes,
-      isRunActive: input.isRunActive,
-      ensureMainGatewayReachable: input.ensureMainGatewayReachable,
       recordMainGatewayGenerationTimeout: input.recordMainGatewayGenerationTimeout,
-      recoverFromTimeout: async (recoveryInput) => {
-        let preparedExecution = prepared!
-        const normalizedCardId = normalizeCardId(input.payload.cardId ?? input.activeCardId)
-        const normalizedTurnId = sanitizeText(input.payload.turnId)
-        const requiredToolNames = extractAllowedToolNamesFromToolChoice(recoveryInput.toolChoice, recoveryInput.tools)
-        const effectiveRequiredToolNames = requiredToolNames.length > 0
-          ? requiredToolNames
-          : (preparedExecution.runtimeSurface.tooling?.enforcedToolNames ?? [])
-        const toolingRequired = effectiveRequiredToolNames.length > 0
-        if (toolingRequired) {
-          try {
-            const deterministicRecovery = await attemptDeterministicRequiredToolRecovery({
-              origin: 'timeout-recovery',
-              requiredToolNames: effectiveRequiredToolNames,
-              toolInputOverrides: preparedExecutionToolInputOverrides,
-            })
-            if (deterministicRecovery) {
-              const payoffReply = await attemptInlineExecutionPayoff(deterministicRecovery)
-              await suppressInlineExecutionDeliveries()
-              await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-finished', {
-                cardId: normalizedCardId,
-                turnId: normalizedTurnId,
-                chunkCount: 1,
-                rawChunkChars: payoffReply.fullText.length,
-                finalChars: payoffReply.fullText.length,
-                recoveryMode: 'deterministic-required-tool',
-              })
-              rememberResolvedVisibleReply(payoffReply)
-              return {
-                recoveredReply: payoffReply,
-                recoveryMode: 'deterministic-required-tool',
-              }
-            }
-          }
-          catch (error) {
-            await input.appendRuntimeDebugLine('chat-stream.required-tool-recovery-failed', {
-              cardId: normalizedCardId,
-              turnId: normalizedTurnId,
-              origin: 'timeout-recovery',
-              recoveryMode: 'deterministic-required-tool',
-              reason: error instanceof Error ? error.message : String(error),
-            })
-          }
-        }
-
-        const recoveryAttempts: Array<{
-          mode: AlicizationMainChatTimeoutRecoveryMode
-          input: typeof recoveryInput & {
-            emotionalKernel?: AlicizationRuntimeEmotionalKernelShape | null
-            maxSteps?: number
-          }
-          normalizeRecoveredText?: (rawText: string) => string
-        }> = []
-        const recoveryConversationMessages = recoveryInput.messages.length > 0
-          ? [...conversationMessages, ...recoveryInput.messages]
-          : conversationMessages
-        const timeoutProjectStateQuestionDetected = recoveryConversationMessages.some((message) => {
-          if (message?.role !== 'user')
-            return false
-          const text = sanitizeText(readTransportContentAsText(message.content), '')
-          return /项目.*(什么|程度|进度|闭环|还差)|做到什么程度|还差什么/u.test(text)
-        })
-        const timeoutPreparedProjectStateDetected = preparedExecutionHasExplicitProjectStateTimeoutIntent(preparedExecution)
-        const timeoutActiveDialogueDecision = !toolingRequired
-          ? deriveAlicizationActiveDialogueFastPathDecision({
-              conversationMessages: recoveryConversationMessages,
-              prepared: preparedExecution,
-              runtimeDigest: resolveRuntimeDigestFromPrepared(),
-            })
-          : null
-        const shouldUpgradeTimeoutRecoveryToProjectState = shouldUseProjectStateTimeoutRecovery({
-          toolingRequired,
-          timeoutActiveDialogueDecision,
-          timeoutProjectStateQuestionDetected,
-          preparedExecution,
-        })
-        if (shouldUpgradeTimeoutRecoveryToProjectState) {
-          const preparedExecutionGovernance = preparedExecution.governance as AlicizationProjectStateGovernanceShape | null | undefined
-          const upgradedGovernance = enrichProjectStateAnswerGovernanceIfNeeded({
-            ...preparedExecutionGovernance,
-            answerSubject: 'project-state',
-          })
-          const upgradedMindTurnContract = preparedExecution.mindTurnContract
-            ? enrichProjectStateAnswerGovernanceIfNeeded({
-                answerSubject: 'project-state',
-                mustDo: preparedExecution.mindTurnContract.mustDo ?? [],
-                mustNotDo: preparedExecution.mindTurnContract.mustNotDo ?? [],
-              })
-            : null
-
-          preparedExecution = {
-            ...preparedExecution,
-            governance: upgradedGovernance
-              ? {
-                  ...preparedExecutionGovernance,
-                  ...upgradedGovernance,
-                  answerSubject: 'project-state',
-                } as unknown as AlicizationMindTurnGovernance
-              : preparedExecution.governance,
-            mindTurnContract: preparedExecution.mindTurnContract
-              ? {
-                  ...preparedExecution.mindTurnContract,
-                  mustDo: upgradedMindTurnContract?.mustDo ?? preparedExecution.mindTurnContract.mustDo,
-                  mustNotDo: upgradedMindTurnContract?.mustNotDo ?? preparedExecution.mindTurnContract.mustNotDo,
-                }
-              : preparedExecution.mindTurnContract,
-          }
-          prepared = preparedExecution
-        }
-        const timeoutRecoveryEmotionalKernel = resolvePreparedMainChatOneShotEmotionalKernel(preparedExecution)
-        const timeoutActiveDialogueCompactAuthority = decideAlicizationActiveDialogueCompactAuthority(timeoutActiveDialogueDecision)
-        const timeoutActiveDialogueUsesCompactRecovery
-          = !toolingRequired
-            && !!timeoutActiveDialogueDecision
-            && timeoutActiveDialogueCompactAuthority.allowed
-        if (!toolingRequired && timeoutActiveDialogueDecision && !timeoutActiveDialogueUsesCompactRecovery) {
-          await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-active-dialogue-deferred', {
-            cardId: normalizedCardId,
-            turnId: normalizedTurnId,
-            lane: timeoutActiveDialogueDecision.lane,
-            strategy: timeoutActiveDialogueDecision.strategy,
-            reasonCodes: timeoutActiveDialogueDecision.reasonCodes,
-            deferredReason: timeoutActiveDialogueCompactAuthority.reason,
-          })
-        }
-        else if (shouldUpgradeTimeoutRecoveryToProjectState && !timeoutActiveDialogueDecision) {
-          await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-project-state-upgraded-without-compact-decision', {
-            cardId: normalizedCardId,
-            turnId: normalizedTurnId,
-            detectedFromMessages: timeoutProjectStateQuestionDetected,
-            detectedFromPrepared: timeoutPreparedProjectStateDetected,
-          })
-        }
-        if (timeoutActiveDialogueUsesCompactRecovery && timeoutActiveDialogueDecision) {
-          const oneShotTimeoutMs = Math.max(
-            timeoutActiveDialogueDecision.timeoutMs,
-            6_500,
-          )
-          recoveryAttempts.push({
-            mode: 'active-dialogue-compact',
-            input: {
-              ...recoveryInput,
-              emotionalKernel: timeoutRecoveryEmotionalKernel,
-              messages: buildAlicizationActiveDialogueFastPathMessages({
-                conversationMessages: recoveryConversationMessages,
-                decision: timeoutActiveDialogueDecision,
-                prepared: preparedExecution,
-              }),
-              tools: undefined,
-              toolChoice: undefined,
-              timeoutMs: Math.max(
-                oneShotTimeoutMs,
-                Math.min(recoveryInput.timeoutMs, 9_000),
-              ),
-              maxSteps: 2,
-            },
-            normalizeRecoveredText: rawText => normalizeAlicizationActiveDialogueFastPathReplyOrEscalate({
-              decision: timeoutActiveDialogueDecision,
-              rawText,
-            }),
-          })
-        }
-        const recoveryMessages = shouldUpgradeTimeoutRecoveryToProjectState
-          ? ensureTimeoutRecoveryCarriesCanonicalProjectState(recoveryInput.messages)
-          : recoveryInput.messages
-        const effectiveRecoveryInput = timeoutRecoveryMode === 'tools-disabled'
-          ? {
-              ...recoveryInput,
-              messages: recoveryMessages,
-              tools: undefined,
-              toolChoice: undefined,
-            }
-          : {
-              ...recoveryInput,
-              messages: recoveryMessages,
-            }
-        recoveryAttempts.push({
-          mode: timeoutRecoveryMode === 'tools-disabled' ? 'tools-disabled' : 'non-streaming',
-          input: {
-            ...effectiveRecoveryInput,
-            emotionalKernel: timeoutRecoveryEmotionalKernel,
-            timeoutMs: toolingRequired
-              ? Math.max(
-                  alicizationMainGatewayOneShotRecoveryBudget.toolingRequiredPrimaryMs,
-                  recoveryInput.timeoutMs,
-                )
-              : Math.max(
-                  alicizationMainGatewayOneShotRecoveryBudget.primaryMs,
-                  recoveryInput.timeoutMs,
-                ),
-            maxSteps: toolingRequired ? 4 : 2,
-          },
-        })
-        if (!toolingRequired) {
-          const minimalMessages = buildAlicizationMinimalContextRecoveryMessages(recoveryInput.messages)
-          if (minimalMessages.length < recoveryInput.messages.length || recoveryInput.messages.length > 6) {
-            const recoveryMinimalMessages = shouldUpgradeTimeoutRecoveryToProjectState
-              ? ensureTimeoutRecoveryCarriesCanonicalProjectState(minimalMessages)
-              : minimalMessages
-            recoveryAttempts.push({
-              mode: 'minimal-context-non-streaming',
-              input: {
-                ...recoveryInput,
-                emotionalKernel: timeoutRecoveryEmotionalKernel,
-                messages: recoveryMinimalMessages,
-                tools: undefined,
-                toolChoice: undefined,
-                timeoutMs: Math.max(
-                  alicizationMainGatewayOneShotRecoveryBudget.minimalContextMs,
-                  recoveryInput.timeoutMs,
-                ),
-                maxSteps: 2,
-              },
-            })
-          }
-        }
-        await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-started', {
-          cardId: normalizedCardId,
-          turnId: normalizedTurnId,
-          timeoutMs: recoveryInput.timeoutMs,
-          recoveryMode: timeoutRecoveryMode,
-          toolCount: Array.isArray(recoveryInput.tools) ? recoveryInput.tools.length : 0,
-          messageCount: recoveryInput.messages.length,
-          recoveryAttemptModes: recoveryAttempts.map(attempt => attempt.mode),
-        })
-        let lastRecoveryError: unknown = null
-        for (let index = 0; index < recoveryAttempts.length; index += 1) {
-          const attempt = recoveryAttempts[index]
-          await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-attempt', {
-            cardId: normalizedCardId,
-            turnId: normalizedTurnId,
-            attempt: index + 1,
-            totalAttempts: recoveryAttempts.length,
-            recoveryMode: attempt.mode,
-            timeoutMs: attempt.input.timeoutMs,
-            toolCount: Array.isArray(attempt.input.tools) ? attempt.input.tools.length : 0,
-            messageCount: attempt.input.messages.length,
-            maxSteps: attempt.input.maxSteps ?? 1,
-          })
-          try {
-            const recoveredText = await recoverAlicizationMainChatFromTimeout(attempt.input)
-            const normalizedRecoveredText = attempt.normalizeRecoveredText
-              ? attempt.normalizeRecoveredText(recoveredText)
-              : recoveredText
-            if (!normalizedRecoveredText) {
-              lastRecoveryError = new Error('empty-recovery-text')
-              await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-attempt-empty', {
-                cardId: normalizedCardId,
-                turnId: normalizedTurnId,
-                attempt: index + 1,
-                totalAttempts: recoveryAttempts.length,
-                recoveryMode: attempt.mode,
-              })
-              continue
-            }
-
-            await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-finished', {
-              cardId: normalizedCardId,
-              turnId: normalizedTurnId,
-              chunkCount: 1,
-              rawChunkChars: recoveredText.length,
-              finalChars: normalizedRecoveredText.length,
-              recoveryMode: attempt.mode,
-            })
-            const timeoutRecoveredVisibleReplyExecution = resolveAlicizationPreparedVisibleReplyExecution({
-              prepared: preparedExecution,
-              mode: attempt.mode === 'local-fallback' ? 'local-fallback' : 'provider-one-shot',
-              actualVisibleReplyAuthority: attempt.mode === 'local-fallback'
-                ? 'local-deterministic-fallback'
-                : undefined,
-              providerMindExecuted: attempt.mode !== 'local-fallback',
-              reason: attempt.mode === 'local-fallback'
-                ? 'timeout-recovered-local-fallback'
-                : `timeout-recovered-${attempt.mode}`,
-            })
-            const structuredRecoveredText = shouldForceStructuredRecoveredText(attempt.mode)
-              ? (
-                  buildStructuredStreamFinishFallback({
-                    fullText: normalizedRecoveredText,
-                    visibleReplyExecution: timeoutRecoveredVisibleReplyExecution,
-                  })
-                  ?? ensureStructuredRecoveredText({
-                    fullText: normalizedRecoveredText,
-                    visibleReplyExecution: timeoutRecoveredVisibleReplyExecution,
-                  })
-                )
-              : ensureStructuredRecoveredText({
-                  fullText: normalizedRecoveredText,
-                  visibleReplyExecution: timeoutRecoveredVisibleReplyExecution,
-                })
-            await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-structured-shape', {
-              cardId: normalizedCardId,
-              turnId: normalizedTurnId,
-              recoveryMode: attempt.mode,
-              structuredStartsWithBrace: structuredRecoveredText.startsWith('{'),
-              normalizedStartsWithBrace: normalizedRecoveredText.startsWith('{'),
-            })
-            const recoveredProjectStateAuditSeed = resolvePreparedVisibleReplyProjectStateAuditSeed()
-            const recoveredReply = resolveAlicizationTimeoutRecoveredVisibleReply({
-              prepared: preparedExecution,
-              recoveredText: structuredRecoveredText,
-              recoveryMode: attempt.mode,
-            })
-            const recoveredReplyProjectStateAudit = recoveredReply.realization.projectStateAudit as AlicizationBackgroundProjectStateAudit | null | undefined
-            const recoveredLandedProgressSummary = preferRicherProjectStateAuditText({
-              current: recoveredReplyProjectStateAudit?.landedProgressSummary,
-              candidate: recoveredProjectStateAuditSeed.projectStateLandedProgressSummary,
-            })
-            const recoveredOpenClosureSummary = preferRicherProjectStateAuditText({
-              current: recoveredReplyProjectStateAudit?.openClosureSummary,
-              candidate: recoveredProjectStateAuditSeed.projectStateOpenClosureSummary,
-            })
-            const groundedPayloadProjectAwarenessSummaryCandidate = (rawPayloadStatus
-              || sanitizeText(
-                payload.preDialogueSendIdentity?.status,
-                '',
-              )) === 'grounded'
-              ? rawPayloadPreferredPreDialogueAwarenessSummary
-              ?? resolvePayloadPreferredPreDialogueAwarenessCarry(payload)
-              : null
-            const groundedPayloadProjectAwarenessSummary
-              = groundedPayloadProjectAwarenessSummaryCandidate
-                && !looksLikeThinProjectAwarenessShell(groundedPayloadProjectAwarenessSummaryCandidate)
-                && !looksLikeStructuredProjectAwarenessSummaryShell(groundedPayloadProjectAwarenessSummaryCandidate)
-                ? groundedPayloadProjectAwarenessSummaryCandidate
-                : null
-            const recoveredPreparedRuntimeExplicitCompanionHeadlineLine
-              = resolveRawPreparedRuntimeExplicitCompanionHeadlineLine(preparedExecution)
-            const recoveredPreparedEmbodimentClosureAuthority = resolvePreparedRuntimeEmbodimentClosureAuthority(preparedExecution)
-            const recoveredAuthorityOnlyProjectAwarenessSummary
-              = Boolean(timeoutActiveDialogueDecision)
-                && !groundedPayloadProjectAwarenessSummary
-                && !sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionHeadlineLine)
-                && !recoveredPreparedRuntimeExplicitCompanionHeadlineLine
-                ? synthesizeAuthorityOnlyEmbodimentCompanionHeadline({
-                    authoritySummary: sanitizeText(recoveredPreparedEmbodimentClosureAuthority.authoritySummary ?? '', '') || null,
-                    currentBodyState: sanitizeText(recoveredPreparedEmbodimentClosureAuthority.currentBodyState ?? '', '') || null,
-                  })
-                : null
-            const enrichedRecoveredReply = buildAlicizationResolvedVisibleReply({
-              fullText: enrichStructuredFullTextWithLifeAuthority({
-                fullText: recoveredReply.fullText,
-              }),
-              visibleReplyExecution: recoveredReply.visibleReplyExecution,
-              emotionalClosureCue: recoveredReply.realization.emotionalClosureAudit?.activeCue ?? null,
-              projectStateEmotionalClosureSummary: recoveredReplyProjectStateAudit?.emotionalClosureSummary
-                ?? recoveredProjectStateAuditSeed.emotionalClosureSummary,
-              selfAuthoritySummary: recoveredReply.realization.selfAuthorityAudit?.authoritySummary ?? null,
-              selfAuthorityClosenessPosture: recoveredReply.realization.selfAuthorityAudit?.closenessPosture ?? null,
-              projectStateSameHerSummary: recoveredReplyProjectStateAudit?.sameHerSummary
-                ?? recoveredProjectStateAuditSeed.projectStateSameHerSummary,
-              projectStateSameHerDriftRiskSummary: recoveredReplyProjectStateAudit?.sameHerDriftRiskSummary
-                ?? recoveredProjectStateAuditSeed.sameHerDriftRiskSummary,
-              projectStateProactiveSameHerGapSummary: recoveredReplyProjectStateAudit?.proactiveSameHerGapSummary
-                ?? recoveredProjectStateAuditSeed.projectStateProactiveSameHerGapSummary,
-              projectStateLandedProgressSummary: recoveredLandedProgressSummary,
-              projectStateOpenClosureSummary: recoveredOpenClosureSummary,
-              projectStateNextClosureTargetSummary: preferRicherProjectStateAuditText({
-                current: recoveredReplyProjectStateAudit?.nextClosureTargetSummary,
-                candidate: recoveredProjectStateAuditSeed.projectStateNextClosureTargetSummary,
-              }),
-              projectStatePreDialogueAwarenessSummary: attempt.mode === 'active-dialogue-compact'
-                ? preferExplicitProjectAwarenessOverCanonicalReanchor({
-                    current: preferCompactRecoveryPayloadHeadlineOverFallback({
-                      awarenessLine: preferRicherProjectAwarenessOverNarrowSameHerCarry({
-                        awarenessLine:
-                          recoveredReplyProjectStateAudit?.preDialogueAwarenessSummary
-                          ?? resolveStructuredPreDialogueAwarenessSummary(
-                            parseJsonObjectFromText(enrichStructuredFullTextWithLifeAuthority({
-                              fullText: recoveredReply.fullText,
-                            })),
-                          )
-                          ?? null,
-                        candidateAwarenessLine:
-                          recoveredAuthorityOnlyProjectAwarenessSummary
-                          ?? recoveredProjectStateAuditSeed.projectStatePreDialogueAwarenessSummary
-                          ?? null,
-                      }),
-                      payloadAwarenessLine: payload.preDialogueSendIdentity?.awarenessLine ?? null,
-                      payloadCompanionBriefingLine: payload.preDialogueSendIdentity?.companionBriefingLine ?? null,
-                      payloadCompanionHeadlineLine: payload.preDialogueSendIdentity?.companionHeadlineLine ?? null,
-                    }),
-                    candidate: groundedPayloadProjectAwarenessSummary,
-                  })
-                : preferStrongerSameHerHeadlineOverAwareness({
-                    awarenessLine:
-                      recoveredReplyProjectStateAudit?.preDialogueAwarenessSummary
-                      ?? recoveredProjectStateAuditSeed.projectStatePreDialogueAwarenessSummary
-                      ?? resolveStructuredPreDialogueAwarenessSummary(
-                        parseJsonObjectFromText(enrichStructuredFullTextWithLifeAuthority({
-                          fullText: recoveredReply.fullText,
-                        })),
-                      )
-                      ?? null,
-                    companionHeadlineLine:
-                      sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionHeadlineLine)
-                      || recoveredAuthorityOnlyProjectAwarenessSummary
-                      || null,
-                  }),
-              prepared: preparedExecution,
-            })
-            const enrichedRecoveredReplyProjectStateAudit = enrichedRecoveredReply.realization.projectStateAudit as AlicizationBackgroundProjectStateAudit | null | undefined
-            const enrichedRecoveredReplyWithAudit = buildAlicizationResolvedVisibleReply({
-              fullText: ensureStructuredVisibleReplyProjectStateAudit({
-                fullText: enrichedRecoveredReply.fullText,
-                projectStateAudit: enrichedRecoveredReply.realization.projectStateAudit ?? null,
-              }),
-              visibleReplyExecution: enrichedRecoveredReply.visibleReplyExecution,
-              emotionalClosureCue: enrichedRecoveredReply.realization.emotionalClosureAudit?.activeCue ?? null,
-              projectStateEmotionalClosureSummary: enrichedRecoveredReplyProjectStateAudit?.emotionalClosureSummary
-                ?? recoveredProjectStateAuditSeed.emotionalClosureSummary,
-              selfAuthoritySummary: enrichedRecoveredReply.realization.selfAuthorityAudit?.authoritySummary ?? null,
-              selfAuthorityClosenessPosture: enrichedRecoveredReply.realization.selfAuthorityAudit?.closenessPosture ?? null,
-              projectStateSameHerSummary: enrichedRecoveredReplyProjectStateAudit?.sameHerSummary
-                ?? recoveredProjectStateAuditSeed.projectStateSameHerSummary,
-              projectStateSameHerDriftRiskSummary: enrichedRecoveredReplyProjectStateAudit?.sameHerDriftRiskSummary
-                ?? recoveredProjectStateAuditSeed.sameHerDriftRiskSummary,
-              projectStateProactiveSameHerGapSummary: enrichedRecoveredReplyProjectStateAudit?.proactiveSameHerGapSummary
-                ?? recoveredProjectStateAuditSeed.projectStateProactiveSameHerGapSummary,
-              projectStateCurrentPhaseSummary: enrichedRecoveredReplyProjectStateAudit?.currentPhaseSummary
-                ?? recoveredProjectStateAuditSeed.projectStateCurrentPhaseSummary,
-              projectStateLandedProgressSummary: recoveredLandedProgressSummary,
-              projectStateOpenClosureSummary: recoveredOpenClosureSummary,
-              projectStateNextClosureTargetSummary: preferRicherProjectStateAuditText({
-                current: enrichedRecoveredReplyProjectStateAudit?.nextClosureTargetSummary,
-                candidate: recoveredProjectStateAuditSeed.projectStateNextClosureTargetSummary,
-              }),
-              projectStatePreDialogueAwarenessSummary: attempt.mode === 'active-dialogue-compact'
-                ? preferExplicitProjectAwarenessOverCanonicalReanchor({
-                    current: preferCompactRecoveryPayloadHeadlineOverFallback({
-                      awarenessLine: preferRicherProjectAwarenessOverNarrowSameHerCarry({
-                        awarenessLine:
-                          enrichedRecoveredReplyProjectStateAudit?.preDialogueAwarenessSummary
-                          ?? resolveStructuredPreDialogueAwarenessSummary(
-                            parseJsonObjectFromText(enrichedRecoveredReply.fullText),
-                          )
-                          ?? null,
-                        candidateAwarenessLine:
-                          recoveredAuthorityOnlyProjectAwarenessSummary
-                          ?? recoveredProjectStateAuditSeed.projectStatePreDialogueAwarenessSummary
-                          ?? null,
-                      }),
-                      payloadAwarenessLine: payload.preDialogueSendIdentity?.awarenessLine ?? null,
-                      payloadCompanionBriefingLine: payload.preDialogueSendIdentity?.companionBriefingLine ?? null,
-                      payloadCompanionHeadlineLine: payload.preDialogueSendIdentity?.companionHeadlineLine ?? null,
-                    }),
-                    candidate: groundedPayloadProjectAwarenessSummary,
-                  })
-                : preferStrongerSameHerHeadlineOverAwareness({
-                    awarenessLine:
-                      enrichedRecoveredReplyProjectStateAudit?.preDialogueAwarenessSummary
-                      ?? recoveredProjectStateAuditSeed.projectStatePreDialogueAwarenessSummary
-                      ?? resolveStructuredPreDialogueAwarenessSummary(
-                        parseJsonObjectFromText(enrichedRecoveredReply.fullText),
-                      )
-                      ?? null,
-                    companionHeadlineLine:
-                      sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionHeadlineLine)
-                      || recoveredAuthorityOnlyProjectAwarenessSummary
-                      || null,
-                  }),
-              prepared: preparedExecution,
-            })
-            let rewrittenRecovered = null
-            if (shouldAttemptRecoveredReplySecondPass({
-              fullText: enrichedRecoveredReplyWithAudit.fullText,
-              visibleReplyExecution: enrichedRecoveredReplyWithAudit.visibleReplyExecution,
-            })) {
-              try {
-                rewrittenRecovered = await rewriteStructuredVisibleReplyIfNeeded({
-                  fullText: enrichedRecoveredReplyWithAudit.fullText,
-                  visibleReplyExecution: enrichedRecoveredReplyWithAudit.visibleReplyExecution,
-                  projectStateSameHerSummary: enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.sameHerSummary ?? null,
-                  projectStateSameHerHoldDetail: enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.sameHerHoldDetail ?? null,
-                  projectStateContinuityArcStage: enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.continuityArcStage ?? null,
-                  projectStateContinuityCue: enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.continuityCue ?? null,
-                  projectStateLandedProgressSummary: enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.landedProgressSummary ?? null,
-                  projectStateOpenClosureSummary: enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.openClosureSummary ?? null,
-                  projectStateNextClosureTargetSummary: enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.nextClosureTargetSummary ?? null,
-                  projectStateSameHerDriftRiskSummary: enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.sameHerDriftRiskSummary ?? recoveredProjectStateAuditSeed.sameHerDriftRiskSummary ?? null,
-                  projectStateProactiveSameHerGapSummary: enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.proactiveSameHerGapSummary ?? recoveredProjectStateAuditSeed.projectStateProactiveSameHerGapSummary ?? null,
-                  emotionalClosureSummary: enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.emotionalClosureSummary ?? null,
-                  projectStatePreDialogueAwarenessSummary: enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.preDialogueAwarenessSummary ?? null,
-                })
-              }
-              catch (error) {
-                await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-second-pass-skipped', {
-                  cardId: normalizedCardId,
-                  turnId: normalizedTurnId,
-                  recoveryMode: attempt.mode,
-                  reason: error instanceof Error ? error.message : String(error),
-                })
-                rewrittenRecovered = null
-              }
-            }
-            const shouldPreserveActiveDialogueCompactTimeoutRecoveryContext = Boolean(timeoutActiveDialogueDecision)
-            const normalizedRecoveredReply = withActiveDialogueCompactTimeoutRecoveryContext(
-              shouldPreserveActiveDialogueCompactTimeoutRecoveryContext,
-              () => rewrittenRecovered
-                ? normalizeRecoveredResolvedReplyAwareness(buildHostVisibleResolvedReply(buildAlicizationResolvedVisibleReply({
-                    ...rewrittenRecovered,
-                    projectStateSameHerSummary: recoveredProjectStateAuditSeed.projectStateSameHerSummary
-                      ?? rewrittenRecovered.projectStateSameHerSummary,
-                    projectStateSameHerHoldDetail: rewrittenRecovered.projectStateSameHerHoldDetail
-                      ?? enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.sameHerHoldDetail
-                      ?? recoveredProjectStateAuditSeed.sameHerHoldDetail,
-                    projectStateContinuityArcStage: rewrittenRecovered.projectStateContinuityArcStage
-                      ?? enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.continuityArcStage
-                      ?? recoveredProjectStateAuditSeed.continuityArcStage,
-                    projectStateContinuityCue: rewrittenRecovered.projectStateContinuityCue
-                      ?? enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.continuityCue
-                      ?? recoveredProjectStateAuditSeed.continuityCue,
-                    projectStateSameHerDriftRiskSummary: rewrittenRecovered.projectStateSameHerDriftRiskSummary
-                      ?? enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.sameHerDriftRiskSummary
-                      ?? recoveredProjectStateAuditSeed.sameHerDriftRiskSummary,
-                    projectStateProactiveSameHerGapSummary: rewrittenRecovered.projectStateProactiveSameHerGapSummary
-                      ?? enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.proactiveSameHerGapSummary
-                      ?? recoveredProjectStateAuditSeed.projectStateProactiveSameHerGapSummary,
-                    projectStateCurrentPhaseSummary: rewrittenRecovered.projectStateCurrentPhaseSummary
-                      ?? recoveredProjectStateAuditSeed.projectStateCurrentPhaseSummary,
-                    projectStateLandedProgressSummary: preferRicherProjectStateAuditText({
-                      current: rewrittenRecovered.projectStateLandedProgressSummary,
-                      candidate: recoveredLandedProgressSummary ?? recoveredProjectStateAuditSeed.projectStateLandedProgressSummary,
-                    }),
-                    projectStateOpenClosureSummary: preferRicherProjectStateAuditText({
-                      current: rewrittenRecovered.projectStateOpenClosureSummary,
-                      candidate: recoveredOpenClosureSummary ?? recoveredProjectStateAuditSeed.projectStateOpenClosureSummary,
-                    }),
-                    projectStateNextClosureTargetSummary: preferRicherProjectStateAuditText({
-                      current: rewrittenRecovered.projectStateNextClosureTargetSummary,
-                      candidate: enrichedRecoveredReply.realization.projectStateAudit?.nextClosureTargetSummary
-                        ?? recoveredProjectStateAuditSeed.projectStateNextClosureTargetSummary,
-                    }),
-                    projectStatePreDialogueAwarenessSummary: attempt.mode === 'active-dialogue-compact'
-                      ? preferExplicitProjectAwarenessOverCanonicalReanchor({
-                          current: preferCompactRecoveryPayloadHeadlineOverFallback({
-                            awarenessLine: preferRicherProjectAwarenessOverNarrowSameHerCarry({
-                              awarenessLine:
-                                rewrittenRecovered.projectStatePreDialogueAwarenessSummary
-                                ?? enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.preDialogueAwarenessSummary
-                                ?? resolveStructuredPreDialogueAwarenessSummary(parseJsonObjectFromText(rewrittenRecovered.fullText))
-                                ?? null,
-                              candidateAwarenessLine:
-                                recoveredAuthorityOnlyProjectAwarenessSummary
-                                ?? recoveredProjectStateAuditSeed.projectStatePreDialogueAwarenessSummary
-                                ?? null,
-                            }),
-                            payloadAwarenessLine: payload.preDialogueSendIdentity?.awarenessLine ?? null,
-                            payloadCompanionBriefingLine: payload.preDialogueSendIdentity?.companionBriefingLine ?? null,
-                            payloadCompanionHeadlineLine: payload.preDialogueSendIdentity?.companionHeadlineLine ?? null,
-                          }),
-                          candidate: groundedPayloadProjectAwarenessSummary,
-                        })
-                      : recoveredProjectStateAuditSeed.projectStatePreDialogueAwarenessSummary
-                        ? preferStrongerSameHerHeadlineOverAwareness({
-                            awarenessLine:
-                                  recoveredProjectStateAuditSeed.projectStatePreDialogueAwarenessSummary
-                                  ?? rewrittenRecovered.projectStatePreDialogueAwarenessSummary
-                                  ?? enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.preDialogueAwarenessSummary
-                                  ?? resolveStructuredPreDialogueAwarenessSummary(parseJsonObjectFromText(rewrittenRecovered.fullText))
-                                  ?? null,
-                            companionHeadlineLine:
-                                sanitizeProviderFacingRecoveryCarry(payload.preDialogueSendIdentity?.companionHeadlineLine)
-                                || recoveredAuthorityOnlyProjectAwarenessSummary
-                                || null,
-                          })
-                        : rewrittenRecovered.projectStatePreDialogueAwarenessSummary
-                          ?? enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.preDialogueAwarenessSummary
-                          ?? resolveStructuredPreDialogueAwarenessSummary(parseJsonObjectFromText(rewrittenRecovered.fullText)),
-                    prepared: preparedExecution,
-                  })))
-                : normalizeRecoveredResolvedReplyAwareness(buildHostVisibleResolvedReply(enrichedRecoveredReplyWithAudit)),
-            )
-            const exactPayloadProjectAwarenessLine = resolveVerbatimPayloadProjectAwarenessLine()
-            const returnedRecoveredReply = exactPayloadProjectAwarenessLine
-              ? preserveVerbatimProjectAwarenessLineOnResolvedReply({
-                  reply: normalizedRecoveredReply,
-                  exactAwarenessLine: exactPayloadProjectAwarenessLine,
-                })
-              : normalizedRecoveredReply
-            rememberResolvedVisibleReply(returnedRecoveredReply)
-
-            return {
-              recoveredReply: returnedRecoveredReply,
-              recoveryMode: attempt.mode,
-            }
-          }
-          catch (error) {
-            if (isAlicizationRequiredToolMissingError(error)) {
-              try {
-                const deterministicRecovery = await attemptDeterministicRequiredToolRecovery({
-                  error,
-                  origin: 'timeout-recovery',
-                  toolInputOverrides: preparedExecutionToolInputOverrides,
-                })
-                if (deterministicRecovery) {
-                  const payoffReply = await attemptInlineExecutionPayoff(deterministicRecovery)
-                  await suppressInlineExecutionDeliveries()
-                  rememberResolvedVisibleReply(payoffReply)
-                  return {
-                    recoveredReply: payoffReply,
-                    recoveryMode: attempt.mode,
-                  }
-                }
-              }
-              catch (recoveryError) {
-                lastRecoveryError = recoveryError
-                await input.appendRuntimeDebugLine('chat-stream.required-tool-recovery-failed', {
-                  cardId: normalizedCardId,
-                  turnId: normalizedTurnId,
-                  attempt: index + 1,
-                  totalAttempts: recoveryAttempts.length,
-                  recoveryMode: attempt.mode,
-                  origin: 'timeout-recovery',
-                  reason: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
-                })
-                continue
-              }
-            }
-
-            lastRecoveryError = error
-            await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-attempt-failed', {
-              cardId: normalizedCardId,
-              turnId: normalizedTurnId,
-              attempt: index + 1,
-              totalAttempts: recoveryAttempts.length,
-              recoveryMode: attempt.mode,
-              reason: error instanceof Error ? error.message : String(error),
-            })
-          }
-        }
-
-        const localFallbackReply = buildAlicizationMainGatewayTimeoutFallbackReply({
-          messages: conversationMessages.length > 0
-            ? conversationMessages
-            : recoveryInput.messages,
-          turnId: normalizedTurnId,
-          actionKind: preparedExecution.runtimeSurface.action?.kind ?? null,
-          digitalLifeSpine: preparedExecution.runtimeSurface.digitalLifeSpine ?? null,
-          governance: preparedExecution.governance ?? preparedExecution.runtimeSurface.governance ?? null,
-          personaKernel: preparedExecution.personaKernel ?? null,
-          preDialogueSendIdentity: payload.preDialogueSendIdentity ?? null,
-          runtimeDigest: resolveRuntimeDigestFromPrepared(),
-          sessionMirror: preparedExecution.sessionMirror ?? null,
-        })
-        const localFallbackStructured = localFallbackReply
-          ? parseJsonObjectFromText(localFallbackReply)
-          : null
-        const localFallbackProjectStateAudit
-          = localFallbackStructured?.projectStateAudit && typeof localFallbackStructured.projectStateAudit === 'object'
-            ? localFallbackStructured.projectStateAudit as Record<string, unknown>
-            : null
-        let fallbackReachability: AlicizationMainGatewayReachabilitySnapshot | null = null
-        try {
-          fallbackReachability = await input.ensureMainGatewayReachable(input.mainGateway, { bypassCache: true })
-        }
-        catch {}
-        if (localFallbackReply && input.isRunActive() && fallbackReachability?.reachable === false) {
-          await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-local-fallback-blocked', {
-            cardId: normalizedCardId,
-            turnId: normalizedTurnId,
-            recoveredChars: localFallbackReply.length,
-            actionKind: preparedExecution.runtimeSurface.action?.kind ?? null,
-            reason: lastRecoveryError instanceof Error ? lastRecoveryError.message : String(lastRecoveryError ?? 'none'),
-            gatewayReachable: fallbackReachability.reachable,
-            gatewayReason: fallbackReachability.reason ?? null,
-            fallbackProjectStateAudit: localFallbackProjectStateAudit,
-          })
-          await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
-            level: 'warning',
-            category: 'alicization.main-gateway',
-            action: 'stream-timeout-local-fallback-blocked',
-            message: 'Blocked local timeout fallback because normal visible replies require provider-authored mind output.',
-            payload: {
-              cardId: normalizedCardId,
-              turnId: normalizedTurnId,
-              actionKind: preparedExecution.runtimeSurface.action?.kind ?? null,
-              gatewayReachable: fallbackReachability.reachable,
-              gatewayReason: fallbackReachability.reason ?? null,
-              fallbackProjectStateAudit: localFallbackProjectStateAudit,
-            },
-          }))
-        }
-
-        if (localFallbackReply && input.isRunActive() && fallbackReachability?.reachable !== false) {
-          await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-local-fallback-blocked', {
-            cardId: normalizedCardId,
-            turnId: normalizedTurnId,
-            actionKind: preparedExecution.runtimeSurface.action?.kind ?? null,
-            reason: lastRecoveryError instanceof Error ? lastRecoveryError.message : String(lastRecoveryError ?? 'none'),
-            gatewayReachable: fallbackReachability?.reachable ?? null,
-            gatewayReason: fallbackReachability?.reason ?? null,
-            fallbackProjectStateAudit: localFallbackProjectStateAudit,
-          })
-        }
-
-        throw (lastRecoveryError ?? new Error('main-gateway-timeout-recovery'))
-      },
-      emitRecoveredText: async (recoveredReply) => {
-        await emitResolvedVisibleReply(recoveredReply)
-      },
       emitError: (reason, metadata) => {
         input.emitError({
           cardId: input.payload.cardId,
@@ -8361,21 +6853,12 @@ export async function runAlicizationMainChatBackground(
       finish: (finishPayload) => {
         input.runStateController.finishRun(input.key, {
           ...finishPayload,
-          visibleReplyExecution:
-            finishPayload.visibleReplyExecution
-            ?? latestResolvedVisibleReply?.visibleReplyExecution
-            ?? currentVisibleReplyExecution,
-          visibleReplyRealization:
-            finishPayload.visibleReplyRealization
-            ?? latestResolvedVisibleReply?.realization
-            ?? undefined,
           visibleReplyCritic: null,
           visibleReplyClosure: null,
         })
       },
       appendRuntimeDebugLine: input.appendRuntimeDebugLine,
       queueScopedAuditLog: input.queueScopedAuditLog,
-      turnRuntimeContext: prepared?.turnRuntimeContext ?? null,
     })
   }
 }

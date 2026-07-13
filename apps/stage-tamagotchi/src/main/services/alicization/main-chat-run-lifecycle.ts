@@ -1,4 +1,4 @@
-import type { Message } from '@xsai/shared-chat'
+import type { AlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
 
 import type {
   AlicizationChatErrorEvent,
@@ -6,27 +6,13 @@ import type {
   AlicizationChatStartPayload,
 } from '../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
-import type { AlicizationMainGatewayReachabilitySnapshot } from './main-gateway-health'
 import type { MainGatewayResolvedConfig } from './runtime-soul'
-import type { AlicizationTurnRuntimeContext } from './turn-os/runtime'
-import type { AlicizationResolvedVisibleReply } from './visible-reply/facade'
 
 import {
-  alicizationFixedTemplateReplacement,
   isAlicizationProviderSchemaUnsupportedError,
   resolveAlicizationChatFailureSurface,
-  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
-import {
-  isAlicizationThinProjectAwarenessLine,
-  resolveAlicizationProjectStateBrief,
-} from './project-state-brief'
-import { buildPrioritizedProjectStateRewritePreserveLines } from './runtime-governance'
-import { parseJsonObjectFromText } from './runtime-transport-content'
-import { resolveCanonicalStructuredProjectState } from './structured-project-state'
-import { createAlicizationTurnRuntime } from './turn-os/runtime'
-import { buildAlicizationVisibleReplyRealizationArtifact } from './visible-reply/facade'
 import { AlicizationVisibleReplySettlementBlockedError } from './visible-reply/settlement'
 
 function isAbortLikeError(error: unknown) {
@@ -35,17 +21,6 @@ function isAbortLikeError(error: unknown) {
     && 'name' in error
     && (error as { name?: unknown }).name === 'AbortError'
 }
-
-export type AlicizationMainChatTimeoutRecoveryMode
-  = 'original'
-    | 'tools-disabled'
-    | 'non-streaming'
-    | 'active-dialogue-local'
-    | 'active-dialogue-deterministic'
-    | 'active-dialogue-compact'
-    | 'deterministic-required-tool'
-    | 'local-fallback'
-    | 'minimal-context-non-streaming'
 
 export function normalizeAlicizationMainChatAbortReason(reason: unknown) {
   const normalized = String(reason ?? 'abort')
@@ -78,74 +53,23 @@ export function isProviderSchemaUnsupportedError(error: unknown) {
 }
 
 function sanitizeTimeoutDiagnosticSegment(raw: unknown) {
-  const normalized = String(raw ?? '')
+  return String(raw ?? '')
     .trim()
     .replace(/^Alicization runtime aborted:\s*/i, '')
     .replace(/^error:\s*/i, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-
-  return normalized.slice(0, 80)
-}
-
-function isMainGatewayRecoveryLivenessTag(tag: string) {
-  return tag.includes('keepalive')
-    || tag.includes('heartbeat')
-    || tag.includes('metadata')
-    || tag.includes('response-start')
-    || tag.includes('stream-open')
-}
-
-function isNonHumanAuthoredRecoveredReply(reply: AlicizationResolvedVisibleReply) {
-  const execution = reply.visibleReplyExecution
-  return execution.mode === 'local-fallback'
-    || execution.actualVisibleReplyAuthority === 'local-deterministic-fallback'
-    || execution.providerMindExecuted === false
-    || !reply.visibleText.trim()
-}
-
-export function deriveAlicizationTimeoutRecoveryMs(input: {
-  baseTimeoutMs: number
-  timeoutRecoveryMode: AlicizationMainChatTimeoutRecoveryMode
-  nonProgressEventTypes: Set<string>
-}) {
-  const safeBaseTimeoutMs = Number.isFinite(input.baseTimeoutMs)
-    ? Math.max(1_000, Math.floor(input.baseTimeoutMs))
-    : 1_000
-  const hasStreamLivenessSignals = [...input.nonProgressEventTypes]
-    .map(eventType => sanitizeTimeoutDiagnosticSegment(eventType))
-    .some(isMainGatewayRecoveryLivenessTag)
-  if (!hasStreamLivenessSignals)
-    return safeBaseTimeoutMs
-
-  // NOTICE: If stream metadata/keepalive arrived before first content, the route is alive.
-  // Fixed 12s recovery often re-times out for slower providers; extend recovery window to
-  // keep timeout fallback from degenerating into deterministic double-timeout loops.
-  const livenessFloorMs = input.timeoutRecoveryMode === 'minimal-context-non-streaming'
-    ? 30_000
-    : input.timeoutRecoveryMode === 'tools-disabled'
-      ? 25_000
-      : input.timeoutRecoveryMode === 'active-dialogue-compact'
-        ? 12_000
-        : 20_000
-  return Math.max(safeBaseTimeoutMs, livenessFloorMs)
+    .slice(0, 80)
 }
 
 function buildTimeoutAbortFinishReason(input: {
   dispatchBound: boolean
   nonProgressEventTypes: Set<string>
-  gatewayUnreachableReason?: string
-  recoveryFailureReason?: string
-  timeoutRecoveryMode: AlicizationMainChatTimeoutRecoveryMode
 }) {
   const tags: string[] = []
-
   if (input.dispatchBound)
     tags.push('after-dispatch-meta')
-
-  if (input.timeoutRecoveryMode !== 'original')
-    tags.push(`recovery-mode=${input.timeoutRecoveryMode}`)
 
   const normalizedNonProgress = [...input.nonProgressEventTypes]
     .map(eventType => sanitizeTimeoutDiagnosticSegment(eventType))
@@ -153,14 +77,6 @@ function buildTimeoutAbortFinishReason(input: {
     .slice(0, 3)
   if (normalizedNonProgress.length > 0)
     tags.push(`non-progress=${normalizedNonProgress.join(',')}`)
-
-  const normalizedGatewayUnreachable = sanitizeTimeoutDiagnosticSegment(input.gatewayUnreachableReason)
-  if (normalizedGatewayUnreachable)
-    tags.push(`gateway-unreachable=${normalizedGatewayUnreachable}`)
-
-  const normalizedRecoveryFailure = sanitizeTimeoutDiagnosticSegment(input.recoveryFailureReason)
-  if (normalizedRecoveryFailure)
-    tags.push(`recovery-failed=${normalizedRecoveryFailure}`)
 
   return tags.length > 0
     ? `chat-first-event-timeout|${tags.join('|')}`
@@ -172,33 +88,13 @@ interface HandleAlicizationMainChatRunFailureOptions {
   prepared: AlicizationPreparedMainChatExecutionResult | null
   controller: AbortController
   mainGateway: MainGatewayResolvedConfig
-  chatConfig: ReturnType<MainGatewayResolvedConfig['provider']['chat']> | null
-  messages: Message[]
-  headers?: Record<string, string>
-  tools: AlicizationPreparedMainChatExecutionResult['tools']
-  toolChoice: AlicizationPreparedMainChatExecutionResult['toolChoice']
-  timeoutRecoveryMode: AlicizationMainChatTimeoutRecoveryMode
-  timeoutRecoveryMs: number
   payload: Pick<AlicizationChatStartPayload, 'cardId' | 'turnId' | 'providerId' | 'model'>
   dispatchBound: boolean
   nonProgressEventTypes: Set<string>
-  isRunActive: () => boolean
-  ensureMainGatewayReachable: (mainGateway: MainGatewayResolvedConfig, options?: {
-    bypassCache?: boolean
-  }) => Promise<AlicizationMainGatewayReachabilitySnapshot>
-  recordMainGatewayGenerationTimeout: (mainGateway: MainGatewayResolvedConfig, reason: unknown) => void | Promise<void>
-  recoverFromTimeout: (input: {
-    chatConfig: ReturnType<MainGatewayResolvedConfig['provider']['chat']>
-    messages: Message[]
-    headers?: Record<string, string>
-    tools: AlicizationPreparedMainChatExecutionResult['tools']
-    toolChoice: AlicizationPreparedMainChatExecutionResult['toolChoice']
-    timeoutMs: number
-  }) => Promise<{
-    recoveredReply: AlicizationResolvedVisibleReply
-    recoveryMode: AlicizationMainChatTimeoutRecoveryMode
-  }>
-  emitRecoveredText: (reply: AlicizationResolvedVisibleReply) => void | Promise<void>
+  recordMainGatewayGenerationTimeout: (
+    mainGateway: MainGatewayResolvedConfig,
+    reason: unknown,
+  ) => void | Promise<void>
   emitError: (
     reason: string,
     metadata?: Pick<AlicizationChatErrorEvent, 'origin' | 'learningPolicy' | 'failureSurface'>,
@@ -209,8 +105,6 @@ interface HandleAlicizationMainChatRunFailureOptions {
     origin?: AlicizationChatFinishEvent['origin']
     learningPolicy?: AlicizationChatFinishEvent['learningPolicy']
     failureSurface?: AlicizationChatFinishEvent['failureSurface']
-    visibleReplyExecution?: AlicizationResolvedVisibleReply['visibleReplyExecution']
-    visibleReplyRealization?: ReturnType<typeof buildAlicizationVisibleReplyRealizationArtifact>
     fullText?: string
     error?: string
   }) => void | Promise<void>
@@ -222,337 +116,50 @@ interface HandleAlicizationMainChatRunFailureOptions {
     message: string
     payload: Record<string, unknown>
   }) => Promise<void> | void
-  turnRuntimeContext?: AlicizationTurnRuntimeContext | null
 }
 
-function settleRecoveredVisibleReply(input: {
-  turnRuntimeContext?: AlicizationTurnRuntimeContext | null
-  recoveredReply: AlicizationResolvedVisibleReply
+function buildFailureMetadata(failureSurface: AlicizationChatFailureSurface) {
+  return {
+    origin: failureSurface.origin,
+    learningPolicy: {
+      allowLongTermCondensation: failureSurface.allowLongTermCondensation,
+      allowPersonaLearning: failureSurface.allowPersonaLearning,
+      allowTraining: failureSurface.allowTraining,
+    },
+    failureSurface,
+  } as const
+}
+
+async function emitFailureSurface(input: {
+  failureSurface: AlicizationChatFailureSurface
+  finishReason: string
+  status: 'aborted' | 'failed'
+  options: HandleAlicizationMainChatRunFailureOptions
 }) {
-  if (!input.turnRuntimeContext)
-    return
-  const turnRuntime = createAlicizationTurnRuntime()
-  const surface = buildAlicizationVisibleReplyRealizationArtifact({
-    fullText: input.recoveredReply.fullText,
-    visibleReplyExecution: input.recoveredReply.visibleReplyExecution,
-  })
-  turnRuntime.settleSurface({
-    context: input.turnRuntimeContext,
-    surface,
-  })
-  turnRuntime.settleDelivery({
-    context: input.turnRuntimeContext,
-    surface,
+  const metadata = buildFailureMetadata(input.failureSurface)
+  await input.options.emitError(input.failureSurface.reply, metadata)
+  await input.options.finish({
+    status: input.status,
+    finishReason: input.finishReason,
+    error: input.failureSurface.reply,
+    ...metadata,
   })
 }
 
-function sanitizeRecoveredReplyCarryValue(value: unknown): unknown {
-  if (typeof value === 'string') {
-    return sanitizeAlicizationProviderFacingText(
-      value,
-      1200,
-      alicizationFixedTemplateReplacement,
-    )
-  }
-  if (Array.isArray(value))
-    return value.map(item => sanitizeRecoveredReplyCarryValue(item))
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .map(([key, entry]) => [key, sanitizeRecoveredReplyCarryValue(entry)]),
-    )
-  }
-  return value
-}
-
-function sanitizeRecoveredReplyCarryObject<T extends Record<string, unknown> | null>(value: T): T {
-  return value
-    ? sanitizeRecoveredReplyCarryValue(value) as T
-    : value
-}
-
-function sanitizeRecoveredParsedStructuredCarry(parsed: Record<string, unknown>) {
-  return {
-    ...parsed,
-    ...(parsed.projectState && typeof parsed.projectState === 'object' && !Array.isArray(parsed.projectState)
-      ? { projectState: sanitizeRecoveredReplyCarryObject(parsed.projectState as Record<string, unknown>) }
-      : {}),
-    ...(parsed.preDialogueAwareness && typeof parsed.preDialogueAwareness === 'object' && !Array.isArray(parsed.preDialogueAwareness)
-      ? { preDialogueAwareness: sanitizeRecoveredReplyCarryObject(parsed.preDialogueAwareness as Record<string, unknown>) }
-      : {}),
-    ...(parsed.preDialogueClosure && typeof parsed.preDialogueClosure === 'object' && !Array.isArray(parsed.preDialogueClosure)
-      ? { preDialogueClosure: sanitizeRecoveredReplyCarryObject(parsed.preDialogueClosure as Record<string, unknown>) }
-      : {}),
-    ...(parsed.visibleReplyRealization && typeof parsed.visibleReplyRealization === 'object' && !Array.isArray(parsed.visibleReplyRealization)
-      ? { visibleReplyRealization: sanitizeRecoveredReplyCarryObject(parsed.visibleReplyRealization as Record<string, unknown>) }
-      : {}),
-    ...(parsed.projectStateAudit && typeof parsed.projectStateAudit === 'object' && !Array.isArray(parsed.projectStateAudit)
-      ? { projectStateAudit: sanitizeRecoveredReplyCarryObject(parsed.projectStateAudit as Record<string, unknown>) }
-      : {}),
-  }
-}
-
-function hasRecoveredStructuredCarry(parsed: Record<string, unknown>) {
-  return Boolean(
-    parsed.projectState && typeof parsed.projectState === 'object' && !Array.isArray(parsed.projectState)
-    || parsed.preDialogueAwareness && typeof parsed.preDialogueAwareness === 'object' && !Array.isArray(parsed.preDialogueAwareness)
-    || parsed.preDialogueClosure && typeof parsed.preDialogueClosure === 'object' && !Array.isArray(parsed.preDialogueClosure)
-    || parsed.visibleReplyRealization && typeof parsed.visibleReplyRealization === 'object' && !Array.isArray(parsed.visibleReplyRealization)
-    || parsed.projectStateAudit && typeof parsed.projectStateAudit === 'object' && !Array.isArray(parsed.projectStateAudit),
-  )
-}
-
-function ensureStructuredRecoveredReplyFullText(reply: AlicizationResolvedVisibleReply): AlicizationResolvedVisibleReply {
-  const parsed = parseJsonObjectFromText(reply.fullText)
-  if (parsed) {
-    const sanitizedParsed = sanitizeRecoveredParsedStructuredCarry(parsed)
-    const projectStateBrief = resolveAlicizationProjectStateBrief()
-    type ProjectStateAuditArtifact = NonNullable<ReturnType<typeof buildAlicizationVisibleReplyRealizationArtifact>['projectStateAudit']>
-    const rawProjectState = parsed.projectState && typeof parsed.projectState === 'object'
-      ? parsed.projectState as Record<string, unknown>
-      : null
-    const rawVisibleReplyRealization = parsed.visibleReplyRealization && typeof parsed.visibleReplyRealization === 'object'
-      ? parsed.visibleReplyRealization as Record<string, unknown>
-      : null
-    const rawTopLevelProjectStateAudit = parsed.projectStateAudit && typeof parsed.projectStateAudit === 'object'
-      ? parsed.projectStateAudit as Record<string, unknown>
-      : null
-    const rawProjectStateAudit = rawVisibleReplyRealization?.projectStateAudit && typeof rawVisibleReplyRealization.projectStateAudit === 'object'
-      ? rawVisibleReplyRealization.projectStateAudit as Record<string, unknown>
-      : rawTopLevelProjectStateAudit
-    const preflightSummary = typeof rawProjectState?.preflightSummary === 'string'
-      ? rawProjectState.preflightSummary.trim()
-      : ''
-    const awarenessLine = typeof rawProjectState?.preDialogueAwarenessLine === 'string'
-      ? rawProjectState.preDialogueAwarenessLine.trim()
-      : ''
-    const rawPreDialogueAwareness = parsed.preDialogueAwareness && typeof parsed.preDialogueAwareness === 'object'
-      ? parsed.preDialogueAwareness as Record<string, unknown>
-      : null
-    const rawPreDialogueClosure = parsed.preDialogueClosure && typeof parsed.preDialogueClosure === 'object'
-      ? parsed.preDialogueClosure as Record<string, unknown>
-      : null
-    const companionBriefingLine = typeof rawPreDialogueAwareness?.companionBriefingLine === 'string'
-      ? rawPreDialogueAwareness.companionBriefingLine.trim()
-      : typeof rawPreDialogueClosure?.companionBriefingLine === 'string'
-        ? rawPreDialogueClosure.companionBriefingLine.trim()
-        : typeof rawProjectState?.companionBriefingLine === 'string'
-          ? rawProjectState.companionBriefingLine.trim()
-          : ''
-    const awarenessSummary = typeof rawProjectStateAudit?.preDialogueAwarenessSummary === 'string'
-      ? rawProjectStateAudit.preDialogueAwarenessSummary.trim()
-      : ''
-    const thinSummaryOnly
-      = Boolean(preflightSummary)
-        && isAlicizationThinProjectAwarenessLine(preflightSummary)
-        && (
-          !awarenessLine
-          || isAlicizationThinProjectAwarenessLine(awarenessLine)
-        )
-        && (
-          !awarenessSummary
-          || isAlicizationThinProjectAwarenessLine(awarenessSummary)
-        )
-    const shouldPromoteRicherAuditAwareness
-      = Boolean(preflightSummary)
-        && isAlicizationThinProjectAwarenessLine(preflightSummary)
-        && (
-          !awarenessLine
-          || isAlicizationThinProjectAwarenessLine(awarenessLine)
-        )
-        && Boolean(awarenessSummary)
-        && !isAlicizationThinProjectAwarenessLine(awarenessSummary)
-    const shouldPreserveVerbatimCompanionBriefing
-      = Boolean(companionBriefingLine)
-        && companionBriefingLine !== awarenessLine
-        && (
-          awarenessLine.includes('情绪、记忆、主动性和具身')
-          || awarenessSummary.includes('情绪、记忆、主动性和具身')
-        )
-        && (
-          companionBriefingLine.includes('记忆、主动性和具身')
-          || companionBriefingLine.includes('同一个 her 的 continuity carry')
-        )
-    const shouldBridgeTopLevelProjectStateAudit
-      = Boolean(rawTopLevelProjectStateAudit)
-        && (!rawVisibleReplyRealization?.projectStateAudit
-          || typeof rawVisibleReplyRealization.projectStateAudit !== 'object')
-    const buildRecoveredProjectStateAudit = (
-      audit: Record<string, unknown> | null,
-      overrides: Partial<ProjectStateAuditArtifact> = {},
-    ): ProjectStateAuditArtifact => ({
-      ...audit,
-      ...overrides,
-      sameHerSummary:
-        overrides.sameHerSummary
-        ?? (
-          (typeof audit?.sameHerSummary === 'string' && audit.sameHerSummary.trim())
-          || (typeof rawProjectState?.sameHerSelfLine === 'string' && rawProjectState.sameHerSelfLine.trim())
-          || projectStateBrief.sameHerSelfLine
-          || null
-        ),
-      preservedIntoRewrite:
-        overrides.preservedIntoRewrite
-        ?? (audit?.preservedIntoRewrite === true),
-      rewriteClosureApplied:
-        overrides.rewriteClosureApplied
-        ?? (audit?.rewriteClosureApplied === true),
-    })
-    if (!thinSummaryOnly && !shouldPromoteRicherAuditAwareness && !shouldPreserveVerbatimCompanionBriefing) {
-      if (!shouldBridgeTopLevelProjectStateAudit) {
-        return hasRecoveredStructuredCarry(parsed)
-          ? {
-              ...reply,
-              fullText: JSON.stringify(sanitizedParsed),
-            }
-          : reply
-      }
-
-      const bridgedProjectStateAudit = rawProjectStateAudit
-        ? sanitizeRecoveredReplyCarryObject(buildRecoveredProjectStateAudit(rawProjectStateAudit))
-        : null
-      const bridgedRealization: AlicizationResolvedVisibleReply['realization'] = {
-        ...reply.realization,
-        ...(bridgedProjectStateAudit
-          ? { projectStateAudit: bridgedProjectStateAudit }
-          : {}),
-      }
-      return {
-        ...reply,
-        realization: bridgedRealization,
-        fullText: JSON.stringify({
-          ...sanitizedParsed,
-          visibleReplyRealization: {
-            ...sanitizeRecoveredReplyCarryObject(rawVisibleReplyRealization),
-            ...(bridgedProjectStateAudit
-              ? { projectStateAudit: bridgedProjectStateAudit }
-              : {}),
-          },
-        }),
-      }
-    }
-
-    const sameHerSummary
-      = (typeof rawProjectStateAudit?.sameHerSummary === 'string' && rawProjectStateAudit.sameHerSummary.trim())
-        || projectStateBrief.sameHerSelfLine
-    const landedProgressSummary
-      = (typeof rawProjectStateAudit?.landedProgressSummary === 'string' && rawProjectStateAudit.landedProgressSummary.trim())
-        || projectStateBrief.continuityProgressSummary
-        || projectStateBrief.memoryAnthropomorphismProgress.at(-1)
-        || null
-    const openClosureSummary
-      = (typeof rawProjectStateAudit?.openClosureSummary === 'string' && rawProjectStateAudit.openClosureSummary.trim())
-        || projectStateBrief.openLoops[0]
-        || null
-    const nextClosureTargetSummary
-      = (typeof rawProjectStateAudit?.nextClosureTargetSummary === 'string' && rawProjectStateAudit.nextClosureTargetSummary.trim())
-        || projectStateBrief.nextClosureTarget
-        || null
-    const continuitySummary
-      = (typeof rawProjectStateAudit?.continuitySummary === 'string' && rawProjectStateAudit.continuitySummary.trim())
-        || buildPrioritizedProjectStateRewritePreserveLines({
-          projectStateContinuityAnchors: [
-            sameHerSummary ? `project_anchor=${sameHerSummary}` : '',
-            projectStateBrief.currentPhase ? `phase=${projectStateBrief.currentPhase}` : '',
-            landedProgressSummary ? `landed=${landedProgressSummary}` : '',
-            openClosureSummary ? `open=${openClosureSummary}` : '',
-            nextClosureTargetSummary ? `next=${nextClosureTargetSummary}` : '',
-          ].filter(Boolean),
-        }).join(' | ')
-        || null
-    const preferredRebuiltAwarenessLine = shouldPreserveVerbatimCompanionBriefing
-      ? companionBriefingLine
-      : shouldPromoteRicherAuditAwareness
-        ? awarenessSummary
-        : (sameHerSummary || projectStateBrief.preDialogueAwarenessLine || null)
-    const normalizedProjectStateAudit = sanitizeRecoveredReplyCarryObject(buildRecoveredProjectStateAudit(rawProjectStateAudit, {
-      sameHerSummary,
-      landedProgressSummary,
-      openClosureSummary,
-      nextClosureTargetSummary,
-      preDialogueAwarenessSummary: preferredRebuiltAwarenessLine,
-      continuitySummary,
-    }))
-    const normalizedRealization: AlicizationResolvedVisibleReply['realization'] = {
-      ...reply.realization,
-      projectStateAudit: normalizedProjectStateAudit,
-    }
-
-    return {
-      ...reply,
-      realization: normalizedRealization,
-      fullText: JSON.stringify({
-        ...sanitizedParsed,
-        projectState: {
-          ...sanitizeRecoveredReplyCarryObject(rawProjectState),
-          ...sanitizeRecoveredReplyCarryObject(resolveCanonicalStructuredProjectState({
-            normalizedProjectState: rawProjectState,
-            runtimePreflightSummary: preflightSummary || (projectStateBrief.preflightSummary ?? null),
-            runtimePreDialogueAwarenessLine: preferredRebuiltAwarenessLine,
-          })),
-          preflightSummary: sanitizeRecoveredReplyCarryValue(preflightSummary || (projectStateBrief.preflightSummary ?? null)),
-          preDialogueAwarenessLine: sanitizeRecoveredReplyCarryValue(preferredRebuiltAwarenessLine),
-          awarenessLine: sanitizeRecoveredReplyCarryValue(preferredRebuiltAwarenessLine),
-          preDialogueAwarenessSummary: sanitizeRecoveredReplyCarryValue(preferredRebuiltAwarenessLine),
-          companionBriefingLine: shouldPreserveVerbatimCompanionBriefing
-            ? sanitizeRecoveredReplyCarryValue(companionBriefingLine)
-            : sanitizeRecoveredReplyCarryValue(rawProjectState?.companionBriefingLine),
-        },
-        preDialogueAwareness: rawPreDialogueAwareness
-          ? {
-              ...sanitizeRecoveredReplyCarryObject(rawPreDialogueAwareness),
-              awarenessLine: sanitizeRecoveredReplyCarryValue(preferredRebuiltAwarenessLine),
-              summaryLine: sanitizeRecoveredReplyCarryValue(preferredRebuiltAwarenessLine),
-              companionBriefingLine: sanitizeRecoveredReplyCarryValue(companionBriefingLine || rawPreDialogueAwareness.companionBriefingLine),
-            }
-          : rawPreDialogueAwareness,
-        preDialogueClosure: rawPreDialogueClosure
-          ? {
-              ...sanitizeRecoveredReplyCarryObject(rawPreDialogueClosure),
-              summaryLine: sanitizeRecoveredReplyCarryValue(preferredRebuiltAwarenessLine),
-              companionBriefingLine: sanitizeRecoveredReplyCarryValue(companionBriefingLine || rawPreDialogueClosure.companionBriefingLine),
-            }
-          : rawPreDialogueClosure,
-        visibleReplyRealization: {
-          ...sanitizeRecoveredReplyCarryObject(rawVisibleReplyRealization),
-          projectStateAudit: normalizedProjectStateAudit,
-        },
-      }),
-    }
-  }
-
-  const projectStateBrief = resolveAlicizationProjectStateBrief()
-  return {
-    ...reply,
-    fullText: JSON.stringify({
-      format: 'mind-turn-v1',
-      thought: '',
-      emotion: 'thinking',
-      reply: reply.visibleText.trim() || reply.fullText.trim(),
-      projectState: resolveCanonicalStructuredProjectState({
-        runtimePreflightSummary: projectStateBrief.preflightSummary ?? null,
-      }),
-    }),
-  }
-}
-
-function extractRecoveredReplyProjectStateAudit(reply: AlicizationResolvedVisibleReply) {
-  const parsed = parseJsonObjectFromText(reply.fullText)
-  const projectStateAudit = parsed?.projectStateAudit
-  return projectStateAudit && typeof projectStateAudit === 'object'
-    ? projectStateAudit as Record<string, unknown>
-    : null
-}
-
-export async function handleAlicizationMainChatRunFailure(input: HandleAlicizationMainChatRunFailureOptions) {
+export async function handleAlicizationMainChatRunFailure(
+  input: HandleAlicizationMainChatRunFailureOptions,
+) {
   const reason = input.error instanceof Error ? input.error.message : String(input.error)
 
   if (!input.prepared) {
-    await input.emitError(reason)
-    await input.finish({
-      status: 'failed',
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'stream-failure',
+    })
+    await emitFailureSurface({
+      failureSurface,
       finishReason: 'prepare-failed',
-      error: reason,
+      status: 'failed',
+      options: input,
     })
     await input.appendRuntimeDebugLine('chat-start.prepare-failed', {
       cardId: input.payload.cardId,
@@ -566,220 +173,50 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
   if (aborted) {
     const abortReasonText = String(input.controller.signal.reason ?? reason ?? 'abort')
     const normalizedAbortReason = normalizeAlicizationMainChatAbortReason(abortReasonText)
-
-    if (normalizedAbortReason === 'chat-first-event-timeout' && input.chatConfig) {
-      const effectiveTimeoutRecoveryMs = deriveAlicizationTimeoutRecoveryMs({
-        baseTimeoutMs: input.timeoutRecoveryMs,
-        timeoutRecoveryMode: input.timeoutRecoveryMode,
-        nonProgressEventTypes: input.nonProgressEventTypes,
+    if (normalizedAbortReason !== 'chat-first-event-timeout') {
+      await input.finish({
+        status: 'aborted',
+        finishReason: normalizedAbortReason,
       })
-      let fallbackProjectStateAudit: Record<string, unknown> | null = null
-      try {
-        const recoveryResult = await input.recoverFromTimeout({
-          chatConfig: input.chatConfig,
-          messages: input.messages,
-          headers: input.headers,
-          tools: input.tools,
-          toolChoice: input.toolChoice,
-          timeoutMs: effectiveTimeoutRecoveryMs,
-        })
-        fallbackProjectStateAudit = extractRecoveredReplyProjectStateAudit(recoveryResult.recoveredReply)
-        if (isNonHumanAuthoredRecoveredReply(recoveryResult.recoveredReply)) {
-          const execution = recoveryResult.recoveredReply.visibleReplyExecution
-          await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
-            level: 'warning',
-            category: 'alicization.main-gateway',
-            action: 'stream-timeout-non-human-recovery-blocked',
-            message: 'Blocked timeout recovery because it did not produce a provider-authored visible reply.',
-            payload: {
-              cardId: input.payload.cardId,
-              turnId: input.payload.turnId,
-              providerId: input.payload.providerId,
-              model: input.payload.model,
-              dispatchBound: input.dispatchBound,
-              timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
-              timeoutRecoveryMode: recoveryResult.recoveryMode || input.timeoutRecoveryMode,
-              visibleReplyMode: execution.mode,
-              actualVisibleReplyAuthority: execution.actualVisibleReplyAuthority,
-              providerMindExecuted: execution.providerMindExecuted,
-              visibleChars: recoveryResult.recoveredReply.visibleText.length,
-              ...(fallbackProjectStateAudit ? { fallbackProjectStateAudit } : {}),
-            },
-          }))
-          await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-non-human-blocked', {
-            cardId: input.payload.cardId,
-            turnId: input.payload.turnId,
-            dispatchBound: input.dispatchBound,
-            timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
-            timeoutRecoveryMode: recoveryResult.recoveryMode || input.timeoutRecoveryMode,
-            visibleReplyMode: execution.mode,
-            actualVisibleReplyAuthority: execution.actualVisibleReplyAuthority,
-            providerMindExecuted: execution.providerMindExecuted,
-            visibleChars: recoveryResult.recoveredReply.visibleText.length,
-            ...(fallbackProjectStateAudit ? { fallbackProjectStateAudit } : {}),
-          })
-          throw new Error(`main-gateway-timeout-recovery-non-human-authored:${execution.reason ?? execution.actualVisibleReplyAuthority ?? execution.mode}`)
-        }
-        const recoveredText = recoveryResult.recoveredReply.fullText
-        const effectiveRecoveryMode = recoveryResult.recoveryMode || input.timeoutRecoveryMode
-        if (recoveredText) {
-          const structuredRecoveredReply = ensureStructuredRecoveredReplyFullText(recoveryResult.recoveredReply)
-          settleRecoveredVisibleReply({
-            turnRuntimeContext: input.turnRuntimeContext,
-            recoveredReply: structuredRecoveredReply,
-          })
-          if (input.isRunActive())
-            await input.emitRecoveredText(structuredRecoveredReply)
-
-          try {
-            const reachability = await input.ensureMainGatewayReachable(input.mainGateway, { bypassCache: true })
-            if (!reachability.reachable) {
-              await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
-                level: 'warning',
-                category: 'alicization.main-gateway',
-                action: 'stream-gateway-unreachable-advisory',
-                message: 'Recovered the reply, but the main gateway probe is still unreachable.',
-                payload: {
-                  cardId: input.payload.cardId,
-                  turnId: input.payload.turnId,
-                  providerId: input.payload.providerId,
-                  model: input.payload.model,
-                  dispatchBound: input.dispatchBound,
-                  cached: reachability.cached ?? false,
-                  code: reachability.code,
-                  reason: reachability.reason,
-                },
-              }))
-              await input.appendRuntimeDebugLine('chat-stream.gateway-unreachable-advisory', {
-                cardId: input.payload.cardId,
-                turnId: input.payload.turnId,
-                dispatchBound: input.dispatchBound,
-                cached: reachability.cached ?? false,
-                code: reachability.code,
-                reason: reachability.reason,
-                timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
-                timeoutRecoveryMode: effectiveRecoveryMode,
-                nonProgressEventTypes: [...input.nonProgressEventTypes],
-              })
-            }
-          }
-          catch {}
-
-          await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
-            level: 'warning',
-            category: 'alicization.main-gateway',
-            action: 'stream-timeout-recovered',
-            message: 'Recovered chat turn via one-shot generation after stream first-event timeout.',
-            payload: {
-              cardId: input.payload.cardId,
-              turnId: input.payload.turnId,
-              providerId: input.payload.providerId,
-              model: input.payload.model,
-              dispatchBound: input.dispatchBound,
-              recoveredChars: structuredRecoveredReply.fullText.length,
-              timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
-              timeoutRecoveryMode: effectiveRecoveryMode,
-              nonProgressEventTypes: [...input.nonProgressEventTypes],
-            },
-          }))
-
-          await input.appendRuntimeDebugLine('chat-stream.timeout-recovered', {
-            cardId: input.payload.cardId,
-            turnId: input.payload.turnId,
-            dispatchBound: input.dispatchBound,
-            recoveredChars: structuredRecoveredReply.fullText.length,
-            timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
-            timeoutRecoveryMode: effectiveRecoveryMode,
-            nonProgressEventTypes: [...input.nonProgressEventTypes],
-          })
-          await input.finish({
-            status: 'completed',
-            finishReason: 'timeout-recovered',
-            fullText: structuredRecoveredReply.fullText,
-            visibleReplyExecution: structuredRecoveredReply.visibleReplyExecution,
-            visibleReplyRealization: structuredRecoveredReply.realization,
-          })
-          return
-        }
-      }
-      catch (recoveryError) {
-        let gatewayUnreachableReason: string | undefined
-        try {
-          const reachability = await input.ensureMainGatewayReachable(input.mainGateway, { bypassCache: true })
-          if (!reachability.reachable) {
-            gatewayUnreachableReason = reachability.code ?? reachability.reason ?? 'gateway-unreachable'
-            await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
-              level: 'warning',
-              category: 'alicization.main-gateway',
-              action: 'stream-gateway-unreachable-advisory',
-              message: 'Timeout path detected an unreachable main gateway; recovery fallback also failed.',
-              payload: {
-                cardId: input.payload.cardId,
-                turnId: input.payload.turnId,
-                providerId: input.payload.providerId,
-                model: input.payload.model,
-                dispatchBound: input.dispatchBound,
-                cached: reachability.cached ?? false,
-                code: reachability.code,
-                reason: reachability.reason,
-              },
-            }))
-          }
-        }
-        catch {}
-        if (shouldRecordAlicizationMainGatewayGenerationTimeout(recoveryError))
-          await Promise.resolve(input.recordMainGatewayGenerationTimeout(input.mainGateway, recoveryError))
-        await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
-          level: 'warning',
-          category: 'alicization.main-gateway',
-          action: 'stream-timeout-recovery-failed',
-          message: 'Timeout recovery attempt failed; emitting aborted finish.',
-          payload: {
-            cardId: input.payload.cardId,
-            turnId: input.payload.turnId,
-            providerId: input.payload.providerId,
-            model: input.payload.model,
-            dispatchBound: input.dispatchBound,
-            timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
-            reason: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
-            timeoutRecoveryMode: input.timeoutRecoveryMode,
-            nonProgressEventTypes: [...input.nonProgressEventTypes],
-            ...(fallbackProjectStateAudit ? { fallbackProjectStateAudit } : {}),
-          },
-        }))
-        await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-failed', {
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          dispatchBound: input.dispatchBound,
-          timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
-          reason: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
-          timeoutRecoveryMode: input.timeoutRecoveryMode,
-          nonProgressEventTypes: [...input.nonProgressEventTypes],
-          ...(fallbackProjectStateAudit ? { fallbackProjectStateAudit } : {}),
-        })
-        await input.finish({
-          status: 'aborted',
-          finishReason: buildTimeoutAbortFinishReason({
-            dispatchBound: input.dispatchBound,
-            nonProgressEventTypes: input.nonProgressEventTypes,
-            gatewayUnreachableReason,
-            recoveryFailureReason: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
-            timeoutRecoveryMode: input.timeoutRecoveryMode,
-          }),
-        })
-        return
-      }
+      return
     }
 
-    await input.finish({
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'timeout',
+    })
+    if (shouldRecordAlicizationMainGatewayGenerationTimeout(input.error)) {
+      await Promise.resolve(
+        input.recordMainGatewayGenerationTimeout(input.mainGateway, input.error),
+      )
+    }
+    await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
+      level: 'warning',
+      category: 'alicization.main-gateway',
+      action: 'stream-timeout-failed',
+      message: 'The Provider stream timed out; no local or one-shot dialogue recovery was attempted.',
+      payload: {
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        providerId: input.payload.providerId,
+        model: input.payload.model,
+        dispatchBound: input.dispatchBound,
+        nonProgressEventTypes: [...input.nonProgressEventTypes],
+      },
+    }))
+    await input.appendRuntimeDebugLine('chat-stream.timeout-failed', {
+      cardId: input.payload.cardId,
+      turnId: input.payload.turnId,
+      dispatchBound: input.dispatchBound,
+      nonProgressEventTypes: [...input.nonProgressEventTypes],
+    })
+    await emitFailureSurface({
+      failureSurface,
+      finishReason: buildTimeoutAbortFinishReason({
+        dispatchBound: input.dispatchBound,
+        nonProgressEventTypes: input.nonProgressEventTypes,
+      }),
       status: 'aborted',
-      finishReason: normalizedAbortReason === 'chat-first-event-timeout'
-        ? buildTimeoutAbortFinishReason({
-            dispatchBound: input.dispatchBound,
-            nonProgressEventTypes: input.nonProgressEventTypes,
-            timeoutRecoveryMode: input.timeoutRecoveryMode,
-          })
-        : normalizedAbortReason,
+      options: input,
     })
     return
   }
@@ -788,21 +225,11 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
     const failureSurface = resolveAlicizationChatFailureSurface({
       kind: 'provider-schema-unsupported',
     })
-    const metadata = {
-      origin: failureSurface.origin,
-      learningPolicy: {
-        allowLongTermCondensation: failureSurface.allowLongTermCondensation,
-        allowPersonaLearning: failureSurface.allowPersonaLearning,
-        allowTraining: failureSurface.allowTraining,
-      },
+    await emitFailureSurface({
       failureSurface,
-    } as const
-    await input.emitError(failureSurface.reply, metadata)
-    await input.finish({
-      status: 'failed',
       finishReason: 'provider-schema-unsupported',
-      error: failureSurface.reply,
-      ...metadata,
+      status: 'failed',
+      options: input,
     })
     await input.appendRuntimeDebugLine('chat-stream.provider-schema-unsupported', {
       cardId: input.payload.cardId,
@@ -813,22 +240,11 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
   }
 
   if (input.error instanceof AlicizationVisibleReplySettlementBlockedError) {
-    const failureSurface = input.error.failureSurface
-    const metadata = {
-      origin: failureSurface.origin,
-      learningPolicy: {
-        allowLongTermCondensation: failureSurface.allowLongTermCondensation,
-        allowPersonaLearning: failureSurface.allowPersonaLearning,
-        allowTraining: failureSurface.allowTraining,
-      },
-      failureSurface,
-    } as const
-    await input.emitError(failureSurface.reply, metadata)
-    await input.finish({
-      status: 'failed',
+    await emitFailureSurface({
+      failureSurface: input.error.failureSurface,
       finishReason: 'structured-contract',
-      error: failureSurface.reply,
-      ...metadata,
+      status: 'failed',
+      options: input,
     })
     await input.appendRuntimeDebugLine('chat-stream.structured-contract-failed', {
       cardId: input.payload.cardId,
@@ -838,11 +254,14 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
     return
   }
 
-  await input.emitError(reason)
-  await input.finish({
-    status: 'failed',
+  const failureSurface = resolveAlicizationChatFailureSurface({
+    kind: 'stream-failure',
+  })
+  await emitFailureSurface({
+    failureSurface,
     finishReason: 'error',
-    error: reason,
+    status: 'failed',
+    options: input,
   })
   await input.appendRuntimeDebugLine('chat-stream.failed', {
     cardId: input.payload.cardId,
