@@ -10,12 +10,7 @@ import type {
 import type { AlicizationProactiveLoopState } from './proactive-feedback'
 import type { SubconsciousCardState } from './runtime-soul'
 
-import {
-  buildAlicizationRuntimeSystemBlock,
-  deriveAlicizationRuntimeSnapshot,
-} from './alicization-runtime-architecture'
-import { buildAnswerCompilerSystemBlock } from './answer-compiler'
-import { buildAlicizationAnswerPlannerSystemBlock } from './answer-planner'
+import { deriveAlicizationRuntimeSnapshot } from './alicization-runtime-architecture'
 import {
   getActiveAttentionAnchor,
   getActivePerceptionSceneResidue,
@@ -23,37 +18,17 @@ import {
 } from './attention-anchor'
 import { updateVisualAttentionModel } from './attention-model'
 import { buildAlicizationMindTurnGovernance } from './chat-mind-governance'
-import {
-  buildClaimEvidenceLedgerSystemBlock,
-} from './claim-evidence-ledger'
-import { buildConversationStateSystemBlock } from './conversation-state'
-import { buildCurrentConsciousFrameSystemBlock } from './current-conscious-frame'
-import { buildDialogueActKernelSystemBlock } from './dialogue-act-kernel'
-import { buildDialogueFocusGovernanceSystemBlock } from './dialogue-focus-governor'
-import { buildAlicizationDialogueObligationSystemBlock } from './dialogue-obligation'
-import { buildDialogueTurnEncounterSystemBlock } from './dialogue-turn-encounter'
-import { buildDialogueWorldThreadSystemBlock } from './dialogue-world-thread'
 import { commitAlicizationDigitalLifeSpine } from './digital-life-spine'
-import { buildDiscourseStateSystemBlock } from './discourse-state'
 import { resolveHumanlikeMemoryRecallSeedFromEventHistory } from './humanlike-memory-recall-seed'
 import { shouldIncludeProjectStateProviderContext } from './main-chat-project-state-injection-policy'
-import { buildMemorySearchGovernorSystemBlock } from './memory-search-runtime'
 import { buildMindContinuityRecallSeed } from './mind-continuity'
-import { buildMindSynthesisSystemBlock } from './mind-synthesizer'
 import {
   buildProactiveLayeredContext,
   inferScenarioFromContext,
 } from './proactive-layered-context'
 import {
-  buildAlicizationProviderFacingProjectStateClosureDashboard,
-  buildAlicizationProviderFacingProjectStateSystemBlock,
-} from './project-state-brief'
-import { buildReplyDeliberationSystemBlock } from './reply-deliberator'
-import {
   buildChatInspectionContractSystemBlock,
   buildChatPerceptionSystemBlock,
-  buildChatVisualPresenceSystemBlock,
-  buildCompactMindTurnControlSystemBlock,
 } from './runtime-chat-prompt-blocks'
 import {
   compactMindGovernedChatMessages,
@@ -343,112 +318,8 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
     const chatRuntimeSnapshot = deriveAlicizationRuntimeSnapshot({
       spine: committedChatDigitalLifeSpine.current,
     })
-    const chatRuntimeSystemBlock = buildAlicizationRuntimeSystemBlock(chatRuntimeSnapshot)
-    const projectStateClosureDashboard = includePreludeProjectStateContext
-      ? buildAlicizationProviderFacingProjectStateClosureDashboard({
-          architecture: chatDigitalLifeArchitecture,
-          runtimeDigest: chatRuntimeSnapshot,
-        })
-      : ''
-
-    const systemBlocks = [
-      includePreludeProjectStateContext ? buildAlicizationProviderFacingProjectStateSystemBlock() : '',
-      projectStateClosureDashboard,
-      visualPresenceState.dialogueActKernel
-        ? buildDialogueActKernelSystemBlock(visualPresenceState.dialogueActKernel)
-        : '',
-      visualPresenceState.discourseState
-        ? buildDiscourseStateSystemBlock(visualPresenceState.discourseState)
-        : '',
-      visualPresenceState.mindSynthesis
-        ? buildMindSynthesisSystemBlock(visualPresenceState.mindSynthesis)
-        : '',
-      visualPresenceState.conversationState
-        ? buildConversationStateSystemBlock(visualPresenceState.conversationState)
-        : '',
-      visualPresenceState.dialogueWorldThread
-        ? buildDialogueWorldThreadSystemBlock(visualPresenceState.dialogueWorldThread)
-        : '',
-      visualPresenceState.answerCompiler
-        ? buildAnswerCompilerSystemBlock(visualPresenceState.answerCompiler)
-        : '',
-      visualPresenceState.currentConsciousFrame
-        ? buildCurrentConsciousFrameSystemBlock(visualPresenceState.currentConsciousFrame, {
-            includeProjectStateFacts: includePreludeProjectStateContext,
-          })
-        : '',
-      visualPresenceState.claimEvidenceLedger
-        ? buildClaimEvidenceLedgerSystemBlock(visualPresenceState.claimEvidenceLedger)
-        : '',
-      visibleReplySurfacePlan.systemBlocks.executiveAnswerBrief,
-      visibleReplySurfacePlan.systemBlocks.responseSurfaceContract,
-      visibleReplySurfacePlan.systemBlocks.mindTurnContract,
-      visibleReplySurfacePlan.systemBlocks.responseCharter,
-      visualPresenceState.replyDeliberation
-        ? buildReplyDeliberationSystemBlock(visualPresenceState.replyDeliberation)
-        : '',
-      visualPresenceState.recallGovernor
-        ? buildMemorySearchGovernorSystemBlock(visualPresenceState.recallGovernor)
-        : '',
-      visualPresenceState.answerPlanner
-        ? buildAlicizationAnswerPlannerSystemBlock(visualPresenceState.answerPlanner)
-        : '',
-      chatMindState.dialogueEncounter
-        ? buildDialogueTurnEncounterSystemBlock(chatMindState.dialogueEncounter)
-        : '',
-      chatMindState.dialogueSemantics && chatMindState.dialogueObligation
-        ? buildAlicizationDialogueObligationSystemBlock({
-            semantics: chatMindState.dialogueSemantics,
-            obligation: chatMindState.dialogueObligation,
-          })
-        : '',
-      chatMindState.dialogueFocus
-        ? buildDialogueFocusGovernanceSystemBlock(chatMindState.dialogueFocus)
-        : '',
-      chatRuntimeSystemBlock,
-      buildChatPerceptionSystemBlock({
-        now,
-        state: perceptionState,
-        inspectionRequested,
-        currentForeground,
-        suppressWeakGenericBrowserAnchor: genericScreenInspection || (inspectionRequested && shouldSuppressWeakGenericBrowserInspectionAnchor({
-          now,
-          userText: input.userText,
-          state: perceptionState,
-          currentForeground,
-          groundingUnavailableReason: typeof auditPayload.reason === 'string' ? auditPayload.reason : undefined,
-        })),
-      }),
-      inspectionRequested
-        ? buildChatInspectionContractSystemBlock({
-            now,
-            state: perceptionState,
-            mode: auditAction === 'inspection-grounded' ? 'grounded-screenshot' : 'perception-only',
-            permissionStatus: typeof auditPayload.permissionStatus === 'string' ? auditPayload.permissionStatus : undefined,
-            unavailableReason: typeof auditPayload.reason === 'string' ? auditPayload.reason : undefined,
-            captureHealth: visualPresenceState.captureState.health,
-            captureDegradedReasons: captureGovernance.auditPayload.captureDegradedReasons,
-            suppressWeakGenericBrowserAnchor: genericScreenInspection || shouldSuppressWeakGenericBrowserInspectionAnchor({
-              now,
-              userText: input.userText,
-              state: perceptionState,
-              currentForeground,
-              groundingUnavailableReason: typeof auditPayload.reason === 'string' ? auditPayload.reason : undefined,
-            }),
-          })
-        : '',
-      buildChatVisualPresenceSystemBlock(visualPresenceState),
-    ].filter(Boolean)
+    const systemBlocks: string[] = []
     const promptSystemBlocks = [
-      buildCompactMindTurnControlSystemBlock({
-        brief: executiveAnswerBrief.brief,
-        charter: responseCharter,
-        contract: responseSurfaceContract.contract,
-        governance: mindTurnGovernance,
-        state: visualPresenceState,
-        inspectionRequested,
-        currentForeground,
-      }),
       buildChatPerceptionSystemBlock({
         now,
         state: perceptionState,
