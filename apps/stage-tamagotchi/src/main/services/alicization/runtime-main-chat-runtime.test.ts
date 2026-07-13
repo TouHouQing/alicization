@@ -1,6 +1,42 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import { buildAlicizationMainChatMemoryContext } from './main-chat-memory-context'
 import { createAlicizationRuntimeMainChatRuntime } from './runtime-main-chat-runtime'
+
+function createTestMemoryContext() {
+  return buildAlicizationMainChatMemoryContext({
+    workingMemory: {
+      version: 'working-memory-owner-context-v1',
+      owner: 'working-memory',
+      scope: {
+        cardId: 'default',
+        sessionId: 'session-1',
+        updatedAt: 0,
+        turnRange: {
+          fromTurnId: null,
+          toTurnId: null,
+        },
+      },
+      current: {
+        threadTitle: null,
+        threadMode: null,
+        shouldHoldThread: false,
+        currentUserMove: null,
+        activeTask: null,
+        taskStatus: null,
+      },
+      obligations: [],
+      queryHints: [],
+      audit: {
+        failureTurnIds: [],
+        excludedLongTermCandidateTurnIds: [],
+        notes: [],
+      },
+      longTermQueue: [],
+    },
+    longTermRecall: null,
+  })
+}
 
 describe('runtime main chat runtime', () => {
   it('binds inspection history resolver and reuses context builders when creating the prelude runtime', async () => {
@@ -102,6 +138,8 @@ describe('runtime main chat runtime', () => {
         governance: null,
         conversationSessionId: 'session-1',
         getSessionTrace: () => ({ phaseOrder: [] }) as any,
+        memoryContext: createTestMemoryContext(),
+        memoryFailures: [],
         organicMemoryContext: undefined,
         mindTurnContract: null,
         personaKernel: null,
@@ -133,6 +171,8 @@ describe('runtime main chat runtime', () => {
       governance: null,
       conversationSessionId: 'session-1',
       getSessionTrace: () => ({ phaseOrder: [] }) as any,
+      memoryContext: createTestMemoryContext(),
+      memoryFailures: [],
       organicMemoryContext: undefined,
       mindTurnContract: null,
       personaKernel: null,

@@ -91,28 +91,73 @@ type PreparedPreludeWithRuntimeSurface = AlicizationPreparedMainChatPrelude & {
   }
 }
 
-function findWorkingMemoryBlock(messages: Message[]) {
-  return messages.find(message =>
-    message.role === 'system'
-    && typeof message.content === 'string'
-    && message.content.includes('[ALICIZATION_WORKING_MEMORY]'),
-  )?.content as string | undefined
+interface ParsedAlicizationTurnMemoryContext {
+  type: 'alicization-turn-memory-context'
+  version: string
+  workingMemory: {
+    version: string
+    owner: string
+    current: {
+      currentUserMove?: string | null
+      [key: string]: unknown
+    }
+    obligations: string[]
+    audit: {
+      failureTurnIds: string[]
+      [key: string]: unknown
+    }
+    [key: string]: unknown
+  }
+  longTermRecall: {
+    owner: string
+    intent: {
+      mode: string
+      riskFlags: string[]
+      [key: string]: unknown
+    }
+    plan: {
+      riskFlags: string[]
+      [key: string]: unknown
+    }
+    evidence: Array<{
+      candidate: {
+        id: string
+        summary: string
+        source: string
+        [key: string]: unknown
+      }
+      [key: string]: unknown
+    }>
+    [key: string]: unknown
+  } | null
 }
 
-function countWorkingMemoryBlocks(messages: Message[]) {
-  return messages.filter(message =>
-    message.role === 'system'
-    && typeof message.content === 'string'
-    && message.content.includes('[ALICIZATION_WORKING_MEMORY]'),
-  ).length
+function parseAlicizationTurnMemoryContext(message: Message) {
+  if (message.role !== 'system' || typeof message.content !== 'string')
+    return null
+
+  try {
+    const parsed = JSON.parse(message.content) as Partial<ParsedAlicizationTurnMemoryContext>
+    return parsed.type === 'alicization-turn-memory-context'
+      ? parsed as ParsedAlicizationTurnMemoryContext
+      : null
+  }
+  catch {
+    return null
+  }
 }
 
-function findLongTermMemoryRecallBlock(messages: Message[]) {
-  return messages.find(message =>
-    message.role === 'system'
-    && typeof message.content === 'string'
-    && message.content.includes('[ALICIZATION_RECALLED_MEMORY]'),
-  )?.content as string | undefined
+function findAlicizationTurnMemoryContextMessages(messages: Message[]) {
+  return messages.flatMap((message) => {
+    const context = parseAlicizationTurnMemoryContext(message)
+    return context ? [{ context, message }] : []
+  })
+}
+
+function findOnlyAlicizationTurnMemoryContextMessage(messages: Message[]) {
+  const matches = findAlicizationTurnMemoryContextMessages(messages)
+  expect(matches).toHaveLength(1)
+  return matches[0]!
 }
 
 const executionChannels = [
@@ -8102,7 +8147,7 @@ describe('main chat session runtime', () => {
     expect(latest?.currentThread?.currentUserMove).toContain('记忆中心 UI')
   })
 
-  it('assembles a working-memory block for a normal turn and carries the current user move', async () => {
+  it('injects one typed memory context for a normal turn and carries the working-memory owner', async () => {
     const { runtime } = createWorkingMemoryRuntimeFixture()
     const prelude = createReflectivePrelude({
       messages: [{
@@ -8140,14 +8185,25 @@ describe('main chat session runtime', () => {
       prelude,
     })
 
-    const block = findWorkingMemoryBlock(result.messages)
-    expect(block).toContain('[ALICIZATION_WORKING_MEMORY]')
-    expect(block).toContain('thread=')
-    expect(block).toContain('task=')
-    expect(block).toContain('questions=')
-    expect(block).toContain('execution=')
-    expect(block).toContain('继续这个本地数字生命的工作记忆线。')
-    expect(countWorkingMemoryBlocks(result.messages)).toBe(1)
+    const { context, message } = findOnlyAlicizationTurnMemoryContextMessage(result.messages)
+    const providerText = result.messages.map(item => String(item.content)).join('\n')
+
+    expect(result.memoryContext).toMatchObject({
+      version: 'alicization-main-chat-memory-context-v1',
+      workingMemory: {
+        version: 'working-memory-owner-context-v1',
+        owner: 'working-memory',
+      },
+      longTermRecall: null,
+      availableLongTermEvidenceIds: [],
+    })
+    expect(result.memoryFailures).toEqual([])
+    expect(message.content).toBe(result.memoryContext.providerSystemBlock)
+    expect(context).toEqual(JSON.parse(result.memoryContext.providerSystemBlock))
+    expect(context.workingMemory.current.currentUserMove).toContain('继续这个本地数字生命的工作记忆线。')
+    expect(context.workingMemory).not.toHaveProperty('authorityLine')
+    expect(context.workingMemory).not.toHaveProperty('longTermQueue')
+    expect(providerText).not.toMatch(/\[ALICIZATION_WORKING_MEMORY_OWNER\]|\[ALICIZATION_WORKING_MEMORY\]|\[ALICIZATION_RECALLED_MEMORY\]|WorkingMemory is the authoritative|Do not replace WorkingMemory|Recalled long-term memory/u)
   })
 
   it('projects the working-memory owner into the runtime surface instead of leaving it prompt-only', async () => {
@@ -8183,7 +8239,7 @@ describe('main chat session runtime', () => {
     const originalEpisodes = prelude.perceptionAugmentation.digitalLifeRuntimeSurface.memory.workingMemoryEpisodes
     const originalEpisodesSnapshot = structuredClone(originalEpisodes)
 
-    await runtime.prepareExecution({
+    const result = await runtime.prepareExecution({
       payload: {
         cardId: 'default',
         turnId: 'turn-working-memory-owner',
@@ -8196,6 +8252,10 @@ describe('main chat session runtime', () => {
       prelude,
     })
 
+    expect(result.memoryContext.workingMemory).toMatchObject({
+      version: 'working-memory-owner-context-v1',
+      owner: 'working-memory',
+    })
     const episodes = prelude.perceptionAugmentation.digitalLifeRuntimeSurface.memory.workingMemoryEpisodes
     const ownerEpisode = episodes.find(episode => episode.scene === 'working-memory-owner')
     expect(originalEpisodes).toEqual(originalEpisodesSnapshot)
@@ -8273,12 +8333,13 @@ describe('main chat session runtime', () => {
       prelude,
     })
 
-    const block = findWorkingMemoryBlock(result.messages)
-    expect(block).toContain('corrections=persona:不是这个，别再用旧模板了。')
-    expect(block).toContain('execution=execution_callback_channel:cli execution_callback_status:failed')
-    expect(block).toContain('audit=failures=')
-    expect(block).not.toContain('long_term_candidates=')
-    expect(countWorkingMemoryBlocks(result.messages)).toBe(1)
+    const { context } = findOnlyAlicizationTurnMemoryContextMessage(result.messages)
+    const workingMemoryText = JSON.stringify(context.workingMemory)
+    expect(workingMemoryText).toContain('respect_correction(persona):')
+    expect(workingMemoryText).toContain('不是这个，别再用旧模板了。')
+    expect(workingMemoryText).toContain('carry_execution:')
+    expect(context.workingMemory.audit.failureTurnIds.length).toBeGreaterThan(0)
+    expect(context.workingMemory).not.toHaveProperty('longTermQueue')
   })
 
   it('enqueues WorkingMemory owner long-term queue without blocking visible reply planning', async () => {
@@ -8317,7 +8378,8 @@ describe('main chat session runtime', () => {
     })
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    expect(findWorkingMemoryBlock(result.messages)).toContain('[ALICIZATION_WORKING_MEMORY]')
+    expect(findOnlyAlicizationTurnMemoryContextMessage(result.messages).message.content)
+      .toBe(result.memoryContext.providerSystemBlock)
     expect(enqueueWorkingMemoryLongTermQueue).toHaveBeenCalledWith(expect.objectContaining({
       cardId: 'default',
       items: expect.arrayContaining([
@@ -8331,7 +8393,7 @@ describe('main chat session runtime', () => {
     expect(drainWorkingMemoryLongTermQueue).toHaveBeenCalledWith(4)
   })
 
-  it('injects recalled long-term memory after the WorkingMemory data block', async () => {
+  it('injects recalled long-term memory evidence into the typed memory context', async () => {
     const retrieveLongTermMemoryEvidence = vi.fn(async () => ({
       intent: {
         mode: 'episodic' as const,
@@ -8400,21 +8462,167 @@ describe('main chat session runtime', () => {
       prelude,
     })
 
-    const recallBlock = findLongTermMemoryRecallBlock(result.messages)
+    const { context, message } = findOnlyAlicizationTurnMemoryContextMessage(result.messages)
     const text = result.messages.map(message => String(message.content)).join('\n')
     expect(retrieveLongTermMemoryEvidence).toHaveBeenCalledWith(expect.objectContaining({
       cardId: 'default',
       currentUserText: '我们去打游戏吧',
       limit: 5,
     }))
-    expect(text).not.toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
-    expect(text).toContain('[ALICIZATION_RECALLED_MEMORY]')
-    expect(recallBlock).toContain('intent=episodic')
-    expect(recallBlock).toContain('Minecraft')
-    expect(recallBlock).toContain('Phase 1: Local Digital Life')
-    expect(recallBlock).toContain('phase1_local_digital_life_anchor')
-    expect(recallBlock).toContain('source=episodic_events:episode-game-last-week')
-    expect(recallBlock).not.toContain('long_term_queue')
+    expect(message.content).toBe(result.memoryContext.providerSystemBlock)
+    expect(result.memoryContext.longTermRecall).toEqual(expect.objectContaining({
+      owner: 'long-term-memory-recall',
+      evidence: [
+        expect.objectContaining({
+          candidate: expect.objectContaining({
+            id: 'episode-game-last-week',
+            source: 'episodic_events',
+          }),
+        }),
+      ],
+    }))
+    expect(result.memoryContext.availableLongTermEvidenceIds).toEqual(['episode-game-last-week'])
+    expect(context.longTermRecall).toEqual(JSON.parse(result.memoryContext.providerSystemBlock).longTermRecall)
+    expect(context.longTermRecall?.intent.mode).toBe('episodic')
+    expect(context.longTermRecall?.evidence[0]?.candidate.summary).toContain('Minecraft')
+    expect(context.longTermRecall?.evidence[0]?.candidate.summary).toContain('Phase 1: Local Digital Life')
+    expect(context.longTermRecall?.evidence[0]?.candidate.summary).toContain('phase1_local_digital_life_anchor')
+    expect(text).not.toMatch(/\[ALICIZATION_WORKING_MEMORY_OWNER\]|\[ALICIZATION_WORKING_MEMORY\]|\[ALICIZATION_RECALLED_MEMORY\]|WorkingMemory is the authoritative|Do not replace WorkingMemory|Recalled long-term memory/u)
+    expect(context.workingMemory).not.toHaveProperty('longTermQueue')
+  })
+
+  it('surfaces synchronous recall failure without discarding the working-memory owner', async () => {
+    const occurredAt = 1_784_000_000_000
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      getNow: () => occurredAt,
+      retrieveLongTermMemoryEvidence: vi.fn(async () => {
+        throw new Error('  recall \n offline  ')
+      }),
+    })
+    const prelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '继续上次的记忆任务',
+      } as Message],
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-long-term-memory-recall-failure',
+        messages: [{
+          role: 'user',
+          content: '继续上次的记忆任务',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    const { context, message } = findOnlyAlicizationTurnMemoryContextMessage(result.messages)
+    expect(message.content).toBe(result.memoryContext.providerSystemBlock)
+    expect(result.memoryContext.workingMemory).toMatchObject({
+      version: 'working-memory-owner-context-v1',
+      owner: 'working-memory',
+      current: {
+        currentUserMove: expect.stringContaining('继续上次的记忆任务'),
+      },
+    })
+    expect(result.memoryContext.longTermRecall?.intent.riskFlags).toContain('recall-failed')
+    expect(result.memoryContext.longTermRecall?.plan.riskFlags).toContain('recall-failed')
+    expect(result.memoryContext.longTermRecall?.evidence).toEqual([])
+    expect(context.longTermRecall?.intent.riskFlags).toContain('recall-failed')
+    expect(result.memoryFailures).toHaveLength(1)
+    const [failure] = result.memoryFailures
+    if (!failure)
+      throw new Error('Expected one long-term memory recall failure.')
+
+    expect(failure).toMatchObject({
+      kind: 'recall-failure',
+      stage: 'long-term-memory-recall',
+      cardId: 'default',
+      turnId: 'turn-long-term-memory-recall-failure',
+      occurredAt,
+      errorSummary: 'recall offline',
+      allowLongTermCondensation: false,
+      allowPersonaLearning: false,
+      allowTraining: false,
+    })
+    expect(result.memoryContext.providerSystemBlock).not.toContain('recall offline')
+    expect(JSON.stringify(result.messages)).not.toContain('recall offline')
+    expect(result.memoryContext.providerSystemBlock).not.toContain(failure.reply)
+    expect(JSON.stringify(result.messages)).not.toContain(failure.reply)
+  })
+
+  it('replaces an existing typed memory context without dropping ordinary messages', async () => {
+    const staleMemoryContext = JSON.stringify({
+      type: 'alicization-turn-memory-context',
+      version: 'stale-memory-context',
+      workingMemory: {
+        owner: 'stale-owner',
+      },
+      longTermRecall: null,
+    })
+    const ordinaryMessages: Message[] = [
+      {
+        role: 'system',
+        content: '[KEEP_SYSTEM]\npreserve this ordinary system message',
+      },
+      {
+        role: 'assistant',
+        content: 'preserve this assistant message',
+      },
+      {
+        role: 'system',
+        content: staleMemoryContext,
+      },
+      {
+        role: 'user',
+        content: 'replace the stale typed context',
+      },
+    ]
+    const { runtime } = createWorkingMemoryRuntimeFixture()
+    const prelude = createReflectivePrelude({
+      messages: ordinaryMessages,
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-replace-stale-memory-context',
+        messages: ordinaryMessages,
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    const matches = findAlicizationTurnMemoryContextMessages(result.messages)
+    expect(matches).toHaveLength(1)
+    expect(matches[0]?.message.content).toBe(result.memoryContext.providerSystemBlock)
+    expect(matches[0]?.context.version).toBe('alicization-main-chat-memory-context-v1')
+    const currentContextIndex = result.messages.findIndex(
+      message => message.content === result.memoryContext.providerSystemBlock,
+    )
+    const firstNonSystemIndex = result.messages.findIndex(message => message.role !== 'system')
+    const lastSystemIndex = result.messages.findLastIndex(message => message.role === 'system')
+    const ordinarySystemIndex = result.messages.findIndex(
+      message => message.content === '[KEEP_SYSTEM]\npreserve this ordinary system message',
+    )
+    const assistantIndex = result.messages.findIndex(
+      message => message.content === 'preserve this assistant message',
+    )
+    const userIndex = result.messages.findIndex(
+      message => message.content === 'replace the stale typed context',
+    )
+
+    expect(firstNonSystemIndex).toBeGreaterThan(0)
+    expect(currentContextIndex).toBe(firstNonSystemIndex - 1)
+    expect(currentContextIndex).toBe(lastSystemIndex)
+    expect(result.messages[currentContextIndex]?.role).toBe('system')
+    expect(ordinarySystemIndex).toBeLessThan(currentContextIndex)
+    expect(ordinarySystemIndex).toBeLessThan(assistantIndex)
+    expect(assistantIndex).toBeLessThan(userIndex)
+    expect(result.messages.some(message => message.content === staleMemoryContext)).toBe(false)
   })
 
   it('persists short-term corrections across turns in the same runtime session', async () => {
@@ -8458,11 +8666,11 @@ describe('main chat session runtime', () => {
       prelude: secondPrelude,
     })
 
-    const block = findWorkingMemoryBlock(secondResult.messages)
-    expect(block).toContain('corrections=persona:不是这个，别再用旧模板了。')
-    expect(block).toContain('thread=')
-    expect(block).toContain('user=继续')
-    expect(countWorkingMemoryBlocks(secondResult.messages)).toBe(1)
+    const { context } = findOnlyAlicizationTurnMemoryContextMessage(secondResult.messages)
+    const workingMemoryText = JSON.stringify(context.workingMemory)
+    expect(workingMemoryText).toContain('respect_correction(persona):')
+    expect(workingMemoryText).toContain('不是这个，别再用旧模板了。')
+    expect(context.workingMemory.current.currentUserMove).toBe('继续')
   })
 
   it('keeps project-state engineering blocks out of ordinary dialogue while keeping WorkingMemory data blocks', async () => {
@@ -8520,8 +8728,11 @@ describe('main chat session runtime', () => {
         .map(message => String(message.content))
         .join('\n')
 
+      expect(findOnlyAlicizationTurnMemoryContextMessage(result.messages).message.content)
+        .toBe(result.memoryContext.providerSystemBlock)
       expect(systemText).not.toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
-      expect(systemText).toContain('[ALICIZATION_WORKING_MEMORY]')
+      expect(systemText).not.toContain('[ALICIZATION_WORKING_MEMORY]')
+      expect(systemText).not.toContain('[ALICIZATION_RECALLED_MEMORY]')
       expect(systemText).not.toContain('[ALICIZATION_PROJECT_STATE]')
       expect(systemText).not.toContain('[ALICIZATION_PROJECT_STATE_CONTINUITY]')
       expect(systemText).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
@@ -8594,8 +8805,11 @@ describe('main chat session runtime', () => {
       .map(message => String(message.content))
       .join('\n')
 
+    expect(findOnlyAlicizationTurnMemoryContextMessage(result.messages).message.content)
+      .toBe(result.memoryContext.providerSystemBlock)
     expect(systemText).not.toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
-    expect(systemText).toContain('[ALICIZATION_WORKING_MEMORY]')
+    expect(systemText).not.toContain('[ALICIZATION_WORKING_MEMORY]')
+    expect(systemText).not.toContain('[ALICIZATION_RECALLED_MEMORY]')
     expect(systemText).toContain('[ALICIZATION_FACT_LEDGER]')
     expect(systemText).not.toContain('[ALICIZATION_PROJECT_STATE_CONTINUITY]')
     expect(systemText).not.toContain('Same Phase 1 digital life')
@@ -18410,8 +18624,11 @@ describe('main chat session runtime', () => {
       preDialogueClosure: mindTurnContract?.preDialogueClosure ?? null,
     })
 
+    expect(findOnlyAlicizationTurnMemoryContextMessage(result.messages).message.content)
+      .toBe(result.memoryContext.providerSystemBlock)
     expect(providerSystemText).not.toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
-    expect(providerSystemText).toContain('[ALICIZATION_WORKING_MEMORY]')
+    expect(providerSystemText).not.toContain('[ALICIZATION_WORKING_MEMORY]')
+    expect(providerSystemText).not.toContain('[ALICIZATION_RECALLED_MEMORY]')
     expect(providerSystemText).not.toContain('[ALICIZATION_PROJECT_STATE]')
     expect(providerSystemText).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
     expect(providerSystemText).not.toContain('Before answering, remember:')

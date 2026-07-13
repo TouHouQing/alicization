@@ -1,5 +1,6 @@
 import type {
   AlicizationChannelCapability,
+  AlicizationChatFailureSurface,
   AlicizationExecutionCapabilityChannel,
   AlicizationExecutionCapabilityInquiry,
   AlicizationExecutionRoutingIntent,
@@ -46,6 +47,7 @@ import type {
   BuildMainGatewayToolsOptions,
   MainGatewayExecutionToolContext,
 } from './main-chat-execution-surface'
+import type { AlicizationMainChatMemoryContext } from './main-chat-memory-context'
 import type { AlicizationMainChatRuntimeSurface } from './main-chat-runtime-surface'
 import type { AlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
 import type { AlicizationExecutionLedgerContext } from './memory-ledger-runtime'
@@ -64,10 +66,12 @@ import type { AlicizationTurnRuntimeContext } from './turn-os/runtime'
 import type { AlicizationTurnGraph } from './turn-os/turn-graph'
 import type { AlicizationMainChatReplyAuthoritySurface, AlicizationMainChatReplyExecutionPlanSurface } from './visible-reply/facade'
 
+import { errorMessageFrom } from '@moeru/std'
 import {
   alicizationFixedTemplateReplacement,
   containsAlicizationFixedTemplateResidue,
   formatAlicizationProjectStateAwarenessFields,
+  resolveAlicizationChatFailureSurface,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
@@ -86,12 +90,7 @@ import {
   buildWorkingMemoryOwnerContext,
   projectWorkingMemoryOwnerEpisodes,
 } from './life-core/working-memory-owner-context'
-import {
-  buildWorkingMemoryPromptBlock,
-  injectWorkingMemorySystemBlock,
-} from './life-core/working-memory-prompt-view'
 import { createWorkingMemoryStore } from './life-core/working-memory-store'
-import { buildLongTermMemoryRecallBlock } from './long-term-memory-recall'
 import { buildMainChatActionObligationSystemBlock } from './main-chat-action-obligation'
 import {
   applyMainChatExecutionReplyObligationToGovernance,
@@ -104,6 +103,7 @@ import {
   buildMainGatewayExecutionRoutingToolChoice,
   buildMainGatewayTools,
 } from './main-chat-execution-surface'
+import { buildAlicizationMainChatMemoryContext } from './main-chat-memory-context'
 import { carriesAlicizationCanonicalProjectState } from './main-chat-project-state-guard'
 import { shouldIncludeProjectStateProviderContext } from './main-chat-project-state-injection-policy'
 import {
@@ -205,11 +205,21 @@ export interface AlicizationPreparedMainChatPrelude {
   perceptionAugmentation: AlicizationMainChatPerceptionAugmentation
 }
 
+export interface AlicizationMainChatMemoryFailureSurface extends AlicizationChatFailureSurface {
+  stage: 'long-term-memory-recall'
+  cardId: string
+  turnId: string
+  occurredAt: number
+  errorSummary: string
+}
+
 export interface AlicizationPreparedMainChatExecutionResult extends PreparedMainChatExecution {
   conversationSessionId: string | null
   executionReplyObligation?: AlicizationMainChatExecutionReplyObligation | null
   freshExecutionReplyCallback?: AlicizationExecutionCallbackDigest | null
   getSessionTrace: () => AlicizationRuntimeCallChainSnapshot
+  memoryContext: AlicizationMainChatMemoryContext
+  memoryFailures: AlicizationMainChatMemoryFailureSurface[]
   mindTurnContract: AlicizationMindTurnContractSnapshot | null
   organicMemoryContext?: OrganicMemoryPromptContext
   memoryTurnArtifact?: ReturnType<typeof buildAlicizationMemoryTurnArtifact>
@@ -629,6 +639,54 @@ function sanitizeOrdinaryDialogueProviderMessages(messages: Message[]) {
   return sanitizedMessages
 }
 
+function isAlicizationTurnMemoryContextSystemMessage(message: Message) {
+  if (message.role !== 'system' || typeof message.content !== 'string')
+    return false
+
+  try {
+    const parsed = JSON.parse(message.content) as { type?: unknown }
+    return parsed?.type === 'alicization-turn-memory-context'
+  }
+  catch {
+    return false
+  }
+}
+
+function injectAlicizationMainChatMemoryContext(
+  messages: Message[],
+  context: AlicizationMainChatMemoryContext,
+) {
+  const messagesWithoutMemoryContext = messages.filter(
+    message => !isAlicizationTurnMemoryContextSystemMessage(message),
+  )
+  const firstNonSystemIndex = messagesWithoutMemoryContext.findIndex(
+    message => message.role !== 'system',
+  )
+  const insertionIndex = firstNonSystemIndex === -1
+    ? messagesWithoutMemoryContext.length
+    : firstNonSystemIndex
+  const memoryContextMessage = {
+    role: 'system',
+    content: context.providerSystemBlock,
+  } as Message
+
+  return [
+    ...messagesWithoutMemoryContext.slice(0, insertionIndex),
+    memoryContextMessage,
+    ...messagesWithoutMemoryContext.slice(insertionIndex),
+  ]
+}
+
+function normalizeAlicizationMemoryFailureErrorSummary(error: unknown) {
+  const errorSummary = errorMessageFrom(error)
+    ?.trim()
+    .replace(/\s+/gu, ' ')
+    .slice(0, 320)
+    .trim()
+
+  return errorSummary || 'Long-term memory recall failed.'
+}
+
 function isOrdinaryDialogueProjectStatePlanningText(raw: unknown) {
   const normalized = normalizePreparedExecutionText(raw, 1600)
   if (!normalized)
@@ -741,7 +799,6 @@ function buildWorkingMemoryPromptBlockFromRuntime(input: {
   const ownerContext = buildWorkingMemoryOwnerContext(snapshot)
 
   return {
-    block: buildWorkingMemoryPromptBlock(snapshot),
     ownerContext,
     snapshot,
   }
@@ -9395,49 +9452,68 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       sessionId: workingMemorySessionId,
     })
     workingMemoryStore.upsert(workingMemoryPrompt.snapshot)
-    const longTermMemoryRecallBlock = options.retrieveLongTermMemoryEvidence
-      ? buildLongTermMemoryRecallBlock({
-          bundle: await options.retrieveLongTermMemoryEvidence({
-            cardId: payload.cardId,
-            currentUserText: readLatestUserMessageText(providerPlanningMessages),
-            workingMemoryQueryHints: workingMemoryPrompt.ownerContext.queryHints,
-            currentThreadTitle: workingMemoryPrompt.ownerContext.current.threadTitle,
-            activeTask: workingMemoryPrompt.ownerContext.current.activeTask,
-            limit: 5,
-          }).catch(() => ({
-            intent: {
-              mode: 'none',
-              shouldRecall: false,
-              confidence: 0,
-              rationale: 'Long-term memory recall failed.',
-              temporalFocus: 'unspecified',
-              targetKinds: [],
-              queryHints: [],
-              riskFlags: ['recall-failed'],
-            },
-            plan: {
-              rawQuery: readLatestUserMessageText(runtimeSurface.messages),
-              normalizedQuery: readLatestUserMessageText(runtimeSurface.messages),
-              keywordQueries: [],
-              phraseQueries: [],
-              charGramQueries: [],
-              semanticQueries: [],
-              episodicQueries: [],
-              temporalHints: [],
-              entityHints: [],
-              procedureHints: [],
-              threadHints: [],
-              negativeCues: [],
-              confidencePolicy: 'direct',
-              riskFlags: ['recall-failed'],
-              targetKinds: [],
-            },
-            evidence: [],
-            confidence: 0,
-            budgetClass: 'none',
-          })),
+    const memoryFailures: AlicizationMainChatMemoryFailureSurface[] = []
+    let longTermMemoryBundle: LongTermMemoryEvidenceBundle | null = null
+    if (options.retrieveLongTermMemoryEvidence) {
+      try {
+        longTermMemoryBundle = await options.retrieveLongTermMemoryEvidence({
+          cardId: payload.cardId,
+          currentUserText: readLatestUserMessageText(providerPlanningMessages),
+          workingMemoryQueryHints: workingMemoryPrompt.ownerContext.queryHints,
+          currentThreadTitle: workingMemoryPrompt.ownerContext.current.threadTitle,
+          activeTask: workingMemoryPrompt.ownerContext.current.activeTask,
+          limit: 5,
         })
-      : null
+      }
+      catch (error) {
+        longTermMemoryBundle = {
+          intent: {
+            mode: 'none',
+            shouldRecall: false,
+            confidence: 0,
+            rationale: 'Long-term memory recall failed.',
+            temporalFocus: 'unspecified',
+            targetKinds: [],
+            queryHints: [],
+            riskFlags: ['recall-failed'],
+          },
+          plan: {
+            rawQuery: readLatestUserMessageText(runtimeSurface.messages),
+            normalizedQuery: readLatestUserMessageText(runtimeSurface.messages),
+            keywordQueries: [],
+            phraseQueries: [],
+            charGramQueries: [],
+            semanticQueries: [],
+            episodicQueries: [],
+            temporalHints: [],
+            entityHints: [],
+            procedureHints: [],
+            threadHints: [],
+            negativeCues: [],
+            confidencePolicy: 'direct',
+            riskFlags: ['recall-failed'],
+            targetKinds: [],
+          },
+          evidence: [],
+          confidence: 0,
+          budgetClass: 'none',
+        }
+        memoryFailures.push({
+          ...resolveAlicizationChatFailureSurface({
+            kind: 'recall-failure',
+          }),
+          stage: 'long-term-memory-recall',
+          cardId: payload.cardId,
+          turnId: payload.turnId,
+          occurredAt: now,
+          errorSummary: normalizeAlicizationMemoryFailureErrorSummary(error),
+        })
+      }
+    }
+    const memoryContext = buildAlicizationMainChatMemoryContext({
+      workingMemory: workingMemoryPrompt.ownerContext,
+      longTermRecall: longTermMemoryBundle,
+    })
     if (workingMemoryPrompt.ownerContext.longTermQueue.length > 0 && options.enqueueWorkingMemoryLongTermQueue) {
       void options.enqueueWorkingMemoryLongTermQueue({
         cardId: payload.cardId,
@@ -10651,9 +10727,8 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         ...messages,
       ]
     }
-    messages = injectWorkingMemorySystemBlock(messages, workingMemoryPrompt.block)
-    messages = injectWorkingMemorySystemBlock(messages, longTermMemoryRecallBlock)
     messages = sanitizeOrdinaryDialogueProviderMessages(messages)
+    messages = injectAlicizationMainChatMemoryContext(messages, memoryContext)
     if (!shouldIncludeProviderProjectStateContext) {
       sanitizeOrdinaryDialogueRuntimeSurfacePlanning(runtimeSurface.digitalLifeRuntimeSurface)
       sanitizeOrdinaryDialogueRuntimeSurfacePlanning(runtimeSurface.digitalLifeSpine?.runtimeSurface ?? null)
@@ -11313,6 +11388,8 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       customDirectivesResolution,
       hasVisualGrounding: runtimeSurface.hasVisualGrounding,
       governance: runtimeSurface.governance,
+      memoryContext,
+      memoryFailures,
       mindTurnContract: finalizedReturnedMindTurnContract,
       organicMemoryContext: organicPromptContext,
       memoryTurnArtifact,
