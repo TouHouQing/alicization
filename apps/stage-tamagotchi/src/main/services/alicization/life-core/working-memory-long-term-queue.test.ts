@@ -88,6 +88,45 @@ describe('working memory long-term candidate queue', () => {
     expect(buildWorkingMemoryLongTermCandidateQueue(snapshot)).toEqual([])
   })
 
+  it('rejects typed failure and authorization artifacts even when audit ids are missing', () => {
+    for (const origin of ['failure-surface', 'authorization-surface'] as const) {
+      const snapshot = createEmptyWorkingMemorySnapshot({
+        cardId: 'default',
+        sessionId: `session-${origin}`,
+        now: 3100,
+      })
+      snapshot.recentRawTurns = [
+        normalizeWorkingMemoryTurn({
+          turnId: `turn-${origin}:user`,
+          role: 'user',
+          text: '我喜欢先说结论，再给必要细节。',
+          createdAt: 3000,
+          source: 'conversation-turn',
+          visibility: 'user-visible',
+          origin,
+          learningPolicy: {
+            allowLongTermCondensation: false,
+            allowPersonaLearning: false,
+            allowTraining: false,
+          },
+          importance: 1,
+        }),
+      ]
+      snapshot.longTermCandidates = [{
+        sourceTurnIds: [`turn-${origin}:user`],
+        kind: 'preference',
+        summary: '我喜欢先说结论，再给必要细节。',
+        reason: 'User stated a stable preference.',
+        salience: 0.8,
+        sensitivity: 'personal',
+        confidence: 0.8,
+        allowTraining: false,
+      }]
+
+      expect(buildWorkingMemoryLongTermCandidateQueue(snapshot)).toEqual([])
+    }
+  })
+
   it('does not copy quoted fixed-template residue into queue summaries or evidence', () => {
     const snapshot = createEmptyWorkingMemorySnapshot({
       cardId: 'default',

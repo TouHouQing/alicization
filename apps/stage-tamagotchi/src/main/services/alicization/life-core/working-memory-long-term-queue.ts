@@ -13,6 +13,7 @@ import {
   normalizeWorkingMemoryText,
   uniqueWorkingMemoryTexts,
 } from './working-memory'
+import { resolveAlicizationLearningEligibility } from './working-memory-policy'
 
 export type WorkingMemoryLongTermQueueStatus = 'pending-cleaning' | 'rejected' | 'ready-for-long-term'
 
@@ -77,6 +78,7 @@ function collectContaminationFlags(input: {
   candidate: WorkingMemoryLongTermCandidate
   excludedTurnIds: Set<string>
   failureTurnIds: Set<string>
+  snapshot: WorkingMemorySnapshot
   sourceTurnIds: string[]
 }) {
   const flags: string[] = []
@@ -90,6 +92,36 @@ function collectContaminationFlags(input: {
   ) {
     flags.push('fixed-fallback-template')
   }
+  const turnsById = new Map(input.snapshot.recentRawTurns.map(turn => [turn.turnId, turn]))
+  const hasIneligibleTypedSource = input.sourceTurnIds.some((turnId) => {
+    const turn = turnsById.get(turnId)
+    if (!turn)
+      return false
+    const hasTypedArtifactMetadata = turn.origin !== undefined
+      || turn.learningPolicy !== undefined
+      || turn.failureSurface !== undefined
+      || turn.contaminated !== undefined
+    if (!hasTypedArtifactMetadata)
+      return false
+
+    const origin = turn.failureSurface?.origin ?? turn.origin
+    const learningPolicy = turn.learningPolicy ?? (turn.failureSurface
+      ? {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        }
+      : null)
+    if (!origin || !learningPolicy)
+      return true
+    return !resolveAlicizationLearningEligibility({
+      origin,
+      learningPolicy,
+      contaminated: turn.contaminated === true,
+    }).allowLongTermCondensation
+  })
+  if (hasIneligibleTypedSource)
+    flags.push('ineligible-artifact')
   return uniqueWorkingMemoryTexts(flags, 6, 80)
 }
 
@@ -122,6 +154,7 @@ export function buildWorkingMemoryLongTermCandidateQueue(snapshot: WorkingMemory
       candidate,
       excludedTurnIds,
       failureTurnIds,
+      snapshot,
       sourceTurnIds,
     })
     if (contaminationFlags.length > 0)

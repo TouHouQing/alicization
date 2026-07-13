@@ -1,4 +1,9 @@
 import type {
+  AlicizationVisibleArtifactLearningPolicy,
+  AlicizationVisibleArtifactOrigin,
+} from '@proj-alicization/stage-shared'
+
+import type {
   AlicizationConversationStateSnapshot,
   AlicizationCurrentConsciousFrameSnapshot,
   AlicizationDialogueWorldThreadSnapshot,
@@ -6,6 +11,7 @@ import type {
 import type {
   WorkingMemoryAuditState,
   WorkingMemoryFailureKind,
+  WorkingMemoryFailureSurface,
   WorkingMemoryLongTermCandidate,
   WorkingMemoryQuestion,
   WorkingMemorySnapshot,
@@ -36,6 +42,10 @@ export interface WorkingMemoryRecentTurnInput {
   userText?: string | null
   assistantText?: string | null
   createdAt?: number | null
+  origin?: AlicizationVisibleArtifactOrigin | null
+  learningPolicy?: AlicizationVisibleArtifactLearningPolicy | null
+  failureSurface?: WorkingMemoryFailureSurface | null
+  contaminated?: boolean
 }
 
 export interface BuildWorkingMemorySnapshotInput {
@@ -199,6 +209,20 @@ function detectFailureKindFromVisibleText(text: string): WorkingMemoryFailureKin
   return null
 }
 
+function detectFailureKindFromSurface(
+  failureSurface: WorkingMemoryFailureSurface | null | undefined,
+): WorkingMemoryFailureKind | null {
+  if (!failureSurface)
+    return null
+  if (failureSurface.kind === 'timeout')
+    return 'timeout'
+  if (failureSurface.kind === 'runtime-aborted')
+    return 'abort'
+  if (/tool/iu.test(failureSurface.kind))
+    return 'tool-error'
+  return 'provider-error'
+}
+
 function mapRecentTurns(input: BuildWorkingMemorySnapshotInput): WorkingMemoryTurn[] {
   const turns: WorkingMemoryTurn[] = []
   for (const [index, turn] of (input.recentTurns ?? []).entries()) {
@@ -206,6 +230,14 @@ function mapRecentTurns(input: BuildWorkingMemorySnapshotInput): WorkingMemoryTu
     const turnId = normalizeWorkingMemoryText(turn.turnId, 120) || `recent-${index + 1}`
     const userText = sanitizeWorkingMemoryStoredText(turn.userText, 900)
     const assistantText = sanitizeWorkingMemoryStoredText(turn.assistantText, 900)
+    const origin = turn.failureSurface?.origin ?? turn.origin ?? null
+    const learningPolicy = turn.learningPolicy ?? (turn.failureSurface
+      ? {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        }
+      : null)
     if (userText) {
       turns.push(normalizeWorkingMemoryTurn({
         turnId: `${turnId}:user`,
@@ -214,6 +246,10 @@ function mapRecentTurns(input: BuildWorkingMemorySnapshotInput): WorkingMemoryTu
         createdAt,
         source: 'conversation-turn',
         visibility: 'user-visible',
+        origin,
+        learningPolicy,
+        failureSurface: turn.failureSurface ?? null,
+        contaminated: turn.contaminated === true,
         importance: 0.66,
       }))
     }
@@ -225,7 +261,13 @@ function mapRecentTurns(input: BuildWorkingMemorySnapshotInput): WorkingMemoryTu
         createdAt: createdAt + 1,
         source: 'conversation-turn',
         visibility: 'user-visible',
-        failureKind: detectFailureKindFromVisibleText(assistantText),
+        failureKind:
+          detectFailureKindFromSurface(turn.failureSurface)
+          ?? detectFailureKindFromVisibleText(assistantText),
+        origin,
+        learningPolicy,
+        failureSurface: turn.failureSurface ?? null,
+        contaminated: turn.contaminated === true,
         importance: 0.52,
       }))
     }

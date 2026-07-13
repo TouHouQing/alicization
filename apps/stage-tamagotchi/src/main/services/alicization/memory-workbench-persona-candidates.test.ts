@@ -5,7 +5,10 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { setupAlicizationDb } from './db'
-import { mergePersonaCandidateReviewState } from './memory-workbench-persona-candidates'
+
+import * as personaCandidatePolicy from './memory-workbench-persona-candidates'
+
+const { mergePersonaCandidateReviewState } = personaCandidatePolicy
 
 const sandboxDirs: string[] = []
 
@@ -25,6 +28,60 @@ afterEach(async () => {
 })
 
 describe('memory workbench persona candidates', () => {
+  it('admits only cleaned long-term sources with provider learning eligibility', () => {
+    const resolver = (personaCandidatePolicy as Record<string, unknown>).resolvePersonaCandidateSourceEligibility
+    expect(resolver).toBeTypeOf('function')
+
+    const resolveEligibility = resolver as (input: {
+      source: string
+      origin: 'provider' | 'failure-surface' | 'authorization-surface'
+      learningPolicy: {
+        allowLongTermCondensation: boolean
+        allowPersonaLearning: boolean
+        allowTraining: boolean
+      }
+      contaminated: boolean
+    }) => {
+      allowLongTermCondensation: boolean
+      allowPersonaLearning: boolean
+      allowTraining: boolean
+    }
+    const providerPolicy = {
+      allowLongTermCondensation: true,
+      allowPersonaLearning: true,
+      allowTraining: false,
+    }
+
+    expect(resolveEligibility({
+      source: 'cleaned-long-term-reflection',
+      origin: 'provider',
+      learningPolicy: providerPolicy,
+      contaminated: false,
+    })).toEqual({
+      allowLongTermCondensation: true,
+      allowPersonaLearning: true,
+      allowTraining: false,
+    })
+
+    for (const source of [
+      'raw-transcript',
+      'review-queue',
+      'failure-artifact',
+      'authorization-artifact',
+    ]) {
+      expect(resolveEligibility({
+        source,
+        origin: source === 'authorization-artifact' ? 'authorization-surface' : 'failure-surface',
+        learningPolicy: providerPolicy,
+        contaminated: false,
+      })).toEqual({
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+      })
+    }
+  })
+
   it('keeps training blocked until candidate is explicitly approved', () => {
     expect(mergePersonaCandidateReviewState({
       candidate: {

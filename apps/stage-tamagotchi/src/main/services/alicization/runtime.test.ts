@@ -10,6 +10,7 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -18166,6 +18167,293 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })).rejects.toThrow('sqlite write failed')
 
     expect(getDialogueRespondedEvents()).toHaveLength(0)
+  })
+
+  it('persists transparent failure artifacts for audit without running dialogue learning side effects', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    dbStub.appendConversationTurn.mockClear()
+    dbStub.appendSubconsciousFragments.mockClear()
+    dbStub.appendRelationshipOutcomes.mockClear()
+    dbStub.appendEpisodicEvents.mockClear()
+    dbStub.appendPersonaReinforcementEvents.mockClear()
+    dbStub.appendPersonStateEvolutionEntries.mockClear()
+    dbStub.upsertMemoryReflections.mockClear()
+    dbStub.insertLearningTask.mockClear()
+
+    const failureKinds = [
+      'timeout',
+      'provider-auth',
+      'provider-schema-unsupported',
+      'stream-failure',
+      'recall-failure',
+      'memory-persistence',
+    ] as const
+
+    for (const [index, kind] of failureKinds.entries()) {
+      const failureSurface = resolveAlicizationChatFailureSurface({ kind })
+      await appendConversationTurn!({
+        cardId: 'default',
+        turnId: `turn-failure-learning-gate-${kind}`,
+        sessionId: 'session-failure-learning-gate',
+        userText: `失败请求 ${kind}`,
+        assistantText: failureSurface.reply,
+        structured: {
+          thought: '',
+          emotion: 'concerned',
+          reply: failureSurface.reply,
+          format: 'mind-turn-v1',
+          origin: failureSurface.origin,
+          learningPolicy: {
+            allowLongTermCondensation: failureSurface.allowLongTermCondensation,
+            allowPersonaLearning: failureSurface.allowPersonaLearning,
+            allowTraining: failureSurface.allowTraining,
+          },
+          failureSurface,
+        },
+        createdAt: 20_000 + index,
+      })
+    }
+
+    expect(dbStub.appendConversationTurn).toBeCalledTimes(failureKinds.length)
+    for (const [persisted] of dbStub.appendConversationTurn.mock.calls) {
+      expect(persisted.structured).toMatchObject({
+        origin: 'failure-surface',
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+        failureSurface: {
+          origin: 'failure-surface',
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+      })
+    }
+    expect(dbStub.appendSubconsciousFragments).not.toBeCalled()
+    expect(dbStub.appendRelationshipOutcomes).not.toBeCalled()
+    expect(dbStub.appendEpisodicEvents).not.toBeCalled()
+    expect(dbStub.appendPersonaReinforcementEvents).not.toBeCalled()
+    expect(dbStub.appendPersonStateEvolutionEntries).not.toBeCalled()
+    expect(dbStub.upsertMemoryReflections).not.toBeCalled()
+    expect(dbStub.insertLearningTask).not.toBeCalled()
+  })
+
+  it('blocks untyped visible artifacts from dialogue learning side effects', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    dbStub.appendConversationTurn.mockClear()
+    dbStub.appendSubconsciousFragments.mockClear()
+    dbStub.appendRelationshipOutcomes.mockClear()
+    dbStub.appendEpisodicEvents.mockClear()
+    dbStub.appendPersonaReinforcementEvents.mockClear()
+    dbStub.appendPersonStateEvolutionEntries.mockClear()
+    dbStub.upsertMemoryReflections.mockClear()
+    dbStub.insertLearningTask.mockClear()
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-untyped-learning-gate',
+      sessionId: 'session-untyped-learning-gate',
+      userText: '这是一段没有来源 metadata 的原始转录。',
+      assistantText: 'Untyped assistant text',
+      structured: {
+        thought: '',
+        emotion: 'neutral',
+        reply: 'Untyped assistant text',
+        format: 'mind-turn-v1',
+      },
+      createdAt: 25_000,
+    })
+
+    expect(dbStub.appendConversationTurn).toBeCalledTimes(1)
+    expect(dbStub.appendSubconsciousFragments).not.toBeCalled()
+    expect(dbStub.appendRelationshipOutcomes).not.toBeCalled()
+    expect(dbStub.appendEpisodicEvents).not.toBeCalled()
+    expect(dbStub.appendPersonaReinforcementEvents).not.toBeCalled()
+    expect(dbStub.appendPersonStateEvolutionEntries).not.toBeCalled()
+    expect(dbStub.upsertMemoryReflections).not.toBeCalled()
+    expect(dbStub.insertLearningTask).not.toBeCalled()
+  })
+
+  it('persists memory side failures separately without replacing or re-emitting the Provider reply', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    dbStub.appendConversationTurn.mockClear()
+    const sideFailure = {
+      ...resolveAlicizationChatFailureSurface({
+        kind: 'recall-failure',
+      }),
+      stage: 'long-term-memory-recall',
+      cardId: 'default',
+      turnId: 'turn-provider-memory-side-failure',
+      occurredAt: 30_001,
+      errorSummary: 'vector recall offline',
+    }
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-provider-memory-side-failure',
+      sessionId: 'session-provider-memory-side-failure',
+      userText: '继续刚才的记忆话题',
+      assistantText: 'Provider reply',
+      structured: {
+        format: 'mind-turn-v1',
+        thought: '',
+        emotion: 'neutral',
+        reply: 'Provider reply',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: true,
+          allowPersonaLearning: true,
+          allowTraining: false,
+        },
+        memoryFailures: [sideFailure],
+      },
+      createdAt: 30_000,
+    })
+
+    expect(dbStub.appendConversationTurn).toBeCalledTimes(2)
+    const [providerArtifact] = dbStub.appendConversationTurn.mock.calls[0] ?? []
+    const [failureArtifact] = dbStub.appendConversationTurn.mock.calls[1] ?? []
+    expect(providerArtifact).toMatchObject({
+      turnId: 'turn-provider-memory-side-failure',
+      assistantText: 'Provider reply',
+      structured: {
+        origin: 'provider',
+        reply: 'Provider reply',
+      },
+    })
+    expect(failureArtifact).toMatchObject({
+      turnId: 'turn-provider-memory-side-failure:memory-failure:long-term-memory-recall:0',
+      sessionId: 'session-provider-memory-side-failure',
+      structured: {
+        format: 'alicization-memory-side-failure-v1',
+        origin: 'failure-surface',
+        artifactRole: 'memory-side-failure',
+        parentTurnId: 'turn-provider-memory-side-failure',
+        stage: 'long-term-memory-recall',
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+        failureSurface: {
+          kind: 'recall-failure',
+          origin: 'failure-surface',
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+      },
+    })
+    expect(failureArtifact?.assistantText).toBeUndefined()
+
+    const dialogueEvents = getDialogueRespondedEvents()
+    expect(dialogueEvents).toHaveLength(1)
+    expect(dialogueEvents[0]).toMatchObject({
+      assistantText: 'Provider reply',
+      structured: {
+        origin: 'provider',
+        reply: 'Provider reply',
+      },
+    })
+  })
+
+  it('keeps the Provider reply when memory side failure persistence fails and records an audit', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    dbStub.appendConversationTurn.mockClear()
+    dbStub.appendAuditLog.mockClear()
+    dbStub.appendConversationTurn
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('side artifact write failed'))
+
+    const sideFailure = {
+      ...resolveAlicizationChatFailureSurface({
+        kind: 'memory-persistence',
+      }),
+      stage: 'working-memory-long-term-queue',
+      cardId: 'default',
+      turnId: 'turn-provider-side-persistence-failure',
+      occurredAt: 31_001,
+      errorSummary: 'queue write failed',
+    }
+
+    await expect(appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-provider-side-persistence-failure',
+      sessionId: 'session-provider-side-persistence-failure',
+      userText: '继续记忆闭环',
+      assistantText: 'Provider reply survives',
+      structured: {
+        format: 'mind-turn-v1',
+        thought: '',
+        emotion: 'neutral',
+        reply: 'Provider reply survives',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: true,
+          allowPersonaLearning: true,
+          allowTraining: false,
+        },
+        memoryFailures: [sideFailure],
+      },
+      createdAt: 31_000,
+    })).resolves.toBeUndefined()
+
+    expect(dbStub.appendConversationTurn).toBeCalledTimes(2)
+    const dialogueEvents = getDialogueRespondedEvents()
+    expect(dialogueEvents).toHaveLength(1)
+    expect(dialogueEvents[0]).toMatchObject({
+      assistantText: 'Provider reply survives',
+      structured: {
+        origin: 'provider',
+        reply: 'Provider reply survives',
+      },
+    })
+
+    const persistenceAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry =>
+        entry.category === 'alicization.dialogue'
+        && entry.action === 'memory-side-failure-persistence-failed',
+      )
+    expect(persistenceAudit).toMatchObject({
+      level: 'warning',
+      payload: {
+        parentTurnId: 'turn-provider-side-persistence-failure',
+        stage: 'working-memory-long-term-queue',
+        failureKind: 'memory-persistence',
+        reason: 'side artifact write failed',
+      },
+    })
   })
 
   it('does not emit alicization.dialogue.responded when kill switch is already suspended', async () => {

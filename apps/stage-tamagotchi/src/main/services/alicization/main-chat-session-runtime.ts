@@ -1,5 +1,6 @@
 import type {
   AlicizationChannelCapability,
+  AlicizationChatFailureKind,
   AlicizationChatFailureSurface,
   AlicizationExecutionCapabilityChannel,
   AlicizationExecutionCapabilityInquiry,
@@ -206,7 +207,7 @@ export interface AlicizationPreparedMainChatPrelude {
 }
 
 export interface AlicizationMainChatMemoryFailureSurface extends AlicizationChatFailureSurface {
-  stage: 'long-term-memory-recall'
+  stage: 'long-term-memory-recall' | 'working-memory-history' | 'working-memory-long-term-queue'
   cardId: string
   turnId: string
   occurredAt: number
@@ -311,6 +312,15 @@ function buildFallbackProviderFacingAnswerPlanner(input: {
   }
 }
 
+interface WorkingMemoryConversationTurnRecord {
+  turnId: string | null
+  sessionId: string
+  userText: string | null
+  assistantText: string | null
+  structuredJson: string | null
+  createdAt: number
+}
+
 interface CreateAlicizationMainChatSessionRuntimeOptions {
   buildMainRuntimeCorePromptBlocks: (input: {
     hostName: string
@@ -331,6 +341,10 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     items: ReturnType<typeof buildWorkingMemoryOwnerContext>['longTermQueue']
   }) => Promise<void>
   drainWorkingMemoryLongTermQueue?: (limit?: number) => Promise<unknown>
+  listConversationTurnsBySession?: (
+    sessionId: string,
+    options?: { limit?: number },
+  ) => Promise<WorkingMemoryConversationTurnRecord[]>
   retrieveLongTermMemoryEvidence?: (input: {
     cardId: string
     currentUserText: string
@@ -767,6 +781,99 @@ function buildWorkingMemoryRecentTurns(
   return recentTurns
 }
 
+function parseWorkingMemoryStructuredTurn(raw: string | null | undefined) {
+  if (!raw)
+    return null
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null
+  }
+  catch {
+    return null
+  }
+}
+
+function mapPersistedConversationTurnsToWorkingMemory(
+  turns: Awaited<ReturnType<NonNullable<CreateAlicizationMainChatSessionRuntimeOptions['listConversationTurnsBySession']>>>,
+): WorkingMemoryRecentTurnInput[] {
+  return turns.slice(-6).map((turn, index) => {
+    const structured = parseWorkingMemoryStructuredTurn(turn.structuredJson)
+    const nestedFailureSurface = structured?.failureSurface && typeof structured.failureSurface === 'object'
+      ? structured.failureSurface as Record<string, unknown>
+      : null
+    const rawFailureSurface = nestedFailureSurface
+      ?? (
+        structured?.origin === 'failure-surface'
+        && typeof structured.kind === 'string'
+          ? structured
+          : null
+      )
+    const rawOrigin = rawFailureSurface?.origin === 'failure-surface'
+      ? 'failure-surface'
+      : structured?.origin
+    const origin = rawOrigin === 'provider'
+      || rawOrigin === 'failure-surface'
+      || rawOrigin === 'authorization-surface'
+      ? rawOrigin
+      : null
+    const rawLearningPolicy = structured?.learningPolicy && typeof structured.learningPolicy === 'object'
+      ? structured.learningPolicy as Record<string, unknown>
+      : structured
+        && (
+          'allowLongTermCondensation' in structured
+          || 'allowPersonaLearning' in structured
+          || 'allowTraining' in structured
+        )
+        ? structured
+        : null
+    const learningPolicy = rawLearningPolicy
+      ? {
+          allowLongTermCondensation: rawLearningPolicy.allowLongTermCondensation === true,
+          allowPersonaLearning: rawLearningPolicy.allowPersonaLearning === true,
+          allowTraining: false,
+        }
+      : rawFailureSurface
+        ? {
+            allowLongTermCondensation: false,
+            allowPersonaLearning: false,
+            allowTraining: false,
+          }
+        : null
+    const failureKind = typeof rawFailureSurface?.kind === 'string'
+      ? rawFailureSurface.kind as AlicizationChatFailureKind
+      : null
+    const memorySideFailureAuditText = structured?.artifactRole === 'memory-side-failure'
+      ? [
+          rawFailureSurface?.reply,
+          rawFailureSurface?.errorSummary,
+          failureKind,
+        ].find(value => typeof value === 'string' && value.trim().length > 0) as string | undefined
+      : undefined
+    const assistantText = turn.assistantText ?? memorySideFailureAuditText ?? null
+
+    return {
+      turnId: turn.turnId ?? `persisted-${index + 1}`,
+      userText: turn.userText,
+      assistantText,
+      createdAt: turn.createdAt,
+      origin,
+      learningPolicy,
+      failureSurface: failureKind && origin === 'failure-surface'
+        ? {
+            kind: failureKind,
+            origin: 'failure-surface',
+            allowLongTermCondensation: false,
+            allowPersonaLearning: false,
+            allowTraining: false,
+          }
+        : null,
+      contaminated: containsAlicizationFixedTemplateResidue(assistantText ?? ''),
+    }
+  })
+}
+
 function buildWorkingMemoryPromptBlockFromRuntime(input: {
   cardId: string
   currentConsciousFrame: AlicizationCurrentConsciousFrameSnapshot | null
@@ -776,6 +883,7 @@ function buildWorkingMemoryPromptBlockFromRuntime(input: {
   executionLedgerRecallText: string
   messages: Message[]
   now: number
+  persistedRecentTurns?: WorkingMemoryRecentTurnInput[]
   previousSnapshot?: WorkingMemorySnapshot | null
   sessionId: string
 }) {
@@ -783,13 +891,23 @@ function buildWorkingMemoryPromptBlockFromRuntime(input: {
     input.executionCallbackRecallText,
     input.executionLedgerRecallText,
   ].map(text => normalizePreparedExecutionText(text, 1200)).filter(Boolean).join('\n') || null
+  const recentTurns = input.persistedRecentTurns?.length
+    ? [...input.persistedRecentTurns]
+    : buildWorkingMemoryRecentTurns(input.messages, input.now, null)
+  if (executionCarryText) {
+    recentTurns.push({
+      turnId: 'execution-carry',
+      assistantText: executionCarryText,
+      createdAt: input.now,
+    })
+  }
 
   const snapshot = buildWorkingMemorySnapshot({
     cardId: input.cardId,
     sessionId: input.sessionId,
     now: input.now,
     currentUserText: readLatestUserMessageText(input.messages),
-    recentTurns: buildWorkingMemoryRecentTurns(input.messages, input.now, executionCarryText),
+    recentTurns,
     conversationState: input.conversationState as any,
     dialogueWorldThread: input.dialogueWorldThread as any,
     currentConsciousFrame: input.currentConsciousFrame as any,
@@ -811,6 +929,7 @@ function applyWorkingMemoryOwnerToDigitalLifeRuntimeSurface(input: {
   const surface = ensurePreparedRuntimeSurfaceShape(input.surface)
   if (!surface)
     return surface
+
   return {
     ...surface,
     memory: {
@@ -9439,6 +9558,24 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     })
     const providerPlanningMessages = sanitizeOrdinaryDialogueProviderMessages(runtimeSurface.messages)
     const workingMemorySessionId = agentTurn.conversationSessionId ?? payload.turnId
+    const memoryFailures: AlicizationMainChatMemoryFailureSurface[] = []
+    const persistedRecentTurns = options.listConversationTurnsBySession
+      ? await options.listConversationTurnsBySession(workingMemorySessionId, {
+          limit: 6,
+        }).then(mapPersistedConversationTurnsToWorkingMemory).catch((error) => {
+          memoryFailures.push({
+            ...resolveAlicizationChatFailureSurface({
+              kind: 'recall-failure',
+            }),
+            stage: 'working-memory-history',
+            cardId: payload.cardId,
+            turnId: payload.turnId,
+            occurredAt: now,
+            errorSummary: normalizeAlicizationMemoryFailureErrorSummary(error),
+          })
+          return []
+        })
+      : []
     const workingMemoryPrompt = buildWorkingMemoryPromptBlockFromRuntime({
       cardId: payload.cardId,
       currentConsciousFrame: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame ?? null,
@@ -9448,11 +9585,11 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       executionLedgerRecallText: executionLedgerContext.recallText,
       messages: providerPlanningMessages,
       now,
+      persistedRecentTurns,
       previousSnapshot: workingMemoryStore.get(payload.cardId, workingMemorySessionId),
       sessionId: workingMemorySessionId,
     })
     workingMemoryStore.upsert(workingMemoryPrompt.snapshot)
-    const memoryFailures: AlicizationMainChatMemoryFailureSurface[] = []
     let longTermMemoryBundle: LongTermMemoryEvidenceBundle | null = null
     if (options.retrieveLongTermMemoryEvidence) {
       try {
@@ -9515,13 +9652,26 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       longTermRecall: longTermMemoryBundle,
     })
     if (workingMemoryPrompt.ownerContext.longTermQueue.length > 0 && options.enqueueWorkingMemoryLongTermQueue) {
-      void options.enqueueWorkingMemoryLongTermQueue({
-        cardId: payload.cardId,
-        sessionId: workingMemorySessionId,
-        items: workingMemoryPrompt.ownerContext.longTermQueue,
-      }).then(async () => {
+      try {
+        await options.enqueueWorkingMemoryLongTermQueue({
+          cardId: payload.cardId,
+          sessionId: workingMemorySessionId,
+          items: workingMemoryPrompt.ownerContext.longTermQueue,
+        })
         await options.drainWorkingMemoryLongTermQueue?.(4)
-      }).catch(() => {})
+      }
+      catch (error) {
+        memoryFailures.push({
+          ...resolveAlicizationChatFailureSurface({
+            kind: 'memory-persistence',
+          }),
+          stage: 'working-memory-long-term-queue',
+          cardId: payload.cardId,
+          turnId: payload.turnId,
+          occurredAt: now,
+          errorSummary: normalizeAlicizationMemoryFailureErrorSummary(error),
+        })
+      }
     }
     const workingMemoryOwnedRuntimeSurface = applyWorkingMemoryOwnerToDigitalLifeRuntimeSurface({
       surface: runtimeSurface.digitalLifeRuntimeSurface,

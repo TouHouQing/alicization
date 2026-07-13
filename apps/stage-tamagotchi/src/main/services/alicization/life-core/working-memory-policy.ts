@@ -1,4 +1,9 @@
 import type {
+  AlicizationVisibleArtifactLearningPolicy,
+  AlicizationVisibleArtifactOrigin,
+} from '@proj-alicization/stage-shared'
+
+import type {
   WorkingMemoryLongTermCandidate,
   WorkingMemoryTurn,
 } from './working-memory'
@@ -35,7 +40,66 @@ function safeLongTermCandidateSummary(text: string) {
   return sanitizeAlicizationProviderFacingText(normalized, 260, '') || ''
 }
 
+export function resolveAlicizationLearningEligibility(input: {
+  origin: AlicizationVisibleArtifactOrigin
+  learningPolicy: AlicizationVisibleArtifactLearningPolicy
+  contaminated: boolean
+}) {
+  const providerAuthored = input.origin === 'provider'
+  return {
+    allowLongTermCondensation:
+      providerAuthored
+      && input.learningPolicy.allowLongTermCondensation
+      && !input.contaminated,
+    allowPersonaLearning:
+      providerAuthored
+      && input.learningPolicy.allowPersonaLearning
+      && !input.contaminated,
+    allowTraining: false,
+  }
+}
+
+function resolveWorkingMemoryTurnLearningEligibility(turn: WorkingMemoryTurn) {
+  const hasTypedArtifactMetadata = turn.origin !== undefined
+    || turn.learningPolicy !== undefined
+    || turn.failureSurface !== undefined
+    || turn.contaminated !== undefined
+  if (!hasTypedArtifactMetadata)
+    return null
+
+  const origin = turn.failureSurface?.origin ?? turn.origin
+  const learningPolicy = turn.learningPolicy ?? (turn.failureSurface
+    ? {
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+      }
+    : null)
+  if (!origin || !learningPolicy) {
+    return {
+      allowLongTermCondensation: false,
+      allowPersonaLearning: false,
+      allowTraining: false,
+    }
+  }
+
+  return resolveAlicizationLearningEligibility({
+    origin,
+    learningPolicy,
+    contaminated: turn.contaminated === true
+      || (
+        containsAlicizationFixedTemplateResidue(turn.text)
+        && !isTemplateRejectionCorrection(turn.text)
+      ),
+  })
+}
+
 export function shouldExcludeTurnFromLongTermCandidate(turn: WorkingMemoryTurn) {
+  const learningEligibility = resolveWorkingMemoryTurnLearningEligibility(turn)
+  if (learningEligibility && !learningEligibility.allowLongTermCondensation)
+    return true
+  if (turn.failureSurface)
+    return true
   if (turn.failureKind)
     return true
   if (fallbackTemplatePattern.test(turn.text))

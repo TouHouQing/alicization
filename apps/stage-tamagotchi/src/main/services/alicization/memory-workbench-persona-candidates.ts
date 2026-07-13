@@ -1,3 +1,7 @@
+import type {
+  AlicizationVisibleArtifactLearningPolicy,
+  AlicizationVisibleArtifactOrigin,
+} from '@proj-alicization/stage-shared'
 import type sqlite3 from 'sqlite3'
 
 import type {
@@ -11,6 +15,11 @@ import type {
 import type { MemoryWorkbenchPolicyStoreRuntime } from './memory-workbench-policy-store'
 import type { PersonaTrainingCandidate } from './persona-training-candidate'
 
+import { Buffer } from 'node:buffer'
+
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
+
+import { resolveAlicizationLearningEligibility } from './life-core/working-memory-policy'
 import { buildPersonaTrainingCandidatesFromLongTermMemory } from './persona-training-candidate'
 
 export interface PersonaCandidateReviewState {
@@ -82,6 +91,29 @@ function mapReviewRow(row: PersonaCandidateReviewRow): PersonaCandidateReviewSta
     reason: normalizeText(row.reason, 240) || null,
     updatedAt: Number.isFinite(row.updated_at) ? Math.max(0, Math.floor(row.updated_at)) : 0,
   }
+}
+
+export type PersonaCandidateLearningSource
+  = | 'cleaned-long-term-reflection'
+    | 'persona-reinforcement'
+    | 'raw-transcript'
+    | 'review-queue'
+    | 'failure-artifact'
+    | 'authorization-artifact'
+
+export function resolvePersonaCandidateSourceEligibility(input: {
+  source: PersonaCandidateLearningSource | string
+  origin: AlicizationVisibleArtifactOrigin
+  learningPolicy: AlicizationVisibleArtifactLearningPolicy
+  contaminated: boolean
+}) {
+  const allowedSource = input.source === 'cleaned-long-term-reflection'
+    || input.source === 'persona-reinforcement'
+  return resolveAlicizationLearningEligibility({
+    origin: input.origin,
+    learningPolicy: input.learningPolicy,
+    contaminated: input.contaminated || !allowedSource,
+  })
 }
 
 export function mergePersonaCandidateReviewState(input: {
@@ -165,10 +197,25 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
       tombstonedSourceIds: Array.from(tombstonedSourceIds),
     })
     const reflectionUpdatedAt = new Map(reflections.map(reflection => [reflection.id, reflection.updatedAt]))
-    return candidates.map(candidate => ({
-      candidate,
-      updatedAt: reflectionUpdatedAt.get(candidate.sourceMemoryIds[0] ?? '') ?? input.now(),
-    }))
+    return candidates
+      .filter(candidate => resolvePersonaCandidateSourceEligibility({
+        source: 'cleaned-long-term-reflection',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: true,
+          allowPersonaLearning: true,
+          allowTraining: false,
+        },
+        contaminated: containsAlicizationFixedTemplateResidue([
+          candidate.behaviorLesson,
+          candidate.positiveExample,
+          candidate.negativeExample,
+        ].filter(Boolean).join(' ')),
+      }).allowPersonaLearning)
+      .map(candidate => ({
+        candidate,
+        updatedAt: reflectionUpdatedAt.get(candidate.sourceMemoryIds[0] ?? '') ?? input.now(),
+      }))
   }
 
   async function listPersonaCandidates(payload: {

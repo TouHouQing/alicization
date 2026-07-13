@@ -311,6 +311,47 @@ describe('main chat background run', () => {
     }))
   })
 
+  it('keeps memory side failures as separate structured artifacts without replacing the Provider reply', async () => {
+    const input = createInput('继续记忆任务', {
+      preparationPromise: Promise.resolve(createPrepared({
+        memoryFailures: [{
+          kind: 'recall-failure',
+          reply: 'Long-term memory recall failed for this turn.',
+          origin: 'failure-surface',
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+          nonHumanAuthoredStatus: 'direct-infra-repair:recall-failure',
+          visibleReplySource: 'infrastructure-failure',
+          excludeFromPersonaLearning: true,
+          excludeFromMemoryCondensation: true,
+          auditCategory: 'alicization.chat-failure',
+          stage: 'long-term-memory-recall',
+          cardId: 'card-1',
+          turnId: 'turn-1',
+          occurredAt: 10,
+          errorSummary: 'recall offline',
+        }],
+      })),
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    const finishPayload = vi.mocked(input.runStateController.finishRun).mock.calls.at(-1)?.[1]
+    const structured = JSON.parse(String(finishPayload?.fullText ?? '{}'))
+    expect(structured.reply).toBe('Provider reply')
+    expect(structured.memoryFailures).toEqual([
+      expect.objectContaining({
+        kind: 'recall-failure',
+        origin: 'failure-surface',
+        stage: 'long-term-memory-recall',
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+      }),
+    ])
+  })
+
   it('delegates failures without installing timeout reply recovery callbacks', async () => {
     const error = new DOMException('chat-first-event-timeout', 'AbortError')
     const input = createInput()

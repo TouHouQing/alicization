@@ -1,9 +1,23 @@
+import type {
+  AlicizationChatFailureKind,
+  AlicizationVisibleArtifactLearningPolicy,
+  AlicizationVisibleArtifactOrigin,
+} from '@proj-alicization/stage-shared'
+
 export type AlicizationWorkingMemoryVersion = 'working-memory-v1'
 
 export type WorkingMemoryTurnRole = 'user' | 'alice' | 'tool' | 'system'
 export type WorkingMemoryTurnSource = 'conversation-turn' | 'tool-result' | 'runtime-event'
 export type WorkingMemoryTurnVisibility = 'user-visible' | 'internal'
 export type WorkingMemoryFailureKind = 'timeout' | 'provider-error' | 'tool-error' | 'abort'
+
+export interface WorkingMemoryFailureSurface {
+  kind: AlicizationChatFailureKind
+  origin: 'failure-surface'
+  allowLongTermCondensation: false
+  allowPersonaLearning: false
+  allowTraining: false
+}
 
 export interface WorkingMemoryTurn {
   turnId: string
@@ -13,6 +27,10 @@ export interface WorkingMemoryTurn {
   source: WorkingMemoryTurnSource
   visibility: WorkingMemoryTurnVisibility
   failureKind: WorkingMemoryFailureKind | null
+  origin?: AlicizationVisibleArtifactOrigin | null
+  learningPolicy?: AlicizationVisibleArtifactLearningPolicy | null
+  failureSurface?: WorkingMemoryFailureSurface | null
+  contaminated?: boolean
   importance: number
 }
 
@@ -142,6 +160,29 @@ export function clampWorkingMemoryScore(value: unknown) {
 export function normalizeWorkingMemoryTurn(input: Omit<WorkingMemoryTurn, 'failureKind'> & {
   failureKind?: WorkingMemoryFailureKind | null
 }): WorkingMemoryTurn {
+  const failureSurface = input.failureSurface
+    ? {
+        kind: input.failureSurface.kind,
+        origin: 'failure-surface' as const,
+        allowLongTermCondensation: false as const,
+        allowPersonaLearning: false as const,
+        allowTraining: false as const,
+      }
+    : null
+  const learningPolicy = input.learningPolicy
+    ? {
+        allowLongTermCondensation: input.learningPolicy.allowLongTermCondensation === true,
+        allowPersonaLearning: input.learningPolicy.allowPersonaLearning === true,
+        allowTraining: false,
+      }
+    : failureSurface
+      ? {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        }
+      : null
+
   return {
     turnId: normalizeWorkingMemoryText(input.turnId, 120),
     role: input.role,
@@ -150,6 +191,10 @@ export function normalizeWorkingMemoryTurn(input: Omit<WorkingMemoryTurn, 'failu
     source: input.source,
     visibility: input.visibility,
     failureKind: input.failureKind ?? null,
+    origin: input.origin ?? failureSurface?.origin ?? null,
+    learningPolicy,
+    failureSurface,
+    contaminated: input.contaminated === true,
     importance: clampWorkingMemoryScore(input.importance),
   }
 }

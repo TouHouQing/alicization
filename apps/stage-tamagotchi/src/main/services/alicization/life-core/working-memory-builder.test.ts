@@ -275,6 +275,81 @@ describe('working memory snapshot builder', () => {
     )
   })
 
+  it('uses typed failure surfaces for audit and blocks failed turns from long-term candidates', () => {
+    const failureKinds = [
+      'timeout',
+      'provider-auth',
+      'provider-schema-unsupported',
+      'stream-failure',
+      'recall-failure',
+      'memory-persistence',
+    ] as const
+    const recentTurns = failureKinds.map((kind, index) => ({
+      turnId: `turn-${kind}`,
+      userText: `需要记住的失败请求 ${kind}`,
+      assistantText: `错误：${kind}`,
+      createdAt: 13_000 + index,
+      origin: 'failure-surface',
+      learningPolicy: {
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+      },
+      failureSurface: {
+        kind,
+        origin: 'failure-surface',
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+      },
+    }))
+    const snapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-typed-failures',
+      now: 14_000,
+      currentUserText: '继续',
+      recentTurns: recentTurns as any,
+    })
+
+    for (const kind of failureKinds) {
+      expect(snapshot.audit.failureTurnIds).toContain(`turn-${kind}:alice`)
+      expect(snapshot.audit.excludedLongTermCandidateTurnIds).toEqual(expect.arrayContaining([
+        `turn-${kind}:user`,
+        `turn-${kind}:alice`,
+      ]))
+    }
+    expect(snapshot.longTermCandidates).toEqual([])
+  })
+
+  it('creates cleaned long-term candidates only after a provider-authored turn settles', () => {
+    const snapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-provider-learning',
+      now: 15_000,
+      currentUserText: '继续',
+      recentTurns: [{
+        turnId: 'turn-provider',
+        userText: '我喜欢先说结论，再给必要细节。',
+        assistantText: '明白。',
+        createdAt: 14_000,
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: true,
+          allowPersonaLearning: true,
+          allowTraining: false,
+        },
+      }] as any,
+    })
+
+    expect(snapshot.longTermCandidates).toEqual([
+      expect.objectContaining({
+        sourceTurnIds: ['turn-provider:user'],
+        kind: 'preference',
+        allowTraining: false,
+      }),
+    ])
+  })
+
   it('sanitizes fixed-template residue before storing recent raw turns in WorkingMemory', () => {
     const snapshot = buildWorkingMemorySnapshot({
       cardId: 'default',

@@ -14,6 +14,7 @@ import type {
   AlicizationPreparedMainChatPrelude,
 } from './main-chat-session-runtime'
 
+import { resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createAlicizationAgentRuntime } from './agent-runtime'
@@ -8356,11 +8357,26 @@ describe('main chat session runtime', () => {
     const { runtime } = createWorkingMemoryRuntimeFixture({
       enqueueWorkingMemoryLongTermQueue,
       drainWorkingMemoryLongTermQueue,
+      listConversationTurnsBySession: vi.fn(async () => [{
+        turnId: 'turn-working-memory-provider-settled',
+        sessionId: 'session-1',
+        userText: '我不想要固定模板回复，我需要她数字生命自身的人格回复。',
+        assistantText: '明白。',
+        structuredJson: JSON.stringify({
+          origin: 'provider',
+          learningPolicy: {
+            allowLongTermCondensation: true,
+            allowPersonaLearning: true,
+            allowTraining: false,
+          },
+        }),
+        createdAt: 9,
+      }]),
     })
     const prelude = createReflectivePrelude({
       messages: [{
         role: 'user',
-        content: '我不想要固定模板回复，我需要她数字生命自身的人格回复。',
+        content: '继续',
       } as Message],
     })
 
@@ -8370,7 +8386,7 @@ describe('main chat session runtime', () => {
         turnId: 'turn-working-memory-long-term-queue',
         messages: [{
           role: 'user',
-          content: '我不想要固定模板回复，我需要她数字生命自身的人格回复。',
+          content: '继续',
         }],
         supportsTools: true,
       } as any,
@@ -8391,6 +8407,163 @@ describe('main chat session runtime', () => {
       ]),
     }))
     expect(drainWorkingMemoryLongTermQueue).toHaveBeenCalledWith(4)
+  })
+
+  it('keeps typed failure turns in WorkingMemory audit without enqueueing their user text', async () => {
+    const enqueueWorkingMemoryLongTermQueue = vi.fn(async () => {})
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      enqueueWorkingMemoryLongTermQueue,
+      listConversationTurnsBySession: vi.fn(async () => [{
+        turnId: 'turn-working-memory-provider-auth-failure',
+        sessionId: 'session-1',
+        userText: '我喜欢先说结论，再给必要细节。',
+        assistantText: '错误：Provider 鉴权失败。',
+        structuredJson: JSON.stringify({
+          kind: 'provider-auth',
+          origin: 'failure-surface',
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        }),
+        createdAt: 9,
+      }]),
+    })
+    const prelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '继续',
+      } as Message],
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-after-provider-auth-failure',
+        messages: [{
+          role: 'user',
+          content: '继续',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    expect(result.memoryContext.workingMemory.audit.failureTurnIds).toContain(
+      'turn-working-memory-provider-auth-failure:alice',
+    )
+    expect(enqueueWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
+  })
+
+  it('restores hidden memory side-failure rows into WorkingMemory audit without visible assistant text', async () => {
+    const enqueueWorkingMemoryLongTermQueue = vi.fn(async () => {})
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      enqueueWorkingMemoryLongTermQueue,
+      listConversationTurnsBySession: vi.fn(async () => [{
+        turnId: 'turn-provider:memory-failure:long-term-memory-recall:0',
+        sessionId: 'session-1',
+        userText: null,
+        assistantText: null,
+        structuredJson: JSON.stringify({
+          format: 'alicization-memory-side-failure-v1',
+          origin: 'failure-surface',
+          artifactRole: 'memory-side-failure',
+          parentTurnId: 'turn-provider',
+          stage: 'long-term-memory-recall',
+          learningPolicy: {
+            allowLongTermCondensation: false,
+            allowPersonaLearning: false,
+            allowTraining: false,
+          },
+          failureSurface: {
+            ...resolveAlicizationChatFailureSurface({
+              kind: 'recall-failure',
+            }),
+            stage: 'long-term-memory-recall',
+            errorSummary: 'vector recall offline',
+          },
+        }),
+        createdAt: 9,
+      }]),
+    })
+    const prelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '继续',
+      } as Message],
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-after-memory-side-failure',
+        messages: [{
+          role: 'user',
+          content: '继续',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    expect(result.memoryContext.workingMemory.audit.failureTurnIds).toContain(
+      'turn-provider:memory-failure:long-term-memory-recall:0:alice',
+    )
+    expect(enqueueWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
+  })
+
+  it('reports long-term queue persistence failure without turning it into learned dialogue', async () => {
+    const enqueueWorkingMemoryLongTermQueue = vi.fn(async () => {
+      throw new Error('queue write failed')
+    })
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      enqueueWorkingMemoryLongTermQueue,
+      listConversationTurnsBySession: vi.fn(async () => [{
+        turnId: 'turn-working-memory-provider-settled',
+        sessionId: 'session-1',
+        userText: '我喜欢先说结论，再给必要细节。',
+        assistantText: '明白。',
+        structuredJson: JSON.stringify({
+          origin: 'provider',
+          learningPolicy: {
+            allowLongTermCondensation: true,
+            allowPersonaLearning: true,
+            allowTraining: false,
+          },
+        }),
+        createdAt: 9,
+      }]),
+    })
+    const prelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '继续',
+      } as Message],
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-queue-failure',
+        messages: [{
+          role: 'user',
+          content: '继续',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    expect(result.memoryFailures).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'memory-persistence',
+        stage: 'working-memory-long-term-queue',
+        origin: 'failure-surface',
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+        errorSummary: 'queue write failed',
+      }),
+    ]))
   })
 
   it('injects recalled long-term memory evidence into the typed memory context', async () => {

@@ -76,6 +76,7 @@ import {
   alicizationExecutionCapabilityChannels,
 
   buildAlicizationMemoryDecisionTraceRecords,
+  containsAlicizationFixedTemplateResidue,
   inferAlicizationInspectionIntent,
   isWeakAlicizationScreenSurfaceCue,
   isWeakAlicizationScreenSurfaceTarget,
@@ -158,6 +159,7 @@ import {
 import { createAlicizationExecutorRuntime } from './executor-runtime'
 import { buildAsyncFactMemoryFragments } from './fact-memory'
 import { inferHostSocialContextsFromText } from './host-social-guidance'
+import { resolveAlicizationLearningEligibility } from './life-core/working-memory-policy'
 import { createWorkingMemoryStore } from './life-core/working-memory-store'
 import { buildQuietCompanionshipMindTurnEvent, deriveQuietCompanionshipOutcome } from './living-world-state'
 import { createAlicizationLocalBrowserAutomationService } from './local-browser-automation'
@@ -3367,6 +3369,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     persistAutobiographicalEpisodesFromPreparedMirror: persistPreparedMirrorAutobiographicalEpisodes,
     enqueueWorkingMemoryLongTermQueue: async input => await alicizationDb.enqueueWorkingMemoryLongTermQueueItems(input),
     drainWorkingMemoryLongTermQueue: async limit => await alicizationDb.drainWorkingMemoryLongTermQueue(limit),
+    listConversationTurnsBySession: async (sessionId, options) =>
+      await alicizationDb.listConversationTurnsBySession(sessionId, options),
     retrieveLongTermMemoryEvidence: async input => await alicizationDb.retrieveLongTermMemoryEvidence(input),
     executionCapabilityChannels: alicizationExecutionCapabilityChannels,
     executeMainGatewayTaskThread,
@@ -5335,14 +5339,168 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     try {
       let persistedDialogueState: AlicizationVisualPresenceStateSnapshot | null = null
       let visualPresenceState: AlicizationVisualPresenceStateSnapshot | null = null
-      await alicizationDb.appendConversationTurn(normalizedPayload, { signal })
-      await payload.onPersisted?.()
       const structured = normalizedPayload.structured && typeof normalizedPayload.structured === 'object'
         ? normalizedPayload.structured as Record<string, unknown>
         : null
+      const memorySideFailures = Array.isArray(structured?.memoryFailures)
+        ? structured.memoryFailures.flatMap((rawFailure, index) => {
+            if (!rawFailure || typeof rawFailure !== 'object' || Array.isArray(rawFailure))
+              return []
+
+            const failure = rawFailure as Record<string, unknown>
+            const stage = readStringValue(failure.stage)
+            const kind = readStringValue(failure.kind)
+            if (
+              failure.origin !== 'failure-surface'
+              || !kind
+              || (
+                stage !== 'long-term-memory-recall'
+                && stage !== 'working-memory-history'
+                && stage !== 'working-memory-long-term-queue'
+              )
+            ) {
+              return []
+            }
+
+            return [{
+              failure,
+              index,
+              kind,
+              stage,
+            }]
+          })
+        : []
+      await alicizationDb.appendConversationTurn(normalizedPayload, { signal })
+      for (const memorySideFailure of memorySideFailures) {
+        const parentTurnId = sanitizeText(normalizedPayload.turnId, '')
+        if (!parentTurnId)
+          continue
+
+        const failureSurface = {
+          ...memorySideFailure.failure,
+          kind: memorySideFailure.kind,
+          origin: 'failure-surface' as const,
+          allowLongTermCondensation: false as const,
+          allowPersonaLearning: false as const,
+          allowTraining: false as const,
+        }
+        try {
+          await alicizationDb.appendConversationTurn({
+            turnId: `${parentTurnId}:memory-failure:${memorySideFailure.stage}:${memorySideFailure.index}`,
+            sessionId: normalizedSessionId,
+            origin: normalizedPayload.origin,
+            structured: {
+              format: 'alicization-memory-side-failure-v1',
+              origin: 'failure-surface',
+              artifactRole: 'memory-side-failure',
+              parentTurnId,
+              stage: memorySideFailure.stage,
+              learningPolicy: {
+                allowLongTermCondensation: false,
+                allowPersonaLearning: false,
+                allowTraining: false,
+              },
+              failureSurface,
+            },
+            createdAt: Number.isFinite(memorySideFailure.failure.occurredAt)
+              ? Number(memorySideFailure.failure.occurredAt)
+              : normalizedCreatedAt,
+          }, { signal })
+        }
+        catch (error) {
+          await appendAuditLog({
+            level: 'warning',
+            category: 'alicization.dialogue',
+            action: 'memory-side-failure-persistence-failed',
+            message: 'Failed to persist an independent memory side-failure artifact after the Provider turn was saved.',
+            payload: {
+              parentTurnId,
+              sessionId: normalizedSessionId,
+              stage: memorySideFailure.stage,
+              failureKind: memorySideFailure.kind,
+              reason: errorMessageFrom(error) ?? 'unknown-error',
+            },
+          })
+        }
+      }
+      await payload.onPersisted?.()
+      const structuredFailureSurface = structured?.failureSurface && typeof structured.failureSurface === 'object'
+        ? structured.failureSurface as Record<string, unknown>
+        : null
+      const structuredLearningPolicy = structured?.learningPolicy && typeof structured.learningPolicy === 'object'
+        ? structured.learningPolicy as Record<string, unknown>
+        : null
+      const artifactOrigin = structuredFailureSurface?.origin === 'failure-surface'
+        ? 'failure-surface' as const
+        : structured?.origin === 'provider'
+          || structured?.origin === 'failure-surface'
+          || structured?.origin === 'authorization-surface'
+          ? structured.origin
+          : null
+      const hasTypedLearningMetadata = Boolean(
+        artifactOrigin
+        || structuredLearningPolicy
+        || structuredFailureSurface,
+      )
+      const artifactLearningPolicy = structuredLearningPolicy
+        ? {
+            allowLongTermCondensation: structuredLearningPolicy.allowLongTermCondensation === true,
+            allowPersonaLearning: structuredLearningPolicy.allowPersonaLearning === true,
+            allowTraining: false,
+          }
+        : structuredFailureSurface
+          ? {
+              allowLongTermCondensation: false,
+              allowPersonaLearning: false,
+              allowTraining: false,
+            }
+          : null
+      const artifactContaminated = containsAlicizationFixedTemplateResidue([
+        normalizedPayload.assistantText ?? '',
+        readStringValue(structured?.reply),
+      ].join('\n'))
+      const learningEligibility = hasTypedLearningMetadata
+        ? artifactOrigin && artifactLearningPolicy
+          ? resolveAlicizationLearningEligibility({
+              origin: artifactOrigin,
+              learningPolicy: artifactLearningPolicy,
+              contaminated: artifactContaminated,
+            })
+          : {
+              allowLongTermCondensation: false,
+              allowPersonaLearning: false,
+              allowTraining: false,
+            }
+        : {
+            allowLongTermCondensation: false,
+            allowPersonaLearning: false,
+            allowTraining: false,
+          }
+      const allowDialogueLearning = learningEligibility.allowLongTermCondensation
+        || learningEligibility.allowPersonaLearning
+      if (!allowDialogueLearning) {
+        await appendAuditLog({
+          level: 'notice',
+          category: 'alicization.dialogue',
+          action: 'visible-artifact-learning-blocked',
+          message: 'Persisted the visible artifact for audit without running memory or persona learning side effects.',
+          payload: {
+            turnId: normalizedPayload.turnId,
+            sessionId: normalizedPayload.sessionId,
+            artifactOrigin,
+            failureKind: readStringValue(structuredFailureSurface?.kind) || null,
+            contaminated: artifactContaminated,
+            learningEligibility,
+          },
+        })
+      }
       const derivedBundleForLearning = normalizeAlicizationDerivedMindStateBundle(structured?.derivedMindStateBundle ?? null)
       const emotionalKernelForPersistence = derivedBundleForLearning?.emotionalKernel ?? null
-      if (derivedBundleForLearning?.selfEvolution && normalizedPayload.origin === 'user-turn') {
+      if (
+        learningEligibility.allowPersonaLearning
+        && derivedBundleForLearning?.selfEvolution
+        && normalizedPayload.origin === 'user-turn'
+      ) {
         const retrievedFactsForLearning = Array.isArray(structured?.retrievedFacts)
           ? (structured?.retrievedFacts as unknown[]).filter(item => item && typeof item === 'object')
           : []
@@ -5360,7 +5518,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           turnId: normalizedPayload.turnId ?? null,
         }).catch(() => {})
       }
-      if (normalizedPayload.origin === 'user-turn' && sanitizeText(normalizedPayload.assistantText).length > 0) {
+      if (
+        allowDialogueLearning
+        && normalizedPayload.origin === 'user-turn'
+        && sanitizeText(normalizedPayload.assistantText).length > 0
+      ) {
         try {
           visualPresenceState = await ensureVisualPresenceState(activeCardId)
           const dialogueWorldThread = registerDialogueWorldThreadAssistantTurn({
@@ -5654,17 +5816,19 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         }
       }
 
-      const dialogueTurnMemoryText = normalizeOrganicMemoryText(
-        buildDialogueTurnMemoryFragment({
-          payload: normalizedPayload,
-          governance: governedTurn.governance ?? null,
-          state: persistedDialogueState ?? null,
-          runtimeSurface: persistedDialogueState
-            ? buildAlicizationDigitalLifeRuntimeSurface(persistedDialogueState)
-            : null,
-        }),
-        320,
-      )
+      const dialogueTurnMemoryText = learningEligibility.allowLongTermCondensation
+        ? normalizeOrganicMemoryText(
+            buildDialogueTurnMemoryFragment({
+              payload: normalizedPayload,
+              governance: governedTurn.governance ?? null,
+              state: persistedDialogueState ?? null,
+              runtimeSurface: persistedDialogueState
+                ? buildAlicizationDigitalLifeRuntimeSurface(persistedDialogueState)
+                : null,
+            }),
+            320,
+          )
+        : ''
       if (dialogueTurnMemoryText) {
         await alicizationDb.appendSubconsciousFragments([{
           text: dialogueTurnMemoryText,
@@ -5690,7 +5854,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         : visualPresenceState
           ? buildAlicizationDigitalLifeRuntimeSurface(visualPresenceState)
           : null
-      if (normalizedPayload.origin === 'user-turn' && sanitizeText(normalizedPayload.assistantText).length > 0) {
+      if (
+        learningEligibility.allowPersonaLearning
+        && normalizedPayload.origin === 'user-turn'
+        && sanitizeText(normalizedPayload.assistantText).length > 0
+      ) {
         await persistOutcomeClosure(activeCardId, buildReplyOutcomeClosure({
           now: normalizedCreatedAt,
           cardId: activeCardId,

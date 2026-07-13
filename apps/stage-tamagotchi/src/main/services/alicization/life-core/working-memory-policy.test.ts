@@ -2,11 +2,13 @@ import type { WorkingMemoryTurn } from './working-memory'
 
 import { describe, expect, it } from 'vitest'
 
-import {
+import * as workingMemoryPolicy from './working-memory-policy'
+
+const {
   createLongTermCandidatesFromWorkingTurns,
   rankWorkingMemoryRetention,
   shouldExcludeTurnFromLongTermCandidate,
-} from './working-memory-policy'
+} = workingMemoryPolicy
 
 function turn(input: Partial<WorkingMemoryTurn> & Pick<WorkingMemoryTurn, 'turnId' | 'role' | 'text'>): WorkingMemoryTurn {
   return {
@@ -20,6 +22,62 @@ function turn(input: Partial<WorkingMemoryTurn> & Pick<WorkingMemoryTurn, 'turnI
 }
 
 describe('working memory policy', () => {
+  it('only admits uncontaminated provider artifacts into memory and persona learning', () => {
+    const resolver = (workingMemoryPolicy as Record<string, unknown>).resolveAlicizationLearningEligibility
+    expect(resolver).toBeTypeOf('function')
+
+    const resolveEligibility = resolver as (input: {
+      origin: 'provider' | 'failure-surface' | 'authorization-surface'
+      learningPolicy: {
+        allowLongTermCondensation: boolean
+        allowPersonaLearning: boolean
+        allowTraining: boolean
+      }
+      contaminated: boolean
+    }) => {
+      allowLongTermCondensation: boolean
+      allowPersonaLearning: boolean
+      allowTraining: boolean
+    }
+    const providerPolicy = {
+      allowLongTermCondensation: true,
+      allowPersonaLearning: true,
+      allowTraining: false,
+    }
+
+    expect(resolveEligibility({
+      origin: 'provider',
+      learningPolicy: providerPolicy,
+      contaminated: false,
+    })).toEqual({
+      allowLongTermCondensation: true,
+      allowPersonaLearning: true,
+      allowTraining: false,
+    })
+
+    for (const origin of ['failure-surface', 'authorization-surface'] as const) {
+      expect(resolveEligibility({
+        origin,
+        learningPolicy: providerPolicy,
+        contaminated: false,
+      })).toEqual({
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+      })
+    }
+
+    expect(resolveEligibility({
+      origin: 'provider',
+      learningPolicy: providerPolicy,
+      contaminated: true,
+    })).toEqual({
+      allowLongTermCondensation: false,
+      allowPersonaLearning: false,
+      allowTraining: false,
+    })
+  })
+
   it('keeps corrections and commitments above ordinary chat', () => {
     const ranked = rankWorkingMemoryRetention([
       turn({ turnId: 'chat', role: 'user', text: '今天还可以' }),
@@ -37,6 +95,30 @@ describe('working memory policy', () => {
       text: '超时了。',
       failureKind: 'timeout',
     })
+
+    expect(shouldExcludeTurnFromLongTermCandidate(failure)).toBe(true)
+    expect(createLongTermCandidatesFromWorkingTurns([failure])).toEqual([])
+  })
+
+  it('uses typed failure metadata as the primary long-term exclusion boundary', () => {
+    const failure = turn({
+      turnId: 'provider-auth-1',
+      role: 'alice',
+      text: '错误：Provider 鉴权失败。',
+      origin: 'failure-surface',
+      learningPolicy: {
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+      },
+      failureSurface: {
+        kind: 'provider-auth',
+        origin: 'failure-surface',
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+      },
+    } as Partial<WorkingMemoryTurn> & Pick<WorkingMemoryTurn, 'turnId' | 'role' | 'text'>)
 
     expect(shouldExcludeTurnFromLongTermCandidate(failure)).toBe(true)
     expect(createLongTermCandidatesFromWorkingTurns([failure])).toEqual([])

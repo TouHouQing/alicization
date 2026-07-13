@@ -6711,6 +6711,19 @@ export async function runAlicizationMainChatBackground(
           : visibleReplyRealization,
       })
     })()
+    finalHostVisiblePayload = (() => {
+      if (!prepared?.memoryFailures.length)
+        return finalHostVisiblePayload
+
+      const parsed = parseJsonObjectFromText(finalHostVisiblePayload)
+      if (!parsed)
+        return finalHostVisiblePayload
+
+      return JSON.stringify({
+        ...parsed,
+        memoryFailures: prepared.memoryFailures,
+      })
+    })()
     try {
       await input.appendRuntimeDebugLine('chat-stream.completed-finish-shape', {
         cardId: input.payload.cardId,
