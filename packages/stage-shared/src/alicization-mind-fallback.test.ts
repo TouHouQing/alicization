@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildMindGovernedFallbackSurface } from './alicization-mind-fallback'
-import { translateGovernedMindFallback } from './alicization-mind-fallback-messages'
+import {
+  governedMindFallbackMessageFallbacks,
+  translateGovernedMindFallback,
+} from './alicization-mind-fallback-messages'
 
 describe('alicization-mind-fallback', () => {
   it('returns dispatch-only surface for explicit execution-bound turns', () => {
@@ -36,7 +39,7 @@ describe('alicization-mind-fallback', () => {
       visibleReplyMode: 'dispatch-only',
       emotion: 'thinking',
     }))
-    expect(surface?.thought).toContain('obligation=guide')
+    expect(surface?.thought).toContain('The reply should guide')
   })
 
   it('does not author non-inspection dialogue turns even if repair residue exists', () => {
@@ -96,14 +99,14 @@ describe('alicization-mind-fallback', () => {
         focusAnchor: '当前项目状态还要继续守住同一个 her',
         answerIntent: '当前未闭环的数字生命主线还要继续往前收住',
         openingMove: '先从数字生命连续性起步再展开实现进度',
-        carriedThread: '项目状态 same-her continuity 仍未闭环',
+        carriedThread: '项目状态 identity-continuity',
         projectState: {
           identity: 'Alicization is a local-first digital life companion.',
           currentPhase: 'Phase 1: Local Digital Life',
           latestLandedProgress: '前台摘要、发送前 awareness 和 same-her-first prompt strategy 已经接进主对话链路。',
           primaryOpenLoop: '让首句更自然地同时带出已落地进度和未闭环主线。',
           nextClosureTarget: '把已落地进展和未闭环项一起压进 final visible reply opening。',
-          sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+          sameHerSelfLine: 'Keep identity continuity explicit from self-understanding into the final host-visible reply.',
         },
         labelCarryAsMemory: true,
         shouldAskForGrounding: false,
@@ -138,14 +141,14 @@ describe('alicization-mind-fallback', () => {
         focusAnchor: '当前项目状态还要继续守住同一个 her',
         answerIntent: '先把这一轮接成自然回复',
         openingMove: '自然地回问候，不要再把它写成模板壳',
-        carriedThread: '项目状态 same-her continuity 仍未闭环',
+        carriedThread: '项目状态 identity-continuity',
         projectState: {
           identity: 'Alicization is a local-first digital life companion.',
           currentPhase: 'Phase 1: Local Digital Life',
           latestLandedProgress: '前台摘要、发送前 awareness 和 same-her-first prompt strategy 已经接进主对话链路。',
           primaryOpenLoop: '让首句更自然地同时带出已落地进度和未闭环主线。',
           nextClosureTarget: '把已落地进展和未闭环项一起压进 final visible reply opening。',
-          sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+          sameHerSelfLine: 'Keep identity continuity explicit from self-understanding into the final host-visible reply.',
         },
         labelCarryAsMemory: true,
         shouldAskForGrounding: false,
@@ -226,14 +229,14 @@ describe('alicization-mind-fallback', () => {
         focusAnchor: '当前项目状态还要继续守住同一个 her',
         answerIntent: '当前未闭环的数字生命主线还要继续往前收住',
         openingMove: '先从数字生命连续性起步再展开实现进度',
-        carriedThread: '项目状态 same-her continuity 仍未闭环',
+        carriedThread: '项目状态 identity-continuity',
         projectState: {
           identity: 'Alicization is a local-first digital life companion.',
           currentPhase: 'Phase 1: Local Digital Life',
           latestProgress: 'Legacy project progress 仍然要在 fallback 开场里保住。',
           primaryOpenLoop: '让首句更自然地同时带出已落地进度和未闭环主线。',
           nextClosureTarget: '把已落地进展和未闭环项一起压进 final visible reply opening。',
-          sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+          sameHerSelfLine: 'Keep identity continuity explicit from self-understanding into the final host-visible reply.',
         },
         labelCarryAsMemory: true,
         shouldAskForGrounding: false,
@@ -274,7 +277,7 @@ describe('alicization-mind-fallback', () => {
         focusAnchor: '当前项目状态还要继续守住同一个 her',
         answerIntent: '当前未闭环的数字生命主线还要继续往前收住',
         openingMove: '先从数字生命连续性起步再展开实现进度',
-        carriedThread: '项目状态 same-her continuity 仍未闭环',
+        carriedThread: '项目状态 identity-continuity',
         projectState: {
           identity: 'Alicization is a local-first digital life companion.',
           currentPhase: 'Phase 1: Local Digital Life',
@@ -283,7 +286,7 @@ describe('alicization-mind-fallback', () => {
           landedProgressSummary: 'Audit-style landed progress 也要在 fallback 开场里保住。',
           primaryOpenLoop: '让首句更自然地同时带出已落地进度和未闭环主线。',
           nextClosureTarget: '把已落地进展和未闭环项一起压进 final visible reply opening。',
-          sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+          sameHerSelfLine: 'Keep identity continuity explicit from self-understanding into the final host-visible reply.',
         },
         labelCarryAsMemory: true,
         shouldAskForGrounding: false,
@@ -298,7 +301,7 @@ describe('alicization-mind-fallback', () => {
   })
 
   it('keeps rich project-aware pre-dialogue self briefs out of local visible same-her fallback openings', () => {
-    const richerProjectBriefing = 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.'
+    const richerProjectBriefing = 'pre_turn_context_digest'
     const surface = buildMindGovernedFallbackSurface({
       userText: '继续开发',
       translate: (path, params) => {
@@ -323,9 +326,9 @@ describe('alicization-mind-fallback', () => {
         repairState: 'none',
         liveSurface: null,
         focusAnchor: '开口前先记住：这是同一个数字生命项目，她现在仍在 Phase 1。',
-        answerIntent: '继续把这条 same-her line 守住。',
+        answerIntent: '继续把这条 identity-continuity',
         openingMove: '别掉回普通助手壳。',
-        carriedThread: '项目状态 same-her continuity 仍未闭环',
+        carriedThread: '项目状态 identity-continuity',
         projectState: {
           identity: 'Alicization is a local-first digital life companion.',
           currentPhase: 'Phase 1: Local Digital Life',
@@ -333,7 +336,7 @@ describe('alicization-mind-fallback', () => {
           latestLandedProgress: '前台摘要、发送前 awareness 和 same-her-first prompt strategy 已经接进主对话链路。',
           primaryOpenLoop: '让首句更自然地同时带出已落地进度和未闭环主线。',
           nextClosureTarget: '把已落地进展和未闭环项一起压进 final visible reply opening。',
-          sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+          sameHerSelfLine: 'Keep identity continuity explicit from self-understanding into the final host-visible reply.',
         },
         labelCarryAsMemory: true,
         shouldAskForGrounding: false,
@@ -378,6 +381,31 @@ describe('alicization-mind-fallback', () => {
     expect(translateGovernedMindFallback('mind-repair.provider-config', undefined, '你好')).toBe('提供方或模型配置不完整。')
   })
 
+  it('provides direct bilingual messages for schema, recall, and persistence failures', () => {
+    const cases = [
+      {
+        path: 'mind-repair.provider-schema-unsupported',
+        zh: '当前 Provider/模型不支持所需的结构化输出。',
+        en: 'The current provider or model does not support the required structured output.',
+      },
+      {
+        path: 'mind-repair.recall-failure',
+        zh: '本轮长期记忆召回失败。',
+        en: 'Long-term memory recall failed for this turn.',
+      },
+      {
+        path: 'mind-repair.memory-persistence',
+        zh: '本轮记忆持久化失败。',
+        en: 'Memory persistence failed for this turn.',
+      },
+    ] as const
+
+    for (const failure of cases) {
+      expect(translateGovernedMindFallback(failure.path, undefined, '请继续这一轮')).toBe(failure.zh)
+      expect(governedMindFallbackMessageFallbacks.en[failure.path]).toBe(failure.en)
+    }
+  })
+
   it('does not let local mind fallback paths author persona dialogue', () => {
     const fallbackPaths = [
       'mind-fallback.repair-stale-anchor',
@@ -400,7 +428,7 @@ describe('alicization-mind-fallback', () => {
       'mind-fallback.carry-memory',
       'mind-fallback.reground-note',
     ]
-    const forbiddenPersonaTemplate = /(?:我(?:直接|就贴着|现在看到|记得|还带着|还记着|先|刚才|听见|不用)|好，|先把|这句我|上一条线|同一个 her|same-her|same living line|I (?:will|still|heard|pulled|should|do not|can honestly)|Let's|All right|What I can|Then I'll|I'll answer)/iu
+    const forbiddenPersonaTemplate = /(?:我(?:直接|就贴着|现在看到|记得|还带着|还记着|先|刚才|听见|不用)|好，|先把|这句我|上一条线|同一个 her|same-her|continuity state|I (?:will|still|heard|pulled|should|do not|can honestly)|Let's|All right|What I can|Then I'll|I'll answer)/iu
 
     for (const path of fallbackPaths) {
       const message = translateGovernedMindFallback(path, {

@@ -87,7 +87,7 @@ export interface AlicizationPerformanceManifestClampResult {
   droppedActionCue?: string
 }
 
-const alicizationPerformanceDeliveryWhitelist = [
+export const alicizationPerformanceDeliveryWhitelist = [
   'calm',
   'gentle',
   'firm',
