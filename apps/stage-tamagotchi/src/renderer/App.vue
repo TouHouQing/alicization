@@ -142,6 +142,9 @@ import {
   pluginProtocolListProvidersEventName,
 } from '../shared/eventa'
 import {
+  bridgeAlicizationChatChunkEventToStreamEvent,
+  bridgeAlicizationChatErrorEventToStreamEvent,
+  bridgeAlicizationChatFinishEventToStreamEvent,
   bridgeAlicizationChatMetaEventToStreamEvent,
   bridgeAlicizationChatStartResultToStreamEvent,
 } from './alicization-chat-stream-bridge'
@@ -846,10 +849,7 @@ function handleAlicizationChatStreamChunk(payload?: AlicizationChatStreamChunkEv
   const pending = resolvePendingAlicizationStream(payload.cardId, payload.turnId)
   if (!pending)
     return
-  void pending.onStreamEvent?.({
-    type: 'text-delta',
-    text: payload.text,
-  })
+  void pending.onStreamEvent?.(bridgeAlicizationChatChunkEventToStreamEvent(payload))
 }
 
 function handleAlicizationChatStreamMeta(payload?: AlicizationChatMetaEvent) {
@@ -895,10 +895,7 @@ function handleAlicizationChatStreamError(payload?: AlicizationChatErrorEvent) {
   const pending = resolvePendingAlicizationStream(payload.cardId, payload.turnId)
   if (!pending)
     return
-  void pending.onStreamEvent?.({
-    type: 'error',
-    error: payload.error,
-  })
+  void pending.onStreamEvent?.(bridgeAlicizationChatErrorEventToStreamEvent(payload))
   pending.reject(createAlicizationStreamError(
     String(payload.error || alicizationChatStreamText('error')),
     'alicization-stream-error',
@@ -915,12 +912,12 @@ function handleAlicizationChatStreamFinish(payload?: AlicizationChatFinishEvent)
   pending.visibleReplyCritic = summarizeAlicizationVisibleReplyCriticForRenderer(payload.visibleReplyCritic)
   pending.visibleReplyClosure = summarizeAlicizationVisibleReplyClosureForRenderer(payload.visibleReplyClosure)
   if (payload.status === 'completed') {
-    void pending.onStreamEvent?.({
-      type: 'finish',
+    void pending.onStreamEvent?.(bridgeAlicizationChatFinishEventToStreamEvent({
+      ...payload,
       visibleReplyExecution: pending.visibleReplyExecution ?? null,
       visibleReplyCritic: pending.visibleReplyCritic ?? null,
       visibleReplyClosure: pending.visibleReplyClosure ?? null,
-    } as AlicizationBridgeChatStreamEvent)
+    }))
     pending.resolve()
     return
   }
@@ -929,7 +926,10 @@ function handleAlicizationChatStreamFinish(payload?: AlicizationChatFinishEvent)
     return
   }
   const error = payload.error || alicizationChatStreamText('failed')
-  void pending.onStreamEvent?.({ type: 'error', error })
+  void pending.onStreamEvent?.(bridgeAlicizationChatErrorEventToStreamEvent({
+    ...payload,
+    error,
+  }))
   pending.reject(createAlicizationStreamError(String(error), 'alicization-stream-failed'))
 }
 

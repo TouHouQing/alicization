@@ -1,6 +1,12 @@
 import type { AlicizationBridgeChatStreamEvent } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 
-import type { AlicizationChatMetaEvent, AlicizationChatStartResult } from '../shared/eventa'
+import type {
+  AlicizationChatErrorEvent,
+  AlicizationChatFinishEvent,
+  AlicizationChatMetaEvent,
+  AlicizationChatStartResult,
+  AlicizationChatStreamChunkEvent,
+} from '../shared/eventa'
 
 import {
   containsAlicizationFixedTemplateResidue,
@@ -14,6 +20,19 @@ import {
   normalizeStructuredPreDialogueClosurePayload,
   normalizeStructuredProjectStatePayload,
 } from '@proj-alicization/stage-ui/composables/alicization-structured-output'
+
+type AlicizationBridgeMetaEvent = Extract<AlicizationBridgeChatStreamEvent, { type: 'meta' }>
+type AlicizationBridgePreDialogueClosure = NonNullable<AlicizationBridgeMetaEvent['preDialogueClosure']>
+type AlicizationBridgeRuntimeDigest = NonNullable<AlicizationBridgeMetaEvent['runtimeDigest']>
+type AlicizationBridgeFinishEvent = Extract<AlicizationBridgeChatStreamEvent, { type: 'finish' }>
+type AlicizationChatFinishBridgePayload = Omit<
+  AlicizationChatFinishEvent,
+  'visibleReplyExecution' | 'visibleReplyCritic' | 'visibleReplyClosure'
+> & {
+  visibleReplyExecution?: AlicizationBridgeFinishEvent['visibleReplyExecution']
+  visibleReplyCritic?: AlicizationBridgeFinishEvent['visibleReplyCritic']
+  visibleReplyClosure?: AlicizationBridgeFinishEvent['visibleReplyClosure']
+}
 
 function buildBridgeLatestLandedProgressReason(latestLandedProgress: string | null | undefined) {
   const normalized = latestLandedProgress?.trim()
@@ -65,13 +84,17 @@ function normalizeBridgeReasonPreviewLine(raw: string | null | undefined) {
   if (!sanitized)
     return null
 
-  const latestMatch = sanitized.match(/^Latest landed progress still holds at\s+(.+?)[.。]?$/iu)
-  if (latestMatch)
-    return buildBridgeLatestLandedProgressReason(latestMatch[1])
+  const latestPrefix = 'Latest landed progress still holds at'
+  if (sanitized.startsWith(latestPrefix)) {
+    const value = sanitized.slice(latestPrefix.length).trim().replace(/[.。]$/u, '')
+    return buildBridgeLatestLandedProgressReason(value)
+  }
 
-  const nextMatch = sanitized.match(/^Next closure target is still\s+(.+?)[.。]?$/iu)
-  if (nextMatch)
-    return buildBridgeNextClosureTargetReason(nextMatch[1])
+  const nextPrefix = 'Next closure target is still'
+  if (sanitized.startsWith(nextPrefix)) {
+    const value = sanitized.slice(nextPrefix.length).trim().replace(/[.。]$/u, '')
+    return buildBridgeNextClosureTargetReason(value)
+  }
 
   return sanitized
 }
@@ -131,9 +154,11 @@ function sanitizeBridgeProjectState<T extends Record<string, any> | null>(projec
   } as T
 }
 
-function sanitizeBridgePreDialogueClosure<T extends Record<string, any> | null>(closure: T): T {
+function sanitizeBridgePreDialogueClosure(
+  closure: ReturnType<typeof normalizeStructuredPreDialogueClosurePayload> | null,
+): AlicizationBridgePreDialogueClosure | null {
   if (!closure)
-    return closure
+    return null
 
   return {
     ...closure,
@@ -154,7 +179,7 @@ function sanitizeBridgePreDialogueClosure<T extends Record<string, any> | null>(
           .map(reason => sanitizeBridgeClosureMetadataText(reason))
           .filter((reason): reason is string => Boolean(reason))
       : closure.reasons,
-  } as T
+  } as AlicizationBridgePreDialogueClosure
 }
 
 function sanitizeBridgeMetadataRecord<T extends Record<string, any>>(record: T): T {
@@ -175,9 +200,11 @@ function sanitizeBridgeMetadataRecord<T extends Record<string, any>>(record: T):
   ) as T
 }
 
-function sanitizeBridgeRuntimeDigest<T extends Record<string, any> | null>(runtimeDigest: T): T {
+function sanitizeBridgeRuntimeDigest(
+  runtimeDigest: AlicizationChatMetaEvent['runtimeDigest'] | null | undefined,
+): AlicizationBridgeRuntimeDigest | null {
   if (!runtimeDigest)
-    return runtimeDigest
+    return null
 
   const currentConsciousFrame = runtimeDigest.currentConsciousFrame
     && typeof runtimeDigest.currentConsciousFrame === 'object'
@@ -207,7 +234,7 @@ function sanitizeBridgeRuntimeDigest<T extends Record<string, any> | null>(runti
           ),
         }
       : runtimeDigest.currentConsciousFrame,
-  } as T
+  } as AlicizationBridgeRuntimeDigest
 }
 
 function buildBridgeProjectAwarenessLine(input: {
@@ -262,7 +289,7 @@ export function bridgeAlicizationChatMetaEventToStreamEvent(
   const normalizedPreDialogueClosure = normalizeStructuredPreDialogueClosurePayload(
     (payload.preDialogueClosure ?? null) as Record<string, unknown> | null,
   )
-  const bridgedPreDialogueClosure = sanitizeBridgePreDialogueClosure(normalizedPreDialogueClosure)
+  const bridgedPreDialogueClosure = sanitizeBridgePreDialogueClosure(normalizedPreDialogueClosure ?? null)
   const bridgedExplicitPreDialogueAwareness = normalizedPreDialogueAwareness
     ? {
         ...normalizedPreDialogueAwareness,
@@ -368,7 +395,7 @@ export function bridgeAlicizationChatMetaEventToStreamEvent(
     speechTimeline: payload.speechTimeline ?? null,
     digitalLife: resolveBridgedChatMetaDigitalLifeAuthority(payload),
     digitalLifeSpine: payload.digitalLifeSpine ?? null,
-    runtimeDigest: sanitizeBridgeRuntimeDigest((payload.runtimeDigest ?? null) as Record<string, any> | null),
+    runtimeDigest: sanitizeBridgeRuntimeDigest(payload.runtimeDigest),
   }
 }
 
@@ -389,4 +416,44 @@ export function bridgeAlicizationChatStartResultToStreamEvent(
     digitalLifeSpine: payload.digitalLifeSpine ?? null,
     runtimeDigest: payload.runtimeDigest ?? null,
   })
+}
+
+export function bridgeAlicizationChatChunkEventToStreamEvent(
+  payload: AlicizationChatStreamChunkEvent,
+): Extract<AlicizationBridgeChatStreamEvent, { type: 'text-delta' }> {
+  return {
+    type: 'text-delta',
+    text: payload.text,
+    origin: payload.origin,
+    learningPolicy: payload.learningPolicy,
+    failureSurface: payload.failureSurface ?? null,
+  }
+}
+
+export function bridgeAlicizationChatFinishEventToStreamEvent(
+  payload: AlicizationChatFinishBridgePayload,
+): Extract<AlicizationBridgeChatStreamEvent, { type: 'finish' }> {
+  return {
+    type: 'finish',
+    origin: payload.origin,
+    learningPolicy: payload.learningPolicy,
+    failureSurface: payload.failureSurface ?? null,
+    finishReason: payload.finishReason,
+    fullText: payload.fullText,
+    visibleReplyExecution: payload.visibleReplyExecution ?? null,
+    visibleReplyCritic: payload.visibleReplyCritic ?? null,
+    visibleReplyClosure: payload.visibleReplyClosure ?? null,
+  }
+}
+
+export function bridgeAlicizationChatErrorEventToStreamEvent(
+  payload: AlicizationChatErrorEvent,
+): Extract<AlicizationBridgeChatStreamEvent, { type: 'error' }> {
+  return {
+    type: 'error',
+    error: payload.error,
+    origin: payload.origin,
+    learningPolicy: payload.learningPolicy,
+    failureSurface: payload.failureSurface ?? null,
+  }
 }

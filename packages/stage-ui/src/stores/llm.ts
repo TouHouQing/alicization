@@ -1,4 +1,9 @@
-import type { alicizationProviderResponseFormat } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationChatFailureSurface,
+  alicizationProviderResponseFormat,
+  AlicizationVisibleArtifactLearningPolicy,
+  AlicizationVisibleArtifactOrigin,
+} from '@proj-alicization/stage-shared'
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 import type { CompletionToolCall, Message, Tool } from '@xsai/shared-chat'
 
@@ -21,21 +26,40 @@ import { ref } from 'vue'
 import { debug, mcp } from '../tools'
 
 export type StreamEvent
-  = | { type: 'text-delta', text: string }
-    | {
-      type: 'meta'
-      governance: AlicizationMindTurnGovernance | null
-      embodiment?: AlicizationDialogueEmbodimentEnvelope | null
-      embodimentScript?: AlicizationEmbodimentScriptV1 | null
-      speechTimeline?: AlicizationDialogueSpeechTimeline | null
-      digitalLife?: AlicizationDigitalLifeEnvelope | null
-      digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
-      runtimeDigest?: AlicizationRuntimeDigest | null
-    }
-    | ({ type: 'finish' } & any)
-    | ({ type: 'tool-call' } & CompletionToolCall)
-    | { type: 'tool-result', toolCallId: string, result?: unknown }
-    | { type: 'error', error: any }
+  = | {
+    type: 'text-delta'
+    text: string
+    origin?: AlicizationVisibleArtifactOrigin
+    learningPolicy?: AlicizationVisibleArtifactLearningPolicy
+    failureSurface?: AlicizationChatFailureSurface | null
+  }
+  | {
+    type: 'meta'
+    governance: AlicizationMindTurnGovernance | null
+    embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+    embodimentScript?: AlicizationEmbodimentScriptV1 | null
+    speechTimeline?: AlicizationDialogueSpeechTimeline | null
+    digitalLife?: AlicizationDigitalLifeEnvelope | null
+    digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+    runtimeDigest?: AlicizationRuntimeDigest | null
+  }
+  | ({
+    type: 'finish'
+    origin?: AlicizationVisibleArtifactOrigin
+    learningPolicy?: AlicizationVisibleArtifactLearningPolicy
+    failureSurface?: AlicizationChatFailureSurface | null
+    finishReason?: string
+    fullText?: string
+  } & any)
+  | ({ type: 'tool-call' } & CompletionToolCall)
+  | { type: 'tool-result', toolCallId: string, result?: unknown }
+  | {
+    type: 'error'
+    error: any
+    origin?: AlicizationVisibleArtifactOrigin
+    learningPolicy?: AlicizationVisibleArtifactLearningPolicy
+    failureSurface?: AlicizationChatFailureSurface | null
+  }
 
 export interface StreamOptions {
   headers?: Record<string, string>

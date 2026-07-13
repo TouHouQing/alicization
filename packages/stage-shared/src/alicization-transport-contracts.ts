@@ -1,3 +1,4 @@
+import type { AlicizationChatFailureSurface } from './alicization-chat-failure-surface'
 import type { AlicizationClaimEvidenceGraph } from './alicization-claim-evidence-graph'
 import type { AlicizationDialogueEmbodimentEnvelope } from './alicization-dialogue-embodiment'
 import type { AlicizationDialogueSpeechTimeline, AlicizationDialogueSpeechTimelineSegment } from './alicization-dialogue-speech-timeline'
@@ -6,6 +7,10 @@ import type { AlicizationEmbodimentScriptV1 } from './alicization-embodiment-scr
 import type { AlicizationMemoryResolutionLedger } from './alicization-memory-resolution-ledger'
 import type { AlicizationOrganicMemoryStageReplay } from './alicization-memory-stats'
 import type { AlicizationDialoguePerformancePayload, AlicizationEmotion } from './alicization-performance-contracts'
+import type {
+  AlicizationVisibleArtifactLearningPolicy,
+  AlicizationVisibleArtifactOrigin,
+} from './alicization-provider-response'
 
 import { normalizeAlicizationDialogueSpeechTimeline } from './alicization-dialogue-speech-timeline'
 import { normalizeAlicizationDigitalLifeEnvelope } from './alicization-digital-life'
@@ -1347,6 +1352,13 @@ export type AlicizationInfraVisibleReplyAuthority = 'local-deterministic-fallbac
 export type AlicizationVisibleReplyExecutionAuthority = AlicizationNormalVisibleReplyAuthority | AlicizationInfraVisibleReplyAuthority
 export type AlicizationVisibleReplyAuthority = AlicizationNormalVisibleReplyAuthority
 export type AlicizationLegacyVisibleReplyAuthority = 'governed-repair-fallback' | AlicizationInfraVisibleReplyAuthority
+export interface AlicizationBridgeVisibleReplyExecution {
+  mode: 'provider-stream' | 'provider-one-shot' | 'local-fallback'
+  expectedVisibleReplyAuthority: AlicizationNormalVisibleReplyAuthority | null
+  actualVisibleReplyAuthority: AlicizationVisibleReplyExecutionAuthority | null
+  providerMindExecuted: boolean
+  reason: string | null
+}
 
 export function isAlicizationNormalVisibleReplyAuthority(raw: unknown): raw is AlicizationNormalVisibleReplyAuthority {
   return raw === 'llm-mind' || raw === 'llm-second-pass-rewrite'
@@ -6415,49 +6427,66 @@ export function normalizeAlicizationDigitalLifeSpineDigest(raw: unknown): Aliciz
 }
 
 export type AlicizationBridgeChatStreamEvent
-  = | { type: 'text-delta', text: string }
-    | {
-      type: 'meta'
-      governance: AlicizationMindTurnGovernance | null
-      projectState?: AlicizationRuntimeProjectStateDigest | null
-      preDialogueAwareness?: {
-        status: 'grounded' | 'partial' | 'drift'
-        summaryLine: string | null
-        companionHeadlineLine?: string | null
-        companionBriefingLine?: string | null
-        companionNextClosureLine?: string | null
-        awarenessLine?: string | null
-        emotionalClosureCue?: string | null
-        reasonPreview: string[]
-      } | null
-      preDialogueClosure?: {
-        status: 'grounded' | 'partial' | 'drift' | 'rewritten' | null
-        summaryLine: string | null
-        companionHeadlineLine?: string | null
-        sameHerDriftRiskLine?: string | null
-        companionshipReasonLine?: string | null
-        companionBriefingLine?: string | null
-        companionNextClosureLine?: string | null
-        emotionalClosureCue?: string | null
-        briefingLines?: string[]
-        reasons: string[]
-      } | null
-      embodiment?: AlicizationDialogueEmbodimentEnvelope | null
-      embodimentScript?: AlicizationEmbodimentScriptV1 | null
-      speechTimeline?: AlicizationDialogueSpeechTimeline | null
-      digitalLife?: AlicizationDigitalLifeEnvelope | null
-      digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
-      runtimeDigest?: AlicizationRuntimeDigest | null
-    }
-    | { type: 'tool-call', toolCallId: string, toolName: string, args: string, toolCallType: 'function' }
-    | { type: 'tool-result', toolCallId: string, result?: unknown }
-    | {
-      type: 'finish'
-      visibleReplyExecution?: AlicizationVisibleReplyExecutionAuthority | null
-      visibleReplyCritic?: Record<string, unknown> | null
-      visibleReplyClosure?: Record<string, unknown> | null
-    }
-    | { type: 'error', error: unknown }
+  = | {
+    type: 'text-delta'
+    text: string
+    origin?: AlicizationVisibleArtifactOrigin
+    learningPolicy?: AlicizationVisibleArtifactLearningPolicy
+    failureSurface?: AlicizationChatFailureSurface | null
+  }
+  | {
+    type: 'meta'
+    governance: AlicizationMindTurnGovernance | null
+    projectState?: AlicizationRuntimeProjectStateDigest | null
+    preDialogueAwareness?: {
+      status: 'grounded' | 'partial' | 'drift'
+      summaryLine: string | null
+      companionHeadlineLine?: string | null
+      companionBriefingLine?: string | null
+      companionNextClosureLine?: string | null
+      awarenessLine?: string | null
+      emotionalClosureCue?: string | null
+      reasonPreview: string[]
+    } | null
+    preDialogueClosure?: {
+      status: 'grounded' | 'partial' | 'drift' | 'rewritten' | null
+      summaryLine: string | null
+      companionHeadlineLine?: string | null
+      sameHerDriftRiskLine?: string | null
+      companionshipReasonLine?: string | null
+      companionBriefingLine?: string | null
+      companionNextClosureLine?: string | null
+      emotionalClosureCue?: string | null
+      briefingLines?: string[]
+      reasons: string[]
+    } | null
+    embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+    embodimentScript?: AlicizationEmbodimentScriptV1 | null
+    speechTimeline?: AlicizationDialogueSpeechTimeline | null
+    digitalLife?: AlicizationDigitalLifeEnvelope | null
+    digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+    runtimeDigest?: AlicizationRuntimeDigest | null
+  }
+  | { type: 'tool-call', toolCallId: string, toolName: string, args: string, toolCallType: 'function' }
+  | { type: 'tool-result', toolCallId: string, result?: unknown }
+  | {
+    type: 'finish'
+    origin?: AlicizationVisibleArtifactOrigin
+    learningPolicy?: AlicizationVisibleArtifactLearningPolicy
+    failureSurface?: AlicizationChatFailureSurface | null
+    finishReason?: string
+    fullText?: string
+    visibleReplyExecution?: AlicizationBridgeVisibleReplyExecution | null
+    visibleReplyCritic?: Record<string, unknown> | null
+    visibleReplyClosure?: Record<string, unknown> | null
+  }
+  | {
+    type: 'error'
+    error: unknown
+    origin?: AlicizationVisibleArtifactOrigin
+    learningPolicy?: AlicizationVisibleArtifactLearningPolicy
+    failureSurface?: AlicizationChatFailureSurface | null
+  }
 
 export type AlicizationDialogueStructuredFormat
   = | 'subconscious-proactive-v1'

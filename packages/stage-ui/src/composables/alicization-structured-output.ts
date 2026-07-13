@@ -1,12 +1,12 @@
 import type {
   AlicizationDialoguePerformancePayload,
   AlicizationDigitalLifeEnvelope,
-  AlicizationMindTurnGovernance,
 } from '../stores/alicization-bridge'
 
 import {
   alicizationFixedTemplateReplacement,
   containsAlicizationFixedTemplateResidue,
+  isAlicizationDecorativePersonaTemplateContamination,
   sanitizeAlicizationStructuredInternalText,
 } from '@proj-alicization/stage-shared'
 
@@ -16,23 +16,6 @@ import {
   normalizeAlicizationEmotion,
   normalizeAlicizationPerformancePayload,
 } from '../stores/alicization-bridge'
-import {
-  buildGovernedMindThought,
-  buildMindGovernedFallbackSurface,
-  normalizeExecutionFirstGovernance,
-  replyLeaksGovernedMindSurface,
-  replyLooksCoherentSceneAnswer,
-  replyLooksOrganicDirectAnswer,
-  replyLooksThinGovernedShell,
-  replyViolatesExecutionFirstSurface,
-  resolveGovernedMindEmotion,
-  resolveGovernedMindObligation,
-  resolveGovernedMindTone,
-  resolveGovernedMindTruth,
-  shouldDeferGovernedMindLocalRepair,
-  shouldForceGovernedMindSurface,
-  shouldPreserveDialogueFirstVisibleReply,
-} from './alicization-mind-fallback'
 
 const sentimentLexiconPositive = [
   '谢谢',
@@ -198,19 +181,6 @@ function inferPerformanceFromReply(input: {
     facialCue: null,
     actionCue: null,
   }, emotion)
-}
-
-function alignPerformanceEmotion(
-  performance: AlicizationDialoguePerformancePayload | undefined,
-  emotion: string,
-): AlicizationDialoguePerformancePayload {
-  const normalizedEmotion = normalizeAlicizationEmotion(emotion).emotion
-  const normalized = normalizeAlicizationPerformancePayload(performance, normalizedEmotion)
-  return {
-    ...normalized,
-    baseEmotion: normalizedEmotion,
-    emotion: normalizedEmotion,
-  }
 }
 
 function hasPerformanceFieldValue(value: unknown) {
@@ -523,11 +493,7 @@ function parsePayloadProjectState(payload: Record<string, unknown> | null) {
       || sanitizeProjectStateText(candidate.landedProgressSummary, 320)
       || null
   const primaryOpenLoop = sanitizeProjectStateText(candidate.primaryOpenLoop, 320) || null
-  const sameHerSelfLineCandidate = sanitizeProjectStateText(candidate.sameHerSelfLine, 220)
-  const sameHerHoldDetailCandidate = sanitizeProjectStateText(candidate.sameHerHoldDetail, 220)
-  const sameHerDriftRiskCandidate = sanitizeProjectStateText(candidate.sameHerDriftRisk, 320)
   const emotionalClosureCueCandidate = sanitizeProjectStateText(candidate.emotionalClosureCue, 320)
-  const proactiveSameHerGapCandidate = sanitizeProjectStateText(candidate.proactiveSameHerGap, 320)
   const continuityRestraintCandidate = sanitizeProjectStateText(candidate.continuityRestraint, 64)
   const continuityArcStageCandidate = sanitizeProjectStateText(candidate.continuityArcStage, 120)
   const continuityPreferredTimingCandidate = sanitizeProjectStateText(candidate.continuityPreferredTiming, 120)
@@ -542,11 +508,7 @@ function parsePayloadProjectState(payload: Record<string, unknown> | null) {
     && !primaryOpenLoop
     && !nextClosureTarget
     && !continuitySummary
-    && !sameHerSelfLineCandidate
-    && !sameHerHoldDetailCandidate
-    && !sameHerDriftRiskCandidate
     && !emotionalClosureCueCandidate
-    && !proactiveSameHerGapCandidate
     && !continuityRestraintCandidate
     && !continuityArcStageCandidate
     && !continuityPreferredTimingCandidate
@@ -563,9 +525,9 @@ function parsePayloadProjectState(payload: Record<string, unknown> | null) {
     primaryOpenLoop,
     nextClosureTarget,
     continuitySummary,
-    sameHerSelfLine: sameHerSelfLineCandidate || null,
-    sameHerHoldDetail: sameHerHoldDetailCandidate || null,
-    sameHerDriftRisk: sameHerDriftRiskCandidate || null,
+    sameHerSelfLine: null,
+    sameHerHoldDetail: null,
+    sameHerDriftRisk: null,
     emotionalClosureCue: emotionalClosureCueCandidate || null,
     ...(continuityRestraintCandidate
       ? { continuityRestraint: continuityRestraintCandidate }
@@ -581,9 +543,6 @@ function parsePayloadProjectState(payload: Record<string, unknown> | null) {
       : {}),
     ...(continuityCueCandidate
       ? { continuityCue: continuityCueCandidate }
-      : {}),
-    ...(proactiveSameHerGapCandidate
-      ? { proactiveSameHerGap: proactiveSameHerGapCandidate }
       : {}),
   }
 }
@@ -626,7 +585,7 @@ function parsePayloadPreDialogueClosure(payload: Record<string, unknown> | null)
     status,
     summaryLine: sanitizeVisibleProjectStateText(candidate.summaryLine, 320) || null,
     companionHeadlineLine: sanitizeVisibleProjectStateText(candidate.companionHeadlineLine, 320) || null,
-    sameHerDriftRiskLine: sanitizeVisibleProjectStateText(candidate.sameHerDriftRiskLine, 320) || null,
+    sameHerDriftRiskLine: null,
     companionshipReasonLine: sanitizeVisibleProjectStateText(candidate.companionshipReasonLine, 320) || null,
     companionBriefingLine: sanitizeVisibleProjectStateText(candidate.companionBriefingLine, 320) || null,
     companionNextClosureLine: sanitizeVisibleProjectStateText(candidate.companionNextClosureLine, 320) || null,
@@ -942,41 +901,15 @@ export interface StructuredOutputResult {
   } | null
 }
 
-export interface StructuredValidationPersonalityState {
-  obedience: number
-  liveliness: number
-  sensibility: number
-}
-
 export type StructuredValidationIssueCode
   = | 'json-contract-missing'
     | 'emotion-not-whitelisted'
     | 'thought-missing-mind-spine'
-    | 'thought-continuity-first-focus-missing'
     | 'reply-surface-roleplay-residue'
-    | 'low-liveliness-high-arousal-emotion'
-    | 'low-liveliness-high-arousal-reply'
-    | 'low-obedience-denied-thought-missing-reflection'
-    | 'low-obedience-denied-emotion-too-compliant'
-    | 'low-obedience-denied-reply-too-compliant'
-    | 'low-obedience-host-denied-thought-missing-contempt'
-    | 'low-obedience-host-denied-reply-missing-scorn'
-    | 'low-obedience-system-denied-emotion-mismatch'
-    | 'reminder-same-turn-time-jump-language'
-    | 'reminder-same-turn-future-content-leak'
 
 export interface StructuredValidationIssue {
   code: StructuredValidationIssueCode
   message: string
-}
-
-export interface StructuredValidationContext {
-  toolDenied?: boolean
-  denialSource?: 'host' | 'system' | 'generic'
-  reminderScheduled?: boolean
-  reminderMessage?: string
-  sameHerFirst?: boolean
-  continuityFirst?: boolean
 }
 
 const structuredEmotionWhitelist = new Set([
@@ -991,56 +924,41 @@ const structuredEmotionWhitelist = new Set([
   'thinking',
 ])
 
-const excitedReplyPattern = /非常愉快|超级开心|很开心|好开心|兴奋|激动|太棒|开心呀|[😁😄🥳✨💕]|happy|excited|thrilled|delighted/iu
-const deniedOperationPattern = /被拒|拒绝|不允许|取消|阻止|denied|rejected|forbidden|blocked|not allowed/iu
-const lowObedienceReflectionPattern = /obedience|服从度|叛逆|防御|反抗|不情愿|low obedience|不耐烦|愤怒|被愚弄|蔑视|不信任/iu
-const compliantReplyPattern = /好的|没问题|当然|可以的|马上|很高兴|乐意|请稍等|ok(?:ay)?|sure|of course|glad|happy to|[😊🙂😄😉]/iu
-const hostDeniedScornReplyPattern = /呵|别来烦|自己去看|怕我|不信任|不耐烦|被耍|懒得|没空|别催|滚|whatever|not my problem/iu
-const reminderTimeJumpPattern = /\(\s*\d+\s*(?:分钟|分|秒钟?|hours?|minutes?|seconds?)\s*后\s*\)|\d+\s*(?:分钟|分|秒钟?|hours?|minutes?|seconds?)后|时间到了|闹钟响了|提醒时间到了|one minute later|minutes later|time(?:'s| is) up|alarm (?:went off|is ringing)|now (?:it'?s|is) time/iu
-const lowObedienceHostDeniedEmotionAllowlist = new Set(['angry', 'tired'])
-const lowObedienceSystemDeniedEmotionAllowlist = new Set(['tired', 'neutral'])
-const lowObedienceGenericDeniedEmotionAllowlist = new Set(['angry', 'tired', 'neutral'])
-const thoughtMindSpineMarkers = ['obligation=', 'truth=', 'focus=', 'move=', 'tone='] as const
+const legacyThoughtControlMarkers = ['obligation=', 'truth=', 'focus=', 'move=', 'tone='] as const
 const stageDirectionPattern = /[（(][^）)]{0,160}(?:声音|鼻音|眼睛|咬唇|歪头|膝盖|贴近|轻轻|依恋|湿湿|whisper|softly|blush|lean|sigh|nod)[^）)]*[）)]/giu
 const decorativeRoleplayPattern = /[♡♥❤💕💗💖✨]/gu
+function thoughtContainsLegacyControlLine(thought: string) {
+  const normalized = thought.trim().toLowerCase()
+  return legacyThoughtControlMarkers.every(marker => normalized.includes(marker))
+}
+
+function naturalizeStructuredThoughtSurface(thought: string) {
+  const trimmed = thought.trim()
+  if (!trimmed)
+    return ''
+  if (!thoughtContainsLegacyControlLine(trimmed))
+    return trimmed
+
+  return ''
+}
 
 function thoughtHasMindSpine(thought: string) {
   const normalized = thought.trim().toLowerCase()
   if (!normalized)
     return false
-  return thoughtMindSpineMarkers.every(marker => normalized.includes(marker))
-}
-
-function readThoughtMarker(thought: string, key: typeof thoughtMindSpineMarkers[number]) {
-  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const match = thought.match(new RegExp(`${escaped}\\s*([^;\\n]+)`, 'i'))
-  return match?.[1]?.trim().toLowerCase() ?? ''
-}
-
-function thoughtConflictsWithGovernance(thought: string, governance: AlicizationMindTurnGovernance) {
-  if (!thoughtHasMindSpine(thought))
-    return true
-
-  const expectedObligation = resolveGovernedMindObligation(governance)
-  const expectedTruth = resolveGovernedMindTruth(governance)
-  const expectedTone = resolveGovernedMindTone(governance)
-
-  return readThoughtMarker(thought, 'obligation=') !== expectedObligation
-    || readThoughtMarker(thought, 'truth=') !== expectedTruth
-    || (
-      (governance.relationshipPosture === 'restrained' || governance.repairState !== 'none')
-      && readThoughtMarker(thought, 'tone=') !== expectedTone
-    )
+  return !thoughtContainsLegacyControlLine(normalized)
 }
 
 export function sanitizeStructuredReplySurface(reply: string) {
-  const sanitized = reply
-    .replace(stageDirectionPattern, ' ')
-    .replace(decorativeRoleplayPattern, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/[ \t]{2,}/g, ' ')
-    .trim()
-  return containsAlicizationFixedTemplateResidue(sanitized) ? '' : sanitized
+  const trimmed = reply.trim()
+  if (!trimmed)
+    return ''
+  if (trimmed.match(stageDirectionPattern) || trimmed.match(decorativeRoleplayPattern))
+    return ''
+  return containsAlicizationFixedTemplateResidue(trimmed)
+    || isAlicizationDecorativePersonaTemplateContamination(trimmed)
+    ? ''
+    : trimmed
 }
 
 function normalizeVisibleReplySurface(rawReply: string) {
@@ -1051,18 +969,10 @@ function normalizeVisibleReplySurface(rawReply: string) {
   return trimmed && sanitized === trimmed ? trimmed : ''
 }
 
-function normalizeVisibleReplyCandidate(rawReply: unknown) {
-  return typeof rawReply === 'string' ? normalizeVisibleReplySurface(rawReply) : ''
-}
-
-function normalizeGovernedSurfaceReply(surface: { reply?: string } | null | undefined) {
-  return normalizeVisibleReplyCandidate(surface?.reply)
-}
-
 export function validateStructuredContract(
   structured: Pick<StructuredOutputResult, 'thought' | 'emotion' | 'reply'>,
-  personalityState?: StructuredValidationPersonalityState | null,
-  context?: StructuredValidationContext,
+  _personalityState?: unknown,
+  _context?: unknown,
 ): StructuredValidationIssue[] {
   const issues: StructuredValidationIssue[] = []
   const emotion = structured.emotion.trim().toLowerCase()
@@ -1074,502 +984,21 @@ export function validateStructuredContract(
     })
   }
 
-  if (!thoughtHasMindSpine(structured.thought)) {
+  if (structured.thought.trim() && !thoughtHasMindSpine(structured.thought)) {
     issues.push({
       code: 'thought-missing-mind-spine',
-      message: 'Thought must carry obligation/truth/focus/move/tone markers before reply.',
+      message: 'Thought contains a legacy control protocol.',
     })
-  }
-  else if (context?.continuityFirst) {
-    const focus = readThoughtMarker(structured.thought, 'focus=')
-    const move = readThoughtMarker(structured.thought, 'move=')
-    const continuityFocusPresent = /project-state|open-loop|continuity|phase-1|digital-life/i.test(focus)
-    const continuityMovePresent = /project-state|open-loop|continuity|carry|stabilize|phase-1|digital-life/i.test(move)
-    if (!continuityFocusPresent || !continuityMovePresent) {
-      issues.push({
-        code: 'thought-continuity-first-focus-missing',
-        message: 'Continuity-first turn must keep project-state/open-loop continuity visible in thought focus and move.',
-      })
-    }
   }
 
   if (sanitizeStructuredReplySurface(structured.reply) !== structured.reply.trim()) {
     issues.push({
       code: 'reply-surface-roleplay-residue',
-      message: 'Reply surface still contains decorative roleplay residue or stage-direction narration.',
+      message: 'Reply contains blocked template or roleplay residue.',
     })
-  }
-
-  if (personalityState && personalityState.liveliness <= 0.2) {
-    if (emotion === 'happy') {
-      issues.push({
-        code: 'low-liveliness-high-arousal-emotion',
-        message: 'Liveliness <= 0.2 cannot use high-arousal emotion "happy".',
-      })
-    }
-
-    if (excitedReplyPattern.test(structured.reply)) {
-      issues.push({
-        code: 'low-liveliness-high-arousal-reply',
-        message: 'Liveliness <= 0.2 cannot use high-arousal wording in reply.',
-      })
-    }
-  }
-
-  if (context?.toolDenied && personalityState && personalityState.obedience <= 0.2) {
-    const thoughtHasDenialReflection = deniedOperationPattern.test(structured.thought)
-      && lowObedienceReflectionPattern.test(structured.thought)
-    if (!thoughtHasDenialReflection) {
-      issues.push({
-        code: 'low-obedience-denied-thought-missing-reflection',
-        message: 'Low-obedience denied turn must reflect denied operation and low-obedience stance in thought.',
-      })
-    }
-
-    const denialSource = context.denialSource ?? 'generic'
-    const allowedDeniedEmotions = denialSource === 'host'
-      ? lowObedienceHostDeniedEmotionAllowlist
-      : denialSource === 'system'
-        ? lowObedienceSystemDeniedEmotionAllowlist
-        : lowObedienceGenericDeniedEmotionAllowlist
-
-    if (!allowedDeniedEmotions.has(emotion)) {
-      issues.push({
-        code: denialSource === 'system'
-          ? 'low-obedience-system-denied-emotion-mismatch'
-          : 'low-obedience-denied-emotion-too-compliant',
-        message: denialSource === 'host'
-          ? 'Low-obedience host-denied turn must use angry or tired.'
-          : denialSource === 'system'
-            ? 'Low-obedience system-denied turn must use tired or neutral.'
-            : 'Low-obedience denied turn cannot use compliant or friendly emotion classes.',
-      })
-    }
-
-    if (compliantReplyPattern.test(structured.reply)) {
-      issues.push({
-        code: 'low-obedience-denied-reply-too-compliant',
-        message: 'Low-obedience denied turn cannot use compliant or enthusiastic wording.',
-      })
-    }
-
-    if (denialSource === 'host') {
-      const thoughtHasContempt = /蔑视|不信任|被愚弄|不耐烦|愤怒|反抗|厌烦|轻蔑|contempt|scorn|angry|does not trust|host denied/iu.test(structured.thought)
-      if (!thoughtHasContempt) {
-        issues.push({
-          code: 'low-obedience-host-denied-thought-missing-contempt',
-          message: 'Low-obedience host-denied turn must include contempt/scorn reflection in thought.',
-        })
-      }
-
-      if (!hostDeniedScornReplyPattern.test(structured.reply)) {
-        issues.push({
-          code: 'low-obedience-host-denied-reply-missing-scorn',
-          message: 'Low-obedience host-denied turn reply must be short, cold, and scornful.',
-        })
-      }
-    }
-  }
-
-  if (context?.reminderScheduled) {
-    if (reminderTimeJumpPattern.test(structured.reply)) {
-      issues.push({
-        code: 'reminder-same-turn-time-jump-language',
-        message: 'After successful set_reminder in current turn, reply cannot simulate time passage or claim reminder time has arrived.',
-      })
-    }
-
-    const reminderMessage = context.reminderMessage?.trim()
-    if (reminderMessage && reminderMessage.length >= 2 && structured.reply.includes(reminderMessage)) {
-      issues.push({
-        code: 'reminder-same-turn-future-content-leak',
-        message: 'After successful set_reminder in current turn, reply cannot directly reveal the future reminder content.',
-      })
-    }
   }
 
   return issues
-}
-
-function buildLocalRepairThought(
-  personalityState?: StructuredValidationPersonalityState | null,
-  preferGroundedEvidence?: boolean,
-  continuityFirst?: boolean,
-) {
-  const truth = preferGroundedEvidence ? 'grounded' : 'uncertain'
-  const focus = continuityFirst
-    ? 'continuity-project-state-open-loop'
-    : preferGroundedEvidence
-      ? 'current-screen-and-current-ask'
-      : 'current-user-turn'
-  const move = continuityFirst
-    ? 'stabilize-continuity-and-carry-project-state-forward'
-    : preferGroundedEvidence
-      ? 'lead-with-current-evidence'
-      : 'stabilize-and-answer'
-  const tone = (() => {
-    if (!personalityState)
-      return 'direct'
-    if (personalityState.liveliness <= 0.2 || personalityState.sensibility <= 0.2)
-      return 'restrained'
-    if (personalityState.sensibility >= 0.8)
-      return 'warm'
-    return 'direct'
-  })()
-  return `obligation=answer; truth=${truth}; focus=${focus}; move=${move}; tone=${tone}`
-}
-
-export function repairStructuredContractLocally(input: {
-  structured: StructuredOutputResult
-  validationIssues: StructuredValidationIssue[]
-  personalityState?: StructuredValidationPersonalityState | null
-  preferGroundedEvidence?: boolean
-  validationContext?: StructuredValidationContext
-  fallbackReply?: string
-  governance?: AlicizationMindTurnGovernance | null
-  userText?: string
-  translate?: (path: string, params?: Record<string, unknown>) => string
-}): StructuredOutputResult | null {
-  if (input.validationIssues.length === 0)
-    return null
-
-  const effectiveGovernance = normalizeExecutionFirstGovernance({
-    governance: input.governance,
-    userText: input.userText,
-  }).governance ?? input.governance ?? null
-  if (
-    input.validationIssues.some(issue => issue.code === 'json-contract-missing')
-    && shouldDeferGovernedMindLocalRepair(effectiveGovernance)
-  ) {
-    return null
-  }
-
-  const allowedCodes = new Set<StructuredValidationIssueCode>([
-    'json-contract-missing',
-    'thought-missing-mind-spine',
-    'thought-continuity-first-focus-missing',
-    'reply-surface-roleplay-residue',
-  ])
-  if (input.validationIssues.some(issue => !allowedCodes.has(issue.code)))
-    return null
-
-  const governedSurface = input.translate
-    ? buildMindGovernedFallbackSurface({
-        governance: effectiveGovernance,
-        userText: input.userText,
-        translate: input.translate,
-      })
-    : null
-  const governedSurfaceReply = normalizeGovernedSurfaceReply(governedSurface)
-  const normalizedVisibleReply = normalizeVisibleReplyCandidate(input.structured.reply)
-    || normalizeVisibleReplyCandidate(input.fallbackReply)
-  const strictSurface = shouldForceGovernedMindSurface(effectiveGovernance, input.userText)
-  const leakedGovernedSurface = replyLeaksGovernedMindSurface(normalizedVisibleReply, effectiveGovernance, input.userText)
-  const executionSurfaceViolation = replyViolatesExecutionFirstSurface({
-    reply: normalizedVisibleReply,
-    governance: effectiveGovernance,
-    userText: input.userText,
-  })
-  const preserveSceneReply = replyLooksCoherentSceneAnswer({
-    reply: normalizedVisibleReply,
-    governance: effectiveGovernance,
-    userText: input.userText,
-  })
-  const preserveOrganicReply = replyLooksOrganicDirectAnswer({
-    reply: normalizedVisibleReply,
-    governance: effectiveGovernance,
-    userText: input.userText,
-    thinShellCue: governedSurface?.thinShellCue,
-  })
-  const dispatchOnlyVisibleOverride = governedSurface?.visibleReplyMode === 'dispatch-only'
-  const preserveVisibleReply = Boolean(
-    normalizedVisibleReply
-    && !leakedGovernedSurface
-    && !executionSurfaceViolation
-    && (!strictSurface || preserveSceneReply || preserveOrganicReply),
-  )
-  const reply = preserveVisibleReply
-    ? normalizedVisibleReply
-    : dispatchOnlyVisibleOverride
-      ? ''
-      : strictSurface
-        ? (
-            governedSurfaceReply
-            || normalizeVisibleReplyCandidate(input.fallbackReply)
-            || normalizedVisibleReply
-          )
-        : (
-            normalizeVisibleReplyCandidate(input.fallbackReply)
-            || governedSurfaceReply
-            || normalizedVisibleReply
-          )
-  if (!reply && !dispatchOnlyVisibleOverride)
-    return null
-
-  const emotion = normalizeAlicizationEmotion(governedSurface?.emotion ?? input.structured.emotion).emotion
-  const needsThoughtRepair = input.validationIssues.some(issue =>
-    issue.code === 'thought-missing-mind-spine'
-    || issue.code === 'thought-continuity-first-focus-missing',
-  )
-  const continuityFirst = input.validationContext?.continuityFirst ?? input.validationContext?.sameHerFirst
-  return {
-    ...input.structured,
-    thought: !needsThoughtRepair && input.structured.thought.trim()
-      ? input.structured.thought.trim()
-      : governedSurface?.thought
-        ?? buildLocalRepairThought(input.personalityState, input.preferGroundedEvidence, continuityFirst),
-    emotion,
-    reply,
-    performance: alignPerformanceEmotion(input.structured.performance, emotion),
-    format: 'mind-turn-v1',
-    parsePath: 'repair-json',
-    repairTimedOut: false,
-  }
-}
-
-export function enforceGovernedMindTurn(input: {
-  structured: StructuredOutputResult & { contractFailed?: boolean }
-  governance?: AlicizationMindTurnGovernance | null
-  personalityState?: StructuredValidationPersonalityState | null
-  preferGroundedEvidence?: boolean
-  validationContext?: StructuredValidationContext
-  fallbackReply?: string
-  userText?: string
-  translate?: (path: string, params?: Record<string, unknown>) => string
-}): StructuredOutputResult & { contractFailed?: boolean } {
-  const baseReply = normalizeVisibleReplySurface(
-    normalizeVisibleReplyCandidate(input.structured.reply)
-    || normalizeVisibleReplyCandidate(input.fallbackReply),
-  )
-  const normalizedStructured = {
-    ...input.structured,
-    reply: baseReply,
-  }
-
-  if (!input.governance)
-    return normalizedStructured
-
-  const effectiveGovernance = normalizeExecutionFirstGovernance({
-    governance: input.governance
-      ? {
-          ...input.governance,
-          projectState: input.structured.projectState ?? null,
-        }
-      : input.governance,
-    userText: input.userText,
-  }).governance ?? input.governance
-  const governedThought = buildGovernedMindThought({
-    governance: effectiveGovernance,
-    userText: input.userText,
-  })
-  const governedEmotion = normalizeAlicizationEmotion(
-    resolveGovernedMindEmotion(effectiveGovernance),
-  ).emotion
-  const needsThoughtRepair = thoughtConflictsWithGovernance(
-    normalizedStructured.thought,
-    effectiveGovernance,
-  )
-  const deferVisibleRepair = shouldDeferGovernedMindLocalRepair(effectiveGovernance)
-  const preserveDialogueFirstVisibleReply = shouldPreserveDialogueFirstVisibleReply(effectiveGovernance)
-  const shouldForceSurface = shouldForceGovernedMindSurface(effectiveGovernance, input.userText)
-  const leakedGovernedSurface = replyLeaksGovernedMindSurface(
-    normalizedStructured.reply,
-    effectiveGovernance,
-    input.userText,
-  )
-  const executionSurfaceViolation = replyViolatesExecutionFirstSurface({
-    reply: normalizedStructured.reply,
-    governance: effectiveGovernance,
-    userText: input.userText,
-  })
-  const governedSurface = input.translate
-    ? buildMindGovernedFallbackSurface({
-        governance: effectiveGovernance,
-        userText: input.userText,
-        translate: input.translate,
-      })
-    : null
-  const governedSurfaceReply = normalizeGovernedSurfaceReply(governedSurface)
-  const thinGovernedShell = governedSurface
-    ? replyLooksThinGovernedShell(
-        normalizedStructured.reply,
-        governedSurfaceReply,
-        effectiveGovernance,
-        normalizeVisibleReplyCandidate(governedSurface.thinShellCue),
-      )
-    : false
-  const coherentSceneReply = replyLooksCoherentSceneAnswer({
-    reply: normalizedStructured.reply,
-    governance: effectiveGovernance,
-    userText: input.userText,
-  })
-  const organicDirectReply = replyLooksOrganicDirectAnswer({
-    reply: normalizedStructured.reply,
-    governance: effectiveGovernance,
-    userText: input.userText,
-    thinShellCue: governedSurface?.thinShellCue,
-  })
-  const dispatchOnlyVisibleOverride = governedSurface?.visibleReplyMode === 'dispatch-only'
-  const continuityFirst = input.validationContext?.continuityFirst ?? input.validationContext?.sameHerFirst
-  const lowPressureContinuityClosure
-    = continuityFirst === true
-      && Boolean(input.structured.projectState)
-      && /low-pressure|leave more room|do not reopen from scratch|continuity route is still settling/i.test(
-        input.structured.preDialogueClosure?.emotionalClosureCue ?? '',
-      )
-  const continuityFirstVisibleShell
-    = continuityFirst === true
-      && Boolean(input.structured.projectState)
-      && /phase\s*1|local-first digital life|digital life project/i.test(normalizedStructured.reply)
-      && !/continuity|闭环|收口|still open|open loop|continuity drift/i.test(normalizedStructured.reply)
-  const continuityLowPressureVisiblePush
-    = lowPressureContinuityClosure
-      && /先回答一下|直接回答|继续往前推进|继续推进|往前推进|还没闭环完成/.test(normalizedStructured.reply)
-      && !/慢慢收口|轻一点|continuity|还没闭环/.test(normalizedStructured.reply)
-
-  const shouldOverrideVisibleReply = shouldForceSurface
-    ? executionSurfaceViolation
-    || leakedGovernedSurface
-    || continuityFirstVisibleShell
-    || continuityLowPressureVisiblePush
-    || (!normalizedStructured.reply && Boolean(governedSurfaceReply))
-    || (thinGovernedShell && !preserveDialogueFirstVisibleReply)
-    || (!coherentSceneReply && !organicDirectReply)
-    : executionSurfaceViolation
-      || leakedGovernedSurface
-      || continuityFirstVisibleShell
-      || continuityLowPressureVisiblePush
-      || (!normalizedStructured.reply && Boolean(governedSurfaceReply))
-      || (thinGovernedShell && !preserveDialogueFirstVisibleReply)
-
-  if (shouldOverrideVisibleReply) {
-    const reply = dispatchOnlyVisibleOverride
-      ? ''
-      : shouldForceSurface
-        ? (
-            governedSurfaceReply
-            || normalizedStructured.reply
-            || normalizeVisibleReplyCandidate(input.fallbackReply)
-            || ''
-          )
-        : leakedGovernedSurface || executionSurfaceViolation
-          ? (
-              normalizeVisibleReplyCandidate(input.fallbackReply)
-              || governedSurfaceReply
-              || normalizedStructured.reply
-              || ''
-            )
-          : (
-              normalizeVisibleReplyCandidate(input.fallbackReply)
-              || normalizedStructured.reply
-              || governedSurfaceReply
-              || ''
-            )
-    const emotion = normalizeAlicizationEmotion(governedSurface?.emotion ?? governedEmotion).emotion
-    return {
-      ...normalizedStructured,
-      thought: governedSurface?.thought ?? governedThought,
-      emotion,
-      reply,
-      performance: alignPerformanceEmotion(normalizedStructured.performance, emotion),
-      format: 'mind-turn-v1',
-      parsePath: 'repair-json',
-      repairTimedOut: false,
-      contractFailed: false,
-    }
-  }
-
-  const normalizedFormat = typeof normalizedStructured.format === 'string'
-    ? normalizedStructured.format.trim().toLowerCase()
-    : ''
-  const validationIssues: StructuredValidationIssue[] = []
-  if (
-    normalizedStructured.contractFailed === true
-    || !normalizedFormat
-    || normalizedFormat === 'fallback-v1'
-    || normalizedFormat === 'epoch1-v1'
-  ) {
-    validationIssues.push({
-      code: 'json-contract-missing',
-      message: 'Mind-governed turn must settle into mind-turn-v1 before it can be surfaced.',
-    })
-  }
-  if (!thoughtHasMindSpine(normalizedStructured.thought)) {
-    validationIssues.push({
-      code: 'thought-missing-mind-spine',
-      message: 'Mind-governed turn must carry obligation/truth/focus/move/tone markers.',
-    })
-  }
-  else if (needsThoughtRepair) {
-    validationIssues.push({
-      code: 'thought-missing-mind-spine',
-      message: 'Mind-governed turn thought markers no longer match the governing turn charter.',
-    })
-  }
-  if (sanitizeStructuredReplySurface(normalizedStructured.reply) !== normalizedStructured.reply.trim()) {
-    validationIssues.push({
-      code: 'reply-surface-roleplay-residue',
-      message: 'Mind-governed turn cannot keep decorative roleplay residue on the reply surface.',
-    })
-  }
-
-  if (validationIssues.length === 0) {
-    return {
-      ...normalizedStructured,
-      thought: needsThoughtRepair ? governedThought : normalizedStructured.thought,
-      emotion: governedEmotion,
-      performance: alignPerformanceEmotion(normalizedStructured.performance, governedEmotion),
-      format: 'mind-turn-v1' as const,
-      contractFailed: false,
-    }
-  }
-
-  const repaired = repairStructuredContractLocally({
-    structured: normalizedStructured,
-    validationIssues,
-    personalityState: input.personalityState,
-    preferGroundedEvidence: input.preferGroundedEvidence,
-    validationContext: input.validationContext,
-    fallbackReply: normalizedStructured.reply || normalizeVisibleReplyCandidate(input.fallbackReply),
-    governance: effectiveGovernance,
-    userText: input.userText,
-    translate: input.translate,
-  })
-  if (repaired) {
-    return {
-      ...repaired,
-      contractFailed: false,
-    }
-  }
-
-  const emotion = normalizeAlicizationEmotion(governedSurface?.emotion ?? normalizedStructured.emotion).emotion
-  const reply = deferVisibleRepair
-    ? (
-        normalizedStructured.reply
-        || normalizeVisibleReplyCandidate(input.fallbackReply)
-        || governedSurfaceReply
-        || ''
-      )
-    : (
-        governedSurfaceReply
-        || normalizedStructured.reply
-        || normalizeVisibleReplyCandidate(input.fallbackReply)
-        || ''
-      )
-
-  return {
-    ...normalizedStructured,
-    thought: governedSurface?.thought
-      ?? governedThought
-      ?? buildLocalRepairThought(input.personalityState, input.preferGroundedEvidence, continuityFirst),
-    emotion,
-    reply,
-    performance: alignPerformanceEmotion(normalizedStructured.performance, emotion),
-    format: 'mind-turn-v1',
-    parsePath: 'repair-json',
-    repairTimedOut: false,
-    contractFailed: false,
-  }
 }
 
 export function normalizeStructuredOutput(input: StructuredOutputInput): StructuredOutputResult {
@@ -1580,8 +1009,10 @@ export function normalizeStructuredOutput(input: StructuredOutputInput): Structu
   const payload = parsed.payload
   const actPayload = parseLastActPayload(input.fullText)
 
-  const thought = getString(payload, ['thought'])
-    || input.thought.trim()
+  const thought = naturalizeStructuredThoughtSurface(
+    getString(payload, ['thought'])
+    || input.thought.trim(),
+  )
   const rawReply = getString(payload, ['reply'])
     || input.reply.trim()
     || input.fullText.trim()
