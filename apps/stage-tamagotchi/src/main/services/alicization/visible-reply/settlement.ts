@@ -7,7 +7,10 @@ import type { AlicizationVisibleReplyExecution } from '../../../../shared/eventa
 import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-session-runtime'
 import type { AlicizationVisibleReplyClosureResult } from './closure-orchestrator'
 import type { AlicizationResolvedVisibleReply, AlicizationVisibleReplyClosureArtifact } from './realization-engine'
-import type { AlicizationSecondPassRewriteResult } from './second-pass-rewrite'
+import type {
+  AlicizationSecondPassRetryInput,
+  AlicizationSecondPassRewriteResult,
+} from './second-pass-rewrite'
 
 import {
   alicizationEmotionWhitelist,
@@ -30,11 +33,16 @@ import {
 } from '../project-state-brief'
 import { parseJsonObjectFromText } from '../runtime-transport-content'
 import {
+  AlicizationVisibleReplyClosureBlockedError,
   closeAlicizationVisibleReply,
 } from './closure-orchestrator'
 import {
   buildAlicizationResolvedVisibleReply,
 } from './realization-engine'
+import {
+  mapAlicizationSecondPassReasonCodes,
+  readAlicizationSecondPassToolFacts,
+} from './second-pass-rewrite'
 
 export interface AlicizationVisibleReplySettlementDraft {
   fullText: string
@@ -832,13 +840,9 @@ export async function settleAlicizationVisibleReply(input: {
   forceReasonCodes?: string[]
   forceMustPreserve?: string[]
   appendRuntimeDebugLine?: (event: string, payload: Record<string, unknown>) => Promise<void> | void
-  rewriteSecondPass: (input: {
-    fullText: string
-    visibleReplyExecution: AlicizationVisibleReplyExecution
-    forceRewrite: boolean
-    forceReasonCodes: string[]
-    mustPreserve: string[]
-  }) => Promise<AlicizationSecondPassRewriteResult | null>
+  rewriteSecondPass: (
+    input: AlicizationSecondPassRetryInput,
+  ) => Promise<AlicizationSecondPassRewriteResult | null>
 }): Promise<AlicizationVisibleReplySettlementResult> {
   let settlementDraft = input.draft
   if (input.requireProviderMemoryUsage) {
@@ -848,11 +852,10 @@ export async function settleAlicizationVisibleReply(input: {
     })
     if (!initialValidation.valid) {
       const rewritten = await input.rewriteSecondPass({
-        fullText: settlementDraft.fullText,
-        visibleReplyExecution: settlementDraft.visibleReplyExecution,
-        forceRewrite: true,
-        forceReasonCodes: initialValidation.issues,
-        mustPreserve: [],
+        candidate: settlementDraft.fullText,
+        reasonCodes: mapAlicizationSecondPassReasonCodes(initialValidation.issues),
+        prepared: input.prepared,
+        toolFacts: readAlicizationSecondPassToolFacts(input.prepared),
       })
       const rewrittenValidation = rewritten
         ? validateAlicizationProviderSettlementPayload({
@@ -885,15 +888,26 @@ export async function settleAlicizationVisibleReply(input: {
       ]
     : input.forceMustPreserve
 
-  const closed = await closeAlicizationVisibleReply({
-    draft: settlementDraft,
-    prepared: input.prepared,
-    forceRewrite: input.forceRewrite,
-    forceReasonCodes: input.forceReasonCodes,
-    forceMustPreserve: settlementForceMustPreserve,
-    appendRuntimeDebugLine: input.appendRuntimeDebugLine,
-    rewriteSecondPass: input.rewriteSecondPass,
-  })
+  let closed: AlicizationVisibleReplyClosureResult | null
+  try {
+    closed = await closeAlicizationVisibleReply({
+      draft: settlementDraft,
+      prepared: input.prepared,
+      forceRewrite: input.forceRewrite,
+      forceReasonCodes: input.forceReasonCodes,
+      appendRuntimeDebugLine: input.appendRuntimeDebugLine,
+      rewriteSecondPass: input.rewriteSecondPass,
+    })
+  }
+  catch (error) {
+    if (error instanceof AlicizationVisibleReplyClosureBlockedError) {
+      throw new AlicizationVisibleReplySettlementBlockedError(
+        error.message,
+        error.closure,
+      )
+    }
+    throw error
+  }
   if (!closed) {
     throw new AlicizationVisibleReplySettlementBlockedError(
       'visible-reply-settlement-not-produced',

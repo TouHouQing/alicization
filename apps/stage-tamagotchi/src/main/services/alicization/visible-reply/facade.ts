@@ -83,11 +83,15 @@ export {
 } from './runtime-surface-authority'
 
 export type {
+  AlicizationSecondPassReasonCode,
+  AlicizationSecondPassRetryInput,
   AlicizationSecondPassRewriteResult,
 } from './second-pass-rewrite'
 
 export {
-  buildAlicizationSecondPassTransportFailureReply,
+  AlicizationSecondPassStructuredContractError,
+  mapAlicizationSecondPassReasonCodes,
+  readAlicizationSecondPassToolFacts,
   rewriteAlicizationVisibleReplySecondPass,
 } from './second-pass-rewrite'
 

@@ -2,12 +2,21 @@ import type { AlicizationVisibleReplyExecution } from '../../../../shared/eventa
 import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-session-runtime'
 import type { AlicizationVisibleReplyCriticArtifact } from './critic'
 import type { AlicizationVisibleReplyClosureArtifact } from './realization-engine'
-import type { AlicizationSecondPassRewriteResult } from './second-pass-rewrite'
+import type {
+  AlicizationSecondPassRetryInput,
+  AlicizationSecondPassRewriteResult,
+} from './second-pass-rewrite'
+
+import { resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
 
 import {
   buildAlicizationVisibleReplyCriticArtifact,
   shouldForceAlicizationVisibleReplyRepair,
 } from './critic'
+import {
+  mapAlicizationSecondPassReasonCodes,
+  readAlicizationSecondPassToolFacts,
+} from './second-pass-rewrite'
 
 function readVisibleReplyExcerpt(fullText: string) {
   try {
@@ -30,6 +39,10 @@ export interface AlicizationVisibleReplyClosureResult extends AlicizationVisible
 }
 
 export class AlicizationVisibleReplyClosureBlockedError extends Error {
+  readonly failureSurface = resolveAlicizationChatFailureSurface({
+    kind: 'structured-contract',
+  })
+
   constructor(
     message: string,
     readonly closure: AlicizationVisibleReplyClosureArtifact,
@@ -72,15 +85,10 @@ export async function closeAlicizationVisibleReply(input: {
   prepared: AlicizationPreparedMainChatExecutionResult
   forceRewrite?: boolean
   forceReasonCodes?: string[]
-  forceMustPreserve?: string[]
   appendRuntimeDebugLine?: (event: string, payload: Record<string, unknown>) => Promise<void> | void
-  rewriteSecondPass: (input: {
-    fullText: string
-    visibleReplyExecution: AlicizationVisibleReplyExecution
-    forceRewrite: boolean
-    forceReasonCodes: string[]
-    mustPreserve: string[]
-  }) => Promise<AlicizationSecondPassRewriteResult | null>
+  rewriteSecondPass: (
+    input: AlicizationSecondPassRetryInput,
+  ) => Promise<AlicizationSecondPassRewriteResult | null>
 }): Promise<AlicizationVisibleReplyClosureResult | null> {
   const initialCritic = buildAlicizationVisibleReplyCriticArtifact({
     fullText: input.draft.fullText,
@@ -88,14 +96,6 @@ export async function closeAlicizationVisibleReply(input: {
     prepared: input.prepared,
   })
   const forceRewrite = input.forceRewrite === true || shouldForceAlicizationVisibleReplyRepair(initialCritic)
-  const forceReasonCodes = uniqueReasonCodes([
-    ...(input.forceReasonCodes ?? []),
-    ...initialCritic.repairReasonCodes,
-  ])
-  const mustPreserve = uniqueReasonCodes([
-    ...(input.forceMustPreserve ?? []),
-    ...initialCritic.mustPreserve,
-  ])
 
   if (!forceRewrite) {
     const closure = buildClosureArtifact({
@@ -112,12 +112,15 @@ export async function closeAlicizationVisibleReply(input: {
     }
   }
 
+  const reasonCodes = mapAlicizationSecondPassReasonCodes([
+    ...(input.forceReasonCodes ?? []),
+    ...initialCritic.repairReasonCodes,
+  ])
   const rewritten = await input.rewriteSecondPass({
-    fullText: input.draft.fullText,
-    visibleReplyExecution: input.draft.visibleReplyExecution,
-    forceRewrite,
-    forceReasonCodes,
-    mustPreserve,
+    candidate: input.draft.fullText,
+    reasonCodes,
+    prepared: input.prepared,
+    toolFacts: readAlicizationSecondPassToolFacts(input.prepared),
   })
   if (!rewritten?.rewritten) {
     const closure = buildClosureArtifact({
@@ -152,16 +155,13 @@ export async function closeAlicizationVisibleReply(input: {
       finalReasonCodes: finalCritic.reasonCodes,
       finalRepairReasonCodes: finalCritic.repairReasonCodes,
       rewrittenReplyExcerpt: readVisibleReplyExcerpt(rewritten.fullText),
-      preserveItemCount: finalCritic.mustPreserve.length,
-      dropItemCount: finalCritic.mustDrop.length,
     })
-    const debug = {
-      rewrittenReplyExcerpt: readVisibleReplyExcerpt(rewritten.fullText),
-    }
     throw new AlicizationVisibleReplyClosureBlockedError(
       `visible-reply-second-pass-still-fails-critic:${finalCritic.reasonCodes.join(',') || 'unknown'}`,
       closure,
-      debug,
+      {
+        rewrittenReplyExcerpt: readVisibleReplyExcerpt(rewritten.fullText),
+      },
     )
   }
 

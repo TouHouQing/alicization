@@ -1,4 +1,7 @@
-import type { AlicizationSecondPassRewriteResult } from './second-pass-rewrite'
+import type {
+  AlicizationSecondPassRetryInput,
+  AlicizationSecondPassRewriteResult,
+} from './second-pass-rewrite'
 
 import { describe, expect, it, vi } from 'vitest'
 
@@ -7,94 +10,141 @@ import {
   closeAlicizationVisibleReply,
 } from './closure-orchestrator'
 
-describe('visible reply closure orchestrator', () => {
-  it('emits final critic debug evidence when a second-pass rewrite is still blocked', async () => {
-    const appendRuntimeDebugLine = vi.fn(async () => {})
+function createPrepared() {
+  return {
+    memoryContext: {
+      version: 'alicization-main-chat-memory-context-v1',
+      workingMemory: {
+        version: 'working-memory-owner-context-v1',
+      },
+      longTermRecall: null,
+      availableLongTermEvidenceIds: [],
+      providerSystemBlock: '{}',
+    },
+    freshExecutionReplyCallback: {
+      status: 'completed',
+      toolName: 'read_file',
+    },
+    executionReplyObligation: null,
+    executionPayoffStructuredReply: null,
+    runtimeSurface: {
+      digitalLifeRuntimeSurface: null,
+    },
+  } as any
+}
 
-    let blockedError: unknown
+function createExecution() {
+  return {
+    mode: 'provider-stream' as const,
+    expectedVisibleReplyAuthority: 'llm-mind' as const,
+    actualVisibleReplyAuthority: 'llm-mind' as const,
+    providerMindExecuted: true,
+    reason: 'provider-stream',
+  }
+}
+
+function createValidRetryResult(): AlicizationSecondPassRewriteResult {
+  return {
+    fullText: JSON.stringify({
+      format: 'mind-turn-v1',
+      thought: 'answer directly',
+      emotion: 'neutral',
+      reply: '答案在这里。',
+      performance: {
+        baseEmotion: 'neutral',
+        facialCue: null,
+        actionCue: null,
+        delivery: 'calm',
+        emphasis: 0,
+      },
+      memoryUsage: {
+        workingMemoryVersion: 'working-memory-owner-context-v1',
+        longTermEvidenceIds: [],
+      },
+    }),
+    visibleReplyExecution: {
+      mode: 'provider-one-shot',
+      expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
+      actualVisibleReplyAuthority: 'llm-second-pass-rewrite',
+      providerMindExecuted: true,
+      reason: 'visible-reply-second-pass-rewrite',
+    },
+    rewritten: true,
+    reason: 'visible-reply-second-pass-rewrite',
+    audit: null,
+  }
+}
+
+describe('visible reply closure orchestrator', () => {
+  it('maps critic and settlement reasons to the finite second-pass reason code contract', async () => {
+    const prepared = createPrepared()
+    const rewriteSecondPass = vi.fn(async (_input: AlicizationSecondPassRetryInput): Promise<AlicizationSecondPassRewriteResult> => {
+      return createValidRetryResult()
+    })
+
+    await closeAlicizationVisibleReply({
+      draft: {
+        fullText: '{"reply":""}',
+        visibleReplyExecution: createExecution(),
+      },
+      prepared,
+      forceRewrite: true,
+      forceReasonCodes: [
+        'provider-payload-json-invalid',
+        'provider-memory-usage-invalid',
+        'execution-follow-up-status-not-surfaced:completed',
+        'semantic-judge:fixed-template-residue',
+      ],
+      rewriteSecondPass,
+    })
+
+    expect(rewriteSecondPass).toHaveBeenCalledOnce()
+    expect(rewriteSecondPass.mock.calls[0]?.[0]).toEqual({
+      candidate: '{"reply":""}',
+      reasonCodes: [
+        'schema_parse_failed',
+        'memory_usage_claim_invalid',
+        'tool_result_not_settled',
+        'legacy_template_contamination',
+        'required_field_missing',
+      ],
+      prepared,
+      toolFacts: [
+        {
+          status: 'completed',
+          toolName: 'read_file',
+        },
+      ],
+    })
+  })
+
+  it('exposes only the structured-contract failure surface when the retry remains invalid', async () => {
+    const rewriteSecondPass = vi.fn(async (_input: AlicizationSecondPassRetryInput): Promise<AlicizationSecondPassRewriteResult | null> => null)
+
+    let thrown: unknown
     try {
       await closeAlicizationVisibleReply({
         draft: {
-          fullText: JSON.stringify({
-            format: 'mind-turn-v1',
-            thought: 'obligation=answer; truth=dialogue-grounded; focus=project-state; move=thin-answer; tone=calm',
-            emotion: 'thinking',
-            reply: '我会保持低压。',
-            performance: {
-              baseEmotion: 'thinking',
-              delivery: 'calm',
-              emphasis: 0,
-            },
-          }),
-          visibleReplyExecution: {
-            mode: 'provider-stream' as const,
-            expectedVisibleReplyAuthority: 'llm-mind',
-            actualVisibleReplyAuthority: 'llm-mind',
-            providerMindExecuted: true,
-            reason: 'provider-stream',
-          },
+          fullText: '{"reply":""}',
+          visibleReplyExecution: createExecution(),
         },
-        prepared: {
-          messages: [
-            {
-              role: 'user',
-              content: '铃兰-Phase1-0621N 第三轮：不要重新报告项目。沿着刚才已经浮现的那条记忆，只用自然的一小段话说明它现在怎样改变你的下一次轻主动和具身表达：情绪余波保持低压，声线、脸部、动作、口型、停顿继续像同一个她。',
-            },
-          ],
-          mindTurnContract: {
-            projectState: {
-              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-              latestLandedProgress: 'The previous dialogue turn surfaced the pure dialogue life line naturally into emotional residue, low-pressure initiative, and body voice face motion lipsync carry.',
-              primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying one living line.',
-              nextClosureTarget: 'Keep the surfaced memory changing the next light initiative and embodied expression as the same her without restarting a project report.',
-              sameHerSelfLine: 'Same Phase 1 digital life. The surfaced memory should carry into low-pressure initiative and coherent embodiment as one continuous her.',
-            },
-          },
-        } as any,
-        rewriteSecondPass: vi.fn(async (): Promise<AlicizationSecondPassRewriteResult> => ({
-          fullText: JSON.stringify({
-            format: 'mind-turn-v1',
-            thought: 'obligation=answer; truth=dialogue-grounded; focus=project-state; move=still-thin-answer; tone=calm',
-            emotion: 'thinking',
-            reply: '我会保持低压。',
-            performance: {
-              baseEmotion: 'thinking',
-              delivery: 'calm',
-              emphasis: 0,
-            },
-          }),
-          visibleReplyExecution: {
-            mode: 'provider-stream' as const,
-            expectedVisibleReplyAuthority: 'llm-mind',
-            actualVisibleReplyAuthority: 'llm-second-pass-rewrite',
-            providerMindExecuted: true,
-            reason: 'visible-reply-second-pass-rewrite',
-          },
-          rewritten: true,
-          reason: 'visible-reply-second-pass-rewrite',
-          audit: {},
-        })),
-        appendRuntimeDebugLine,
+        prepared: createPrepared(),
+        forceRewrite: true,
+        forceReasonCodes: ['provider-payload-json-invalid'],
+        rewriteSecondPass,
       })
     }
     catch (error) {
-      blockedError = error
+      thrown = error
     }
 
-    expect(blockedError).toBeInstanceOf(AlicizationVisibleReplyClosureBlockedError)
-    expect((blockedError as AlicizationVisibleReplyClosureBlockedError).debug).toEqual(expect.objectContaining({
-      rewrittenReplyExcerpt: '我会保持低压。',
-    }))
-
-    expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
-      'chat-stream.visible-reply-second-pass-still-fails-critic',
-      expect.objectContaining({
-        finalReasonCodes: expect.arrayContaining([
-          'semantic-judge:project-state-phase-missing',
-          'semantic-judge:project-state-answer-gap',
-        ]),
-        rewrittenReplyExcerpt: '我会保持低压。',
-      }),
-    )
+    expect(thrown).toBeInstanceOf(AlicizationVisibleReplyClosureBlockedError)
+    expect((thrown as AlicizationVisibleReplyClosureBlockedError).failureSurface).toMatchObject({
+      kind: 'structured-contract',
+      origin: 'failure-surface',
+      allowLongTermCondensation: false,
+      allowPersonaLearning: false,
+      allowTraining: false,
+    })
   })
 })

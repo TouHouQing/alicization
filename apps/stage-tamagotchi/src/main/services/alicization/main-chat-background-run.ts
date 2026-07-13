@@ -107,7 +107,6 @@ import {
   AlicizationVisibleReplyClosureBlockedError,
   AlicizationVisibleReplySettlementBlockedError,
   buildAlicizationResolvedVisibleReply,
-  buildAlicizationSecondPassTransportFailureReply,
   buildAlicizationVisibleReplyCriticArtifact,
   deriveAlicizationVisibleReplyText,
   resolveAlicizationPreparedVisibleReplyExecution,
@@ -2019,9 +2018,6 @@ export async function runAlicizationMainChatBackground(
 
     return exactAwarenessLine
   }
-  const conversationMessages = Array.isArray(payload.messages)
-    ? payload.messages as Message[]
-    : []
   let prepared: AlicizationPreparedMainChatExecutionResult | null = null
   let chatConfig: ReturnType<MainGatewayResolvedConfig['provider']['chat']> | null = null
   let messages: Message[] = []
@@ -5453,11 +5449,6 @@ export async function runAlicizationMainChatBackground(
     if (!prepared)
       return null
 
-    const latestUserMessage = [...conversationMessages].reverse().find(message => message?.role === 'user')
-    const latestUserText = sanitizeText(latestUserMessage?.content, '')
-    if (!latestUserText)
-      return null
-
     try {
       const settled = await settleAlicizationVisibleReply({
         draft: {
@@ -5471,16 +5462,7 @@ export async function runAlicizationMainChatBackground(
         forceMustPreserve: rewriteInput.forceMustPreserve,
         appendRuntimeDebugLine: input.appendRuntimeDebugLine,
         rewriteSecondPass: async secondPassInput => await rewriteAlicizationVisibleReplySecondPass({
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          sessionId: prepared!.conversationSessionId,
-          userText: latestUserText,
-          rawFullText: secondPassInput.fullText,
-          prepared: prepared!,
-          visibleReplyExecution: secondPassInput.visibleReplyExecution,
-          forceRewrite: secondPassInput.forceRewrite,
-          forceReasonCodes: secondPassInput.forceReasonCodes,
-          mustPreserve: secondPassInput.mustPreserve,
+          ...secondPassInput,
           headers: input.headers,
           provider: async ({ chatConfig, messages, headers, timeoutMs }) => {
             return await generateAlicizationMainChatNonStreaming({
@@ -5491,7 +5473,6 @@ export async function runAlicizationMainChatBackground(
               timeoutMs,
             })
           },
-          appendRuntimeDebugLine: input.appendRuntimeDebugLine,
         }),
       })
       const settledFullText = sanitizeText(settled.fullText, '')
@@ -5529,29 +5510,7 @@ export async function runAlicizationMainChatBackground(
           ? error.debug?.rewrittenReplyExcerpt ?? null
           : null,
       })
-      const reachability = await input.ensureMainGatewayReachable(input.mainGateway, { bypassCache: true }).catch(() => null)
-      if (reachability?.reachable !== false) {
-        throw new AlicizationMindAuthoredReplyRequiredError(
-          `visible-reply-second-pass-required:${error instanceof Error ? error.message : String(error)}`,
-        )
-      }
-      const blockedTransportFailure = buildAlicizationSecondPassTransportFailureReply({
-        governedStructured: parseJsonObjectFromText(rewriteInput.fullText),
-        previousExecution: rewriteInput.visibleReplyExecution,
-        reason: error instanceof Error ? error.message : String(error),
-        prepared,
-      })
-      await input.appendRuntimeDebugLine('chat-stream.visible-reply-second-pass-local-fallback-blocked', {
-        cardId: input.payload.cardId,
-        turnId: input.payload.turnId,
-        reason: blockedTransportFailure.visibleReplyExecution.reason,
-        gatewayReachable: reachability?.reachable ?? null,
-        gatewayReason: reachability?.reason ?? null,
-        closureReasonCodes: closure?.reasonCodes ?? [],
-      })
-      throw new AlicizationMindAuthoredReplyRequiredError(
-        `visible-reply-second-pass-required:${blockedTransportFailure.visibleReplyExecution.reason}`,
-      )
+      throw error
     }
   }
 
