@@ -4,13 +4,13 @@ import type { tool } from '@xsai/tool'
 
 import type { MainGatewayResolvedConfig } from './runtime-soul'
 
+import { alicizationProviderResponseFormat } from '@proj-alicization/stage-shared'
 import { generateText } from '@xsai/generate-text'
 
 import { assertAlicizationCanonicalProjectState } from './main-chat-project-state-guard'
 import { AlicizationRequiredToolMissingError } from './main-chat-required-tool'
 import { extractAllowedToolNamesFromToolChoice } from './main-chat-runtime-surface'
 import { createAbortError, sanitizeText } from './main-chat-stream-primitives'
-import { sanitizeBriefText } from './runtime-realtime'
 
 type GenerateTextInvoker = (input: Record<string, unknown>) => Promise<Record<string, unknown> & {
   text?: string | null
@@ -28,91 +28,6 @@ interface AlicizationMainChatOneShotInput {
   maxSteps: number
   timeoutReason: string
   generateTextImpl?: GenerateTextInvoker
-}
-
-function readOneShotRecord(raw: unknown): Record<string, unknown> | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-    return null
-  return raw as Record<string, unknown>
-}
-
-function readOneShotEmotionalKernel(raw: unknown): AlicizationEmotionalKernelSnapshot | null {
-  const candidate = readOneShotRecord(raw)
-  if (!candidate)
-    return null
-  if (candidate.version !== 'emotional-kernel-v1')
-    return null
-  if (
-    !sanitizeText(candidate.dominantEmotion, '')
-    || !sanitizeText(candidate.memoryRecallMode, '')
-    || !sanitizeText(candidate.initiativeMode, '')
-    || !sanitizeText(candidate.embodimentTone, '')
-  ) {
-    return null
-  }
-  return candidate as unknown as AlicizationEmotionalKernelSnapshot
-}
-
-function buildOneShotEmotionalKernelSystemBlock(raw: unknown) {
-  const emotionalKernel = readOneShotEmotionalKernel(raw)
-  if (!emotionalKernel)
-    return ''
-
-  return [
-    '[ALICIZATION_EMOTIONAL_KERNEL]',
-    'This is the shared emotion-memory-initiative-embodiment authority for this one-shot turn. Let it shape recall, initiative pressure, body tone, and reply posture; do not invent a competing mood.',
-    emotionalKernel.dominantEmotion
-      ? `emotional_kernel_dominant=${sanitizeBriefText(emotionalKernel.dominantEmotion, 64)}`
-      : '',
-    emotionalKernel.memoryRecallMode
-      ? `emotional_kernel_memory_recall=${sanitizeBriefText(emotionalKernel.memoryRecallMode, 64)}`
-      : '',
-    emotionalKernel.initiativeMode
-      ? `emotional_kernel_initiative=${sanitizeBriefText(emotionalKernel.initiativeMode, 64)}`
-      : '',
-    emotionalKernel.embodimentTone
-      ? `emotional_kernel_embodiment=${sanitizeBriefText(emotionalKernel.embodimentTone, 64)}`
-      : '',
-    Number.isFinite(emotionalKernel.valence) ? `emotional_kernel_valence=${emotionalKernel.valence.toFixed(2)}` : '',
-    Number.isFinite(emotionalKernel.arousal) ? `emotional_kernel_arousal=${emotionalKernel.arousal.toFixed(2)}` : '',
-    Number.isFinite(emotionalKernel.guardedness) ? `emotional_kernel_guardedness=${emotionalKernel.guardedness.toFixed(2)}` : '',
-    Number.isFinite(emotionalKernel.closenessDrive) ? `emotional_kernel_closeness_drive=${emotionalKernel.closenessDrive.toFixed(2)}` : '',
-    Number.isFinite(emotionalKernel.repairNeed) ? `emotional_kernel_repair_need=${emotionalKernel.repairNeed.toFixed(2)}` : '',
-    Number.isFinite(emotionalKernel.initiativePressure) ? `emotional_kernel_initiative_pressure=${emotionalKernel.initiativePressure.toFixed(2)}` : '',
-    emotionalKernel.why
-      ? `emotional_kernel_reason=${sanitizeBriefText(emotionalKernel.why, 220)}`
-      : '',
-    emotionalKernel.reasonTags?.length
-      ? `emotional_kernel_tags=${emotionalKernel.reasonTags.map(tag => sanitizeBriefText(tag, 64)).filter(Boolean).slice(0, 6).join('|')}`
-      : '',
-  ].filter(Boolean).join('\n')
-}
-
-function messagesCarryOneShotEmotionalKernel(messages: Message[]) {
-  return messages.some(message =>
-    typeof message.content === 'string'
-    && message.content.includes('[ALICIZATION_EMOTIONAL_KERNEL]'),
-  )
-}
-
-function appendOneShotEmotionalKernelSystemMessage(
-  messages: Message[],
-  emotionalKernel: AlicizationEmotionalKernelSnapshot | null | undefined,
-) {
-  const block = buildOneShotEmotionalKernelSystemBlock(emotionalKernel)
-  if (!block || messagesCarryOneShotEmotionalKernel(messages))
-    return messages
-
-  const firstNonSystemIndex = messages.findIndex(message => message.role !== 'system')
-  const emotionalKernelMessage = { role: 'system', content: block } as Message
-  if (firstNonSystemIndex < 0)
-    return [...messages, emotionalKernelMessage]
-
-  return [
-    ...messages.slice(0, firstNonSystemIndex),
-    emotionalKernelMessage,
-    ...messages.slice(firstNonSystemIndex),
-  ]
 }
 
 function normalizeOneShotToolName(candidate: unknown) {
@@ -172,18 +87,14 @@ async function executeAlicizationMainChatOneShot(input: AlicizationMainChatOneSh
   }, Math.max(1_000, input.timeoutMs))
 
   try {
-    const providerMessages = appendOneShotEmotionalKernelSystemMessage(
-      input.messages,
-      input.emotionalKernel,
-    )
-
-    assertAlicizationCanonicalProjectState(providerMessages, 'one-shot')
+    assertAlicizationCanonicalProjectState(input.messages, 'one-shot')
 
     const invokeGenerateText = input.generateTextImpl ?? (generateText as unknown as GenerateTextInvoker)
     const result = await invokeGenerateText({
       ...input.chatConfig,
       maxSteps: input.maxSteps,
-      messages: providerMessages,
+      messages: input.messages,
+      responseFormat: alicizationProviderResponseFormat,
       headers: input.headers,
       abortSignal: controller.signal,
       tools: input.tools,

@@ -22,7 +22,6 @@ export interface AlicizationPromptTemplateVars {
 }
 
 export const alicizationFixedSensoryContextHeader = 'current_sensory_state'
-export const alicizationFixedStructuredContractHeader = 'output_contract'
 
 export const alicizationFixedCoreSystemInstruction = [
   '[ALICIZATION_CORE_RESPONSE_POLICY]',
@@ -53,29 +52,6 @@ export const alicizationFixedProjectStateContinuityTemplate = [
   'next={{nextClosureTarget}}',
   'summary={{continuitySummary}}',
   'status={{nonHumanAuthoredStatus}}',
-].join('\n')
-export const alicizationFixedStructuredContractAnchor = [
-  alicizationFixedStructuredContractHeader,
-  'format=json_object; keys=thought,emotion,reply,performance; extra_keys=blocked',
-  'thought_role=internal_control_line; roleplay_monologue=blocked',
-  'thought_markers=obligation,truth,focus,move,tone; compact_line=true',
-  'obligation_enum=answer,guide,teach,repair,care,accompany,clarify',
-  'truth_enum=grounded,coarse,memory,uncertain',
-  'tone_enum=direct,warm,tender,restrained',
-  'focus_move_scope=current_turn_concrete_short',
-  'personality_relationship_flavor=only_if_material_to_move; numeric_personality_enumeration=blocked',
-  'emotion_matches=performance.baseEmotion',
-  'performance_shape=baseEmotion,facialCue,actionCue,delivery,emphasis',
-  'baseEmotion_enum=neutral,happy,sad,angry,concerned,tired,apologetic,surprised,thinking',
-  'facialCue_actionCue_source=vessel_capability_manifest_or_null',
-  'delivery_enum=calm,gentle,firm,energetic,hesitant,teasing',
-  'emphasis_enum=0,1,2',
-  'reply_emotion_semantic_consistency=required',
-  'reply_priority=current_obligation_and_truth_before_persona_style',
-  'visible_stage_directions=blocked; body_action_narration=blocked; decorative_roleplay_preface=blocked; markdown_fences=blocked',
-  'personality_numeric_state_priority=soul_frontmatter_over_persona_notes',
-  'liveliness_le_0_2_high_arousal_claims=blocked',
-  'prose_outside_json=blocked',
 ].join('\n')
 
 export const alicizationFixedSparkHandlingInstructionTemplate = [

@@ -1989,7 +1989,11 @@ describe('main chat runtime surface', () => {
 
     expect(extractCustomDirectivesFromMessages([message])).toBe('请先观察，再回答。')
     expect(extractHostNameFromMessages([message])).toBe('Asuna')
-    expect(buildCardCustomDirectivesSystemBlock('请先观察，再回答。')).toContain('--- custom_directives ---')
+    const customDirectivesBlock = buildCardCustomDirectivesSystemBlock('请先观察，再回答。')
+    expect(customDirectivesBlock).toContain('--- custom_directives ---')
+    expect(customDirectivesBlock).not.toContain('high-priority persona kernel')
+    expect(customDirectivesBlock).not.toContain('Apply these directives consistently')
+    expect(customDirectivesBlock).not.toContain('strict JSON output contract')
   })
 
   it('keeps latest landed continuity progress and next closure target inside the living-self inner voice block', () => {

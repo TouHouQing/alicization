@@ -1,8 +1,20 @@
+import { alicizationProviderResponseFormat } from '@proj-alicization/stage-shared'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { runAlicizationMainChatStream } from './main-chat-stream-runner'
 import { buildAlicizationProviderFacingProjectStateSystemBlock } from './project-state-brief'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
+
+const canonicalMemoryGovernanceProjectStateBlock = [
+  '[ALICIZATION_PROJECT_STATE]',
+  'context_role=memory_governance_status',
+  'short_term_owner=WorkingMemory',
+  'long_term_recall_owner=LongTermMemoryRecall',
+  'template_policy=no_fixed_persona_templates',
+  'failure_surface=transparent_errors_only',
+  'latest_landed_progress=Memory Workbench policy and recall diagnostics are visible.',
+  'primary_open_loop=Semantic recall and provider failure transparency still need closure.',
+].join('\n')
 
 function createPrepared(overrides?: Partial<any>) {
   return {
@@ -99,7 +111,7 @@ describe('main chat stream runner', () => {
     expect(streamTextImpl).not.toHaveBeenCalled()
   })
 
-  it('projects prepared runtime emotional-kernel authority into stream provider prompts', async () => {
+  it('passes the native response schema without converting emotional state into provider prose', async () => {
     const emotionalKernel = {
       version: 'emotional-kernel-v1',
       dominantEmotion: 'measured-companionship',
@@ -115,19 +127,18 @@ describe('main chat stream runner', () => {
       reasonTags: ['stream-provider', 'same-her-authority'],
       why: 'keep the stream provider on the same emotion-memory-initiative-embodiment authority line',
     }
-    const streamTextImpl = vi.fn(async ({ messages, onEvent }) => {
+    const streamTextImpl = vi.fn(async ({ messages, onEvent, responseFormat }) => {
       const systemText = ((messages as Array<{ role?: string, content?: unknown }> | undefined) ?? [])
         .filter(message => message.role === 'system')
         .map(message => typeof message.content === 'string' ? message.content : '')
         .join('\n')
 
-      expect(systemText).toContain('[ALICIZATION_EMOTIONAL_KERNEL]')
-      expect(systemText).toContain('emotional_kernel_dominant=measured-companionship')
-      expect(systemText).toContain('emotional_kernel_memory_recall=self-continuity')
-      expect(systemText).toContain('emotional_kernel_initiative=hold')
-      expect(systemText).toContain('emotional_kernel_embodiment=nearby-soft')
-      expect(systemText).toContain('emotional_kernel_reason=keep the stream provider on the same emotion-memory-initiative-embodiment authority line')
-      expect(systemText).toContain('emotional_kernel_tags=stream-provider|same-her-authority')
+      expect(responseFormat).toBe(alicizationProviderResponseFormat)
+      expect(systemText).not.toContain('[ALICIZATION_EMOTIONAL_KERNEL]')
+      expect(systemText).not.toContain('emotional_kernel_')
+      expect(JSON.stringify(messages)).not.toMatch(
+        /Return ONLY one strict JSON|Output contract|must-follow|Response contract/iu,
+      )
 
       const emit = onEvent as (event: any) => Promise<void>
       await emit({ type: 'text-delta', text: '我会沿着同一份内在状态继续。' })
@@ -140,6 +151,13 @@ describe('main chat stream runner', () => {
         turnId: 'turn-stream-emotional-kernel',
       } as any,
       prepared: createPrepared({
+        messages: [
+          {
+            role: 'system',
+            content: canonicalMemoryGovernanceProjectStateBlock,
+          },
+          { role: 'user', content: '你好' },
+        ],
         runtimeSurface: {
           digitalLifeRuntimeSurface: {
             memory: {
@@ -167,6 +185,53 @@ describe('main chat stream runner', () => {
       reply: '我会沿着同一份内在状态继续。',
     }))
     expect(streamTextImpl).toHaveBeenCalledOnce()
+  })
+
+  it('rejects a real xsAI schema HTTP failure before the first-event timeout', async () => {
+    const controller = new AbortController()
+    const fetchImpl = vi.fn(async () => new Response(
+      '{"error":{"message":"response_format json_schema is an invalid parameter"}}',
+      {
+        status: 400,
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+    ))
+
+    await expect(runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-stream-schema-error',
+      } as any,
+      prepared: createPrepared({
+        chatConfig: {
+          apiKey: 'test-key',
+          baseURL: 'https://provider.invalid/v1/',
+          fetch: fetchImpl,
+          model: 'test-model',
+        },
+        messages: [
+          {
+            role: 'system',
+            content: canonicalMemoryGovernanceProjectStateBlock,
+          },
+          { role: 'user', content: '你好' },
+        ],
+      }),
+      controller,
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+    })).rejects.toThrow('response_format json_schema is an invalid parameter')
+    expect(fetchImpl).toHaveBeenCalledOnce()
+    expect(controller.signal.aborted).toBe(false)
   })
 
   it('uses the visual grounding one-shot path when capture grounding is required', async () => {

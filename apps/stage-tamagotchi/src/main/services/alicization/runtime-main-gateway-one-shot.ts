@@ -93,8 +93,6 @@ export interface AlicizationMainGatewayTextProvider {
 
 interface MainGatewayOneShotGenerateTextOptions extends AlicizationMainGatewayTextProviderOptions {}
 
-type AlicizationOneShotEmotionalKernelShape = NonNullable<AlicizationDigitalLifeRuntimeSurface['memory']['emotionalKernel']>
-
 interface OneShotPromptCompactionResult {
   messages: Message[]
   compacted: boolean
@@ -440,80 +438,6 @@ function compactOneShotMessagesToTextBudget(
     maxChars,
     compactedMessageCount: compactedMessages.filter((message, index) => message !== messages[index]).length,
   }
-}
-
-function readOneShotRecord(raw: unknown): Record<string, unknown> | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-    return null
-  return raw as Record<string, unknown>
-}
-
-function readOneShotEmotionalKernel(raw: unknown): AlicizationOneShotEmotionalKernelShape | null {
-  const candidate = readOneShotRecord(raw)
-  if (!candidate)
-    return null
-  if (candidate.version !== 'emotional-kernel-v1')
-    return null
-  if (
-    !sanitizeText(candidate.dominantEmotion, '')
-    || !sanitizeText(candidate.memoryRecallMode, '')
-    || !sanitizeText(candidate.initiativeMode, '')
-    || !sanitizeText(candidate.embodimentTone, '')
-  ) {
-    return null
-  }
-  return candidate as unknown as AlicizationOneShotEmotionalKernelShape
-}
-
-function resolveOneShotRuntimeEmotionalKernel(
-  surface: AlicizationDigitalLifeRuntimeSurface | null | undefined,
-): AlicizationOneShotEmotionalKernelShape | null {
-  return [
-    surface?.memory?.emotionalKernel,
-    surface?.raw?.runtimeDigest?.emotionalKernel,
-    surface?.cognition?.runtimeDigest?.emotionalKernel,
-    surface?.dialogue?.runtimeDigest?.emotionalKernel,
-    surface?.memory?.derivedMindStateBundle?.emotionalKernel,
-    surface?.memory?.derivedMindStateBundle?.visualPresenceState?.emotionalKernel,
-  ]
-    .map(readOneShotEmotionalKernel)
-    .find((kernel): kernel is AlicizationOneShotEmotionalKernelShape => kernel != null)
-    ?? null
-}
-
-function buildOneShotEmotionalKernelSystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
-  const emotionalKernel = resolveOneShotRuntimeEmotionalKernel(surface)
-  if (!emotionalKernel)
-    return ''
-
-  return [
-    '[ALICIZATION_EMOTIONAL_KERNEL]',
-    'This is the shared emotion-memory-initiative-embodiment authority for this one-shot turn. Let it shape recall, initiative pressure, body tone, and reply posture; do not invent a competing mood.',
-    emotionalKernel.dominantEmotion
-      ? `emotional_kernel_dominant=${sanitizeBriefText(emotionalKernel.dominantEmotion, 64)}`
-      : '',
-    emotionalKernel.memoryRecallMode
-      ? `emotional_kernel_memory_recall=${sanitizeBriefText(emotionalKernel.memoryRecallMode, 64)}`
-      : '',
-    emotionalKernel.initiativeMode
-      ? `emotional_kernel_initiative=${sanitizeBriefText(emotionalKernel.initiativeMode, 64)}`
-      : '',
-    emotionalKernel.embodimentTone
-      ? `emotional_kernel_embodiment=${sanitizeBriefText(emotionalKernel.embodimentTone, 64)}`
-      : '',
-    Number.isFinite(emotionalKernel.valence) ? `emotional_kernel_valence=${emotionalKernel.valence.toFixed(2)}` : '',
-    Number.isFinite(emotionalKernel.arousal) ? `emotional_kernel_arousal=${emotionalKernel.arousal.toFixed(2)}` : '',
-    Number.isFinite(emotionalKernel.guardedness) ? `emotional_kernel_guardedness=${emotionalKernel.guardedness.toFixed(2)}` : '',
-    Number.isFinite(emotionalKernel.closenessDrive) ? `emotional_kernel_closeness_drive=${emotionalKernel.closenessDrive.toFixed(2)}` : '',
-    Number.isFinite(emotionalKernel.repairNeed) ? `emotional_kernel_repair_need=${emotionalKernel.repairNeed.toFixed(2)}` : '',
-    Number.isFinite(emotionalKernel.initiativePressure) ? `emotional_kernel_initiative_pressure=${emotionalKernel.initiativePressure.toFixed(2)}` : '',
-    emotionalKernel.why
-      ? `emotional_kernel_reason=${sanitizeBriefText(emotionalKernel.why, 220)}`
-      : '',
-    emotionalKernel.reasonTags?.length
-      ? `emotional_kernel_tags=${emotionalKernel.reasonTags.map(tag => sanitizeBriefText(tag, 64)).filter(Boolean).slice(0, 6).join('|')}`
-      : '',
-  ].filter(Boolean).join('\n')
 }
 
 function hasUsableDigitalLifeRuntimeSurface(
@@ -1460,9 +1384,6 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
         : []),
       ...(buildSelfEvolutionSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null)
         ? [{ role: 'system', content: buildSelfEvolutionSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null) } as Message]
-        : []),
-      ...(buildOneShotEmotionalKernelSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null)
-        ? [{ role: 'system', content: buildOneShotEmotionalKernelSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null) } as Message]
         : []),
       ...(buildDerivedMindStateBundleSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null)
         ? [{ role: 'system', content: buildDerivedMindStateBundleSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null) } as Message]

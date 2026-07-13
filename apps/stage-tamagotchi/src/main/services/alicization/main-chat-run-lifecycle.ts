@@ -9,6 +9,8 @@ import type { AlicizationResolvedVisibleReply } from './visible-reply/facade'
 
 import {
   alicizationFixedTemplateReplacement,
+  isAlicizationProviderSchemaUnsupportedError,
+  resolveAlicizationChatFailureSurface,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
@@ -64,6 +66,10 @@ export function shouldRecordAlicizationMainGatewayGenerationTimeout(reason: unkn
   return normalized.includes('timeout')
     || normalized.includes('timed out')
     || normalized.includes('main-gateway-timeout-recovery')
+}
+
+export function isProviderSchemaUnsupportedError(error: unknown) {
+  return isAlicizationProviderSchemaUnsupportedError(error)
 }
 
 function sanitizeTimeoutDiagnosticSegment(raw: unknown) {
@@ -763,6 +769,24 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
             timeoutRecoveryMode: input.timeoutRecoveryMode,
           })
         : normalizedAbortReason,
+    })
+    return
+  }
+
+  if (isProviderSchemaUnsupportedError(input.error)) {
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'provider-schema-unsupported',
+    })
+    await input.emitError(failureSurface.reply)
+    await input.finish({
+      status: 'failed',
+      finishReason: 'provider-schema-unsupported',
+      error: failureSurface.reply,
+    })
+    await input.appendRuntimeDebugLine('chat-stream.provider-schema-unsupported', {
+      cardId: input.payload.cardId,
+      turnId: input.payload.turnId,
+      reason,
     })
     return
   }

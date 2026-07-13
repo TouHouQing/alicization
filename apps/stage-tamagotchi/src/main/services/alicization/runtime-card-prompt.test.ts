@@ -54,6 +54,9 @@ describe('runtime card prompt persona kernel', () => {
     expect(blocks.some(block => block.includes('[ALICIZATION_PERSONA_PROFILE]'))).toBe(true)
     expect(blocks.some(block => block.includes('"alicizationName":"小艾"'))).toBe(true)
     expect(blocks.some(block => block.includes('"relationship":"女仆"'))).toBe(true)
+    expect(JSON.stringify(blocks)).not.toMatch(
+      /Response contract|Output contract|Return (?:exactly )?one (?:strict )?JSON/iu,
+    )
   })
 
   it('does not inject canonical project-state continuity blocks into ordinary main prompt blocks', async () => {

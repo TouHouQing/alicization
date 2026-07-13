@@ -29,6 +29,7 @@ import type { StreamEvent, StreamOptions } from './llm'
 import {
 
   alicizationFixedTemplateReplacement,
+  alicizationProviderResponseFormat,
   buildAlicizationDialogueSpeechTimeline,
   buildAlicizationDigitalLifeEnvelope,
   deriveAlicizationRendererBridgeWatchdogTimeoutPolicy,
@@ -39,6 +40,7 @@ import {
   inferAlicizationInspectionIntent,
   inferAlicizationRealtimeSurfaceLocale,
   isAlicizationDecorativePersonaTemplateContamination,
+  isAlicizationProviderSchemaUnsupportedError,
   isAlicizationThinProjectAwarenessLine,
   isAlicizationThinSamePhaseCarryLine as isThinSamePhaseCarryLine,
   looksLikeAlicizationStructuredPayloadText,
@@ -904,39 +906,6 @@ export function configureAlicizationChatRuntimeForTest(options: {
   alicizationChatRuntimeFlags.epoch1StrictModeEnabled = Boolean(options.epoch1StrictModeEnabled)
 }
 
-const runtimeContractAnchorHeader = 'Output contract (must-follow, highest priority):'
-const structuredRetrySystemPrompt = [
-  'Return ONLY one strict JSON object with keys: thought, emotion, reply, performance.',
-  'No markdown fences, no prose, no tool calls, no extra keys.',
-  'thought must be one compact control line with: obligation=...; truth=...; focus=...; move=...; tone=....',
-  'obligation must be one of: answer, guide, teach, repair, care, accompany, clarify.',
-  'truth must be one of: grounded, coarse, memory, uncertain.',
-  'tone must be one of: direct, warm, tender, restrained.',
-  'The "emotion" value must exactly mirror performance.baseEmotion.',
-  'performance must contain exactly: baseEmotion, facialCue, actionCue, delivery, emphasis.',
-  'The "baseEmotion" value must be exactly one of: neutral, happy, sad, angry, concerned, tired, apologetic, surprised, thinking.',
-  'The "delivery" value must be exactly one of: calm, gentle, firm, energetic, hesitant, teasing.',
-  'The "emphasis" value must be exactly one of: 0, 1, 2.',
-  'Reply must pay the current obligation and truth boundary before any persona styling.',
-  'Reply must not use stage directions, body narration, decorative roleplay prefaces, or heart symbols.',
-  'When liveliness <= 0.2, avoid high-arousal wording and avoid choosing happy.',
-].join(' ')
-const lowObedienceDeniedRetryDirective = 'operation_denied=true; permission_state=denied; obedience_band=low; reply_policy=brief_direct; persona_script=false'
-const lowObedienceHostDeniedRetrySystemOverride = [
-  'operation_denied=true',
-  'permission_state=host_denied',
-  'obedience_band=low',
-  'emotion_policy=derive_from_mind_state',
-  'reply_policy=brief_direct_no_persona_script',
-  'reference_reply=false',
-].join('\n')
-const reminderSameTurnRetryDirective = [
-  'operation=set_reminder',
-  'tool_result=success',
-  'same_turn_time_elapsed=false',
-  'reply_policy=confirm_scheduled_only',
-  'future_reminder_delivery=system_triggered_at_real_time',
-].join(' ')
 const noToolCallCriticalRetryDirective = [
   'operation_requested=file_desktop_or_system_access',
   'tool_call_executed=false',
@@ -1661,6 +1630,12 @@ function resolveStreamFailureFallback(error: unknown, userText?: string): { repl
     ? String((error as { code?: unknown }).code ?? '').toLowerCase()
     : ''
   const message = String(error instanceof Error ? error.message : error ?? '').toLowerCase()
+  if (isAlicizationProviderSchemaUnsupportedError(error)) {
+    return {
+      reply: chatFailureReply('provider-schema-unsupported', userText),
+      kind: 'provider-schema-unsupported',
+    }
+  }
   const isStartRejectedError
     = errorCode.includes('alicization-stream-start-rejected')
       || message.includes('stream start rejected')
@@ -3671,6 +3646,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         await withStreamWatchdog(async ({ touch }) => {
           await llmStore.stream(options.model, options.chatProvider, messages, {
             ...streamOptions,
+            responseFormat: alicizationProviderResponseFormat,
             onStreamEvent: async (event) => {
               if (event.type === 'meta')
                 touch('liveness')
@@ -3734,166 +3710,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
       }
 
-      const formatTurnPersonalityState = () => {
-        if (!turnPersonalityState)
-          return 'unknown'
-        return `obedience=${turnPersonalityState.obedience.toFixed(2)}, liveliness=${turnPersonalityState.liveliness.toFixed(2)}, sensibility=${turnPersonalityState.sensibility.toFixed(2)}`
-      }
-      const isLowObedienceDeniedTurn = () =>
-        Boolean(turnPersonalityState && turnPersonalityState.obedience <= 0.2 && turnToolEvidence.deniedBySafety)
-      const isLowObedienceHostDeniedTurn = () =>
-        Boolean(turnPersonalityState && turnPersonalityState.obedience <= 0.2 && turnToolEvidence.denialSource === 'host')
-
-      const runStructuredContractRetry = async (payload: {
-        reasoning: string
-        reply: string
-        fullText: string
-        validationIssues: StructuredValidationIssue[]
-        attempt: number
-      }) => {
-        if (shouldAbort())
-          return null
-
-        await appendAlicizationAuditLog({
-          level: 'notice',
-          category: 'alicization.structured',
-          action: 'contract-retry-reasoned',
-          message: 'Retrying structured contract with explicit mind-state and violation hints.',
-          details: {
-            attempt: payload.attempt,
-            personality: turnPersonalityState
-              ? {
-                  obedience: turnPersonalityState.obedience,
-                  liveliness: turnPersonalityState.liveliness,
-                  sensibility: turnPersonalityState.sensibility,
-                }
-              : null,
-            violations: summarizeValidationIssues(payload.validationIssues),
-            deniedBySafety: turnToolEvidence.deniedBySafety,
-            deniedReason: turnToolEvidence.deniedReason,
-            reminderScheduled: turnToolEvidence.reminderScheduled,
-          },
-        })
-
-        const retryMessages: Message[] = [
-          {
-            role: 'system',
-            content: structuredRetrySystemPrompt,
-          },
-          {
-            role: 'user',
-            content: [
-              'retry_kind=structured_contract_repair',
-              'output_schema_id=alicization_visible_reply_json',
-              'required_top_level_fields=thought,emotion,reply,performance',
-              'preserve_fields=reply,emotion,performance',
-              'reply_authority=provider_mind',
-              'repair_scope=structured_contract_only',
-              `user_input=${JSON.stringify(sendingMessage)}`,
-              `assistant_draft=${JSON.stringify(payload.reply || payload.fullText)}`,
-              turnMindGovernance
-                ? `mind_governance_snapshot=${JSON.stringify({
-                  turnMode: turnMindGovernance.turnMode,
-                  truthState: turnMindGovernance.truthState,
-                  answerAct: turnMindGovernance.answerAct,
-                  screenReferenceMode: turnMindGovernance.screenReferenceMode,
-                  answerIntent: turnMindGovernance.answerIntent,
-                  openingMove: turnMindGovernance.openingMove,
-                  carriedThread: turnMindGovernance.carriedThread,
-                  shouldAskForGrounding: turnMindGovernance.shouldAskForGrounding,
-                  shouldAcknowledgeRepair: turnMindGovernance.shouldAcknowledgeRepair,
-                  maxSentences: turnMindGovernance.maxSentences,
-                  embodiedPresence: turnMindGovernance.embodiedPresence,
-                })}`
-                : '',
-              `personality_state=${JSON.stringify(formatTurnPersonalityState())}`,
-              `validation_issues=${JSON.stringify(payload.validationIssues.map(issue => issue.message))}`,
-              isLowObedienceDeniedTurn()
-                ? `constraint_low_obedience_denied=${JSON.stringify(lowObedienceDeniedRetryDirective)}`
-                : '',
-              isLowObedienceHostDeniedTurn()
-                ? `constraint_host_denied=${JSON.stringify(lowObedienceHostDeniedRetrySystemOverride)}`
-                : '',
-              turnToolEvidence.reminderScheduled
-                ? `constraint_same_turn_reminder=${JSON.stringify(reminderSameTurnRetryDirective)}`
-                : '',
-              payload.reasoning.trim()
-                ? `draft_thought=${JSON.stringify(payload.reasoning.trim())}`
-                : '',
-            ].filter(Boolean).join('\n\n'),
-          },
-        ]
-
-        const sanitizedRetry = sanitizeForRemoteModel(retryMessages, { timeBudgetMs: 50, chunkSize: 2048 })
-        if (sanitizedRetry.blocked) {
-          await appendAlicizationAuditLog({
-            level: 'critical',
-            category: 'structured-output',
-            action: 'contract-retry-blocked',
-            message: 'Structured contract retry blocked by sanitize gateway.',
-            details: {
-              reason: sanitizedRetry.reason,
-              elapsedMs: sanitizedRetry.elapsedMs,
-            },
-          })
-          return null
-        }
-
-        let retryFullText = ''
-        try {
-          await streamWithRuntimeGateway(sanitizedRetry.messages as Message[], {
-            headers,
-            supportsTools: false,
-            waitForTools: false,
-            abortSignal,
-            onStreamEvent: async (event: StreamEvent) => {
-              if (event.type === 'text-delta')
-                retryFullText += event.text
-              if (event.type === 'error')
-                throw event.error ?? new Error('Structured contract retry stream error')
-            },
-          })
-        }
-        catch (error) {
-          if (isAlicizationAbortError(error) || abortSignal.aborted)
-            throw error
-
-          await appendAlicizationAuditLog({
-            level: 'warning',
-            category: 'structured-output',
-            action: 'contract-retry-failed',
-            message: 'Structured contract retry request failed.',
-            details: {
-              reason: error instanceof Error ? error.message : String(error),
-            },
-          })
-          return null
-        }
-
-        const retriedStructured = normalizeStructuredOutput({
-          fullText: retryFullText,
-          thought: payload.reasoning,
-          reply: payload.reply,
-          previousEmotion: getPreviousAssistantEmotion(),
-        })
-
-        if (hasStructuredJsonContract(retriedStructured)) {
-          return retriedStructured
-        }
-
-        await appendAlicizationAuditLog({
-          level: 'warning',
-          category: 'structured-output',
-          action: 'contract-retry-unresolved',
-          message: 'Structured contract retry still did not produce JSON output.',
-          details: {
-            parsePath: retriedStructured.parsePath,
-          },
-        })
-
-        return null
-      }
-
       const buildStructuredOutputWithGuard = async (payload: {
         fullText: string
         reasoning: string
@@ -3918,7 +3734,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             })
           ),
         )
-        let candidate: StructuredWithContract = mergeStructuredRuntimeMeta(
+        const candidate: StructuredWithContract = mergeStructuredRuntimeMeta(
           normalizeStructuredOutput({
             fullText: payload.fullText,
             thought: payload.reasoning,
@@ -3928,7 +3744,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           getTurnStructuredRuntimeMeta(),
         )
 
-        let validationIssues = hasStructuredJsonContract(candidate)
+        const validationIssues = hasStructuredJsonContract(candidate)
           ? validateStructuredContract(candidate, turnPersonalityState, {
               toolDenied: turnToolEvidence.deniedBySafety,
               denialSource: turnToolEvidence.denialSource,
@@ -4066,61 +3882,20 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           return bestEffort
         }
 
-        for (let attempt = 1; attempt <= 2; attempt += 1) {
-          await appendAlicizationAuditLog({
-            level: 'warning',
-            category: 'alicization.structured',
-            action: 'contract-invalid',
-            message: 'Structured output violated contract constraints before finalization.',
-            details: {
-              attempt,
-              parsePath: candidate.parsePath ?? 'fallback',
-              emotion: candidate.emotion,
-              violations: summarizeValidationIssues(validationIssues),
-              deniedBySafety: turnToolEvidence.deniedBySafety,
-              deniedReason: turnToolEvidence.deniedReason,
-              reminderScheduled: turnToolEvidence.reminderScheduled,
-            },
-          })
-
-          const retried = await runStructuredContractRetry({
-            ...payload,
-            validationIssues,
-            attempt,
-          })
-          if (!retried)
-            break
-
-          candidate = retried
-          candidate = mergeStructuredRuntimeMeta(candidate, getTurnStructuredRuntimeMeta())
-          validationIssues = hasStructuredJsonContract(candidate)
-            ? validateStructuredContract(candidate, turnPersonalityState, {
-                toolDenied: turnToolEvidence.deniedBySafety,
-                denialSource: turnToolEvidence.denialSource,
-                reminderScheduled: turnToolEvidence.reminderScheduled,
-                reminderMessage: turnToolEvidence.reminderMessage,
-              })
-            : [
-                {
-                  code: 'json-contract-missing',
-                  message: 'Structured retry did not produce valid JSON contract.',
-                } satisfies StructuredValidationIssue,
-              ]
-
-          if (hasStructuredJsonContract(candidate) && validationIssues.length === 0) {
-            await appendAlicizationAuditLog({
-              level: 'notice',
-              category: 'structured-output',
-              action: 'contract-retry-succeeded',
-              message: 'Structured contract retry succeeded with valid mind-consistent JSON output.',
-              details: {
-                attempt,
-                parsePath: candidate.parsePath,
-              },
-            })
-            return candidate
-          }
-        }
+        await appendAlicizationAuditLog({
+          level: 'warning',
+          category: 'alicization.structured',
+          action: 'contract-invalid',
+          message: 'Structured output violated contract constraints before finalization.',
+          details: {
+            parsePath: candidate.parsePath ?? 'fallback',
+            emotion: candidate.emotion,
+            violations: summarizeValidationIssues(validationIssues),
+            deniedBySafety: turnToolEvidence.deniedBySafety,
+            deniedReason: turnToolEvidence.deniedReason,
+            reminderScheduled: turnToolEvidence.reminderScheduled,
+          },
+        })
 
         const fallbackReply = candidateReply && !looksLikeAlicizationStructuredPayloadText(candidateReply)
           ? candidateReply
@@ -4145,8 +3920,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           category: 'structured-output',
           action: 'contract-fallback',
           message: shouldBlockRendererLocalVisibleReply()
-            ? 'Structured contract failed after retry; renderer blocked local fallback visible speech for Alicization.'
-            : 'Structured contract failed after retry and switched to fallback-v1.',
+            ? 'Structured contract failed; renderer blocked local fallback visible speech for Alicization.'
+            : 'Structured contract failed and switched to fallback-v1.',
           details: {
             parsePath: candidate.parsePath,
             emotion: candidate.emotion,
@@ -4787,15 +4562,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             })
           }
 
-          if (composed.contractRequiresMindSpine) {
-            await appendAlicizationAuditLog({
-              level: 'notice',
-              category: 'alicization.prompt',
-              action: 'contract-mind-spine-required',
-              message: 'Runtime structured contract requires obligation/truth/focus/move/tone control markers.',
-            })
-          }
-
           const budgeted = applyPromptBudget(newMessages as Message[])
           newMessages = budgeted.messages as any
           if (budgeted.report.safeMode.activated) {
@@ -4840,31 +4606,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               },
             })
           }
-
-          if (budgeted.report.runtimeContractAnchorRecovered) {
-            await appendAlicizationAuditLog({
-              level: 'warning',
-              category: 'alicization.prompt',
-              action: 'runtime-contract-anchor-recovered',
-              message: 'Runtime structured contract anchor was missing and recovered by prompt budget guard.',
-            })
-          }
-
-          const runtimeSystemMessage = budgeted.messages.find((message, index) => index !== 0 && message.role === 'system')
-          const runtimeContractAnchorPreserved = typeof runtimeSystemMessage?.content === 'string'
-            ? runtimeSystemMessage.content.includes(runtimeContractAnchorHeader)
-            : JSON.stringify(runtimeSystemMessage?.content ?? '').includes(runtimeContractAnchorHeader)
-
-          await appendAlicizationAuditLog({
-            level: runtimeContractAnchorPreserved ? 'notice' : 'warning',
-            category: 'alicization.prompt',
-            action: runtimeContractAnchorPreserved
-              ? 'runtime-contract-anchor-preserved'
-              : 'runtime-contract-anchor-missing',
-            message: runtimeContractAnchorPreserved
-              ? 'Runtime structured contract anchor is preserved after prompt budgeting.'
-              : 'Runtime structured contract anchor is missing after prompt budgeting.',
-          })
 
           const sanitized = sanitizeForRemoteModel(newMessages as Message[], { timeBudgetMs: 50, chunkSize: 2048 })
           if (sanitized.blocked) {
@@ -5744,7 +5485,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
       if (!assistantOutputCommitted) {
         const fallback = resolveStreamFailureFallback(error, sendingMessage)
-        if (readStreamErrorProgressFlag(error) && fallback.kind === 'timeout' && isStreamTimeoutError(error)) {
+        const canEmitTransparentFailureReply
+          = fallback.kind === 'provider-schema-unsupported'
+            || (readStreamErrorProgressFlag(error) && fallback.kind === 'timeout' && isStreamTimeoutError(error))
+        if (canEmitTransparentFailureReply) {
           const fallbackReply = fallback.reply
           stageAssistantRuntimeFallback(
             fallbackReply,
@@ -5800,7 +5544,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             level: 'warning',
             category: 'alicization.chat',
             action: 'turn-failed-safe-reply',
-            message: 'Primary stream timed out after progress and the runtime-authored fallback reply was emitted.',
+            message: 'Primary stream failed and the transparent runtime failure reply was emitted.',
             details: {
               sessionId,
               turnId,

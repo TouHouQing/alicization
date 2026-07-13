@@ -1,3 +1,4 @@
+import type { alicizationProviderResponseFormat } from '@proj-alicization/stage-shared'
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 import type { CompletionToolCall, Message, Tool } from '@xsai/shared-chat'
 
@@ -39,6 +40,7 @@ export type StreamEvent
 export interface StreamOptions {
   headers?: Record<string, string>
   onStreamEvent?: (event: StreamEvent) => void | Promise<void>
+  responseFormat?: typeof alicizationProviderResponseFormat
   toolsCompatibility?: Map<string, boolean>
   supportsTools?: boolean
   waitForTools?: boolean // when true,won't resolve on finishReason=='tool_calls';
@@ -145,17 +147,45 @@ async function streamFrom(model: string, chatProvider: ChatProvider, messages: M
       }
     }
 
+    const observeStreamTextResultErrors = (result: unknown) => {
+      if (!result || typeof result !== 'object')
+        return
+
+      const streamResult = result as Record<string, unknown>
+      const fullStream = streamResult.fullStream as {
+        pipeTo?: (destination: WritableStream<unknown>) => Promise<void>
+      } | undefined
+      if (typeof fullStream?.pipeTo === 'function') {
+        try {
+          void fullStream
+            .pipeTo(new WritableStream())
+            .catch(rejectOnce)
+        }
+        catch (error) {
+          rejectOnce(error)
+        }
+      }
+
+      for (const key of ['messages', 'steps', 'totalUsage', 'usage'] as const) {
+        const pending = streamResult[key]
+        if (pending && typeof (pending as PromiseLike<unknown>).then === 'function')
+          void Promise.resolve(pending).catch(rejectOnce)
+      }
+    }
+
     try {
-      streamText({
+      const result = streamText({
         ...chatConfig,
         maxSteps: 10,
         messages: sanitized,
+        responseFormat: options?.responseFormat,
         headers,
         abortSignal,
         // TODO: we need Automatic tools discovery
         tools,
         onEvent,
       })
+      observeStreamTextResultErrors(result)
     }
     catch (err) {
       rejectOnce(err)

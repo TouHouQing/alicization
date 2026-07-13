@@ -20,7 +20,6 @@ import type { AlicizationResolvedTimeZoneSource } from './time-zone-governor'
 import {
   alicizationFixedCoreSystemInstruction,
   alicizationFixedHostNameDirectiveTemplate,
-  alicizationFixedStructuredContractAnchor,
   alicizationFixedTemplateReplacement,
   buildAlicizationEmbodimentLoopSummary,
   describeAlicizationEmbodimentClosureReminder,
@@ -1209,7 +1208,6 @@ function buildCompactDialogueMindBlock(decision: AlicizationActiveDialogueFastPa
   if (!digitalLifeSpine)
     return ''
   const continuityCue = buildFastPathContinuityCue(decision)
-  const emotionalKernel = decision.runtimeDigest?.emotionalKernel ?? null
   const continuityFocusMaxChars
     = continuityCue.focusLine
       && /visible continuity still present but no longer fully cross-modal|lane=face\+motion-only|same-her continuity remains alive/u.test(
@@ -1233,24 +1231,6 @@ function buildCompactDialogueMindBlock(decision: AlicizationActiveDialogueFastPa
         : '',
     continuityCue.focusLine
       ? `continuity_focus=${sanitizeActiveDialogueProviderText(continuityCue.focusLine, continuityFocusMaxChars)}`
-      : '',
-    emotionalKernel?.dominantEmotion
-      ? `emotional_kernel_dominant=${sanitizeText(emotionalKernel.dominantEmotion, 64)}`
-      : '',
-    emotionalKernel?.memoryRecallMode
-      ? `emotional_kernel_memory_recall=${sanitizeText(emotionalKernel.memoryRecallMode, 64)}`
-      : '',
-    emotionalKernel?.initiativeMode
-      ? `emotional_kernel_initiative=${sanitizeText(emotionalKernel.initiativeMode, 64)}`
-      : '',
-    emotionalKernel?.embodimentTone
-      ? `emotional_kernel_embodiment=${sanitizeText(emotionalKernel.embodimentTone, 64)}`
-      : '',
-    emotionalKernel?.why
-      ? `emotional_kernel_reason=${sanitizeActiveDialogueProviderText(emotionalKernel.why, 220)}`
-      : '',
-    emotionalKernel?.reasonTags?.length
-      ? `emotional_kernel_tags=${emotionalKernel.reasonTags.map(tag => sanitizeText(tag, 64)).filter(Boolean).slice(0, 6).join('|')}`
       : '',
     digitalLifeSpine.motive?.rulingDrive
       ? `ruling_motive=${sanitizeText(digitalLifeSpine.motive.rulingDrive, 64)}`
@@ -3100,7 +3080,6 @@ export function buildAlicizationActiveDialogueFastPathMessages(input: {
 
   const systemBlocks = [
     alicizationFixedCoreSystemInstruction,
-    alicizationFixedStructuredContractAnchor,
     projectStateSystemBlock,
     projectStateClosureDashboard,
     buildFastPathProjectStateAnswerContractBlock(input.decision),

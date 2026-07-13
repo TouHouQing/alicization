@@ -377,9 +377,6 @@ export function buildCardCustomDirectivesSystemBlock(directives: string) {
 
   return [
     alicizationCustomDirectivesMarker,
-    '[Card-level behavior directives | high-priority persona kernel]',
-    'Apply these directives consistently when generating thought/emotion/reply.',
-    'These directives are lower priority than safety boundaries, human-in-the-loop permission, kill switch, the current Alicization answer plan, the current Alicization response charter, the current epistemic truth contract, and strict JSON output contract.',
     '--- custom_directives ---',
     normalized,
     '--- /custom_directives ---',

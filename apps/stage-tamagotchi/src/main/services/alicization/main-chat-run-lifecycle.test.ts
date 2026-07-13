@@ -2,11 +2,13 @@ import type { Message } from '@xsai/shared-chat'
 
 import type { AlicizationMainChatTimeoutRecoveryMode } from './main-chat-run-lifecycle'
 
+import { resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
   deriveAlicizationTimeoutRecoveryMs,
   handleAlicizationMainChatRunFailure,
+  isProviderSchemaUnsupportedError,
   normalizeAlicizationMainChatAbortReason,
   shouldRecordAlicizationMainGatewayGenerationTimeout,
 } from './main-chat-run-lifecycle'
@@ -1256,6 +1258,32 @@ describe('main chat run lifecycle', () => {
     expect(shouldRecordAlicizationMainGatewayGenerationTimeout(new Error('Alicization runtime aborted: main-gateway-timeout-recovery'))).toBe(true)
     expect(shouldRecordAlicizationMainGatewayGenerationTimeout(new Error('Request timed out after 12000ms'))).toBe(true)
     expect(shouldRecordAlicizationMainGatewayGenerationTimeout(new Error('Remote sent 400 response: {"error":{"code":"invalid_tool_choice"}}'))).toBe(false)
+  })
+
+  it('classifies unsupported native response schemas as a transparent provider failure', async () => {
+    const error = new Error('Remote sent 400 response: {"error":{"message":"response_format json_schema is an invalid parameter"}}')
+    const input = createBaseInput({ error })
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'provider-schema-unsupported',
+    })
+
+    expect(isProviderSchemaUnsupportedError(error)).toBe(true)
+    expect(isProviderSchemaUnsupportedError(new Error('Remote sent 400 response: invalid tool_choice'))).toBe(false)
+
+    await handleAlicizationMainChatRunFailure(input)
+
+    expect(input.recoverFromTimeout).not.toHaveBeenCalled()
+    expect(input.emitError).toHaveBeenCalledWith(failureSurface.reply)
+    expect(input.finish).toHaveBeenCalledWith({
+      status: 'failed',
+      finishReason: 'provider-schema-unsupported',
+      error: failureSurface.reply,
+    })
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.provider-schema-unsupported', {
+      cardId: 'card-1',
+      turnId: 'turn-1',
+      reason: error.message,
+    })
   })
 
   it('emits failed stream results for non-abort runtime errors', async () => {

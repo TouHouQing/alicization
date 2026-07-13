@@ -43,7 +43,6 @@ export interface AlicizationPersonalityDirectiveResult {
 export interface ComposeAlicizationPromptMessagesResult {
   messages: Message[]
   personalityDirectiveResult: AlicizationPersonalityDirectiveResult | null
-  contractRequiresMindSpine: boolean
 }
 
 const personalityLowThreshold = 0.2
@@ -784,6 +783,5 @@ export function composeAlicizationPromptMessages(input: {
   return {
     messages: finalMessages,
     personalityDirectiveResult,
-    contractRequiresMindSpine: false,
   }
 }

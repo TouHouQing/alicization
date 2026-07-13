@@ -12,7 +12,6 @@ import { readFile } from 'node:fs/promises'
 import {
   alicizationFixedCoreSystemInstruction,
   alicizationFixedHostNameDirectiveTemplate,
-  alicizationFixedStructuredContractAnchor,
   hasAlicizationPersonaIdentity,
   renderAlicizationPromptTemplate,
   resolveAlicizationPersonaKernel,
@@ -195,9 +194,6 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
         moduleName: '',
       }).trim())
     }
-
-    if (alicizationFixedStructuredContractAnchor.trim())
-      blocks.push(alicizationFixedStructuredContractAnchor.trim())
 
     const personaProfileBlock = buildPersonaProfileSystemBlock(input.personaKernel)
     if (personaProfileBlock)

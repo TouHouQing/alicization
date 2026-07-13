@@ -46,7 +46,6 @@ describe('alicization prompt composer', () => {
     expect(String(result.messages[1]?.content)).toContain('AlicizationHost')
     expect(String(result.messages[1]?.content)).not.toContain('[ALICIZATION_CORE_RESPONSE_POLICY]')
     expect(String(result.messages[1]?.content)).not.toContain('output_contract')
-    expect(result.contractRequiresMindSpine).toBe(false)
     expect(String(result.messages[0]?.content)).not.toContain('legacy-system')
     expect(String(result.messages[1]?.content)).not.toContain('legacy-system')
     expectNoProviderPromptTemplateResidue(result)
@@ -92,7 +91,6 @@ describe('alicization prompt composer', () => {
     expect(systemPromptText(result)).toContain('personality_state=present')
     expect(systemPromptText(result)).not.toContain('[ALICIZATION_CONTEXT_FACTS]')
     expect(systemPromptText(result)).not.toContain('content=excluded')
-    expect(result.contractRequiresMindSpine).toBe(false)
     expectNoProviderPromptTemplateResidue(result)
   })
 

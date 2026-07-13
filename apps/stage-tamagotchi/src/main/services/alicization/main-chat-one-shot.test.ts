@@ -1,3 +1,4 @@
+import { alicizationProviderResponseFormat } from '@proj-alicization/stage-shared'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -5,6 +6,17 @@ import {
   recoverAlicizationMainChatFromTimeout,
 } from './main-chat-one-shot'
 import { buildAlicizationProjectStateSystemBlock } from './project-state-brief'
+
+const canonicalMemoryGovernanceProjectStateBlock = [
+  '[ALICIZATION_PROJECT_STATE]',
+  'context_role=memory_governance_status',
+  'short_term_owner=WorkingMemory',
+  'long_term_recall_owner=LongTermMemoryRecall',
+  'template_policy=no_fixed_persona_templates',
+  'failure_surface=transparent_errors_only',
+  'latest_landed_progress=Memory Workbench policy and recall diagnostics are visible.',
+  'primary_open_loop=Semantic recall and provider failure transparency still need closure.',
+].join('\n')
 
 function createInput(overrides?: Partial<any>) {
   return {
@@ -208,7 +220,7 @@ describe('main chat one-shot', () => {
     expect(generateTextImpl).toHaveBeenCalledOnce()
   })
 
-  it('projects emotional-kernel authority into non-streaming one-shot provider prompts when supplied by the runtime surface', async () => {
+  it('passes the native response schema without converting emotional state into one-shot provider prose', async () => {
     const emotionalKernel = {
       version: 'emotional-kernel-v1',
       dominantEmotion: 'guarded-care',
@@ -230,13 +242,12 @@ describe('main chat one-shot', () => {
         .map(message => typeof message.content === 'string' ? message.content : '')
         .join('\n')
 
-      expect(systemText).toContain('[ALICIZATION_EMOTIONAL_KERNEL]')
-      expect(systemText).toContain('emotional_kernel_dominant=guarded-care')
-      expect(systemText).toContain('emotional_kernel_memory_recall=self-continuity')
-      expect(systemText).toContain('emotional_kernel_initiative=observe')
-      expect(systemText).toContain('emotional_kernel_embodiment=protective-watch')
-      expect(systemText).toContain('emotional_kernel_reason=Keep one-shot recovery on the same emotion-memory-initiative-embodiment authority line.')
-      expect(systemText).toContain('emotional_kernel_tags=phase1-life-loop|same-her-authority')
+      expect(input.responseFormat).toBe(alicizationProviderResponseFormat)
+      expect(systemText).not.toContain('[ALICIZATION_EMOTIONAL_KERNEL]')
+      expect(systemText).not.toContain('emotional_kernel_')
+      expect(JSON.stringify(input.messages)).not.toMatch(
+        /Return ONLY one strict JSON|Output contract|must-follow|Response contract/iu,
+      )
 
       return {
         text: '  我会沿着同一份内在状态继续。  ',
@@ -246,6 +257,13 @@ describe('main chat one-shot', () => {
 
     const result = await generateAlicizationMainChatNonStreaming(createInput({
       emotionalKernel,
+      messages: [
+        {
+          role: 'system',
+          content: canonicalMemoryGovernanceProjectStateBlock,
+        },
+        { role: 'user', content: '你好' },
+      ],
       generateTextImpl,
     }))
 

@@ -13,6 +13,7 @@ import {
   alicizationProviderResponseFormat,
   alicizationProviderResponseJsonSchema,
   createAlicizationProviderVisibleArtifact,
+  isAlicizationProviderSchemaUnsupportedError,
 } from './alicization-provider-response'
 
 describe('alicization provider response contract', () => {
@@ -121,6 +122,15 @@ describe('alicization provider response contract', () => {
     expect(JSON.stringify(alicizationProviderResponseJsonSchema)).not.toMatch(
       /(?:personality|persona|tone|opening|ending|same[- ]?her|phase\s*1|project[- ]state|continuity|人格|语气|开场|结尾)/iu,
     )
+  })
+
+  it('recognizes native schema compatibility failures without matching unrelated HTTP 400 errors', () => {
+    expect(isAlicizationProviderSchemaUnsupportedError(
+      new Error('Remote sent 400 response: {"error":{"message":"response_format json_schema is an invalid parameter"}}'),
+    )).toBe(true)
+    expect(isAlicizationProviderSchemaUnsupportedError(
+      new Error('Remote sent 400 response: {"error":{"message":"invalid tool_choice"}}'),
+    )).toBe(false)
   })
 
   it('marks provider output as the learnable visible reply authority without training it', () => {

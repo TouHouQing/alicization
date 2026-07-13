@@ -2821,7 +2821,7 @@ describe('alicization runtime architecture', () => {
     expect(systemBlock).toContain('continuity_cue=visibility=internal-structured')
   })
 
-  it('carries emotional-kernel authority from runtime surface into runtime snapshot, digest, and prompt block', () => {
+  it('keeps emotional-kernel authority in runtime state without projecting it as provider prose', () => {
     const snapshot = deriveAlicizationRuntimeSnapshot({
       spine: createMinimalRuntimeSpine({
         memory: {
@@ -2873,10 +2873,9 @@ describe('alicization runtime architecture', () => {
       memoryRecallMode: 'repair-grounding',
       embodimentTone: 'repair-before-closeness',
     }))
-    expect(systemBlock).toContain('emotional_kernel_dominant=repair-tension')
-    expect(systemBlock).toContain('emotional_kernel_initiative=repair')
-    expect(systemBlock).toContain('emotional_kernel_recall=repair-grounding')
-    expect(systemBlock).toContain('emotional_kernel_embodiment=repair-before-closeness')
+    expect(systemBlock).not.toContain('emotional_kernel_')
+    expect(systemBlock).not.toContain('repair-tension')
+    expect(systemBlock).not.toContain('repair-grounding')
   })
 
   it('projects top-level affective residue from runtime memory into runtime snapshot and digest', () => {

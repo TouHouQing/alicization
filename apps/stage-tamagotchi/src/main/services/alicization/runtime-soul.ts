@@ -532,11 +532,6 @@ export function buildSoulBody(frontmatter: AlicizationSoulFrontmatter, _personaN
     '- 保护用户隐私，不主动外传敏感信息。',
     '- 遇到高风险执行必须先请求用户确认。',
     '- 强制休眠（Kill Switch）触发时立即停止执行能力。',
-    '',
-    '## Output Contract (Epoch 1)',
-    '',
-    '- 以结构化语义表达：thought / emotion / reply。',
-    '- 输出优先服从当前 live mind 与 grounded world；persona 只决定表达方式，不能覆盖事实判断。',
   ].join('\n')
 }
 

@@ -1111,7 +1111,7 @@ describe('runtime main gateway one-shot', () => {
     expect(systemText).toContain('active_learning_focuses=content=excluded; reason=continuity-residue; visibility=internal-structured | clean vector recall')
   })
 
-  it('projects runtime emotional-kernel authority into one-shot provider prompts', async () => {
+  it('does not project runtime emotional-kernel state as one-shot provider prose', async () => {
     const {
       runtime,
       resolveMainGatewayConfig,
@@ -1165,12 +1165,9 @@ describe('runtime main gateway one-shot', () => {
       .filter(Boolean)
       .join('\n')
 
-    expect(systemText).toContain('emotional_kernel_dominant=guarded-care')
-    expect(systemText).toContain('emotional_kernel_memory_recall=self-continuity')
-    expect(systemText).toContain('emotional_kernel_initiative=observe')
-    expect(systemText).toContain('emotional_kernel_embodiment=protective-watch')
-    expect(systemText).toContain('emotional_kernel_reason=Keep memory, initiative, embodiment, and reply tone on one living emotional line.')
-    expect(systemText).toContain('emotional_kernel_tags=phase1-life-loop|same-her-authority')
+    expect(systemText).not.toContain('[ALICIZATION_EMOTIONAL_KERNEL]')
+    expect(systemText).not.toContain('emotional_kernel_')
+    expect(systemText).not.toContain('Keep memory, initiative, embodiment, and reply tone on one living emotional line.')
   })
 
   it('fails closed before provider generation if canonical project-state context is missing from assembled one-shot messages', async () => {

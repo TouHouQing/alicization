@@ -3385,7 +3385,7 @@ describe('main chat active dialogue loop', () => {
     expect(source).toContain('buildFastPathProjectStateAnswerContractBlock')
   })
 
-  it('projects runtime emotional-kernel authority into compact fast-path provider prompts', () => {
+  it('does not project runtime emotional-kernel state as compact fast-path provider prose', () => {
     const emotionalKernel = {
       version: 'emotional-kernel-v1',
       dominantEmotion: 'measured-companionship',
@@ -3455,11 +3455,9 @@ describe('main chat active dialogue loop', () => {
       .map(message => String(message.content))
       .join('\n')
 
-    expect(systemText).toContain('emotional_kernel_dominant=measured-companionship')
-    expect(systemText).toContain('emotional_kernel_memory_recall=self-continuity')
-    expect(systemText).toContain('emotional_kernel_initiative=hold')
-    expect(systemText).toContain('emotional_kernel_embodiment=nearby-soft')
-    expect(systemText).toContain('emotional_kernel_reason=keep the compact fast-path reply on the same emotion-memory-initiative-embodiment authority line')
+    expect(systemText).not.toContain('emotional_kernel_')
+    expect(systemText).not.toContain('Emotional kernel')
+    expect(systemText).not.toContain('keep the compact fast-path reply on the same emotion-memory-initiative-embodiment authority line')
   })
 
   it('falls back to the canonical project-state snapshot in compact active-dialogue follow-ups when the runtime digest only carries a thin closure shell', () => {
@@ -4085,5 +4083,13 @@ describe('main chat active dialogue loop', () => {
     expect(systemText).toContain('reply_authority=provider_mind')
     expect(systemText).toContain('visible_wording=false')
     expect(systemText).not.toMatch(/Before answering|same living line|Same Phase 1 digital life|one persistent host-resident identity|This is the low-latency|For ordinary dialogue turns|Reply rules:|Do not answer with generic fallback shells|Use the salutation above|Answer identity from/iu)
+  })
+
+  it('does not attach a natural-language response contract to compact provider prompts', () => {
+    const source = buildAlicizationActiveDialogueFastPathMessages.toString()
+
+    expect(source).not.toMatch(
+      /alicizationFixedStructuredContractAnchor|Response contract|Return (?:exactly )?one (?:strict )?JSON/iu,
+    )
   })
 })

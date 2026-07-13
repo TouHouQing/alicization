@@ -128,7 +128,8 @@ describe('alicization guardrails', () => {
     expect(report.totalAfterTokens).toBeLessThanOrEqual(600)
     expect(report.safeMode.activated).toBe(true)
     expect(String(nextMessages[0]?.content)).toContain('# Alicization SOUL (SAFE MODE)')
-    expect(String(nextMessages[1]?.content ?? '')).toContain('Output contract: You must output JSON with { thought, emotion, reply, performance }')
+    expect(String(nextMessages[1]?.content ?? '')).toContain('SOUL overflow safe mode')
+    expect(String(nextMessages[1]?.content ?? '')).not.toMatch(/Output contract|Response contract|strict JSON/iu)
 
     const currentTurn = nextMessages.at(-1)
     expect(currentTurn?.role).toBe('user')
@@ -171,7 +172,7 @@ describe('alicization guardrails', () => {
       expect(String(budgeted.messages[0]?.content)).toBe(soul)
       expect(budgeted.report.anchorPreserved).toBe(true)
       expect(budgeted.report.totalAfterTokens).toBeLessThanOrEqual(1024)
-      expect(String(runtimeMessage?.content ?? '')).toContain('Output contract (must-follow, highest priority):')
+      expect(String(runtimeMessage?.content ?? '')).not.toMatch(/Output contract|Response contract|strict JSON/iu)
     }
   })
 
@@ -192,18 +193,17 @@ describe('alicization guardrails', () => {
     expect(report.totalAfterTokens).toBeLessThanOrEqual(900)
   })
 
-  it('compacts runtime sensory section without removing structured contract anchor', () => {
+  it('compacts runtime sensory data without removing following runtime facts', () => {
     const messages: Message[] = [
       { role: 'system', content: '# SOUL' },
       {
         role: 'system',
         content: [
-          'Current sensory state:',
+          'current_sensory_state',
           '[System Context: Sensory], '.concat('battery=20%,cpu=35%,memory=66%,'.repeat(120)),
           '',
-          'Output contract (must-follow, highest priority):',
-          '- Return exactly one strict JSON object with keys: thought, emotion, reply, performance.',
-          '- No markdown fences, no extra keys, no prose outside JSON.',
+          'Runtime facts.',
+          'mode=desktop',
         ].join('\n'),
       },
       { role: 'user', content: '继续' },
@@ -214,17 +214,17 @@ describe('alicization guardrails', () => {
 
     expect(report.sections.sensory.beforeTokens).toBeGreaterThan(0)
     expect(report.sections.sensory.afterTokens).toBeLessThanOrEqual(report.sections.sensory.beforeTokens)
-    expect(runtimeSystem).toContain('Output contract (must-follow, highest priority):')
+    expect(runtimeSystem).toContain('Runtime facts.')
+    expect(runtimeSystem).not.toMatch(/Output contract|Response contract|strict JSON/iu)
   })
 
   it('keeps runtime system message protected under extreme budget pressure', () => {
     const runtime = [
-      'Current sensory state:',
+      'current_sensory_state',
       '[System Context: Sensory], time=2026-03-11 10:00:00,battery=20%,cpu=35%,memory=66%,location=desktop-host,'.repeat(80),
       '',
-      'Output contract (must-follow, highest priority):',
-      '- Return exactly one strict JSON object with keys: thought, emotion, reply, performance.',
-      '- No markdown fences, no extra keys, no prose outside JSON.',
+      'Runtime facts.',
+      'mode=desktop',
     ].join('\n')
 
     const { messages: nextMessages, report } = applyPromptBudget([
@@ -237,13 +237,14 @@ describe('alicization guardrails', () => {
 
     const runtimeSystem = nextMessages.find((message, index) => index !== 0 && message.role === 'system')
     expect(runtimeSystem).toBeTruthy()
-    expect(String(runtimeSystem?.content ?? '')).toContain('Output contract (must-follow, highest priority):')
+    expect(String(runtimeSystem?.content ?? '')).toContain('Runtime facts.')
+    expect(String(runtimeSystem?.content ?? '')).not.toMatch(/Output contract|Response contract|strict JSON/iu)
     expect(report.runtimeContractAnchorRecovered).toBe(false)
   })
 
-  it('recovers runtime contract anchor when it is unexpectedly missing', () => {
+  it('does not append a natural-language response contract when runtime context lacks one', () => {
     const runtimeWithoutAnchor = [
-      'Current sensory state:',
+      'current_sensory_state',
       '[System Context: Sensory], time=2026-03-11 10:00:00,battery=20%,cpu=35%,memory=66%',
     ].join('\n')
 
@@ -254,19 +255,18 @@ describe('alicization guardrails', () => {
     ], { totalTokens: 900 })
 
     const runtimeSystem = String(nextMessages[1]?.content ?? '')
-    expect(report.runtimeContractAnchorRecovered).toBe(true)
-    expect(runtimeSystem).toContain('Output contract (must-follow, highest priority):')
+    expect(report.runtimeContractAnchorRecovered).toBe(false)
+    expect(runtimeSystem).not.toMatch(/Output contract|Response contract|Return (?:exactly )?one strict JSON/iu)
   })
 
   it('keeps SOUL anchor untouched under sensory-heavy runtime pressure', () => {
     const soul = '---\n{"profile":{"alicizationName":"Alicization"}}\n---\n# SOUL\n人格锚点'
     const runtime = [
-      'Current sensory state:',
+      'current_sensory_state',
       '[System Context: Sensory], '.concat('battery=19%,cpu=88%,memory=91%,'.repeat(220)),
       '',
-      'Output contract (must-follow, highest priority):',
-      '- Return exactly one strict JSON object with keys: thought, emotion, reply, performance.',
-      '- No markdown fences, no extra keys, no prose outside JSON.',
+      'Runtime facts.',
+      'mode=desktop',
     ].join('\n')
 
     const { messages: nextMessages, report } = applyPromptBudget([
@@ -278,7 +278,8 @@ describe('alicization guardrails', () => {
     expect(report.safeMode.activated).toBe(false)
     expect(report.anchorPreserved).toBe(true)
     expect(String(nextMessages[0]?.content)).toBe(soul)
-    expect(String(nextMessages[1]?.content)).toContain('Output contract (must-follow, highest priority):')
+    expect(String(nextMessages[1]?.content)).toContain('Runtime facts.')
+    expect(String(nextMessages[1]?.content)).not.toMatch(/Output contract|Response contract|strict JSON/iu)
     expect(report.sections.sensory.afterTokens).toBeLessThanOrEqual(report.sections.sensory.beforeTokens)
   })
 

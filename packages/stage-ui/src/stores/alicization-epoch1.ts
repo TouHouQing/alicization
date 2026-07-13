@@ -1255,8 +1255,8 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
           await appendAlicizationAuditLog({
             level: 'notice',
             category: 'structured-output',
-            action: 'contract-failed-skip-learning',
-            message: 'Skipped personality drift because structured output contract failed.',
+            action: 'provider-payload-invalid-skip-learning',
+            message: 'Skipped personality drift because provider payload validation failed.',
             details: {
               sessionId,
               turnId,

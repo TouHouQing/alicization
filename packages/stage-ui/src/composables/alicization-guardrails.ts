@@ -3,8 +3,6 @@ import type { Message } from '@xsai/shared-chat'
 import { defaultAlicizationProfile } from '@proj-alicization/stage-shared'
 import {
   alicizationFixedSensoryContextHeader,
-  alicizationFixedStructuredContractAnchor,
-  alicizationFixedStructuredContractHeader,
 } from '@proj-alicization/stage-shared/alicization-prompting'
 
 interface PromptBudgetOptions {
@@ -110,14 +108,8 @@ const defaultPromptAssembly: Required<PromptAssemblyOptions> = {
 }
 
 const runtimeSensoryHeader = alicizationFixedSensoryContextHeader
-const runtimeContractAnchorHeader = alicizationFixedStructuredContractHeader
-const safeModeRuntimeContractNotice = [
+const safeModeRuntimeNotice = [
   '[SYSTEM NOTICE] Memory and history are skipped for this turn due to SOUL overflow safe mode.',
-  '',
-  'Output contract (must-follow, highest priority):',
-  '- Return exactly one strict JSON object with keys: thought, emotion, reply, performance.',
-  '- No markdown fences, no extra keys, no prose outside JSON.',
-  'Output contract: You must output JSON with { thought, emotion, reply, performance }',
 ].join('\n')
 
 const defaultSanitizeOptions: Required<SanitizeOptions> = {
@@ -375,9 +367,9 @@ function estimateSensoryTokens(text: string) {
   if (headerIndex < 0)
     return 0
 
-  const contractIndex = text.indexOf(runtimeContractAnchorHeader, headerIndex)
-  const sensorySegment = contractIndex > headerIndex
-    ? text.slice(headerIndex, contractIndex)
+  const boundaryIndex = text.indexOf('\n\n', headerIndex)
+  const sensorySegment = boundaryIndex > headerIndex
+    ? text.slice(headerIndex, boundaryIndex)
     : text.slice(headerIndex)
   return estimateTokens(sensorySegment)
 }
@@ -387,9 +379,9 @@ function compressRuntimeSensory(text: string, budgetTokens = 48) {
   if (headerIndex < 0)
     return text
 
-  const contractIndex = text.indexOf(runtimeContractAnchorHeader, headerIndex)
-  const sensorySegment = contractIndex > headerIndex
-    ? text.slice(headerIndex, contractIndex)
+  const boundaryIndex = text.indexOf('\n\n', headerIndex)
+  const sensorySegment = boundaryIndex > headerIndex
+    ? text.slice(headerIndex, boundaryIndex)
     : text.slice(headerIndex)
 
   if (estimateTokens(sensorySegment) <= budgetTokens)
@@ -421,29 +413,11 @@ function compressRuntimeSensory(text: string, budgetTokens = 48) {
     ? degradedSegment
     : `${runtimeSensoryHeader}\n[System Context: Sensory], telemetry=[DEGRADED]\n\n`
 
-  if (contractIndex > headerIndex) {
-    return `${text.slice(0, headerIndex)}${compactedSegment}${text.slice(contractIndex)}`
+  if (boundaryIndex > headerIndex) {
+    return `${text.slice(0, headerIndex)}${compactedSegment}${text.slice(boundaryIndex + 2)}`
   }
 
   return `${text.slice(0, headerIndex)}${compactedSegment}`.trim()
-}
-
-function ensureRuntimeContractAnchor(text: string) {
-  if (text.includes(runtimeContractAnchorHeader)) {
-    return {
-      text,
-      recovered: false,
-    }
-  }
-
-  const nextText = text.trim().length > 0
-    ? `${text.trimEnd()}\n\n${alicizationFixedStructuredContractAnchor}`
-    : alicizationFixedStructuredContractAnchor
-
-  return {
-    text: nextText,
-    recovered: true,
-  }
 }
 
 function getLastUserIndex(messages: Message[]) {
@@ -538,13 +512,6 @@ function buildSafeModeSoulAnchor(content: string) {
     `- Gender: ${gender}`,
     `- Mind age: ${Math.max(1, Math.floor(mindAge))}`,
     `- Personality: obedience=${formatSafeModePercent(obedience)}, liveliness=${formatSafeModePercent(liveliness)}, sensibility=${formatSafeModePercent(sensibility)}`,
-    '',
-    'Output contract:',
-    '- Return one strict JSON object with keys: thought, emotion, reply, performance.',
-    '- emotion must exactly mirror performance.baseEmotion.',
-    '- performance must be an object with keys: baseEmotion, facialCue, actionCue, delivery, emphasis.',
-    '- Never expose tool names, tool parameters JSON, function calls, or secrets.',
-    '- If realtime tool evidence is unavailable in current turn, state unavailability once and do not promise waiting.',
   ].join('\n')
 }
 
@@ -566,7 +533,7 @@ export function applyPromptBudget(messages: Message[], options?: PromptBudgetOpt
   const currentTurnIndex = getLastUserIndex(result)
   const memoryIndex = result.findIndex((message, index) => index !== soulIndex && isMemoryMessage(message))
   let anchorPreserved = true
-  let runtimeContractAnchorRecovered = false
+  const runtimeContractAnchorRecovered = false
   let safeMode: PromptBudgetSafeModeReport = {
     activated: false,
   }
@@ -597,7 +564,7 @@ export function applyPromptBudget(messages: Message[], options?: PromptBudgetOpt
     }
     minimalMessages.push({
       role: 'system',
-      content: safeModeRuntimeContractNotice,
+      content: safeModeRuntimeNotice,
     })
 
     if (currentTurnIndex >= 0 && result[currentTurnIndex]) {
@@ -698,14 +665,6 @@ export function applyPromptBudget(messages: Message[], options?: PromptBudgetOpt
     const anchorTextAfter = readMessageText(result[soulIndex]!)
     const anchorTextBefore = readMessageText(messages[soulIndex]!)
     anchorPreserved = anchorTextAfter === anchorTextBefore
-  }
-
-  if (runtimeIndex >= 0 && result[runtimeIndex]) {
-    const runtimeAnchorCheck = ensureRuntimeContractAnchor(readMessageText(result[runtimeIndex]!))
-    if (runtimeAnchorCheck.recovered) {
-      runtimeContractAnchorRecovered = true
-      result[runtimeIndex] = writeMessageText(result[runtimeIndex]!, runtimeAnchorCheck.text)
-    }
   }
 
   const sectionAfter = {

@@ -1,5 +1,3 @@
-import type { Message } from '@xsai/shared-chat'
-
 import type {
   AlicizationChatStartPayload,
   AlicizationChatStreamChunkEvent,
@@ -19,6 +17,7 @@ import type {
 
 import { errorMessageFrom } from '@moeru/std'
 import {
+  alicizationProviderResponseFormat,
   formatAlicizationProjectStateAwarenessFields,
   shouldBufferAlicizationStructuredSpeechPrelude,
 } from '@proj-alicization/stage-shared'
@@ -60,6 +59,35 @@ import {
 
 type StreamTextInvoker = (input: Record<string, unknown>) => unknown
 type AlicizationStreamEmotionalKernelShape = AlicizationEmotionalKernelSnapshot
+
+function observeStreamTextResultErrors(
+  result: unknown,
+  onError: (error: unknown) => void,
+) {
+  if (!result || typeof result !== 'object')
+    return
+
+  const streamResult = result as Record<string, unknown>
+  const fullStream = streamResult.fullStream as {
+    pipeTo?: (destination: WritableStream<unknown>) => Promise<void>
+  } | undefined
+  if (typeof fullStream?.pipeTo === 'function') {
+    try {
+      void fullStream
+        .pipeTo(new WritableStream())
+        .catch(onError)
+    }
+    catch (error) {
+      onError(error)
+    }
+  }
+
+  for (const key of ['messages', 'steps', 'totalUsage', 'usage'] as const) {
+    const pending = streamResult[key]
+    if (pending && typeof (pending as PromiseLike<unknown>).then === 'function')
+      void Promise.resolve(pending).catch(onError)
+  }
+}
 
 export interface AlicizationMainChatStreamRunnerResult {
   finishReason: string
@@ -730,112 +758,11 @@ interface RunAlicizationMainChatStreamOptions {
   turnRuntimeContext?: AlicizationTurnRuntimeContext | null
 }
 
-function readStreamRunnerRecord(raw: unknown): Record<string, unknown> | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-    return null
-  return raw as Record<string, unknown>
-}
-
-function readStreamRunnerEmotionalKernel(raw: unknown): AlicizationStreamEmotionalKernelShape | null {
-  const candidate = readStreamRunnerRecord(raw)
-  if (!candidate)
-    return null
-  if (candidate.version !== 'emotional-kernel-v1')
-    return null
-  if (
-    !sanitizeText(candidate.dominantEmotion, '')
-    || !sanitizeText(candidate.memoryRecallMode, '')
-    || !sanitizeText(candidate.initiativeMode, '')
-    || !sanitizeText(candidate.embodimentTone, '')
-  ) {
-    return null
-  }
-  return candidate as unknown as AlicizationStreamEmotionalKernelShape
-}
-
-function resolvePreparedStreamRunnerEmotionalKernel(
-  prepared: AlicizationPreparedMainChatExecutionResult,
-): AlicizationStreamEmotionalKernelShape | null {
-  const surface = prepared.runtimeSurface?.digitalLifeRuntimeSurface
-  return readStreamRunnerEmotionalKernel(surface?.memory?.emotionalKernel)
-    ?? readStreamRunnerEmotionalKernel(surface?.raw?.runtimeDigest?.emotionalKernel)
-    ?? readStreamRunnerEmotionalKernel(surface?.cognition?.runtimeDigest?.emotionalKernel)
-    ?? readStreamRunnerEmotionalKernel(surface?.dialogue?.runtimeDigest?.emotionalKernel)
-    ?? readStreamRunnerEmotionalKernel(surface?.memory?.derivedMindStateBundle?.emotionalKernel)
-    ?? readStreamRunnerEmotionalKernel(surface?.memory?.derivedMindStateBundle?.visualPresenceState?.emotionalKernel)
-}
-
-function buildStreamRunnerEmotionalKernelSystemBlock(raw: unknown) {
-  const emotionalKernel = readStreamRunnerEmotionalKernel(raw)
-  if (!emotionalKernel)
-    return ''
-
-  return [
-    '[ALICIZATION_EMOTIONAL_KERNEL]',
-    'This is the shared emotion-memory-initiative-embodiment authority for this stream turn. Let it shape recall, initiative pressure, body tone, and reply posture; do not invent a competing mood.',
-    emotionalKernel.dominantEmotion
-      ? `emotional_kernel_dominant=${sanitizeBriefText(emotionalKernel.dominantEmotion, 64)}`
-      : '',
-    emotionalKernel.memoryRecallMode
-      ? `emotional_kernel_memory_recall=${sanitizeBriefText(emotionalKernel.memoryRecallMode, 64)}`
-      : '',
-    emotionalKernel.initiativeMode
-      ? `emotional_kernel_initiative=${sanitizeBriefText(emotionalKernel.initiativeMode, 64)}`
-      : '',
-    emotionalKernel.embodimentTone
-      ? `emotional_kernel_embodiment=${sanitizeBriefText(emotionalKernel.embodimentTone, 64)}`
-      : '',
-    Number.isFinite(emotionalKernel.valence) ? `emotional_kernel_valence=${emotionalKernel.valence.toFixed(2)}` : '',
-    Number.isFinite(emotionalKernel.arousal) ? `emotional_kernel_arousal=${emotionalKernel.arousal.toFixed(2)}` : '',
-    Number.isFinite(emotionalKernel.guardedness) ? `emotional_kernel_guardedness=${emotionalKernel.guardedness.toFixed(2)}` : '',
-    Number.isFinite(emotionalKernel.closenessDrive) ? `emotional_kernel_closeness_drive=${emotionalKernel.closenessDrive.toFixed(2)}` : '',
-    Number.isFinite(emotionalKernel.repairNeed) ? `emotional_kernel_repair_need=${emotionalKernel.repairNeed.toFixed(2)}` : '',
-    Number.isFinite(emotionalKernel.initiativePressure) ? `emotional_kernel_initiative_pressure=${emotionalKernel.initiativePressure.toFixed(2)}` : '',
-    emotionalKernel.why
-      ? `emotional_kernel_reason=${sanitizeBriefText(emotionalKernel.why, 220)}`
-      : '',
-    emotionalKernel.reasonTags?.length
-      ? `emotional_kernel_tags=${emotionalKernel.reasonTags.map(tag => sanitizeBriefText(tag, 64)).filter(Boolean).slice(0, 6).join('|')}`
-      : '',
-  ].filter(Boolean).join('\n')
-}
-
-function streamMessagesCarryEmotionalKernel(messages: Message[]) {
-  return messages.some(message =>
-    typeof message.content === 'string'
-    && message.content.includes('[ALICIZATION_EMOTIONAL_KERNEL]'),
-  )
-}
-
-function appendStreamRunnerEmotionalKernelSystemMessage(
-  messages: Message[],
-  emotionalKernel: AlicizationStreamEmotionalKernelShape | null | undefined,
-) {
-  const block = buildStreamRunnerEmotionalKernelSystemBlock(emotionalKernel)
-  if (!block || streamMessagesCarryEmotionalKernel(messages))
-    return messages
-
-  const firstNonSystemIndex = messages.findIndex(message => message.role !== 'system')
-  const emotionalKernelMessage = { role: 'system', content: block } as Message
-  if (firstNonSystemIndex < 0)
-    return [...messages, emotionalKernelMessage]
-
-  return [
-    ...messages.slice(0, firstNonSystemIndex),
-    emotionalKernelMessage,
-    ...messages.slice(firstNonSystemIndex),
-  ]
-}
-
 export async function runAlicizationMainChatStream(
   input: RunAlicizationMainChatStreamOptions,
 ): Promise<AlicizationMainChatStreamRunnerResult> {
   assertAlicizationCanonicalProjectState(input.prepared.messages, 'stream')
-  const streamEmotionalKernel = resolvePreparedStreamRunnerEmotionalKernel(input.prepared)
-  const providerMessages = appendStreamRunnerEmotionalKernelSystemMessage(
-    input.prepared.messages,
-    streamEmotionalKernel,
-  )
+  const providerMessages = input.prepared.messages
 
   const normalizedPayload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(input.payload)
   const turnRuntime = createAlicizationTurnRuntime()
@@ -2137,7 +2064,6 @@ export async function runAlicizationMainChatStream(
       headers: input.headers,
       tools: input.prepared.tools,
       toolChoice: input.prepared.toolChoice,
-      emotionalKernel: streamEmotionalKernel,
       timeoutMs: input.firstEventTimeoutMs,
       cardId: normalizedPayload.cardId,
       turnId: normalizedPayload.turnId,
@@ -2332,11 +2258,22 @@ export async function runAlicizationMainChatStream(
       input.controller.signal.removeEventListener('abort', abortHandler)
       reject(nextError)
     }
+    const rejectInvocation = (nextError: unknown) => {
+      if (!input.isRunActive())
+        return
+      appendStreamDebugLine('chat-stream.invoke-rejected', {
+        elapsedMs: Date.now() - startedAt,
+        lastEventType: lastEventType || null,
+        reason: errorMessageFrom(nextError) ?? String(nextError),
+      })
+      rejectOnce(nextError)
+    }
 
     void Promise.resolve(invokeStreamText({
       ...input.prepared.chatConfig,
       maxSteps: 10,
       messages: providerMessages,
+      responseFormat: alicizationProviderResponseFormat,
       headers: input.headers,
       abortSignal: input.controller.signal,
       tools: input.prepared.tools,
@@ -2495,16 +2432,9 @@ export async function runAlicizationMainChatStream(
           rejectOnce(event.error ?? new Error('chat stream error'))
         }
       },
-    })).catch((nextError) => {
-      if (!input.isRunActive())
-        return
-      appendStreamDebugLine('chat-stream.invoke-rejected', {
-        elapsedMs: Date.now() - startedAt,
-        lastEventType: lastEventType || null,
-        reason: errorMessageFrom(nextError) ?? String(nextError),
-      })
-      rejectOnce(nextError)
-    })
+    }))
+      .then(result => observeStreamTextResultErrors(result, rejectInvocation))
+      .catch(rejectInvocation)
   })
 
   if (!sawProgressEvent && input.isRunActive()) {

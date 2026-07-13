@@ -2,6 +2,10 @@ import type { ChatStreamEventContext } from '../types/chat'
 
 import { readFileSync } from 'node:fs'
 
+import {
+  alicizationProviderResponseFormat,
+  resolveAlicizationChatFailureSurface,
+} from '@proj-alicization/stage-shared'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
@@ -24,12 +28,11 @@ const {
       },
       {
         role: 'system',
-        content: 'Output contract (must-follow, highest priority):\nIn thought, you MUST include all five machine-readable markers',
+        content: 'renderer_runtime_context',
       },
       ...messages.filter(message => message.role !== 'system'),
     ],
     personalityDirectiveResult: null,
-    contractRequiresMindSpine: true,
   })),
   selfEvolutionInspectorRefreshMock: vi.fn(async () => null),
   projectStateContinuitySnapshotRef: { value: null as any },
@@ -475,6 +478,7 @@ describe('chat orchestrator', () => {
     streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
       expect(options.supportsTools).toBe(false)
       expect(options.waitForTools).toBe(false)
+      expect(options.responseFormat).toBe(alicizationProviderResponseFormat)
       await options.onStreamEvent?.({
         type: 'text-delta',
         text: '{"thought":"obligation=answer; truth=uncertain; focus=realtime-weather-request; move=answer-plainly; tone=direct","emotion":"neutral","reply":"这是普通回复。"}',
@@ -492,10 +496,6 @@ describe('chat orchestrator', () => {
 
     expect(executeRealtimeQueryTurnMock).toBeCalledTimes(1)
     expect(streamMock).toBeCalledTimes(1)
-    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alicization.prompt',
-      action: 'contract-mind-spine-required',
-    }))
   })
 
   it('refreshes and injects project-state continuity before each Alicization dialogue turn', async () => {
@@ -1665,15 +1665,11 @@ describe('chat orchestrator', () => {
     expect(streamMock.mock.calls.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('defines structured repair contracts without natural-language rewrite commands', () => {
+  it('does not define natural-language structured response contract retries', () => {
     const source = readFileSync(new URL('./chat.ts', import.meta.url), 'utf8')
 
-    expect(source).toContain('retry_kind=structured_contract_repair')
-    expect(source).toContain('output_schema_id=alicization_visible_reply_json')
-    expect(source).toContain('preserve_fields=reply,emotion,performance')
-    expect(source).toContain('reply_authority=provider_mind')
-    expect(source).not.toMatch(/\brewrite\b.+\bstrict json contract\b/i)
-    expect(source).not.toMatch(/\bmust preserve\b/i)
+    expect(source).not.toMatch(/structuredRetrySystemPrompt|Structured contract repair request/iu)
+    expect(source).not.toMatch(/Return ONLY one strict JSON object/iu)
   })
 
   it('forces a tool-capable retry when file intent has no tool call in first pass', async () => {
@@ -6933,6 +6929,34 @@ describe('chat orchestrator', () => {
 
     expect(streamMock).toBeCalledTimes(1)
     expectRuntimeAuthoritativeLocalVisibleReplyBlocked()
+  })
+
+  it('surfaces unsupported provider response schemas without a model-authored retry', async () => {
+    streamMock.mockImplementation(async () => {
+      throw new Error('Remote sent 400 response: {"error":{"message":"response_format json_schema is an invalid parameter"}}')
+    })
+
+    const store = useChatOrchestratorStore()
+    await expect(store.ingest('你好', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })).resolves.toBeUndefined()
+
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'provider-schema-unsupported',
+      userText: '你好',
+    })
+    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    expect(streamMock).toHaveBeenCalledOnce()
+    expect(payload?.assistantText).toBe(failureSurface.reply)
+    expect(appendAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'alicization.chat',
+      action: 'turn-failed-safe-reply',
+      payload: expect.objectContaining({
+        fallbackKind: 'provider-schema-unsupported',
+      }),
+    }))
   })
 
   it('returns a direct timeout failure reply without presence-shell wording when the stream times out after progress', async () => {

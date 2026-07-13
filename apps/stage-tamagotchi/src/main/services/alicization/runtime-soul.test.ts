@@ -181,6 +181,8 @@ describe('runtime soul persona kernel seeding', () => {
     expect(body).toContain('## Anti-Persona Constraints')
     expect(body).toContain('## Identity Anchors')
     expect(body).toContain('## Personality Baseline')
+    expect(body).not.toContain('## Output Contract')
+    expect(body).not.toContain('thought / emotion / reply')
   })
 
   it('keeps repeated normalization idempotent for persona arrays', () => {

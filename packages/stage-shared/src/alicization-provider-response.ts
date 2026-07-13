@@ -149,6 +149,15 @@ export const alicizationProviderResponseFormat = {
   },
 } as const
 
+export function isAlicizationProviderSchemaUnsupportedError(error: unknown) {
+  const text = error instanceof Error
+    ? `${error.name} ${error.message}`
+    : String(error ?? '')
+
+  return /response[_ -]?format|json[_ -]?schema|structured output/iu.test(text)
+    && /unsupported|not supported|invalid parameter|unknown field|400/iu.test(text)
+}
+
 export function createAlicizationProviderVisibleArtifact(input: {
   reply: string
   memoryUsage: AlicizationProviderMemoryUsage
