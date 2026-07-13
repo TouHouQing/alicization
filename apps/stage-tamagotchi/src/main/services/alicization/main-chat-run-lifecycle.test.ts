@@ -15,6 +15,7 @@ import {
 import { buildAlicizationMainGatewayTimeoutFallbackReply } from './main-chat-timeout-fallback'
 import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
+import { AlicizationVisibleReplySettlementBlockedError } from './visible-reply/settlement'
 
 const TIMEOUT_RECOVERY_FIXED_TEMPLATE_OUTPUT_PATTERN
   = /Before (?:answering|speaking|acting)|Same Phase 1 digital life|same living line|local-first digital life project|one continuous "?her"?|same-her\b|数字生命主线|同一个她/iu
@@ -1266,6 +1267,15 @@ describe('main chat run lifecycle', () => {
     const failureSurface = resolveAlicizationChatFailureSurface({
       kind: 'provider-schema-unsupported',
     })
+    const metadata = {
+      origin: 'failure-surface' as const,
+      learningPolicy: {
+        allowLongTermCondensation: false as const,
+        allowPersonaLearning: false as const,
+        allowTraining: false as const,
+      },
+      failureSurface,
+    }
 
     expect(isProviderSchemaUnsupportedError(error)).toBe(true)
     expect(isProviderSchemaUnsupportedError(new Error('Remote sent 400 response: invalid tool_choice'))).toBe(false)
@@ -1273,13 +1283,52 @@ describe('main chat run lifecycle', () => {
     await handleAlicizationMainChatRunFailure(input)
 
     expect(input.recoverFromTimeout).not.toHaveBeenCalled()
-    expect(input.emitError).toHaveBeenCalledWith(failureSurface.reply)
+    expect(input.emitError).toHaveBeenCalledWith(failureSurface.reply, metadata)
     expect(input.finish).toHaveBeenCalledWith({
       status: 'failed',
       finishReason: 'provider-schema-unsupported',
       error: failureSurface.reply,
+      ...metadata,
     })
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.provider-schema-unsupported', {
+      cardId: 'card-1',
+      turnId: 'turn-1',
+      reason: error.message,
+    })
+  })
+
+  it('surfaces provider settlement blocks as structured-contract failures', async () => {
+    const error = new AlicizationVisibleReplySettlementBlockedError(
+      'provider-settlement-invalid:provider-memory-usage-invalid',
+      null,
+    )
+    const input = createBaseInput({ error })
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'structured-contract',
+    })
+    const learningPolicy = {
+      allowLongTermCondensation: false,
+      allowPersonaLearning: false,
+      allowTraining: false,
+    }
+
+    await handleAlicizationMainChatRunFailure(input)
+
+    expect(input.recoverFromTimeout).not.toHaveBeenCalled()
+    expect(input.emitError).toHaveBeenCalledWith(failureSurface.reply, {
+      origin: 'failure-surface',
+      learningPolicy,
+      failureSurface,
+    })
+    expect(input.finish).toHaveBeenCalledWith({
+      status: 'failed',
+      finishReason: 'structured-contract',
+      error: failureSurface.reply,
+      origin: 'failure-surface',
+      learningPolicy,
+      failureSurface,
+    })
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.structured-contract-failed', {
       cardId: 'card-1',
       turnId: 'turn-1',
       reason: error.message,

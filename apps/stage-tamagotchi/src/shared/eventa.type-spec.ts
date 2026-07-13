@@ -1,6 +1,9 @@
 import type { AlicizationPersistentPresenceAuthoritySnapshot } from '@proj-alicization/stage-shared'
 
 import type {
+  AlicizationChatErrorEvent,
+  AlicizationChatFinishEvent,
+  AlicizationChatStreamChunkEvent,
   AlicizationMemoryRecallProbeConfidencePolicy,
   AlicizationMemoryRecallProbeEvidenceKind,
   AlicizationMemoryRecallProbeEvidenceVisibility,
@@ -14,8 +17,33 @@ import type {
 type Expect<T extends true> = T
 type Extends<T, U> = T extends U ? true : false
 
+const chatChunkOrigin: Expect<Extends<
+  AlicizationChatStreamChunkEvent['origin'],
+  'provider' | 'failure-surface' | 'authorization-surface' | undefined
+>> = true
+const chatChunkLearningPolicy: Expect<Extends<
+  AlicizationChatStreamChunkEvent['learningPolicy'],
+  {
+    allowLongTermCondensation: boolean
+    allowPersonaLearning: boolean
+    allowTraining: boolean
+  } | undefined
+>> = true
+const chatFinishFailureSurface: Expect<Extends<
+  AlicizationChatFinishEvent['failureSurface'],
+  { kind: string, origin: 'failure-surface' } | null | undefined
+>> = true
+const chatErrorFailureSurface: Expect<Extends<
+  AlicizationChatErrorEvent['failureSurface'],
+  { kind: string, origin: 'failure-surface' } | null | undefined
+>> = true
+
 const authorityFields: AlicizationPersistentPresenceAuthoritySnapshot = {} as AlicizationVisualPresenceStateSnapshot
 
+void chatChunkOrigin
+void chatChunkLearningPolicy
+void chatFinishFailureSurface
+void chatErrorFailureSurface
 void authorityFields
 
 const memoryWorkbenchSnapshot: AlicizationMemoryWorkbenchSnapshot = {

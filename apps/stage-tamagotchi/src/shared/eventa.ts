@@ -10,6 +10,7 @@ import type {
   AlicizationChannelCapability as SharedAlicizationChannelCapability,
   AlicizationChannelCapabilityManifestRecord as SharedAlicizationChannelCapabilityManifestRecord,
   AlicizationChannelCapabilityManifestUpsertInput as SharedAlicizationChannelCapabilityManifestUpsertInput,
+  AlicizationChatFailureSurface as SharedAlicizationChatFailureSurface,
   AlicizationClaudeCodeCommandInput as SharedAlicizationClaudeCodeCommandInput,
   AlicizationClawFabricPlan as SharedAlicizationClawFabricPlan,
   AlicizationClawTaskIntent as SharedAlicizationClawTaskIntent,
@@ -209,6 +210,8 @@ import type {
   AlicizationTaskThreadRecord as SharedAlicizationTaskThreadRecord,
   AlicizationTaskThreadStatus as SharedAlicizationTaskThreadStatus,
   AlicizationTaskThreadUpsertInput as SharedAlicizationTaskThreadUpsertInput,
+  AlicizationVisibleArtifactLearningPolicy as SharedAlicizationVisibleArtifactLearningPolicy,
+  AlicizationVisibleArtifactOrigin as SharedAlicizationVisibleArtifactOrigin,
   AlicizationVisibleReplyExecutionAuthority as SharedAlicizationVisibleReplyExecutionAuthority,
   CharacterActionCapability as SharedCharacterActionCapability,
   CharacterFacialCapability as SharedCharacterFacialCapability,
@@ -3559,6 +3562,9 @@ export interface AlicizationChatStreamChunkEvent {
   cardId: string
   turnId: string
   text: string
+  origin?: SharedAlicizationVisibleArtifactOrigin
+  learningPolicy?: SharedAlicizationVisibleArtifactLearningPolicy
+  failureSurface?: SharedAlicizationChatFailureSurface | null
 }
 
 export type AlicizationVisibleReplyExecutionMode = 'provider-stream' | 'provider-one-shot' | 'local-fallback'
@@ -3640,6 +3646,9 @@ export interface AlicizationChatFinishEvent {
   cardId: string
   turnId: string
   status: 'completed' | 'aborted' | 'failed'
+  origin?: SharedAlicizationVisibleArtifactOrigin
+  learningPolicy?: SharedAlicizationVisibleArtifactLearningPolicy
+  failureSurface?: SharedAlicizationChatFailureSurface | null
   visibleReplyExecution?: AlicizationVisibleReplyExecution | null
   visibleReplyCritic?: AlicizationVisibleReplyPublicCriticSummary | null
   visibleReplyClosure?: AlicizationVisibleReplyPublicClosureSummary | null
@@ -3652,6 +3661,9 @@ export interface AlicizationChatErrorEvent {
   cardId: string
   turnId: string
   error: string
+  origin?: SharedAlicizationVisibleArtifactOrigin
+  learningPolicy?: SharedAlicizationVisibleArtifactLearningPolicy
+  failureSurface?: SharedAlicizationChatFailureSurface | null
 }
 
 export const alicizationChatStreamDispatchChannel = 'alicization:chat-stream-dispatch'

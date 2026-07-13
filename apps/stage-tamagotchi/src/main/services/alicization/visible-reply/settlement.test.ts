@@ -4,7 +4,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { alicizationProjectStateVisibleReplySameHerReminder } from '../project-state-answer-governance'
 import { resolveAlicizationProjectStateBrief } from '../project-state-brief'
-import { settleAlicizationVisibleReply } from './settlement'
+import {
+  AlicizationVisibleReplySettlementBlockedError,
+  settleAlicizationVisibleReply,
+  validateAlicizationProviderMemoryUsage,
+} from './settlement'
 
 type RewriteSecondPass = Parameters<typeof settleAlicizationVisibleReply>[0]['rewriteSecondPass']
 type RewriteSecondPassInput = Parameters<RewriteSecondPass>[0]
@@ -114,6 +118,181 @@ function expectNoFixedTemplateResidue(value: unknown) {
 }
 
 describe('visible-reply settlement', () => {
+  it('validates provider memory usage against the prepared turn memory context', () => {
+    const prepared = {
+      memoryContext: {
+        workingMemory: {
+          version: 'working-memory-owner-context-v1',
+        },
+        availableLongTermEvidenceIds: ['memory-1', 'memory-2'],
+      },
+    } as any
+
+    expect(validateAlicizationProviderMemoryUsage({
+      memoryUsage: {
+        workingMemoryVersion: 'working-memory-owner-context-v1',
+        longTermEvidenceIds: ['memory-2'],
+      },
+      prepared,
+    })).toEqual({
+      valid: true,
+      workingMemoryVersionMatches: true,
+      unknownEvidenceIds: [],
+    })
+
+    expect(validateAlicizationProviderMemoryUsage({
+      memoryUsage: {
+        workingMemoryVersion: 'stale-working-memory-version',
+        longTermEvidenceIds: ['memory-not-provided'],
+      },
+      prepared,
+    })).toEqual({
+      valid: false,
+      workingMemoryVersionMatches: false,
+      unknownEvidenceIds: ['memory-not-provided'],
+    })
+  })
+
+  it('uses one typed second pass to repair invalid provider memory claims', async () => {
+    const prepared = {
+      hasVisualGrounding: false,
+      memoryContext: {
+        workingMemory: {
+          version: 'working-memory-owner-context-v1',
+        },
+        availableLongTermEvidenceIds: ['memory-1'],
+      },
+      memoryTurnArtifact: {
+        visibleMemoryGate: {
+          status: 'closed',
+          reasons: ['no-recall-intent'],
+        },
+      },
+      mindTurnContract: null,
+      replyRealization: null,
+      replyExecutionPlan: null,
+      runtimeSurface: {
+        replyAuthority: null,
+        replyExecutionPlan: null,
+      },
+      governance: {
+        visibleReplyAuthority: 'llm-mind',
+      },
+    } as any
+    const visibleReplyExecution = {
+      mode: 'provider-stream' as const,
+      expectedVisibleReplyAuthority: 'llm-mind' as const,
+      actualVisibleReplyAuthority: 'llm-mind' as const,
+      providerMindExecuted: true,
+      reason: 'provider-stream',
+    }
+    const rewriteSecondPass = createRewriteSecondPassMock(buildRewriteResult({
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'answer-directly',
+        emotion: 'neutral',
+        reply: '我会先把这件事讲清楚。',
+        performance: {
+          baseEmotion: 'neutral',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+        memoryUsage: {
+          workingMemoryVersion: 'working-memory-owner-context-v1',
+          longTermEvidenceIds: ['memory-1'],
+        },
+      }),
+      visibleReplyExecution,
+    }))
+
+    const result = await settleAlicizationVisibleReply({
+      draft: {
+        fullText: JSON.stringify({
+          format: 'mind-turn-v1',
+          thought: 'answer-directly',
+          emotion: 'neutral',
+          reply: '我会先把这件事讲清楚。',
+          performance: {
+            baseEmotion: 'neutral',
+            facialCue: null,
+            actionCue: null,
+            delivery: 'calm',
+            emphasis: 0,
+          },
+          memoryUsage: {
+            workingMemoryVersion: 'stale-working-memory-version',
+            longTermEvidenceIds: ['memory-not-provided'],
+          },
+        }),
+        visibleReplyExecution,
+      },
+      prepared,
+      requireProviderMemoryUsage: true,
+      rewriteSecondPass,
+    })
+
+    expect(result.visibleText).toBe('我会先把这件事讲清楚。')
+    expect(rewriteSecondPass).toHaveBeenCalledOnce()
+    expect(getFirstRewriteInput(rewriteSecondPass)).toEqual(expect.objectContaining({
+      forceRewrite: true,
+      forceReasonCodes: ['provider-memory-usage-invalid'],
+      mustPreserve: [],
+    }))
+  })
+
+  it('blocks settlement when the typed memory-claim second pass is still invalid', async () => {
+    const prepared = {
+      memoryContext: {
+        workingMemory: {
+          version: 'working-memory-owner-context-v1',
+        },
+        availableLongTermEvidenceIds: ['memory-1'],
+      },
+    } as any
+    const visibleReplyExecution = {
+      mode: 'provider-stream' as const,
+      expectedVisibleReplyAuthority: 'llm-mind' as const,
+      actualVisibleReplyAuthority: 'llm-mind' as const,
+      providerMindExecuted: true,
+      reason: 'provider-stream',
+    }
+    const invalidFullText = JSON.stringify({
+      format: 'mind-turn-v1',
+      thought: 'answer-directly',
+      emotion: 'neutral',
+      reply: '我会先把这件事讲清楚。',
+      performance: {
+        baseEmotion: 'neutral',
+        facialCue: null,
+        actionCue: null,
+        delivery: 'calm',
+        emphasis: 0,
+      },
+      memoryUsage: {
+        workingMemoryVersion: 'stale-working-memory-version',
+        longTermEvidenceIds: ['memory-not-provided'],
+      },
+    })
+    const rewriteSecondPass = createRewriteSecondPassMock(buildRewriteResult({
+      fullText: invalidFullText,
+      visibleReplyExecution,
+    }))
+
+    await expect(settleAlicizationVisibleReply({
+      draft: {
+        fullText: invalidFullText,
+        visibleReplyExecution,
+      },
+      prepared,
+      requireProviderMemoryUsage: true,
+      rewriteSecondPass,
+    })).rejects.toBeInstanceOf(AlicizationVisibleReplySettlementBlockedError)
+
+    expect(rewriteSecondPass).toHaveBeenCalledOnce()
+  })
+
   it('settles provider-authored visible replies with critic and realization in one artifact', async () => {
     const result = await settleAlicizationVisibleReply({
       draft: {

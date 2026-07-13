@@ -20,6 +20,9 @@ import {
 import { createAlicizationChatStreamMetaEmitter } from './main-chat-stream-meta'
 import { runAlicizationMainChatStream } from './main-chat-stream-runner'
 import { buildAlicizationProjectStateSystemBlock, resolveAlicizationProjectStateBrief } from './project-state-brief'
+import { AlicizationVisibleReplySettlementBlockedError } from './visible-reply/settlement'
+
+import * as visibleReplyFacade from './visible-reply/facade'
 
 const firstEventTimeoutMs = 65_000
 const timeoutRecoveryWithVisualGroundingMs = 30_000
@@ -529,6 +532,136 @@ describe('main chat background run', () => {
         },
       })
     })
+  })
+
+  it('preserves provider artifact metadata on visible chunks and completed finishes', async () => {
+    const learningPolicy = {
+      allowLongTermCondensation: true as const,
+      allowPersonaLearning: true as const,
+      allowTraining: false as const,
+    }
+    vi.mocked(runAlicizationMainChatStream).mockImplementationOnce(async (options: any) => {
+      options.emitChunk({
+        cardId: 'card-1',
+        turnId: 'turn-provider-artifact',
+        text: '通过校验的模型回复',
+        origin: 'provider',
+        learningPolicy,
+        failureSurface: null,
+      })
+      return createStreamResult({
+        finishReason: 'stop',
+        fullText: JSON.stringify({
+          format: 'mind-turn-v1',
+          thought: 'answer-directly',
+          emotion: 'neutral',
+          reply: '通过校验的模型回复',
+          performance: {
+            baseEmotion: 'neutral',
+            facialCue: null,
+            actionCue: null,
+            delivery: 'calm',
+            emphasis: 0,
+          },
+          memoryUsage: {
+            workingMemoryVersion: 'working-memory-owner-context-v1',
+            longTermEvidenceIds: [],
+          },
+        }),
+        origin: 'provider',
+        learningPolicy,
+        failureSurface: null,
+      })
+    })
+    const input = createInput({
+      key: 'card-1::turn-provider-artifact',
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-artifact',
+        providerId: 'openai',
+        model: 'gpt-test',
+        providerConfig: {},
+        messages: [
+          { role: 'user' as const, content: '继续。' },
+        ],
+      } as any,
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(input.emitChunk).toHaveBeenCalledWith({
+      cardId: 'card-1',
+      turnId: 'turn-provider-artifact',
+      text: '通过校验的模型回复',
+      origin: 'provider',
+      learningPolicy,
+      failureSurface: null,
+    })
+    expect(input.runStateController.finishRun).toHaveBeenCalledWith(
+      input.key,
+      expect.objectContaining({
+        status: 'completed',
+        origin: 'provider',
+        learningPolicy,
+        failureSurface: null,
+      }),
+    )
+  })
+
+  it('keeps settlement blocks intact for lifecycle failure classification', async () => {
+    const settlementError = new AlicizationVisibleReplySettlementBlockedError(
+      'provider-settlement-invalid:provider-memory-usage-invalid',
+      null,
+    )
+    const settlementSpy = vi
+      .spyOn(visibleReplyFacade, 'settleAlicizationVisibleReply')
+      .mockRejectedValueOnce(settlementError)
+    vi.mocked(runAlicizationMainChatStream).mockImplementationOnce(async (options: any) => {
+      await options.rewriteStructuredVisibleReply({
+        fullText: JSON.stringify({
+          format: 'mind-turn-v1',
+          thought: 'answer-directly',
+          emotion: 'neutral',
+          reply: '这段回复不会发布。',
+          performance: {
+            baseEmotion: 'neutral',
+            facialCue: null,
+            actionCue: null,
+            delivery: 'calm',
+            emphasis: 0,
+          },
+          memoryUsage: {
+            workingMemoryVersion: 'working-memory-owner-context-v1',
+            longTermEvidenceIds: [],
+          },
+        }),
+        visibleReplyExecution: {
+          mode: 'provider-stream',
+          expectedVisibleReplyAuthority: 'llm-mind',
+          actualVisibleReplyAuthority: 'llm-mind',
+          providerMindExecuted: true,
+          reason: 'provider-stream',
+        },
+      })
+      throw new Error('unreachable')
+    })
+    const input = createInput({
+      preparationPromise: Promise.resolve(createPrepared({
+        memoryContext: {
+          workingMemory: {
+            version: 'working-memory-owner-context-v1',
+          },
+          availableLongTermEvidenceIds: [],
+        },
+      })),
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledWith(expect.objectContaining({
+      error: settlementError,
+    }))
+    settlementSpy.mockRestore()
   })
 
   it('does not upgrade ordinary timeout recovery to project-state only because a contract carries projectState', () => {

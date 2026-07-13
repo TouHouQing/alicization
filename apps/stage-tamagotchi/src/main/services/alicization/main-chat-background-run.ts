@@ -127,6 +127,7 @@ import { resolveCanonicalStructuredProjectState } from './structured-project-sta
 import { buildAlicizationTurnGraphFromSettlements } from './turn-os/turn-graph'
 import {
   AlicizationVisibleReplyClosureBlockedError,
+  AlicizationVisibleReplySettlementBlockedError,
   buildAlicizationResolvedVisibleReply,
   buildAlicizationSecondPassTransportFailureReply,
   buildAlicizationVisibleReplyCriticArtifact,
@@ -3910,7 +3911,8 @@ export async function runAlicizationMainChatBackground(
     )
   }
 
-  const emitVisibleChunk = (text: string) => {
+  const emitVisibleChunk = (chunk: string | AlicizationChatStreamChunkEvent) => {
+    const text = typeof chunk === 'string' ? chunk : chunk.text
     if (!text)
       return
     releasedVisibleReplyText += text
@@ -3918,6 +3920,13 @@ export async function runAlicizationMainChatBackground(
       cardId: input.payload.cardId,
       turnId: input.payload.turnId,
       text,
+      ...(typeof chunk === 'string'
+        ? {}
+        : {
+            ...(chunk.origin ? { origin: chunk.origin } : {}),
+            ...(chunk.learningPolicy ? { learningPolicy: chunk.learningPolicy } : {}),
+            ...(chunk.failureSurface !== undefined ? { failureSurface: chunk.failureSurface } : {}),
+          }),
     })
   }
 
@@ -5943,6 +5952,7 @@ export async function runAlicizationMainChatBackground(
           visibleReplyExecution: rewriteInput.visibleReplyExecution,
         },
         prepared,
+        requireProviderMemoryUsage: true,
         forceRewrite: rewriteInput.forceRewrite,
         forceReasonCodes: rewriteInput.forceReasonCodes,
         forceMustPreserve: rewriteInput.forceMustPreserve,
@@ -5981,6 +5991,14 @@ export async function runAlicizationMainChatBackground(
       }
     }
     catch (error) {
+      if (error instanceof AlicizationVisibleReplySettlementBlockedError) {
+        await input.appendRuntimeDebugLine('chat-stream.provider-settlement-blocked', {
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          reason: error.message,
+        })
+        throw error
+      }
       const closure = error instanceof AlicizationVisibleReplyClosureBlockedError
         ? error.closure
         : null
@@ -7010,7 +7028,7 @@ export async function runAlicizationMainChatBackground(
       nonProgressEventTypes,
       streamMeta: streamMetaEmitter,
       incrementChunkStats: input.incrementChunkStats,
-      emitChunk: payload => emitVisibleChunk(payload.text),
+      emitChunk: payload => emitVisibleChunk(payload),
       emitToolCall,
       emitToolResult,
       generateNonStreaming: async (oneShotInput) => {
@@ -7723,6 +7741,9 @@ export async function runAlicizationMainChatBackground(
     input.runStateController.finishRun(input.key, {
       status: 'completed',
       finishReason: streamResult.finishReason,
+      ...(streamResult.origin ? { origin: streamResult.origin } : {}),
+      ...(streamResult.learningPolicy ? { learningPolicy: streamResult.learningPolicy } : {}),
+      ...(streamResult.failureSurface !== undefined ? { failureSurface: streamResult.failureSurface } : {}),
       fullText: finalHostVisiblePayload,
       visibleReplyRealization: finalVisibleReplyRealization
         ?? finalizedResolvedReply?.realization
@@ -8489,11 +8510,12 @@ export async function runAlicizationMainChatBackground(
       emitRecoveredText: async (recoveredReply) => {
         await emitResolvedVisibleReply(recoveredReply)
       },
-      emitError: (reason) => {
+      emitError: (reason, metadata) => {
         input.emitError({
           cardId: input.payload.cardId,
           turnId: input.payload.turnId,
           error: reason,
+          ...metadata,
         })
       },
       finish: (finishPayload) => {

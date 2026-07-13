@@ -18,6 +18,7 @@ import type {
 import { errorMessageFrom } from '@moeru/std'
 import {
   alicizationProviderResponseFormat,
+  createAlicizationProviderVisibleArtifact,
   formatAlicizationProjectStateAwarenessFields,
   shouldBufferAlicizationStructuredSpeechPrelude,
 } from '@proj-alicization/stage-shared'
@@ -56,6 +57,10 @@ import {
   deriveAlicizationVisibleReplyText,
   resolveAlicizationPreparedVisibleReplyExecution,
 } from './visible-reply/facade'
+import {
+  AlicizationVisibleReplySettlementBlockedError,
+  validateAlicizationProviderSettlementPayload,
+} from './visible-reply/settlement'
 
 type StreamTextInvoker = (input: Record<string, unknown>) => unknown
 type AlicizationStreamEmotionalKernelShape = AlicizationEmotionalKernelSnapshot
@@ -92,6 +97,13 @@ function observeStreamTextResultErrors(
 export interface AlicizationMainChatStreamRunnerResult {
   finishReason: string
   fullText: string
+  origin: 'provider'
+  learningPolicy: {
+    allowLongTermCondensation: true
+    allowPersonaLearning: true
+    allowTraining: false
+  }
+  failureSurface: null
   visibleReplyExecution: AlicizationVisibleReplyExecution
   visibleReplyProjectStateAudit?: Record<string, unknown> | null
 }
@@ -2119,6 +2131,20 @@ export async function runAlicizationMainChatStream(
     const hostVisibleVisualReply = applyVisualOneShotProjectAwarenessOverride(
       buildHostVisibleResolvedReply(resolvedVisualReply),
     )
+    const visualProviderSettlement = validateAlicizationProviderSettlementPayload({
+      fullText: hostVisibleVisualReply.fullText,
+      prepared: input.prepared,
+    })
+    if (!visualProviderSettlement.valid || !visualProviderSettlement.payload) {
+      throw new AlicizationVisibleReplySettlementBlockedError(
+        `provider-settlement-invalid:${visualProviderSettlement.issues.join(',')}`,
+        shapedVisualOneShot?.closure ?? null,
+      )
+    }
+    const visualProviderArtifact = createAlicizationProviderVisibleArtifact({
+      reply: hostVisibleVisualReply.visibleText,
+      memoryUsage: visualProviderSettlement.payload.memoryUsage,
+    })
     const visualVisibleText = hostVisibleVisualReply.visibleText
     if (visualVisibleText && input.isRunActive()) {
       input.incrementChunkStats(visualVisibleText)
@@ -2127,12 +2153,26 @@ export async function runAlicizationMainChatStream(
         cardId: normalizedPayload.cardId,
         turnId: normalizedPayload.turnId,
         text: visualVisibleText,
+        origin: visualProviderArtifact.origin,
+        learningPolicy: {
+          allowLongTermCondensation: visualProviderArtifact.allowLongTermCondensation,
+          allowPersonaLearning: visualProviderArtifact.allowPersonaLearning,
+          allowTraining: visualProviderArtifact.allowTraining,
+        },
+        failureSurface: null,
       })
     }
     settleVisibleReplyLifecycle(hostVisibleVisualReply.realization)
     return {
       finishReason: visualOneShot.finishReason || 'stop',
       fullText: hostVisibleVisualReply.fullText,
+      origin: visualProviderArtifact.origin,
+      learningPolicy: {
+        allowLongTermCondensation: visualProviderArtifact.allowLongTermCondensation,
+        allowPersonaLearning: visualProviderArtifact.allowPersonaLearning,
+        allowTraining: visualProviderArtifact.allowTraining,
+      },
+      failureSurface: null,
       visibleReplyExecution: hostVisibleVisualReply.visibleReplyExecution,
       ...(hostVisibleVisualReply.realization.projectStateAudit
         ? { visibleReplyProjectStateAudit: hostVisibleVisualReply.realization.projectStateAudit }
@@ -2149,7 +2189,8 @@ export async function runAlicizationMainChatStream(
   let sawProgressEvent = false
   let sawAnyEvent = false
   let firstEventGraceApplied = false
-  const shouldDelayVisibleRelease = input.delayVisibleRelease === true
+  // Provider text remains provisional until the complete payload passes settlement.
+  const shouldDelayVisibleRelease = true
   const shouldDelayStructuredRelease = Boolean(input.rewriteStructuredVisibleReply) || shouldDelayVisibleRelease
   const firstEventGraceTimeoutMs = Math.max(
     1_000,
@@ -2165,7 +2206,10 @@ export async function runAlicizationMainChatStream(
     waitForTools: input.prepared.waitForTools,
   })
 
-  const emitVisibleDelta = (delta: string) => {
+  const emitVisibleDelta = (
+    delta: string,
+    artifact?: ReturnType<typeof createAlicizationProviderVisibleArtifact>,
+  ) => {
     if (!delta)
       return
     visibleText += delta
@@ -2174,6 +2218,17 @@ export async function runAlicizationMainChatStream(
       cardId: normalizedPayload.cardId,
       turnId: normalizedPayload.turnId,
       text: delta,
+      ...(artifact
+        ? {
+            origin: artifact.origin,
+            learningPolicy: {
+              allowLongTermCondensation: artifact.allowLongTermCondensation,
+              allowPersonaLearning: artifact.allowPersonaLearning,
+              allowTraining: artifact.allowTraining,
+            },
+            failureSurface: null,
+          }
+        : {}),
     })
     if (shouldEmitAlicizationChatMetaUpdate({
       delta,
@@ -2490,10 +2545,24 @@ export async function runAlicizationMainChatStream(
     critic: visibleReplyCritic,
     closure: visibleReplyClosure,
   })
+  const providerSettlement = validateAlicizationProviderSettlementPayload({
+    fullText,
+    prepared: input.prepared,
+  })
+  if (!providerSettlement.valid || !providerSettlement.payload) {
+    throw new AlicizationVisibleReplySettlementBlockedError(
+      `provider-settlement-invalid:${providerSettlement.issues.join(',')}`,
+      visibleReplyClosure,
+    )
+  }
+  const providerArtifact = createAlicizationProviderVisibleArtifact({
+    reply: providerSettlement.payload.reply,
+    memoryUsage: providerSettlement.payload.memoryUsage,
+  })
   if (shouldDelayVisibleRelease) {
     const visibleReleaseText = deriveAlicizationVisibleReplyText(fullText)
     if (visibleReleaseText) {
-      emitVisibleDelta(visibleReleaseText)
+      emitVisibleDelta(visibleReleaseText, providerArtifact)
       appendStreamDebugLine('chat-stream.visible-release-after-closure', {
         elapsedMs: Date.now() - startedAt,
         visibleChars: visibleReleaseText.length,
@@ -2523,6 +2592,13 @@ export async function runAlicizationMainChatStream(
   return {
     finishReason,
     fullText,
+    origin: providerArtifact.origin,
+    learningPolicy: {
+      allowLongTermCondensation: providerArtifact.allowLongTermCondensation,
+      allowPersonaLearning: providerArtifact.allowPersonaLearning,
+      allowTraining: providerArtifact.allowTraining,
+    },
+    failureSurface: null,
     visibleReplyExecution,
     ...(visibleReplyProjectStateAudit ? { visibleReplyProjectStateAudit } : {}),
   }

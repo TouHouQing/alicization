@@ -73,6 +73,42 @@ function createStreamMetaController() {
   }
 }
 
+function createProviderResponsePayload(overrides?: {
+  workingMemoryVersion?: string | null
+  longTermEvidenceIds?: string[]
+  reply?: string
+}) {
+  return JSON.stringify({
+    format: 'mind-turn-v1',
+    thought: 'obligation=answer; truth=grounded; focus=current-turn; move=answer-directly; tone=direct',
+    emotion: 'neutral',
+    reply: overrides?.reply ?? '通过校验的模型回复',
+    performance: {
+      baseEmotion: 'neutral',
+      facialCue: null,
+      actionCue: null,
+      delivery: 'calm',
+      emphasis: 0,
+    },
+    memoryUsage: {
+      workingMemoryVersion: overrides?.workingMemoryVersion ?? 'working-memory-owner-context-v1',
+      longTermEvidenceIds: overrides?.longTermEvidenceIds ?? ['memory-1'],
+    },
+  })
+}
+
+function createProviderMemoryContext() {
+  return {
+    version: 'alicization-main-chat-memory-context-v1',
+    workingMemory: {
+      version: 'working-memory-owner-context-v1',
+    },
+    longTermRecall: null,
+    availableLongTermEvidenceIds: ['memory-1'],
+    providerSystemBlock: '{}',
+  }
+}
+
 afterEach(() => {
   vi.useRealTimers()
 })
@@ -234,6 +270,111 @@ describe('main chat stream runner', () => {
     expect(controller.signal.aborted).toBe(false)
   })
 
+  it('keeps provider text provisional until the complete response passes settlement', async () => {
+    const emitChunk = vi.fn()
+    const fullText = createProviderResponsePayload()
+    const splitAt = Math.floor(fullText.length / 2)
+    const streamTextImpl = vi.fn(async ({ onEvent }) => {
+      await onEvent({ type: 'text-delta', text: fullText.slice(0, splitAt) })
+      expect(emitChunk).not.toHaveBeenCalled()
+      await onEvent({ type: 'text-delta', text: fullText.slice(splitAt) })
+      expect(emitChunk).not.toHaveBeenCalled()
+      await onEvent({ type: 'finish', finishReason: 'stop' })
+    })
+
+    const result = await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-settlement',
+      } as any,
+      prepared: createPrepared({
+        memoryContext: createProviderMemoryContext(),
+        messages: [
+          {
+            role: 'system',
+            content: canonicalMemoryGovernanceProjectStateBlock,
+          },
+          { role: 'user', content: '你好' },
+        ],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk,
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl,
+    })
+
+    expect(emitChunk).toHaveBeenCalledOnce()
+    expect(emitChunk).toHaveBeenCalledWith(expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-provider-settlement',
+      text: '通过校验的模型回复',
+      origin: 'provider',
+      learningPolicy: {
+        allowLongTermCondensation: true,
+        allowPersonaLearning: true,
+        allowTraining: false,
+      },
+      failureSurface: null,
+    }))
+    expect(result).toEqual(expect.objectContaining({
+      origin: 'provider',
+      learningPolicy: {
+        allowLongTermCondensation: true,
+        allowPersonaLearning: true,
+        allowTraining: false,
+      },
+      failureSurface: null,
+    }))
+  })
+
+  it('rejects provider memory claims that reference unavailable long-term evidence', async () => {
+    const emitChunk = vi.fn()
+    const fullText = createProviderResponsePayload({
+      longTermEvidenceIds: ['memory-not-provided'],
+    })
+    const streamTextImpl = vi.fn(async ({ onEvent }) => {
+      await onEvent({ type: 'text-delta', text: fullText })
+      await onEvent({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await expect(runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-memory-invalid',
+      } as any,
+      prepared: createPrepared({
+        memoryContext: createProviderMemoryContext(),
+        messages: [
+          {
+            role: 'system',
+            content: canonicalMemoryGovernanceProjectStateBlock,
+          },
+          { role: 'user', content: '你好' },
+        ],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk,
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl,
+    })).rejects.toThrow('provider-memory-usage-invalid')
+
+    expect(emitChunk).not.toHaveBeenCalled()
+  })
+
   it('uses the visual grounding one-shot path when capture grounding is required', async () => {
     const streamMeta = createStreamMetaController()
     const incrementChunkStats = vi.fn()
@@ -251,6 +392,13 @@ describe('main chat stream runner', () => {
       } as any,
       prepared: createPrepared({
         hasVisualGrounding: true,
+        messages: [
+          {
+            role: 'system',
+            content: canonicalMemoryGovernanceProjectStateBlock,
+          },
+          { role: 'user', content: '看看屏幕。' },
+        ],
       }),
       headers: {
         authorization: 'Bearer test',
@@ -288,7 +436,23 @@ describe('main chat stream runner', () => {
       cardId: 'card-1',
       turnId: 'turn-1',
       text: '我先看着这个窗口。',
+      origin: 'provider',
+      learningPolicy: {
+        allowLongTermCondensation: true,
+        allowPersonaLearning: true,
+        allowTraining: false,
+      },
+      failureSurface: null,
     })
+    expect(result).toEqual(expect.objectContaining({
+      origin: 'provider',
+      learningPolicy: {
+        allowLongTermCondensation: true,
+        allowPersonaLearning: true,
+        allowTraining: false,
+      },
+      failureSurface: null,
+    }))
   })
 
   it('returns a structured host-visible payload for plain-text visual grounding one-shot output', async () => {

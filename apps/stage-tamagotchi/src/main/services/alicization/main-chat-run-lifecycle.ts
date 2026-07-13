@@ -1,6 +1,10 @@
 import type { Message } from '@xsai/shared-chat'
 
-import type { AlicizationChatStartPayload } from '../../../shared/eventa'
+import type {
+  AlicizationChatErrorEvent,
+  AlicizationChatFinishEvent,
+  AlicizationChatStartPayload,
+} from '../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
 import type { AlicizationMainGatewayReachabilitySnapshot } from './main-gateway-health'
 import type { MainGatewayResolvedConfig } from './runtime-soul'
@@ -23,6 +27,7 @@ import { parseJsonObjectFromText } from './runtime-transport-content'
 import { resolveCanonicalStructuredProjectState } from './structured-project-state'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
 import { buildAlicizationVisibleReplyRealizationArtifact } from './visible-reply/facade'
+import { AlicizationVisibleReplySettlementBlockedError } from './visible-reply/settlement'
 
 function isAbortLikeError(error: unknown) {
   return typeof error === 'object'
@@ -194,10 +199,16 @@ interface HandleAlicizationMainChatRunFailureOptions {
     recoveryMode: AlicizationMainChatTimeoutRecoveryMode
   }>
   emitRecoveredText: (reply: AlicizationResolvedVisibleReply) => void | Promise<void>
-  emitError: (reason: string) => void | Promise<void>
+  emitError: (
+    reason: string,
+    metadata?: Pick<AlicizationChatErrorEvent, 'origin' | 'learningPolicy' | 'failureSurface'>,
+  ) => void | Promise<void>
   finish: (payload: {
     status: 'completed' | 'aborted' | 'failed'
     finishReason: string
+    origin?: AlicizationChatFinishEvent['origin']
+    learningPolicy?: AlicizationChatFinishEvent['learningPolicy']
+    failureSurface?: AlicizationChatFinishEvent['failureSurface']
     visibleReplyExecution?: AlicizationResolvedVisibleReply['visibleReplyExecution']
     visibleReplyRealization?: ReturnType<typeof buildAlicizationVisibleReplyRealizationArtifact>
     fullText?: string
@@ -777,13 +788,49 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
     const failureSurface = resolveAlicizationChatFailureSurface({
       kind: 'provider-schema-unsupported',
     })
-    await input.emitError(failureSurface.reply)
+    const metadata = {
+      origin: failureSurface.origin,
+      learningPolicy: {
+        allowLongTermCondensation: failureSurface.allowLongTermCondensation,
+        allowPersonaLearning: failureSurface.allowPersonaLearning,
+        allowTraining: failureSurface.allowTraining,
+      },
+      failureSurface,
+    } as const
+    await input.emitError(failureSurface.reply, metadata)
     await input.finish({
       status: 'failed',
       finishReason: 'provider-schema-unsupported',
       error: failureSurface.reply,
+      ...metadata,
     })
     await input.appendRuntimeDebugLine('chat-stream.provider-schema-unsupported', {
+      cardId: input.payload.cardId,
+      turnId: input.payload.turnId,
+      reason,
+    })
+    return
+  }
+
+  if (input.error instanceof AlicizationVisibleReplySettlementBlockedError) {
+    const failureSurface = input.error.failureSurface
+    const metadata = {
+      origin: failureSurface.origin,
+      learningPolicy: {
+        allowLongTermCondensation: failureSurface.allowLongTermCondensation,
+        allowPersonaLearning: failureSurface.allowPersonaLearning,
+        allowTraining: failureSurface.allowTraining,
+      },
+      failureSurface,
+    } as const
+    await input.emitError(failureSurface.reply, metadata)
+    await input.finish({
+      status: 'failed',
+      finishReason: 'structured-contract',
+      error: failureSurface.reply,
+      ...metadata,
+    })
+    await input.appendRuntimeDebugLine('chat-stream.structured-contract-failed', {
       cardId: input.payload.cardId,
       turnId: input.payload.turnId,
       reason,

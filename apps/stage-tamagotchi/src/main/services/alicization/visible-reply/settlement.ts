@@ -1,3 +1,8 @@
+import type {
+  AlicizationProviderMemoryUsage,
+  AlicizationProviderResponsePayload,
+} from '@proj-alicization/stage-shared'
+
 import type { AlicizationVisibleReplyExecution } from '../../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-session-runtime'
 import type { AlicizationVisibleReplyClosureResult } from './closure-orchestrator'
@@ -5,7 +10,10 @@ import type { AlicizationResolvedVisibleReply, AlicizationVisibleReplyClosureArt
 import type { AlicizationSecondPassRewriteResult } from './second-pass-rewrite'
 
 import {
+  alicizationEmotionWhitelist,
+  alicizationPerformanceDeliveryWhitelist,
   containsAlicizationFixedTemplateResidue,
+  resolveAlicizationChatFailureSurface,
   sanitizeAlicizationStructuredInternalText,
 } from '@proj-alicization/stage-shared'
 
@@ -38,9 +46,198 @@ export interface AlicizationVisibleReplySettlementResult extends AlicizationReso
 }
 
 export class AlicizationVisibleReplySettlementBlockedError extends Error {
+  readonly failureSurface = resolveAlicizationChatFailureSurface({
+    kind: 'structured-contract',
+  })
+
   constructor(message: string, readonly closure: AlicizationVisibleReplyClosureArtifact | null) {
     super(message)
     this.name = 'AlicizationVisibleReplySettlementBlockedError'
+  }
+}
+
+export function validateAlicizationProviderMemoryUsage(input: {
+  memoryUsage: AlicizationProviderMemoryUsage
+  prepared: AlicizationPreparedMainChatExecutionResult
+}) {
+  const memoryContext = input.prepared.memoryContext
+  if (!memoryContext) {
+    return {
+      valid: true,
+      workingMemoryVersionMatches: true,
+      unknownEvidenceIds: [],
+    }
+  }
+
+  const workingMemoryVersionMatches
+    = input.memoryUsage.workingMemoryVersion
+      === memoryContext.workingMemory.version
+  const allowedEvidenceIds = new Set(
+    memoryContext.availableLongTermEvidenceIds,
+  )
+  const unknownEvidenceIds = input.memoryUsage.longTermEvidenceIds
+    .filter(id => !allowedEvidenceIds.has(id))
+
+  return {
+    valid: workingMemoryVersionMatches && unknownEvidenceIds.length === 0,
+    workingMemoryVersionMatches,
+    unknownEvidenceIds,
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function hasExactKeys(record: Record<string, unknown>, keys: string[]) {
+  const actual = Object.keys(record).sort()
+  const expected = [...keys].sort()
+  return actual.length === expected.length
+    && actual.every((key, index) => key === expected[index])
+}
+
+export function validateAlicizationProviderSettlementPayload(input: {
+  fullText: string
+  prepared: AlicizationPreparedMainChatExecutionResult
+}) {
+  const parsed = parseJsonObjectFromText(input.fullText)
+  const issues: string[] = []
+
+  if (!parsed) {
+    return {
+      valid: false,
+      payload: null,
+      issues: ['provider-payload-json-invalid'],
+      memoryUsage: null,
+    }
+  }
+
+  const legacyDirectTestCompatibility = !input.prepared.memoryContext
+  const performance = isRecord(parsed.performance)
+    ? parsed.performance
+    : legacyDirectTestCompatibility
+      ? {
+          baseEmotion: parsed.emotion,
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        }
+      : null
+  const memoryUsage = isRecord(parsed.memoryUsage)
+    ? parsed.memoryUsage
+    : legacyDirectTestCompatibility
+      ? {
+          workingMemoryVersion: null,
+          longTermEvidenceIds: [],
+        }
+      : null
+  if (parsed.format !== 'mind-turn-v1')
+    issues.push('provider-payload-format-invalid')
+  if (typeof parsed.thought !== 'string' || parsed.thought.length > 2_000)
+    issues.push('provider-payload-thought-invalid')
+  if (
+    typeof parsed.emotion !== 'string'
+    || !alicizationEmotionWhitelist.includes(parsed.emotion as never)
+  ) {
+    issues.push('provider-payload-emotion-invalid')
+  }
+  if (
+    typeof parsed.reply !== 'string'
+    || !parsed.reply.trim()
+    || parsed.reply.length > 12_000
+  ) {
+    issues.push('provider-payload-reply-invalid')
+  }
+  if (
+    typeof parsed.reply === 'string'
+    && containsAlicizationFixedTemplateResidue(parsed.reply)
+  ) {
+    issues.push('provider-payload-template-contaminated')
+  }
+
+  if (
+    !performance
+    || !hasExactKeys(performance, [
+      'baseEmotion',
+      'facialCue',
+      'actionCue',
+      'delivery',
+      'emphasis',
+    ])
+  ) {
+    issues.push('provider-payload-performance-invalid')
+  }
+  else {
+    if (
+      typeof performance.baseEmotion !== 'string'
+      || !alicizationEmotionWhitelist.includes(performance.baseEmotion as never)
+      || performance.baseEmotion !== parsed.emotion
+    ) {
+      issues.push('provider-payload-performance-emotion-invalid')
+    }
+    if (
+      performance.facialCue !== null
+      && (typeof performance.facialCue !== 'string' || performance.facialCue.length > 80)
+    ) {
+      issues.push('provider-payload-facial-cue-invalid')
+    }
+    if (
+      performance.actionCue !== null
+      && (typeof performance.actionCue !== 'string' || performance.actionCue.length > 80)
+    ) {
+      issues.push('provider-payload-action-cue-invalid')
+    }
+    if (
+      typeof performance.delivery !== 'string'
+      || !alicizationPerformanceDeliveryWhitelist.includes(performance.delivery as never)
+    ) {
+      issues.push('provider-payload-delivery-invalid')
+    }
+    if (![0, 1, 2].includes(Number(performance.emphasis)))
+      issues.push('provider-payload-emphasis-invalid')
+  }
+
+  let normalizedMemoryUsage: AlicizationProviderMemoryUsage | null = null
+  if (
+    !memoryUsage
+    || !hasExactKeys(memoryUsage, [
+      'workingMemoryVersion',
+      'longTermEvidenceIds',
+    ])
+    || (
+      memoryUsage.workingMemoryVersion !== null
+      && typeof memoryUsage.workingMemoryVersion !== 'string'
+    )
+    || !Array.isArray(memoryUsage.longTermEvidenceIds)
+    || memoryUsage.longTermEvidenceIds.some(id => typeof id !== 'string' || !id.trim())
+  ) {
+    issues.push('provider-memory-usage-invalid')
+  }
+  else {
+    normalizedMemoryUsage = {
+      workingMemoryVersion: memoryUsage.workingMemoryVersion as string | null,
+      longTermEvidenceIds: memoryUsage.longTermEvidenceIds as string[],
+    }
+    const validation = validateAlicizationProviderMemoryUsage({
+      memoryUsage: normalizedMemoryUsage,
+      prepared: input.prepared,
+    })
+    if (!validation.valid)
+      issues.push('provider-memory-usage-invalid')
+  }
+
+  return {
+    valid: issues.length === 0,
+    payload: issues.length === 0
+      ? {
+          ...parsed,
+          performance,
+          memoryUsage: normalizedMemoryUsage,
+        } as unknown as AlicizationProviderResponsePayload
+      : null,
+    issues,
+    memoryUsage: normalizedMemoryUsage,
   }
 }
 
@@ -630,6 +827,7 @@ function applyOpeningEmbodimentCarryToFullText(input: {
 export async function settleAlicizationVisibleReply(input: {
   draft: AlicizationVisibleReplySettlementDraft
   prepared: AlicizationPreparedMainChatExecutionResult
+  requireProviderMemoryUsage?: boolean
   forceRewrite?: boolean
   forceReasonCodes?: string[]
   forceMustPreserve?: string[]
@@ -642,6 +840,39 @@ export async function settleAlicizationVisibleReply(input: {
     mustPreserve: string[]
   }) => Promise<AlicizationSecondPassRewriteResult | null>
 }): Promise<AlicizationVisibleReplySettlementResult> {
+  let settlementDraft = input.draft
+  if (input.requireProviderMemoryUsage) {
+    const initialValidation = validateAlicizationProviderSettlementPayload({
+      fullText: settlementDraft.fullText,
+      prepared: input.prepared,
+    })
+    if (!initialValidation.valid) {
+      const rewritten = await input.rewriteSecondPass({
+        fullText: settlementDraft.fullText,
+        visibleReplyExecution: settlementDraft.visibleReplyExecution,
+        forceRewrite: true,
+        forceReasonCodes: initialValidation.issues,
+        mustPreserve: [],
+      })
+      const rewrittenValidation = rewritten
+        ? validateAlicizationProviderSettlementPayload({
+            fullText: rewritten.fullText,
+            prepared: input.prepared,
+          })
+        : null
+      if (!rewritten || !rewrittenValidation?.valid) {
+        throw new AlicizationVisibleReplySettlementBlockedError(
+          `provider-settlement-invalid:${rewrittenValidation?.issues.join(',') || initialValidation.issues.join(',')}`,
+          null,
+        )
+      }
+      settlementDraft = {
+        fullText: rewritten.fullText,
+        visibleReplyExecution: rewritten.visibleReplyExecution,
+      }
+    }
+  }
+
   const currentConsciousFrame = input.prepared.runtimeSurface?.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame ?? null
   const currentConsciousProjectState = currentConsciousFrame?.projectState ?? null
   const projectStateAnswerStancePreserve = looksLikeProjectStateAnswerStancePreserveText(currentConsciousFrame?.speakingIntention)
@@ -655,7 +886,7 @@ export async function settleAlicizationVisibleReply(input: {
     : input.forceMustPreserve
 
   const closed = await closeAlicizationVisibleReply({
-    draft: input.draft,
+    draft: settlementDraft,
     prepared: input.prepared,
     forceRewrite: input.forceRewrite,
     forceReasonCodes: input.forceReasonCodes,
