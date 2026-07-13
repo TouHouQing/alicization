@@ -1,3 +1,5 @@
+import type { formatAlicizationProjectStateAwarenessFields } from '@proj-alicization/stage-shared'
+
 import type {
   AlicizationVisibleReplyExecution,
   AlicizationVisibleReplyExecutionMode,
@@ -10,7 +12,6 @@ import {
   buildAlicizationEmbodimentLoopSummary,
   containsAlicizationFixedTemplateResidue,
   describeAlicizationEmbodimentClosureReminder,
-  formatAlicizationProjectStateAwarenessFields,
   isAlicizationNormalVisibleReplyAuthority,
   looksLikeAlicizationStructuredPayloadText,
   normalizeAlicizationNormalVisibleReplyAuthority,
@@ -42,12 +43,16 @@ import { buildPrioritizedProjectStateRewritePreserveLines } from '../runtime-gov
 import { parseJsonObjectFromText } from '../runtime-transport-content'
 
 const sameHerProjectFollowThroughPreserveLine
-  = 'project_follow_through=preserve; landed_progress=continue; open_closure=continue; fresh_project_report=blocked; generic_companionship_shell=blocked'
+  = 'Preserve project follow-through, continue landed progress and open closure, and do not use a fresh project report or generic companionship shell.'
 
 function containsVisibleReplyStructuredTemplateResidue(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   return Boolean(normalized)
-    && /\bruntime_personhood\b|phase1_local_digital_life|project_phase=life_core|continuity_identity|continuity_line|content_withheld|visibility=internal[-_]structured/u.test(normalized)
+    && (
+      /\bruntime_personhood\b|phase1_local_digital_life|project_phase=life_core|continuity_identity|continuity_line|content_withheld|visibility=internal[-_]structured/u.test(normalized)
+      || /\b[a-z][\w-]{2,}\s*=/iu.test(normalized)
+      || /\b(?:local_desktop_life_loop|life_core)\b/iu.test(normalized)
+    )
 }
 
 function canUseVisibleReplyDecisionText(value: string | null | undefined) {
@@ -55,6 +60,22 @@ function canUseVisibleReplyDecisionText(value: string | null | undefined) {
   return Boolean(normalized)
     && !containsAlicizationFixedTemplateResidue(normalized)
     && !containsVisibleReplyStructuredTemplateResidue(normalized)
+}
+
+function containsUnsafeParsedProjectStateAudit(
+  value: Record<string, unknown> | null,
+) {
+  if (!value)
+    return false
+
+  return Object.values(value).some((field) => {
+    if (typeof field !== 'string')
+      return false
+    const normalized = field.trim()
+    return Boolean(normalized)
+      && containsAlicizationFixedTemplateResidue(normalized)
+      && !containsVisibleReplyStructuredTemplateResidue(normalized)
+  })
 }
 
 function providerSafeOrStructuredProjectAwareness(raw: unknown, maxChars = 1600) {
@@ -67,23 +88,9 @@ function providerSafeOrStructuredProjectAwareness(raw: unknown, maxChars = 1600)
     return ''
 
   const sanitized = sanitizeAlicizationProviderFacingText(rawText, maxChars, '')
-  if (sanitized)
+  if (sanitized && !containsVisibleReplyStructuredTemplateResidue(sanitized) && !containsAlicizationFixedTemplateResidue(sanitized))
     return sanitized
-
-  const structured = formatAlicizationProjectStateAwarenessFields({
-    summary: rawText,
-    continuityAnchor: rawText,
-    sameHerHoldDetail: rawText,
-    emotionalClosureCue: rawText,
-    maxChars,
-  })
-
-  return structured
-    && structured !== alicizationFixedTemplateReplacement
-    && !containsVisibleReplyStructuredTemplateResidue(structured)
-    && !containsAlicizationFixedTemplateResidue(structured)
-    ? structured
-    : ''
+  return ''
 }
 
 function visibleReplyProjectAwarenessOutput(raw: unknown) {
@@ -141,7 +148,7 @@ function preferStructuredProjectAwareness(...values: Array<string | null | undef
 }
 
 function providerSafeOrStructuredProjectAuditField(
-  key: keyof Parameters<typeof formatAlicizationProjectStateAwarenessFields>[0],
+  _key: keyof Parameters<typeof formatAlicizationProjectStateAwarenessFields>[0],
   raw: unknown,
   maxChars = 1600,
 ) {
@@ -154,19 +161,9 @@ function providerSafeOrStructuredProjectAuditField(
     return null
 
   const safe = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
-  if (safe)
+  if (safe && !containsVisibleReplyStructuredTemplateResidue(safe) && !containsAlicizationFixedTemplateResidue(safe))
     return safe
-
-  const structured = formatAlicizationProjectStateAwarenessFields({
-    [key]: normalized,
-    maxChars,
-  })
-  return structured
-    && structured !== alicizationFixedTemplateReplacement
-    && !containsVisibleReplyStructuredTemplateResidue(structured)
-    && !containsAlicizationFixedTemplateResidue(structured)
-    ? structured
-    : null
+  return null
 }
 
 function projectAuditField(raw: unknown, key: keyof Parameters<typeof formatAlicizationProjectStateAwarenessFields>[0]) {
@@ -262,7 +259,7 @@ function projectAuditSegmentValue(raw: string | null | undefined, preferredKeys:
 
 function projectContinuityAnchorLine(raw: string | null | undefined) {
   const value = projectAuditSegmentValue(raw, ['continuity_anchor', 'sameHerSelfLine'])
-  return value ? `project_anchor=${value}` : ''
+  return value
 }
 
 function projectContinuityCarryLine(
@@ -271,7 +268,7 @@ function projectContinuityCarryLine(
   preferredKeys: string[] = [label],
 ) {
   const value = projectAuditSegmentValue(raw, preferredKeys)
-  return value ? `${label}=${value}` : ''
+  return value
 }
 
 function looksLikeRicherProjectClosureCarry(value: string | null | undefined) {
@@ -581,7 +578,7 @@ function looksLikeCadenceAwareSameHerHoldDetail(value: string | null | undefined
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred'
+  return null
 }
 
 function resolvePreferredSameHerHoldDetail(input: {
@@ -1681,7 +1678,11 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
     && typeof parsedVisibleReplyRealization.projectStateAudit === 'object'
     ? parsedVisibleReplyRealization.projectStateAudit as Record<string, unknown>
     : null
-  const parsedProjectStateAudit = parsedVisibleReplyProjectStateAudit ?? parsedTopLevelProjectStateAudit
+  const parsedProjectStateAuditCandidate
+    = parsedVisibleReplyProjectStateAudit ?? parsedTopLevelProjectStateAudit
+  const parsedProjectStateAudit = containsUnsafeParsedProjectStateAudit(parsedProjectStateAuditCandidate)
+    ? null
+    : parsedProjectStateAuditCandidate
   const parsedProjectState = parsedFullText?.projectState
     && typeof parsedFullText.projectState === 'object'
     ? parsedFullText.projectState as Record<string, unknown>

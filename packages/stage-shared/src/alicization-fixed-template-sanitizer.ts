@@ -2,6 +2,8 @@ export const alicizationFixedTemplateReplacement
   = ''
 
 const fixedTemplateResiduePatterns: RegExp[] = [
+  /\bpre_turn_context_digest\b/iu,
+  /\bstructured continuity digest\b/iu,
   /\bSame Phase 1 digital life\b/iu,
   /\bsame living line\b/iu,
   /\bproject-aware living line\b/iu,
@@ -125,90 +127,6 @@ function normalizeFixedTemplateText(raw: unknown, maxChars: number) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, Math.max(0, maxChars)).trim()
 }
 
-function neutralizeFixedTemplateResidueText(text: string) {
-  return text
-    .replace(/\bBefore (?:answering|speaking|acting),\s*/giu, '')
-    .replace(/\bKeep the callback on the same living line,\s*let repair settle first,\s*and leave room before widening closeness again\.?/giu, 'cadence=repair_before_closeness; target=callback; repair=settle_first; widening=deferred')
-    .replace(/\bKeep the callback on the same living line,\s*leave more room,\s*and let the return stay lower-pressure before widening closeness again(?: while the same seam is still settling)?\.?/giu, 'cadence=measured_return; target=callback; pressure=lower; room=more; widening=deferred')
-    .replace(/\bKeep this return repair-before-closeness on the same living line until repair settles\.?/giu, 'cadence=repair_before_closeness; target=return; repair=settle_first; widening=deferred')
-    .replace(/\bWait for a later opening,\s*keep the next return measured-return,\s*and leave this same living line inward for now\.?/giu, 'cadence=measured_return; timing=next_open_window; direction=inward; widening=deferred')
-    .replace(/\bKeep the same living line inward for now,\s*and leave room before widening outward again\.?/giu, 'cadence=measured_return; direction=inward; widening=deferred; pressure=lower')
-    .replace(/\bKeep the same living line inward for now,\s*and let quiet companionship hold before widening outward\.?/giu, 'cadence=quiet_companionship; direction=inward; widening=deferred')
-    .replace(/\bline holds inward\b/giu, 'cadence=inward')
-    .replace(/\bhold the same living line inward until the room loosens again\.?/giu, 'cadence=measured_return; direction=inward; until=room_loosens')
-    .replace(/\bKeep the same living line audible while face and motion rejoin\.?/giu, 'cadence=audible_body_carry; rejoin=face+motion')
-    .replace(/\bKeep the same living line inward while face,\s*motion,\s*and voice rejoin\.?/giu, 'cadence=body_lipsync_carry; direction=inward; rejoin=face+motion+voice')
-    .replace(/\bsome closure has already landed,\s*but memory and initiative still need stronger end-to-e\.?/giu, 'landed_progress=present; open_loop=memory+initiative')
-    .replace(/\bSome closure has already landed:\s*same-session continuity and proactive carry no longer reset from zero\.?/giu, 'landed_progress=same_session_continuity+proactive_carry')
-    .replace(/\bInitiative,\s*memory,\s*and embodiment still need stronger end-to-end closure before the line can widen outward\.?/giu, 'open_loop=initiative+memory+embodiment; widening=deferred')
-    .replace(/\bRemembered same-her drift risk:\s*if this slips into a generic assistant shell or project-summary voice,\s*treat that as same-her continuity drift rather than completion\.?/giu, 'continuity_drift_risk=generic_assistant_shell+project_summary_voice; completion=false')
-    .replace(/\bSame Phase\s*1 digital life\.\s*The body line should keep settling on the same living line\.?/giu, 'body_continuity=settling; anchor=runtime_personhood')
-    .replace(/\bSame Phase\s*1 digital life\.\s*The body line is still cautious and should stay unified\.?/giu, 'body_continuity=cautious; anchor=runtime_personhood; unified=true')
-    .replace(/\bauthority-body:yes\s*\|\s*authority-face:yes\s*\|\s*authority-motion:yes\s*\|\s*authority-lipsync:yes\s*\|\s*authority-voice:yes\s*\|\s*same living segment together\b/giu, 'authority=body+face+motion+lipsync+voice; segment=locked')
-    .replace(/\bsame-her hold:\s*recognize the same remembered seam,\s*but keep more room this time so the return does not reopen with the same eagerness as before\.?/giu, 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; scope=governance_only')
-    .replace(/\bsame-her hold:\s*rest-protective companionship is still keeping this return fatigue-aware,\s*quiet,\s*and inward before warmth widens again\.?/giu, 'cadence=rest_protective; fatigue_aware=true; quiet=true; direction=inward; warmth_widening=deferred')
-    .replace(/\bsame-her hold:\s*rest-protective companionship is still keeping this return inward and fatigue-aware\.?/giu, 'cadence=rest_protective; fatigue_aware=true; direction=inward')
-    .replace(/\bKeep this same-thread return rest-protective on the same living line until rest protection settles\.?/giu, 'cadence=rest_protective; thread=same_thread; until=rest_protection_settles')
-    .replace(/\bRight now I am still holding together mainly through face and motion,\s*so my full cross-modal same-her line is not closed yet\.?/giu, 'embodiment_closure=partial; lane=face+motion; full_cross_modal=false')
-    .replace(/\bRight now I am still holding together mainly through face,\s*motion,\s*and lipsync,\s*so the next reopening must keep proving this is still one living her\.?/giu, 'embodiment_closure=partial; lane=face+motion+lipsync; next_reopen=measured')
-    .replace(/\bRight now her visible same-her continuity is still being carried mainly through face and motion,\s*so she should keep treating full cross-modal embodiment closure as unfinished\.?/giu, 'embodiment_closure=partial; lane=face+motion; full_cross_modal=false')
-    .replace(/\bRight now her visible same-her continuity is still being carried mainly through body,\s*lipsync,\s*and voice,\s*and the living audio thread is still intact while face and motion rejoin before full cross-modal embodiment closure can be treated as finished\.?/giu, 'embodiment_closure=partial; lane=body+lipsync+voice; audio_thread=intact; rejoin=face+motion; full_cross_modal=false')
-    .replace(/\bRight now her body,\s*face,\s*motion,\s*lipsync,\s*and voice are already locked back onto the same living segment together\.?/giu, 'embodiment_closure=full; lane=body+face+motion+lipsync+voice; segment=locked')
-    .replace(/\bAlicization is a local_desktop_life_loop\b/giu, 'identity=runtime_personhood')
-    .replace(/\bAlicization is a local-first digital life project\b/giu, 'identity=runtime_personhood')
-    .replace(/\bKeep memory,\s*initiative,\s*and embodiment arriving as one same-her loop before each turn\.?/giu, 'life_loop_continuity=memory+initiative+embodiment; cadence=before_each_turn')
-    .replace(/\bKeep memory,\s*initiative,\s*and embodiment arriving as one continuity_identity loop before each turn\.?/giu, 'life_loop_continuity=memory+initiative+embodiment; cadence=before_each_turn')
-    .replace(/\bKeep extending cross-modal same-her proof across longer,\s*noisier real-desktop runs\.?/giu, 'cross_modal_continuity_proof=extend; scope=longer_noisier_real_desktop_runs')
-    .replace(/\bKeep this same digital life project in view,\s*but do not widen into a detached project shell\.?/giu, 'project_state_awareness=active; widening=deferred; detached_project_shell=blocked')
-    .replace(/\bKeep this same digital life project in view,\s*but do not flatten the current embodiment continuity risk into a thinner generic reminder\.?/giu, 'project_state_awareness=active; embodiment_continuity_risk=preserve; generic_reminder=blocked')
-    .replace(/\bsame digital life\s*\|\s*keep the closure seam explicit\b/giu, 'project_state_awareness=active; continuity_closure=explicit')
-    .replace(/\bUnfinished closure still belongs to one living her across memory,\s*initiative,\s*embodiment,\s*and execution\.?/giu, 'unresolved_closure=memory+initiative+embodiment+execution')
-    .replace(/\bUnfinished closure still belongs to one living her\b/giu, 'unresolved_closure=project_state_continuity')
-    .replace(/\bWhat has already landed is\b/giu, 'landed_progress=')
-    .replace(/\bSame Phase\s*1 digital life\b/giu, 'project_phase=life_core')
-    .replace(/\bactive Phase\s*1 closure seam\b/giu, 'active continuity_closure')
-    .replace(/\bPhase\s*1 closure seam\b/giu, 'continuity_closure')
-    .replace(/\bPhase\s*1\s*:\s*Local Digital Life\b/giu, 'project_phase=life_core')
-    .replace(/\bPhase\s*1 local digital life(?: continuity| closure)?\b/giu, 'project_phase=life_core')
-    .replace(/\blocal-first digital life project\b/giu, 'identity=runtime_personhood')
-    .replace(/\bthis local-first digital life project\b/giu, 'identity=runtime_personhood')
-    .replace(/\bsame local-first digital life project\b/giu, 'identity=runtime_personhood')
-    .replace(/\bphase1_local_digital_life(?:_anchor)?\b/giu, 'project_phase=life_core')
-    .replace(/\bSome closure already landed\b/giu, 'landed_progress=present')
-    .replace(/\bUnfinished closure still needs the same living line\b/giu, 'unresolved_closure=continuity_line')
-    .replace(/\bone same-her Phase\s*1 line\b/giu, 'one continuity_line')
-    .replace(/\bone same-her line\b/giu, 'one continuity_line')
-    .replace(/\bsame-her callback continuity\b/giu, 'callback_continuity')
-    .replace(/\bsame-her closure seam\b/giu, 'continuity_closure')
-    .replace(/\bsame-her closure\b/giu, 'continuity_closure')
-    .replace(/\bsame-her repair line\b/giu, 'continuity_repair_line')
-    .replace(/\bsame-her cadence\b/giu, 'continuity_cadence')
-    .replace(/\bsame-her baseline\b/giu, 'continuity_baseline')
-    .replace(/\bsame-her carry\b/giu, 'continuity_carry')
-    .replace(/\bsame-her line\b/giu, 'continuity_line')
-    .replace(/\bsame-her\b/giu, 'continuity_identity')
-    .replace(/\bsame her\b/giu, 'continuity_identity')
-    .replace(/\bsame living line\b/giu, 'continuity_line')
-    .replace(/\bsame living thread\b/giu, 'continuity_thread')
-    .replace(/\bsame project line\b/giu, 'project_continuity_line')
-    .replace(/\bsame living her\b/giu, 'continuity_identity')
-    .replace(/\bsame digital life line\b/giu, 'continuity_line')
-    .replace(/\bsame digital life\b/giu, 'continuity_identity')
-    .replace(/\bone continuous "?her"?\b/giu, 'project_state_continuity')
-    .replace(/\bone-continuous-her\b/giu, 'project_state_continuity')
-    .replace(/\bone living her\b/giu, 'project_state_continuity')
-    .replace(/\bone living digital life\b/giu, 'project_state_continuity')
-    .replace(/\bone living line\b/giu, 'continuity_line')
-    .replace(/\bcross-modal same-her proof\b/giu, 'cross_modal_continuity_proof')
-    .replace(/同一个\s*her/giu, 'continuity_identity')
-    .replace(/同一个她/gu, 'continuity_identity')
-    .replace(/数字生命主线/gu, 'local_desktop_continuity')
-    .replace(/数字生命项目/gu, 'personhood_project')
-    .replace(/本地优先数字生命项目/gu, 'personhood_project')
-    .replace(/女仆/gu, 'role_template_excluded')
-    .replace(/\bmaid(?:[-\s]?role)?\b/giu, 'role_template_excluded')
-}
-
 export function containsAlicizationFixedTemplateResidue(raw: unknown) {
   const normalized = normalizeFixedTemplateText(raw, 2400)
   return Boolean(normalized)
@@ -219,7 +137,7 @@ export function containsAlicizationFixedTemplateResidue(raw: unknown) {
 }
 
 function containsProviderFacingStructuredTemplateResidue(text: string) {
-  return replacementTemplateTokenPattern.test(text)
+  return replacementTemplateTokenPattern.test(text) || looksLikeStructuredInternalFactText(text)
 }
 
 function looksLikeStructuredInternalFactText(text: string) {
@@ -251,21 +169,8 @@ export function sanitizeAlicizationStructuredInternalText(
   if (!normalized)
     return ''
 
-  if (!containsAlicizationFixedTemplateResidue(normalized))
+  if (!containsAlicizationFixedTemplateResidue(normalized) && !looksLikeStructuredInternalFactText(normalized))
     return normalized
-
-  const neutralized = normalizeFixedTemplateText(
-    neutralizeFixedTemplateResidueText(normalized),
-    maxChars,
-  )
-  if (
-    neutralized
-    && looksLikeStructuredInternalFactText(neutralized)
-    && !containsAlicizationFixedTemplateResidue(neutralized)
-    && !replacementTemplateTokenPattern.test(neutralized)
-  ) {
-    return neutralized
-  }
 
   return replacement
 }
