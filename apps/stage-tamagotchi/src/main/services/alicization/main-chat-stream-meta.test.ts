@@ -571,6 +571,103 @@ describe('main chat stream meta', () => {
     expect(pressuredSignature.lastSegmentRendererReasonTags).toEqual(baselineSignature.lastSegmentRendererReasonTags)
   })
 
+  it('redacts internal replay governance from emitted runtime digest', () => {
+    const collectKeys = (value: unknown, keys: string[] = []) => {
+      if (!value || typeof value !== 'object')
+        return keys
+      if (Array.isArray(value)) {
+        for (const item of value)
+          collectKeys(item, keys)
+        return keys
+      }
+      for (const [key, nested] of Object.entries(value)) {
+        keys.push(key)
+        collectKeys(nested, keys)
+      }
+      return keys
+    }
+    const emit = vi.fn()
+    const emitter = createAlicizationChatStreamMetaEmitter({
+      cardId: 'card-stream-meta-governance-redaction',
+      turnId: 'turn-stream-meta-governance-redaction',
+      getGovernance: () => ({
+        decisionTraceId: 'trace-stream-meta-governance-redaction',
+        turnMode: 'answer',
+        truthState: 'grounded',
+        answerAct: 'answer',
+        answerEvidenceMode: 'observed',
+        personaKernelMode: 'full',
+      } as any),
+      getRuntimeDigest: () => ({
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'dialogue',
+        continuityPressure: 0.42,
+        companionshipPressure: 0.58,
+        shouldProactivelySpeak: false,
+        shouldProactivelyAct: false,
+        channels: [],
+        summary: 'SAFE_RUNTIME_SUMMARY',
+        emotionalKernel: {
+          version: 'emotional-kernel-v1',
+          dominantEmotion: 'measured-companionship',
+          why: 'SAFE_EMOTION_REASON',
+          source: 'source=memory-tuning-advice-user-quote',
+        },
+        derivedMindStateBundle: {
+          version: 'alicization-derived-mind-state-bundle-v1',
+          sameHerCausalityRepairPressure: {
+            version: 'same-her-causality-repair-pressure-v1',
+            source: 'memory-tuning-advice',
+            status: 'pending-runtime-evidence',
+            focusDimensions: ['SENTINEL_PRESSURE_FOCUS'],
+            lanes: [{
+              lane: 'embodiment',
+              reasonTags: ['SENTINEL_PRESSURE_REASON'],
+              summary: 'SENTINEL_PRESSURE_LANE',
+            }],
+            notes: ['SENTINEL_PRESSURE_NOTE'],
+            summary: 'SENTINEL_PRESSURE_SUMMARY',
+          },
+          memoryTuningAdvice: {
+            source: 'memory-tuning-advice',
+            focusDimensions: ['SENTINEL_TUNING_FOCUS'],
+            notes: ['SENTINEL_TUNING_NOTE'],
+          },
+          affectiveResidue: {
+            summary: 'SAFE_MEMORY_SUMMARY',
+          },
+          summary: 'source=main-runtime | continuity_causality_repair=SENTINEL_REPAIR_LANE | memory-tuning-advice=SENTINEL_TUNING_SUMMARY | keep=SAFE_DERIVED_SUMMARY',
+        },
+      } as any),
+      emit,
+    })
+
+    const visibleReply = 'source=memory-tuning-advice-user-quote|仍然是普通文本'
+    emitter.emit(visibleReply)
+
+    const runtimeDigest = emit.mock.calls[0]?.[0]?.runtimeDigest
+    const keys = collectKeys(runtimeDigest)
+    const serialized = JSON.stringify(runtimeDigest)
+    expect(keys).not.toContain('sameHerCausalityRepairPressure')
+    expect(keys).not.toContain('memoryTuningAdvice')
+    expect(keys).not.toContain('focusDimensions')
+    expect(serialized).not.toContain('SENTINEL_PRESSURE')
+    expect(serialized).not.toContain('SENTINEL_TUNING')
+    expect(serialized).not.toContain('SENTINEL_REPAIR_LANE')
+    expect(serialized).not.toContain('continuity_causality_repair')
+    expect(runtimeDigest?.summary).toContain('SAFE_RUNTIME_SUMMARY')
+    expect(runtimeDigest?.emotionalKernel?.why).toContain('SAFE_EMOTION_REASON')
+    expect((runtimeDigest?.emotionalKernel as any)?.source).toBe('source=memory-tuning-advice-user-quote')
+    expect(runtimeDigest?.derivedMindStateBundle?.summary).toBe('source=main-runtime | keep=SAFE_DERIVED_SUMMARY')
+    expect(runtimeDigest?.derivedMindStateBundle?.affectiveResidue?.summary).toContain('SAFE_MEMORY_SUMMARY')
+    const emitted = emit.mock.calls[0]?.[0]
+    expect(emitted?.speechTimeline?.reply).toBe(visibleReply)
+    expect(emitted?.speechTimeline?.segments[0]?.text).toBe(visibleReply)
+    expect(emitted?.embodimentScript?.replyText).toBe(visibleReply)
+    expect(emitted?.embodimentScript?.speechPlan.segments[0]?.text).toBe(visibleReply)
+    expect(emitted?.digitalLife?.frames[0]?.text).toBe(visibleReply)
+  })
+
   it('dedupes unchanged embodiment meta signatures and tracks the last emitted reply', () => {
     const emit = vi.fn()
     const emitter = createAlicizationChatStreamMetaEmitter({

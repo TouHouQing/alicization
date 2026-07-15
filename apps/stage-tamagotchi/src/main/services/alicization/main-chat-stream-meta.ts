@@ -16,6 +16,7 @@ import {
   buildAlicizationLipsyncSummary,
   buildAlicizationMotionSummary,
   buildAlicizationVoiceSummary,
+  containsAlicizationFixedTemplateResidue,
   describeAlicizationEmbodimentClosureReminder,
   detectRememberedSeamCompanionshipReopen,
   normalizeAlicizationDialogueEmbodimentEnvelope,
@@ -78,9 +79,53 @@ const streamMetaStructuralTokenKeys = new Set([
   'reasonTags',
   'sourceTag',
   'sourceTags',
+])
+
+const streamMetaInternalGovernanceKeys = new Set([
+  'sameHerCausalityRepairPressure',
+  'memoryTuningAdvice',
   'focusDimension',
   'focusDimensions',
 ])
+
+const streamMetaInternalGovernanceSummaryPrefixes = [
+  'continuity_causality_repair=',
+  'same_her_causality_repair=',
+  'memory-tuning-advice=',
+  'memory_tuning_advice=',
+] as const
+
+const streamMetaVisibleTextKeys = new Set([
+  'reply',
+  'replyText',
+  'text',
+])
+
+function isStreamMetaInternalGovernanceSegment(raw: string) {
+  const normalized = raw.trim().toLowerCase()
+  return normalized === 'memory-tuning-advice'
+    || normalized === 'source=memory-tuning-advice'
+    || streamMetaInternalGovernanceSummaryPrefixes.some(prefix => normalized.startsWith(prefix))
+}
+
+function hasStreamMetaInternalGovernanceSegment(raw: string) {
+  return raw.split(/\s*\|\s*/u).some(isStreamMetaInternalGovernanceSegment)
+}
+
+function stripStreamMetaInternalGovernanceSummary(raw: string) {
+  const segments = raw.split(/\s*\|\s*/u)
+  const filtered = segments.filter(segment => !isStreamMetaInternalGovernanceSegment(segment))
+  return filtered.length === segments.length
+    ? raw
+    : filtered.join(' | ')
+}
+
+function sanitizeStreamMetaSummary(raw: string, maxChars: number) {
+  const governanceRedacted = stripStreamMetaInternalGovernanceSummary(raw).trim()
+  if (!governanceRedacted || containsAlicizationFixedTemplateResidue(governanceRedacted))
+    return ''
+  return governanceRedacted.slice(0, Math.max(0, maxChars))
+}
 
 function isStreamMetaStructuralToken(key: string | undefined, raw: string) {
   const normalized = raw.trim()
@@ -93,7 +138,15 @@ function isStreamMetaStructuralToken(key: string | undefined, raw: string) {
 
 function sanitizeStreamMetaObject<T>(raw: T, maxChars = 520, key?: string): T {
   if (typeof raw === 'string') {
+    if (key === 'summary')
+      return sanitizeStreamMetaSummary(raw, maxChars) as T
+
+    const preserveBoundaryText = key === 'source' || (key !== undefined && streamMetaVisibleTextKeys.has(key))
+    if (preserveBoundaryText && hasStreamMetaInternalGovernanceSegment(raw))
+      return '' as T
+
     return (isStreamMetaStructuralToken(key, raw)
+      || (preserveBoundaryText && !containsAlicizationFixedTemplateResidue(raw))
       ? raw.trim().slice(0, Math.max(0, maxChars))
       : sanitizeAlicizationStructuredInternalText(raw, maxChars)) as T
   }
@@ -103,8 +156,11 @@ function sanitizeStreamMetaObject<T>(raw: T, maxChars = 520, key?: string): T {
     return raw.map(item => sanitizeStreamMetaObject(item, maxChars, key)) as T
 
   const sanitized: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>))
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (streamMetaInternalGovernanceKeys.has(key))
+      continue
     sanitized[key] = sanitizeStreamMetaObject(value, maxChars, key)
+  }
   return sanitized as T
 }
 
