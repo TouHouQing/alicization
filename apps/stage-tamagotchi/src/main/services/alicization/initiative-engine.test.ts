@@ -8514,7 +8514,7 @@ describe('buildInitiativeSnapshot', () => {
     expect(initiative.why).toMatch(/tool shell|modality|careful-repair|worried-continuity/i)
   })
 
-  it('treats pending same-her initiative execution repair pressure as single-thread hover instead of claiming proactive closure', () => {
+  it('keeps initiative invariant when only replay causality pressure changes', () => {
     const context = {
       localTime: { hour: 15, minute: 30, isLateNight: false },
       system: {
@@ -8561,7 +8561,7 @@ describe('buildInitiativeSnapshot', () => {
       workingMemoryEpisodes: [],
     })
 
-    const initiative = buildInitiativeSnapshot({
+    const input = {
       context,
       watchMode: 'symbiotic-vision',
       worldModel,
@@ -8621,6 +8621,11 @@ describe('buildInitiativeSnapshot', () => {
         }],
         updatedAt: 26_000,
       } as any,
+    } as any
+
+    const baseline = buildInitiativeSnapshot(input)
+    const pressured = buildInitiativeSnapshot({
+      ...input,
       sameHerCausalityRepairPressure: {
         version: 'same-her-causality-repair-pressure-v1',
         source: 'memory-tuning-advice',
@@ -8636,13 +8641,8 @@ describe('buildInitiativeSnapshot', () => {
         notes: ['pending runtime evidence only'],
         summary: 'Pending same-her initiative/execution causality repair.',
       },
-    } as any)
+    })
 
-    expect(initiative.selectedAction).toBe('hover')
-    expect(initiative.shouldSpeak).toBe(false)
-    expect(initiative.preferredStyle).toBe('silent-observe')
-    expect(initiative.continuityRestraint).toBe('single-thread')
-    expect(initiative.why).toMatch(/pending same-her initiative\/execution repair|memory and execution callback|runtime evidence/i)
-    expect(initiative.why).not.toMatch(/closure credited|causedByMemoryClosure|memory-closure-trace/i)
+    expect(pressured).toEqual(baseline)
   })
 })

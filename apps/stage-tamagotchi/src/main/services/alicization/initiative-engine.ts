@@ -947,33 +947,6 @@ function deriveLongHorizonInitiativeBias(longHorizonMemory?: AlicizationLongHori
   }
 }
 
-function deriveSameHerCausalityRepairPressureInitiativeBias(
-  repairPressure?: AlicizationSameHerCausalityRepairPressureSnapshot | null,
-) {
-  const initiativeExecutionLane = repairPressure?.status === 'pending-runtime-evidence'
-    ? repairPressure.lanes.find(lane => lane.lane === 'initiative-execution') ?? null
-    : null
-  if (!initiativeExecutionLane) {
-    return {
-      preferLowerPressure: false,
-      forceSilentObserve: false,
-      continuityRestraint: null as AlicizationInitiativeSnapshot['continuityRestraint'],
-      explanation: '',
-    }
-  }
-
-  const laneSummary = sanitizeText(initiativeExecutionLane.summary, 180)
-  return {
-    preferLowerPressure: true,
-    forceSilentObserve: true,
-    continuityRestraint: 'single-thread' as const,
-    explanation: sanitizeText(
-      `pending continuity initiative/execution repair: memory and execution callback need runtime evidence before proactive closure. ${laneSummary}`,
-      260,
-    ),
-  }
-}
-
 function deriveProjectStateInitiativeBias(input?: {
   preflightSummary?: string | null
   identity?: string | null
@@ -1255,7 +1228,6 @@ function resolveContinuityRestraint(input: {
   emotionalKernelBias: ReturnType<typeof deriveEmotionalKernelInitiativeBias>
   recollectionIntentBias: ReturnType<typeof deriveRecollectionIntentInitiativeBias>
   longHorizonBias: ReturnType<typeof deriveLongHorizonInitiativeBias>
-  sameHerCausalityRepairPressureBias: ReturnType<typeof deriveSameHerCausalityRepairPressureInitiativeBias>
   selfEvolutionBias: ReturnType<typeof deriveSelfEvolutionInitiativeBias>
   sameHerContinuityBias: boolean
   activeContinuityGovernanceBias: ReturnType<typeof deriveActiveContinuityGovernanceInitiativeBias>
@@ -1300,10 +1272,6 @@ function resolveContinuityRestraint(input: {
     return input.emotionalTensionBias.continuityRestraint
   }
 
-  if (input.sameHerCausalityRepairPressureBias.continuityRestraint) {
-    return input.sameHerCausalityRepairPressureBias.continuityRestraint
-  }
-
   if (input.emotionalKernelBias.continuityRestraint) {
     return input.emotionalKernelBias.continuityRestraint
   }
@@ -1326,7 +1294,6 @@ function resolveContinuityRestraint(input: {
     || input.emotionalKernelBias.preferLowerPressure
     || input.recollectionIntentBias.preferLowerPressure
     || input.longHorizonBias.preferLowerPressure
-    || input.sameHerCausalityRepairPressureBias.preferLowerPressure
     || input.selfEvolutionBias.preferLowerPressure
     || input.sameHerContinuityBias
     || input.activeContinuityGovernanceBias.preferLowerPressure
@@ -1646,7 +1613,6 @@ export function buildInitiativeSnapshot(input: {
   const emotionalKernelBias = deriveEmotionalKernelInitiativeBias(input.emotionalKernel ?? null)
   const recollectionIntentBias = deriveRecollectionIntentInitiativeBias(input.recollectionIntent ?? null)
   const longHorizonBias = deriveLongHorizonInitiativeBias(input.longHorizonMemory ?? null)
-  const sameHerCausalityRepairPressureBias = deriveSameHerCausalityRepairPressureInitiativeBias(input.sameHerCausalityRepairPressure ?? null)
   const selfEvolutionBias = deriveSelfEvolutionInitiativeBias(input.selfEvolution ?? null)
   const baselineMode = `${'same'}-her-baseline`
   const sameHerContinuityBias = input.activeContinuityGovernance?.mode === baselineMode
@@ -1662,7 +1628,6 @@ export function buildInitiativeSnapshot(input: {
     emotionalKernelBias,
     recollectionIntentBias,
     longHorizonBias,
-    sameHerCausalityRepairPressureBias,
     selfEvolutionBias,
     sameHerContinuityBias,
     activeContinuityGovernanceBias,
@@ -1906,13 +1871,6 @@ export function buildInitiativeSnapshot(input: {
           ? 'whisper'
           : 'recheck'
         : input.worldModel.epistemicState.certainty === 'grounded' ? 'hover' : 'recheck'
-  }
-  if (
-    sameHerCausalityRepairPressureBias.preferLowerPressure
-    && (selectedAction === 'speak' || selectedAction === 'whisper' || selectedAction === 'warn')
-    && concern?.kind !== 'care-body'
-  ) {
-    selectedAction = 'hover'
   }
   if (
     emotionalTensionBias.preferLowerPressure
@@ -2404,7 +2362,6 @@ export function buildInitiativeSnapshot(input: {
     || uncertaintyRepairHoldRequiresSilentObserve
     || (recollectionIntentBias.forceSilentObserve && nonCareConcern)
     || (longHorizonBias.forceSilentObserve && nonCareConcern)
-    || (sameHerCausalityRepairPressureBias.forceSilentObserve && nonCareConcern)
     || (emotionalTensionBias.forceSilentObserve && nonCareConcern)
     || (personStateBias.preferLowerPressure && nonCareConcern)
   const finalPreferredStyle: AlicizationProactiveStyle = forcedSilentObserve
@@ -2463,34 +2420,20 @@ export function buildInitiativeSnapshot(input: {
       maxChars: 320,
     }) || baseFinalWhy
     : baseFinalWhy
-  const sameHerCausalityRepairPressureCarryForWhy = sameHerCausalityRepairPressureBias.explanation
-    && !longHorizonAnchoredWhy.toLowerCase().includes(sameHerCausalityRepairPressureBias.explanation.toLowerCase())
-    ? sameHerCausalityRepairPressureBias.explanation
-    : ''
-  const sameHerCausalityRepairPressureAnchoredWhy = sameHerCausalityRepairPressureCarryForWhy
-    ? joinConciseSentencesPrioritized({
-      priorityParts: [
-        sameHerCausalityRepairPressureCarryForWhy,
-        longHorizonAnchoredWhy,
-      ],
-      optionalParts: [],
-      maxChars: 320,
-    }) || longHorizonAnchoredWhy
-    : longHorizonAnchoredWhy
   const recollectionIntentCarryForWhy = recollectionIntentBias.explanation
-    && !sameHerCausalityRepairPressureAnchoredWhy.toLowerCase().includes(recollectionIntentBias.explanation.toLowerCase())
+    && !longHorizonAnchoredWhy.toLowerCase().includes(recollectionIntentBias.explanation.toLowerCase())
     ? recollectionIntentBias.explanation
     : ''
   const recollectionAnchoredWhy = recollectionIntentCarryForWhy
     ? joinConciseSentencesPrioritized({
       priorityParts: [
         recollectionIntentCarryForWhy,
-        sameHerCausalityRepairPressureAnchoredWhy,
+        longHorizonAnchoredWhy,
       ],
       optionalParts: [],
       maxChars: 320,
-    }) || sameHerCausalityRepairPressureAnchoredWhy
-    : sameHerCausalityRepairPressureAnchoredWhy
+    }) || longHorizonAnchoredWhy
+    : longHorizonAnchoredWhy
   const selfEvolutionCarryForWhy = selfEvolutionBias.explanation
     && !recollectionAnchoredWhy.toLowerCase().includes(selfEvolutionBias.explanation.toLowerCase())
     ? selfEvolutionBias.explanation
