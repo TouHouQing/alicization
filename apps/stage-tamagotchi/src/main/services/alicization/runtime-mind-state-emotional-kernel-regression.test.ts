@@ -1866,44 +1866,35 @@ describe('runtime-mind-state emotional kernel regression', () => {
     expect(result.derivedMindStateBundle?.summary).toContain('embodiment_phase=')
   })
 
-  it('turns pending same-her causality repair pressure into emotional and embodiment runtime pressure without claiming memory-closure evidence', async () => {
+  async function buildResultWithRepairPressure(input?: {
+    lane: 'initiative-execution' | 'emotion' | 'embodiment'
+    focusDimension: string
+  }) {
     const previousVisualPresenceState = createDefaultVisualPresenceState(70_000) as any
     previousVisualPresenceState.derivedMindStateBundle = {
       version: 'derived-mind-state-bundle-v1',
       source: 'main-runtime',
       producedAt: 69_000,
-      sameHerCausalityRepairPressure: {
-        version: 'same-her-causality-repair-pressure-v1',
-        source: 'memory-tuning-advice',
-        status: 'pending-runtime-evidence',
-        updatedAt: 69_000,
-        sourceReportAt: 68_500,
-        focusDimensions: [
-          'runtimeSameHerInitiativeExecutionCausality',
-          'runtimeSameHerEmotionalCausality',
-          'runtimeSameHerEmbodimentCausality',
-        ],
-        lanes: [
-          {
-            lane: 'initiative-execution',
-            reasonTags: ['runtimeSameHerInitiativeExecutionCausality'],
-            summary: 'Proactive opening, execution callback, and learning feedback still need one recalled same-her line.',
-          },
-          {
-            lane: 'emotion',
-            reasonTags: ['runtimeSameHerEmotionalCausality'],
-            summary: 'Emotional afterglow still needs to follow from recall and execution feedback.',
-          },
-          {
-            lane: 'embodiment',
-            reasonTags: ['runtimeSameHerEmbodimentCausality'],
-            summary: 'Voice, face, motion, lipsync, and body still need one shared inner state.',
-          },
-        ],
-        notes: ['Pending pressure only; real closure still needs noisy desktop evidence.'],
-        summary: 'pending same-her causality repair: initiative-execution, emotion, embodiment',
-      },
-      summary: 'source=main-runtime | same_her_causality_repair=initiative-execution,emotion,embodiment',
+      ...(input
+        ? {
+            sameHerCausalityRepairPressure: {
+              version: 'same-her-causality-repair-pressure-v1',
+              source: 'memory-tuning-advice',
+              status: 'pending-runtime-evidence',
+              updatedAt: 69_000,
+              sourceReportAt: 68_500,
+              focusDimensions: [input.focusDimension],
+              lanes: [{
+                lane: input.lane,
+                reasonTags: [input.focusDimension],
+                summary: `Pending replay repair pressure for ${input.lane}.`,
+              }],
+              notes: ['Replay diagnostics are not runtime mind evidence.'],
+              summary: `pending replay repair pressure: ${input.lane}`,
+            },
+          }
+        : {}),
+      summary: 'source=main-runtime',
     }
     const runtime = createAlicizationMindStateRuntime({
       previousVisualPresenceState,
@@ -1925,8 +1916,8 @@ describe('runtime-mind-state emotional kernel regression', () => {
       readMindHead: async () => null,
     })
 
-    const result = await runtime.buildDigitalLifeMindState({
-      cardId: 'card-same-her-causality-repair-pressure',
+    return runtime.buildDigitalLifeMindState({
+      cardId: 'card-replay-repair-pressure-invariance',
       now: 70_000,
       context: {
         localTime: '2026-06-08T15:20:00+08:00',
@@ -1953,7 +1944,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
           kind: 'diff',
           confidence: 0.86,
           source: 'screen-semantic-summary',
-          summary: 'Noisy desktop closure still needs memory, emotion, initiative, and embodiment to stay on one line.',
+          summary: 'The desktop runtime is evaluating a concrete coding diff.',
           matchedLabels: ['diff'],
         },
         relationship: {
@@ -1972,7 +1963,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
           workloadKind: 'coding',
           contentKind: 'diff',
           scenario: 'coding',
-          summary: 'same-her causality repair pressure',
+          summary: 'coding diff continuity check',
           source: 'screen-semantic-summary',
           confidence: 0.88,
           beganAt: 69_000,
@@ -1987,19 +1978,36 @@ describe('runtime-mind-state emotional kernel regression', () => {
         derivedMindStateBundle: previousVisualPresenceState.derivedMindStateBundle,
       } as any,
     })
+  }
 
-    expect(result.derivedMindStateBundle?.sameHerCausalityRepairPressure).toEqual(expect.objectContaining({
-      status: 'pending-runtime-evidence',
-    }))
-    expect(result.initiative.selectedAction).toBe('hover')
-    expect(result.initiative.continuityRestraint).toBe('single-thread')
-    expect(result.initiative.preferredStyle).toBe('silent-observe')
-    expect(result.initiative.shouldSpeak).toBe(false)
-    expect(result.initiative.why).toMatch(/pending same-her initiative\/execution repair|memory and execution callback|runtime evidence/i)
-    expect(result.derivedMindStateBundle?.emotionalTransitionLedger?.sourceTags).toContain('same-her-causality-repair-pressure')
-    expect(result.derivedMindStateBundle?.emotionalTransitionLedger?.memoryClosureCausality).toBeUndefined()
-    expect(result.derivedMindStateBundle?.embodimentContinuityLedger?.sourceTags).toContain('same-her-causality-repair-pressure')
-    expect(result.derivedMindStateBundle?.embodimentContinuityLedger?.selfRevisionCandidate.reasonCodes).toContain('same-her-causality-repair-pressure')
-    expect(result.derivedMindStateBundle?.embodimentContinuityLedger?.memoryClosureCausality).toBeUndefined()
+  it.each([
+    ['initiative-execution', 'runtimeSameHerInitiativeExecutionCausality'],
+    ['emotion', 'runtimeSameHerEmotionalCausality'],
+    ['embodiment', 'runtimeSameHerEmbodimentCausality'],
+  ] as const)('ignores %s replay repair pressure across runtime behavior and derived state', async (lane, focusDimension) => {
+    const baseline = await buildResultWithRepairPressure()
+    const pressured = await buildResultWithRepairPressure({ lane, focusDimension })
+
+    expect(pressured.initiative).toEqual(baseline.initiative)
+    expect(pressured.privateThought).toEqual(baseline.privateThought)
+    expect(pressured.emotionalKernel).toEqual(baseline.emotionalKernel)
+    expect(pressured.derivedMindStateBundle?.emotionalTransitionLedger)
+      .toEqual(baseline.derivedMindStateBundle?.emotionalTransitionLedger)
+    expect(pressured.derivedMindStateBundle?.embodimentContinuityLedger)
+      .toEqual(baseline.derivedMindStateBundle?.embodimentContinuityLedger)
+    expect(pressured.derivedMindStateBundle?.activeContinuityGovernance)
+      .toEqual(baseline.derivedMindStateBundle?.activeContinuityGovernance)
+    expect(pressured.derivedMindStateBundle?.sameHerCausalityRepairPressure)
+      .toBe(baseline.derivedMindStateBundle?.sameHerCausalityRepairPressure)
+    expect(pressured.derivedMindStateBundle?.sameHerCausalityRepairPressure).toBeNull()
+    expect(pressured.derivedMindStateBundle?.emotionalTransitionLedger?.sourceTags ?? [])
+      .not
+      .toContain('same-her-causality-repair-pressure')
+    expect(pressured.derivedMindStateBundle?.embodimentContinuityLedger?.sourceTags ?? [])
+      .not
+      .toContain('same-her-causality-repair-pressure')
+    expect(pressured.derivedMindStateBundle?.embodimentContinuityLedger?.selfRevisionCandidate.reasonCodes ?? [])
+      .not
+      .toContain('same-her-causality-repair-pressure')
   })
 })

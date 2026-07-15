@@ -2264,8 +2264,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     const existingDerivedMindStateBundle = input.organicMemoryContext?.derivedMindStateBundle
       ?? input.previousVisualPresenceState.derivedMindStateBundle
       ?? null
-    const sameHerCausalityRepairPressure = existingDerivedMindStateBundle?.sameHerCausalityRepairPressure ?? null
-    const hasSameHerCausalityRepairPressure = Boolean(sameHerCausalityRepairPressure?.lanes?.length)
     const bootstrapEmotionalKernel = buildAlicizationEmotionalKernel({
       selfState,
       privateThought: input.previousVisualPresenceState.privateThought ?? null,
@@ -2300,7 +2298,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       personalityAuthority: input.personalityAuthority ?? null,
       motiveEngine,
       habitPolicy,
-      memoryTuningAdvice: input.organicMemoryContext?.memoryTuningAdvice ?? null,
       projectState: mindProjectStateRuntimeSnapshot,
     })
     // Break the initiative/autonomy/private-thought cycle by bootstrapping from the
@@ -2347,8 +2344,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
         )
         ?? null,
       selfEvolution,
-      memoryTuningAdvice: input.organicMemoryContext?.memoryTuningAdvice ?? null,
-      sameHerCausalityRepairPressure,
       activeContinuityGovernance: input.organicMemoryContext?.activeContinuityGovernance ?? null,
       personStateProjection: preferredResidentPersonStateProjection,
       projectState: mindProjectStateRuntimeSnapshot,
@@ -2525,8 +2520,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
           existingDerivedMindStateBundle ?? null,
         )
         ?? null,
-      memoryTuningAdvice: input.organicMemoryContext?.memoryTuningAdvice ?? null,
-      sameHerCausalityRepairPressure,
       activeContinuityGovernance: input.organicMemoryContext?.activeContinuityGovernance ?? null,
       personStateProjection: preferredResidentPersonStateProjection,
       projectState: mindProjectStateRuntimeSnapshot,
@@ -2549,10 +2542,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       thoughtThreads,
       projectState: mindProjectStateRuntimeSnapshot,
     })
-    const initiativeWhy = hasSameHerCausalityRepairPressure
-      && /pending same-her initiative\/execution repair|memory and execution callback|runtime evidence/iu.test(finalizedInitiativeBase.why)
-      ? finalizedInitiativeBase.why
-      : autonomy.whyNow
+    const initiativeWhy = autonomy.whyNow
     const desireMemory = buildDesireMemory({
       now: input.now,
       context: input.context,
@@ -2905,7 +2895,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
           ...(selfEvolution ? ['self-evolution'] : []),
           ...(preferredResidentPersonStateProjection ? ['person-state-projection'] : []),
           ...(mindProjectStateRuntimeSnapshot?.emotionalClosureCue ? ['project-state'] : []),
-          ...(hasSameHerCausalityRepairPressure ? ['same-her-causality-repair-pressure'] : []),
         ],
       },
     })
@@ -2937,7 +2926,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
         emotionalKernel.embodimentTone ? `emotion-tone:${emotionalKernel.embodimentTone}` : null,
         preferredMindProjectState.snapshot.preferredVoiceMode ? 'project-state-voice' : null,
         preferredMindProjectState.snapshot.preferredLipsyncMode ? 'project-state-lipsync' : null,
-        hasSameHerCausalityRepairPressure ? 'same-her-causality-repair-pressure' : null,
       ].filter(Boolean) as string[],
       projectStateContinuity: {
         sameHerSelfLine: preferredMindProjectState.sameHerSelfLine,
@@ -3019,7 +3007,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
             ?? input.organicMemoryContext?.activeContinuityGovernance
             ?? existingDerivedMindStateBundle?.activeContinuityGovernance
             ?? null,
-          sameHerCausalityRepairPressure,
           emotionalTransitionLedger,
           embodimentContinuityLedger,
           selfEvolution,
@@ -3069,7 +3056,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
               emotionalKernel,
               affectiveResidue: input.organicMemoryContext?.affectiveResidue ?? null,
               learningExecutionState: input.organicMemoryContext?.learningExecutionState ?? null,
-              memoryTuningAdvice: input.organicMemoryContext?.memoryTuningAdvice ?? null,
               derivedMindStateBundle: answerCompilerDerivedMindStateBundle,
             },
             dialogue: {
