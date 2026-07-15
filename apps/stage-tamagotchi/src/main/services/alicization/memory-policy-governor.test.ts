@@ -1,8 +1,130 @@
+import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
+
 import { describe, expect, it } from 'vitest'
 
 import { deriveAlicizationOnlineMemoryPolicy } from './memory-policy-governor'
 
 describe('memory-policy-governor', () => {
+  it('applies all numeric retrieval adjustments at the retrieval policy owner', () => {
+    const policyFor = (retrievalAdjustments: {
+      proceduralBoost: number
+      relationshipBoost: number
+      temporalWindowBias: number
+      wrongThreadPenalty: number
+    }) => deriveAlicizationOnlineMemoryPolicy({
+      budgetClass: 'deep-recall-reply',
+      telemetry: null,
+      tuningAdvice: {
+        version: 'memory-tuning-advice-v1',
+        source: 'nightly-replay-benchmark',
+        updatedAt: 1,
+        sourceReportAt: 1,
+        focusDimensions: [],
+        retrievalAdjustments,
+        surfaceAdjustments: {
+          inwardCarryBias: 0,
+          delayUntilAfterPayoffBias: 0,
+          provenanceLabelBias: 0,
+          specificityClampBias: 0,
+        },
+        personStateAdjustments: {
+          repairWindowBias: 0,
+          closenessCapBias: 0,
+        },
+        notes: [],
+      },
+    })
+    const baseline = policyFor({
+      proceduralBoost: 0,
+      relationshipBoost: 0,
+      temporalWindowBias: 0,
+      wrongThreadPenalty: 0,
+    })
+    const procedural = policyFor({
+      proceduralBoost: 0.4,
+      relationshipBoost: 0,
+      temporalWindowBias: 0,
+      wrongThreadPenalty: 0,
+    })
+    const relationship = policyFor({
+      proceduralBoost: 0,
+      relationshipBoost: 0.4,
+      temporalWindowBias: 0,
+      wrongThreadPenalty: 0,
+    })
+    const temporal = policyFor({
+      proceduralBoost: 0,
+      relationshipBoost: 0,
+      temporalWindowBias: 0.4,
+      wrongThreadPenalty: 0,
+    })
+    const wrongThread = policyFor({
+      proceduralBoost: 0,
+      relationshipBoost: 0,
+      temporalWindowBias: 0,
+      wrongThreadPenalty: 0.4,
+    })
+
+    expect(procedural.sourceWeights.consolidation).toBeGreaterThan(baseline.sourceWeights.consolidation)
+    expect(relationship.sourceWeights.consolidation).toBeGreaterThan(baseline.sourceWeights.consolidation)
+    expect(temporal.sourceWeights.episodic).toBeGreaterThan(baseline.sourceWeights.episodic)
+    expect(wrongThread.wrongThreadSuppressionBias).toBeGreaterThan(baseline.wrongThreadSuppressionBias)
+    expect(wrongThread.sourceWeights.episodic).toBeLessThan(baseline.sourceWeights.episodic)
+  })
+
+  it('ignores non-retrieval tuning fields when deriving online memory policy', () => {
+    const tuningAdvice: AlicizationMemoryTuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 1,
+      sourceReportAt: 1,
+      focusDimensions: [],
+      retrievalAdjustments: {
+        proceduralBoost: 0.12,
+        relationshipBoost: 0.08,
+        temporalWindowBias: 0.06,
+        wrongThreadPenalty: 0.04,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0,
+        delayUntilAfterPayoffBias: 0,
+        provenanceLabelBias: 0,
+        specificityClampBias: 0,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0,
+        closenessCapBias: 0,
+      },
+      notes: [],
+    }
+    const baseline = deriveAlicizationOnlineMemoryPolicy({
+      budgetClass: 'deep-recall-reply',
+      telemetry: null,
+      tuningAdvice,
+    })
+    const nonRetrievalTuned = deriveAlicizationOnlineMemoryPolicy({
+      budgetClass: 'deep-recall-reply',
+      telemetry: null,
+      tuningAdvice: {
+        ...tuningAdvice,
+        focusDimensions: ['learningRevisionDiscipline', 'emotionalClosureDrift'],
+        surfaceAdjustments: {
+          inwardCarryBias: 1,
+          delayUntilAfterPayoffBias: 1,
+          provenanceLabelBias: 1,
+          specificityClampBias: 1,
+        },
+        personStateAdjustments: {
+          repairWindowBias: 1,
+          closenessCapBias: 1,
+        },
+        notes: ['This diagnostic note must not become online memory policy.'],
+      },
+    })
+
+    expect(nonRetrievalTuned).toEqual(baseline)
+  })
+
   it('tightens suppression and keeps realtime budget when latency is failing', () => {
     const policy = deriveAlicizationOnlineMemoryPolicy({
       budgetClass: 'realtime-reply',

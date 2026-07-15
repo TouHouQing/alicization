@@ -3,7 +3,10 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
-import { buildAlicizationPersonMemoryCapsule } from './person-memory-capsule'
+import {
+  buildAlicizationPersonMemoryCapsule,
+  shouldUseCompactPersonMemoryCapsuleOnly,
+} from './person-memory-capsule'
 import { buildOrganicMemorySystemBlocks } from './runtime-organic-memory-prompt-blocks'
 
 function buildContext(overrides: Partial<OrganicMemoryPromptContext> = {}): OrganicMemoryPromptContext {
@@ -18,6 +21,57 @@ function buildContext(overrides: Partial<OrganicMemoryPromptContext> = {}): Orga
 }
 
 describe('runtime-organic-memory-prompt-blocks', () => {
+  it('keeps compact capsule selection invariant when only tuning focus dimensions change', () => {
+    const recallLatencyPolicy = {
+      budgetClass: 'realtime-reply',
+      latencyClass: 'fast',
+      recallAction: 'stable-core-only',
+      shouldAvoidDeepExpansion: true,
+    } as any
+    const memoryTurnArtifact = {} as ReturnType<typeof buildAlicizationMemoryTurnArtifact>
+    const tuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 1,
+      sourceReportAt: 1,
+      focusDimensions: [],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0,
+        temporalWindowBias: 0,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0,
+        delayUntilAfterPayoffBias: 0,
+        provenanceLabelBias: 0,
+        specificityClampBias: 0,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0,
+        closenessCapBias: 0,
+      },
+      notes: [],
+    } as any
+    const baseline = buildContext({
+      recallLatencyPolicy,
+      memoryTuningAdvice: tuningAdvice,
+    })
+    const focusOnly = buildContext({
+      recallLatencyPolicy,
+      memoryTuningAdvice: {
+        ...tuningAdvice,
+        focusDimensions: [
+          'runtimeSameHerInitiativeExecutionCausality',
+          'worldModelValidationDiscipline',
+        ],
+      },
+    })
+
+    expect(shouldUseCompactPersonMemoryCapsuleOnly(baseline, memoryTurnArtifact)).toBe(true)
+    expect(shouldUseCompactPersonMemoryCapsuleOnly(focusOnly, memoryTurnArtifact)).toBe(true)
+  })
+
   it('builds a structured person-memory capsule that covers every life-loop module', () => {
     const context = buildContext({
       projectStateContinuity: {
@@ -432,7 +486,8 @@ describe('runtime-organic-memory-prompt-blocks', () => {
     expect(systemText).toContain('[ALICIZATION_SELF_EVOLUTION]')
   })
 
-  it('requires downstream memoryClosureCausality memory identity when memory closure long-run advice is pending', () => {
+  it('does not turn memory tuning dimensions into provider-facing prompt blocks', () => {
+    const baselineText = buildOrganicMemorySystemBlocks(buildContext()).join('\n\n')
     const context = buildContext({
       memoryTuningAdvice: {
         version: 'memory-tuning-advice-v1',
@@ -444,7 +499,6 @@ describe('runtime-organic-memory-prompt-blocks', () => {
           'runtimeMemoryClosureCausalIdentity',
           'runtimeMemoryClosureLaneCarry',
           'runtimeMemoryClosureIdentityContinuity',
-          'runtimeSameHerMemoryCarry',
           'runtimeSameHerInitiativeExecutionCausality',
           'runtimeSameHerEmotionalCausality',
           'runtimeSameHerEmbodimentCausality',
@@ -475,11 +529,10 @@ describe('runtime-organic-memory-prompt-blocks', () => {
 
     const systemText = buildOrganicMemorySystemBlocks(context).join('\n\n')
 
-    expect(systemText).toContain('[ALICIZATION_MEMORY_TUNING_CAUSALITY]')
-    expect(systemText).toContain('memory_closure_identity=required')
-    expect(systemText).toContain('memoryClosureCausality.memoryIdentity')
-    expect(systemText).toContain('proof_boundary=route_chain_text:false; visible_reply_wording:false')
-    expect(systemText).toContain('identity_continuity=stable_memory_identity_key')
+    expect(systemText).toBe(baselineText)
+    expect(systemText).not.toContain('Memory tuning causality')
+    expect(systemText).not.toContain('memoryClosureCausality')
+    expect(systemText).not.toContain('visible reply wording')
   })
 
   it('keeps project-state fixed templates out of provider-facing organic memory blocks', () => {

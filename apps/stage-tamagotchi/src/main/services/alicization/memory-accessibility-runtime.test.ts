@@ -243,10 +243,48 @@ describe('memory-accessibility-runtime', () => {
     expect(plan.budgetClass).toBe('realtime-reply')
     expect(plan.verificationStrictness).toBe('quarantine')
     expect(plan.wrongThreadSuppressionBias).toBeGreaterThan(0.4)
-    expect(plan.provenanceLabelingBias).toBeGreaterThan(0.3)
+    expect(plan.provenanceLabelingBias).toBe(0.3)
     expect(plan.cacheTtlMs).toBeGreaterThan(20_000)
     expect(plan.consolidationLimit).toBeGreaterThanOrEqual(4)
     expect(plan.recallLatencyPolicy.budgetClass).toBe('realtime-reply')
+  })
+
+  it('uses temporal window bias to expand the episodic retrieval budget', () => {
+    const snapshotFor = (temporalWindowBias: number) => buildAlicizationTurnRetrievalPolicySnapshot({
+      recallSeed: '回想几个月前那次 runtime seam 是怎么接回来的',
+      recallGovernor: null,
+      budgetClass: 'deep-recall-reply',
+      telemetry: null,
+      tuningAdvice: {
+        version: 'memory-tuning-advice-v1',
+        source: 'nightly-replay-benchmark',
+        updatedAt: 1,
+        sourceReportAt: 1,
+        focusDimensions: [],
+        retrievalAdjustments: {
+          proceduralBoost: 0,
+          relationshipBoost: 0,
+          temporalWindowBias,
+          wrongThreadPenalty: 0,
+        },
+        surfaceAdjustments: {
+          inwardCarryBias: 0,
+          delayUntilAfterPayoffBias: 0,
+          provenanceLabelBias: 0,
+          specificityClampBias: 0,
+        },
+        personStateAdjustments: {
+          repairWindowBias: 0,
+          closenessCapBias: 0,
+        },
+        notes: [],
+      },
+    })
+    const baseline = snapshotFor(0)
+    const temporallyExpanded = snapshotFor(0.4)
+
+    expect(temporallyExpanded.policy.sourceWeights.episodic).toBeGreaterThan(baseline.policy.sourceWeights.episodic)
+    expect(temporallyExpanded.plan.episodicLimit).toBeGreaterThan(baseline.plan.episodicLimit)
   })
 
   it('builds a single turn retrieval policy snapshot for repeated recall surfaces', () => {

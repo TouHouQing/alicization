@@ -35,7 +35,6 @@ import {
   tuneMemoryConsolidationSearchInput,
 } from './memory-accessibility-runtime'
 import {
-  applyMemoryTuningAdviceToHostPersonModel,
   parseMemoryTuningAdvice,
   replayBenchmarkTuningAdviceMetaKey,
 } from './memory-tuning-advice'
@@ -721,11 +720,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       relationshipDynamics,
       now,
     })
-    const tuningAdvice = await getMemoryTuningAdvice().catch(() => null)
-    return applyMemoryTuningAdviceToHostPersonModel({
-      hostPersonModel: baseModel,
-      tuningAdvice,
-    })
+    return baseModel
   }
 
   async function listRecentMemoryReflections(cardId: string, limit = 8) {

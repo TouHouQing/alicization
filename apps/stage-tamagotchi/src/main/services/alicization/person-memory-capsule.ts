@@ -116,8 +116,6 @@ export function shouldUseCompactPersonMemoryCapsuleOnly(
   context: OrganicMemoryPromptContext,
   memoryTurnArtifact?: MemoryTurnArtifact | null,
 ) {
-  if ((context.memoryTuningAdvice?.focusDimensions.length ?? 0) > 0)
-    return false
   if (!memoryTurnArtifact)
     return false
   if (!context.recallLatencyPolicy)

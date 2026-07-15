@@ -4,8 +4,8 @@ import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage
 import { describe, expect, it, vi } from 'vitest'
 
 import { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
-import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 import {
+  __alicizationOrganicMemoryPromptTestOnly,
   createAlicizationOrganicMemoryPromptRuntime as createAlicizationOrganicMemoryPromptRuntimeBase,
 
 } from './runtime-organic-memory-prompt'
@@ -25,6 +25,163 @@ function createAlicizationOrganicMemoryPromptRuntime(options: OrganicMemoryPromp
 }
 
 describe('runtime-organic-memory-prompt', () => {
+  it('keeps benchmark ranking invariant when only focus dimensions change', () => {
+    const items = [
+      ...Array.from({ length: 8 }, (_, index) => ({
+        id: `filler-${index}`,
+        text: `neutral memory ${index}`,
+      })),
+      {
+        id: 'relationship-target',
+        text: 'relationship repair boundary',
+      },
+      {
+        id: 'neutral-target',
+        text: 'neutral observation',
+      },
+    ]
+    const tuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 1,
+      sourceReportAt: 1,
+      focusDimensions: [],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0,
+        temporalWindowBias: 0,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0,
+        delayUntilAfterPayoffBias: 0,
+        provenanceLabelBias: 1,
+        specificityClampBias: 1,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0,
+        closenessCapBias: 1,
+      },
+      notes: [],
+    } as any
+    const rank = (focusDimensions: string[]) => __alicizationOrganicMemoryPromptTestOnly.rankByBenchmarkTuningBias({
+      items,
+      tuningAdvice: {
+        ...tuningAdvice,
+        focusDimensions,
+      },
+      mode: 'episode',
+      toText: item => item.text,
+    }).map(item => item.id)
+
+    expect(rank([
+      'learningRevisionDiscipline',
+      'worldModelValidationDiscipline',
+    ])).toEqual(rank([]))
+  })
+
+  it('keeps numeric relationship retrieval adjustment effective after focus governance is removed', () => {
+    const items = [
+      ...Array.from({ length: 8 }, (_, index) => ({
+        id: `filler-${index}`,
+        text: `neutral memory ${index}`,
+      })),
+      {
+        id: 'neutral-target',
+        text: 'neutral observation',
+      },
+      {
+        id: 'relationship-target',
+        text: 'relationship repair boundary',
+      },
+    ]
+    const rank = (relationshipBoost: number) => __alicizationOrganicMemoryPromptTestOnly.rankByBenchmarkTuningBias({
+      items,
+      tuningAdvice: {
+        version: 'memory-tuning-advice-v1',
+        source: 'nightly-replay-benchmark',
+        updatedAt: 1,
+        sourceReportAt: 1,
+        focusDimensions: [],
+        retrievalAdjustments: {
+          proceduralBoost: 0,
+          relationshipBoost,
+          temporalWindowBias: 0,
+          wrongThreadPenalty: 0,
+        },
+        surfaceAdjustments: {
+          inwardCarryBias: 0,
+          delayUntilAfterPayoffBias: 0,
+          provenanceLabelBias: 0,
+          specificityClampBias: 0,
+        },
+        personStateAdjustments: {
+          repairWindowBias: 0,
+          closenessCapBias: 0,
+        },
+        notes: [],
+      } as any,
+      mode: 'episode',
+      toText: item => item.text,
+    }).map(item => item.id)
+
+    expect(rank(0).indexOf('neutral-target')).toBeLessThan(rank(0).indexOf('relationship-target'))
+    expect(rank(0.2).indexOf('relationship-target')).toBeLessThan(rank(0.2).indexOf('neutral-target'))
+  })
+
+  it('keeps numeric wrong-thread penalty effective after focus governance is removed', () => {
+    const items = [
+      ...Array.from({ length: 8 }, (_, index) => ({
+        id: `filler-${index}`,
+        text: `neutral memory ${index}`,
+        provenance: 'remembered',
+      })),
+      {
+        id: 'reconstructed-target',
+        text: 'reconstructed observation',
+        provenance: 'reconstructed',
+      },
+      {
+        id: 'remembered-target',
+        text: 'remembered observation',
+        provenance: 'remembered',
+      },
+    ]
+    const rank = (wrongThreadPenalty: number) => __alicizationOrganicMemoryPromptTestOnly.rankByBenchmarkTuningBias({
+      items,
+      tuningAdvice: {
+        version: 'memory-tuning-advice-v1',
+        source: 'nightly-replay-benchmark',
+        updatedAt: 1,
+        sourceReportAt: 1,
+        focusDimensions: [],
+        retrievalAdjustments: {
+          proceduralBoost: 0,
+          relationshipBoost: 0,
+          temporalWindowBias: 0,
+          wrongThreadPenalty,
+        },
+        surfaceAdjustments: {
+          inwardCarryBias: 0,
+          delayUntilAfterPayoffBias: 0,
+          provenanceLabelBias: 0,
+          specificityClampBias: 0,
+        },
+        personStateAdjustments: {
+          repairWindowBias: 0,
+          closenessCapBias: 0,
+        },
+        notes: [],
+      } as any,
+      mode: 'episode',
+      toText: item => item.text,
+      getProvenance: item => item.provenance as any,
+    }).map(item => item.id)
+
+    expect(rank(0).indexOf('reconstructed-target')).toBeLessThan(rank(0).indexOf('remembered-target'))
+    expect(rank(0.2).indexOf('remembered-target')).toBeLessThan(rank(0.2).indexOf('reconstructed-target'))
+  })
+
   it('threads the active digital-life runtime surface through every organic memory planner', async () => {
     const runtimeSurface = {
       memory: {
@@ -411,7 +568,7 @@ describe('runtime-organic-memory-prompt', () => {
     expect(systemText).not.toContain('same living line')
   })
 
-  it('threads runtime same-her causality tuning into organic memory system blocks for the next turn', async () => {
+  it('keeps numeric replay tuning available without emitting causality diagnostics or provider blocks', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,
       selectPromptActiveThoughts,
@@ -468,24 +625,27 @@ describe('runtime-organic-memory-prompt', () => {
     })
 
     const context = await runtime.resolveOrganicMemoryPromptContext({
-      recallSeed: '继续验证 noisy desktop same-her closure',
+      recallSeed: '继续验证 noisy desktop identity-continuity',
       recallGovernor: null,
     })
 
     const systemText = runtime.buildOrganicMemorySystemBlocks(context).join('\n\n')
     const surfacePlanningStage = context.memoryStageReplay?.stages.find(stage => stage.stage === 'surface-planning')
-    expect(surfacePlanningStage?.diagnostics).toEqual(expect.arrayContaining([
-      'tuning-causality=initiative-execution|emotion|embodiment',
-      'tuning-memory-closure=causal-identity|lane-carry|identity-continuity',
-    ]))
-    expect(systemText).toContain('[ALICIZATION_MEMORY_TUNING_CAUSALITY]')
-    expect(systemText).toContain('initiative_execution=causal_link_required; lanes=proactive_opening,execution_callback,learning_feedback; source=recalled_memory_closure')
-    expect(systemText).toContain('emotion=causal_link_required; signal=emotional_afterglow; sources=prior_recall,execution_feedback')
-    expect(systemText).toContain('embodiment=causal_link_required; modalities=voice,face,motion,lipsync,body; source=same_recalled_state')
-    expect(systemText).toContain('source=nightly-replay-benchmark')
+    const surfaceDiagnostics = (surfacePlanningStage?.diagnostics ?? []).join('\n')
+    expect(surfaceDiagnostics).not.toContain('tuning-causality')
+    expect(surfaceDiagnostics).not.toContain('tuning-memory-closure')
+    expect(context.memoryTuningAdvice?.retrievalAdjustments).toEqual(expect.objectContaining({
+      relationshipBoost: 0.12,
+      temporalWindowBias: 0.04,
+    }))
+    expect(systemText).not.toContain('Memory tuning causality')
+    expect(systemText).not.toContain('Source role: nightly replay')
+    expect(systemText).not.toContain('Initiative and execution should preserve a causal link')
+    expect(systemText).not.toContain('Emotion should stay causally tied to prior recall')
+    expect(systemText).not.toContain('Embodiment should stay causally tied across voice')
   })
 
-  it('threads runtime same-her causality tuning into derived state as pending repair pressure without closing real event lanes', async () => {
+  it('does not turn runtime replay focus into derived repair pressure or learning actions', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,
       selectPromptActiveThoughts,
@@ -551,46 +711,13 @@ describe('runtime-organic-memory-prompt', () => {
     })
 
     const context = await runtime.resolveOrganicMemoryPromptContext({
-      recallSeed: '继续验证 noisy desktop same-her closure',
+      recallSeed: '继续验证 noisy desktop identity-continuity',
       recallGovernor: null,
     })
 
-    expect(context.derivedMindStateBundle?.sameHerCausalityRepairPressure).toEqual(expect.objectContaining({
-      source: 'memory-tuning-advice',
-      status: 'pending-runtime-evidence',
-      memoryIdentityRequirement: expect.objectContaining({
-        status: 'required',
-        requiredPath: 'memoryClosureCausality.memoryIdentity',
-        excludedProofs: ['route-chain-text', 'visible-reply-wording'],
-        continuity: 'stable-memory-identity-key',
-      }),
-      lanes: expect.arrayContaining([
-        expect.objectContaining({
-          lane: 'initiative-execution',
-          summary: expect.stringContaining('proactive opening, execution callback, and learning feedback'),
-        }),
-        expect.objectContaining({
-          lane: 'emotion',
-          summary: expect.stringContaining('emotional afterglow'),
-        }),
-        expect.objectContaining({
-          lane: 'embodiment',
-          summary: expect.stringContaining('voice, face, motion, lipsync, and body'),
-        }),
-      ]),
-    }))
-    expect(context.derivedMindStateBundle?.summary).toContain('continuity_causality_repair=initiative-execution,emotion,embodiment')
-    expect(context.derivedMindStateBundle?.learningExecutionState).toEqual(expect.objectContaining({
-      nextLearningAction: 'verify',
-      shouldVerify: true,
-      shouldReflect: true,
-      activeLearningFocuses: expect.arrayContaining([
-        'continuity initiative/execution causality pending',
-        'verify proactive opening, execution callback, and learning feedback follow the recalled continuity line',
-        'verify downstream memoryClosureCausality.memoryIdentity before counting memory closure',
-        'reject route-chain text and visible reply wording as memory closure proof',
-      ]),
-    }))
+    expect(context.derivedMindStateBundle?.sameHerCausalityRepairPressure).toBeNull()
+    expect(context.derivedMindStateBundle?.summary ?? '').not.toContain('continuity_causality_repair')
+    expect(context.derivedMindStateBundle?.learningExecutionState).toBeNull()
     expect(context.derivedMindStateBundle?.learningExecutionState?.memoryClosureCausality).toBeUndefined()
     expect(context.derivedMindStateBundle?.emotionalTransitionLedger?.memoryClosureCausality).toBeUndefined()
     expect(context.derivedMindStateBundle?.embodimentContinuityLedger?.memoryClosureCausality).toBeUndefined()
@@ -1993,7 +2120,6 @@ describe('runtime-organic-memory-prompt', () => {
     const systemText = runtime.buildOrganicMemorySystemBlocks(context).join('\n\n')
     expect(systemText).toContain('[ALICIZATION_MEMORY_DELIBERATION]')
     expect(systemText).toContain('surface_policy=answer-anchoring')
-    expect(systemText).toContain('why_withheld=withheld_reason=unstable_detail; stable_core_only=true')
     expect(systemText).toContain('selected_periods=consolidation:That period kept bending toward the runtime seam until it finally held together.')
     expect(systemText).toContain('selected_bundles=bundle-runtime:That period kept bending toward the runtime seam until it finally held together.')
     expect(systemText).toContain('selected_chains=task-procedure-relationship-stance:Return to the same seam before branching.')
@@ -3989,7 +4115,7 @@ describe('runtime-organic-memory-prompt', () => {
     expect(context.consolidatedMemories?.[0]?.id).toBe('consolidation-repair')
   })
 
-  it('lets benchmark tuning advice clamp ambiguous recollection back inward', async () => {
+  it('keeps benchmark tuning numeric while ambiguous recollection speech stays recall-authored', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,
       selectPromptActiveThoughts,
@@ -4161,9 +4287,10 @@ describe('runtime-organic-memory-prompt', () => {
     })
 
     expect(context.memoryTuningAdvice?.surfaceAdjustments.inwardCarryBias).toBeGreaterThan(0.16)
-    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(false)
-    expect(context.recollectionSpeechPlan?.placement).toBe('internal-only')
-    expect(context.recollectionSpeechPlan?.certainty).toBe('approximate')
+    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(true)
+    expect(context.recollectionSpeechPlan?.placement).toBe('before-payoff')
+    expect(context.recollectionSpeechPlan?.certainty).toBe('firm')
+    expect(context.recollectionSpeechPlan?.styleNote).toBe('Let the memory briefly open the answer.')
   })
 
   it('lets familiar scene cues trigger recollection even without explicit retrospective wording', async () => {
@@ -5458,11 +5585,10 @@ describe('runtime-organic-memory-prompt', () => {
     expect(systemText).not.toContain('same-her')
     expect(systemText).toContain('should_recall=yes')
     expect(systemText).toContain('surface_policy=internal-only')
-    expect(systemText).toContain('why_withheld=life_core_closure=open; recollection_visibility=internal_until_evidence_boundary_is_clear')
     expect(systemText).toContain('surface_policy=internal-only')
   })
 
-  it('rebuilds project-state continuity from recall-governor anchors when projectStateBrief is missing', async () => {
+  it('does not promote recall-governor project anchors when projectStateBrief is missing', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,
       selectPromptActiveThoughts,
@@ -5507,30 +5633,21 @@ describe('runtime-organic-memory-prompt', () => {
       } as any,
     } as any)
 
-    expect(context.projectStatePreflightSummary).toContain('runtime_personhood')
-    expect(context.projectStatePreflightSummary).not.toContain('content=excluded')
-    expect(context.projectStatePreflightSummary).not.toContain(sameHerCarryLine)
-    expect(context.projectStatePreDialogueAwarenessLine).toContain('identity=runtime_personhood')
-    expect(context.projectStatePreDialogueAwarenessLine).not.toContain('content=excluded')
+    expect(context.projectStatePreflightSummary).toBeNull()
     expect(context.projectStatePreDialogueAwarenessLine).not.toContain(sameHerCarryLine)
-    expect(context.projectStateContinuity).toEqual(expect.objectContaining({
-      emotionalClosureCue: 'emotional_closure=content_sanitized; tone=low_pressure; surface=structured',
-    }))
-    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(context.projectStateContinuity))).toBe(false)
-    expect(context.projectStateContinuity?.emotionalClosureCue).not.toContain(emotionalClosureCue)
+    expect(context.projectStatePreDialogueAwarenessLine).not.toContain(emotionalClosureCue)
+    expect(JSON.stringify(context.projectStateContinuity)).not.toContain(sameHerCarryLine)
+    expect(JSON.stringify(context.projectStateContinuity)).not.toContain(emotionalClosureCue)
 
     const systemText = runtime.buildOrganicMemorySystemBlocks(context).join('\n\n')
     expect(systemText).toContain('[ALICIZATION_MEMORY_CONTINUITY_BOUNDARY]')
     expect(systemText).toContain('short_term_owner=WorkingMemory')
     expect(systemText).toContain('long_term_recall_owner=LongTermMemoryRecall')
-    expect(systemText).not.toContain('same_her_summary=')
-    expect(systemText).not.toContain('emotional_closure_cue=')
-    expect(systemText).not.toContain('Same Phase 1 digital life')
-    expect(systemText).not.toContain('runtime_context=runtime_personhood')
-    expect(systemText).not.toContain('memory_progress=partial')
+    expect(systemText).not.toContain(sameHerCarryLine)
+    expect(systemText).not.toContain(emotionalClosureCue)
   })
 
-  it('does not let a thin recall-governor project shell outrank richer canonical project awareness when projectStateBrief is missing', async () => {
+  it('keeps thin recall-governor project shells out when projectStateBrief is missing', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,
       selectPromptActiveThoughts,
@@ -5553,7 +5670,6 @@ describe('runtime-organic-memory-prompt', () => {
       isPersonaResidueMemoryText: () => false,
     })
 
-    const canonical = resolveAlicizationProjectStateBrief()
     const thinProjectShell = 'same digital life | keep the closure seam explicit'
     const emotionalClosureCue = 'Keep the unfinished closure seam emotionally low-pressure, so the same her can return without flattening back into generic project talk.'
     const context = await runtime.resolveOrganicMemoryPromptContext({
@@ -5576,27 +5692,18 @@ describe('runtime-organic-memory-prompt', () => {
       } as any,
     } as any)
 
-    expect(context.projectStatePreflightSummary).toContain('runtime_personhood')
-    expect(context.projectStatePreflightSummary).toContain('local_first=true')
-    expect(context.projectStatePreflightSummary).not.toContain(thinProjectShell)
-    expect(context.projectStatePreDialogueAwarenessLine).toContain('identity=runtime_personhood')
-    expect(context.projectStatePreDialogueAwarenessLine).toContain('local_first=true')
+    expect(context.projectStatePreflightSummary).toBeNull()
     expect(context.projectStatePreDialogueAwarenessLine).not.toContain(thinProjectShell)
-    expect(context.projectStateContinuity).toEqual(expect.objectContaining({
-      identity: canonical.identity,
-      currentPhase: 'life_core; proving_ground=apps/stage-tamagotchi.',
-      emotionalClosureCue: 'emotional_closure=content_sanitized; tone=low_pressure; surface=structured',
-    }))
-    expect(String(context.projectStateContinuity?.openClosureSummary ?? '')).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
-    expect(String(context.projectStateContinuity?.nextClosureTarget ?? '')).toContain('cross_modal_continuity_proof=extend')
+    expect(context.projectStatePreDialogueAwarenessLine).not.toContain(emotionalClosureCue)
+    expect(JSON.stringify(context.projectStateContinuity)).not.toContain(thinProjectShell)
+    expect(JSON.stringify(context.projectStateContinuity)).not.toContain(emotionalClosureCue)
 
     const systemText = runtime.buildOrganicMemorySystemBlocks(context).join('\n\n')
     expect(systemText).toContain('[ALICIZATION_MEMORY_CONTINUITY_BOUNDARY]')
     expect(systemText).toContain('short_term_owner=WorkingMemory')
     expect(systemText).toContain('long_term_recall_owner=LongTermMemoryRecall')
-    expect(systemText).not.toContain('preflight_summary=')
-    expect(systemText).not.toContain('pre_dialogue_awareness=')
-    expect(systemText).not.toContain(`preflight_summary=${thinProjectShell}`)
+    expect(systemText).not.toContain(thinProjectShell)
+    expect(systemText).not.toContain(emotionalClosureCue)
   })
 
   it('uses learning tuning advice to keep revision-prone relationship episodes inward', async () => {
@@ -5926,7 +6033,7 @@ describe('runtime-organic-memory-prompt', () => {
     expect(context.memoryDeliberation?.followUpAffordance?.whyNow).toMatch(/repair|payoff/i)
   })
 
-  it('keeps project continuity recollection inward after same-her drift tuning warns against a generic project narrator shell', async () => {
+  it('keeps project continuity speech recall-authored when tuning reports generic project-shell drift', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,
       selectPromptActiveThoughts,
@@ -6048,13 +6155,14 @@ describe('runtime-organic-memory-prompt', () => {
     })
 
     expect(context.memoryTuningAdvice?.focusDimensions).toContain('avoidGenericProjectShell')
-    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(false)
-    expect(context.recollectionSpeechPlan?.placement).toBe('internal-only')
-    expect(context.recollectionSpeechPlan?.certainty).toBe('approximate')
-    expect(context.recollectionSpeechPlan?.styleNote).toContain('detached project narrator shell')
+    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(true)
+    expect(context.recollectionSpeechPlan?.placement).toBe('before-payoff')
+    expect(context.recollectionSpeechPlan?.certainty).toBe('firm')
+    expect(context.recollectionSpeechPlan?.styleNote).toBe('Answer from the ongoing project continuity line.')
+    expect(context.recollectionSpeechPlan?.styleNote).not.toContain('detached project narrator shell')
   })
 
-  it('keeps rich same-her project awareness recollection inward even when replay only names richer awareness carry and not the legacy generic-shell flag', async () => {
+  it('keeps rich project-awareness speech recall-authored when tuning only reports replay drift', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,
       selectPromptActiveThoughts,
@@ -6179,13 +6287,13 @@ describe('runtime-organic-memory-prompt', () => {
       'preDialogueBriefingDrift',
       'projectStateRichAwarenessCarry',
     ]))
-    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(false)
-    expect(context.recollectionSpeechPlan?.placement).toBe('internal-only')
-    expect(context.recollectionSpeechPlan?.certainty).toBe('approximate')
-    expect(context.recollectionSpeechPlan?.styleNote).toMatch(/project awareness|payoff|inward/i)
+    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(true)
+    expect(context.recollectionSpeechPlan?.placement).toBe('before-payoff')
+    expect(context.recollectionSpeechPlan?.certainty).toBe('firm')
+    expect(context.recollectionSpeechPlan?.styleNote).toBe('Answer from the same living project-awareness line.')
   })
 
-  it('keeps same-her closure recollection inward and on a next-open-window line when low-pressure and anti-restart carry are still active', async () => {
+  it('keeps the recall-authored speech plan dynamic when replay tuning reports emotional closure drift', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,
       selectPromptActiveThoughts,
@@ -6310,12 +6418,11 @@ describe('runtime-organic-memory-prompt', () => {
       'projectEmotionalClosureLowPressureCarry',
       'projectEmotionalClosureAntiRestartCarry',
     ]))
-    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(false)
-    expect(context.recollectionSpeechPlan?.placement).toBe('internal-only')
-    expect(context.recollectionSpeechPlan?.styleNote).toContain('continuity_closure_carry=low_pressure')
-    expect(context.memoryDeliberation?.followUpAffordance?.intrusionRisk).toBe('high')
-    expect(context.memoryDeliberation?.followUpAffordance?.preferredTiming).toBe('next-open-window')
-    expect(context.memoryDeliberation?.followUpAffordance?.whyNow).toContain('relationship_recall=active')
+    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(true)
+    expect(context.recollectionSpeechPlan?.placement).toBe('after-payoff')
+    expect(context.recollectionSpeechPlan?.certainty).toBe('firm')
+    expect(context.recollectionSpeechPlan?.styleNote).toBe('Return on the same line once the payoff lands.')
+    expect(context.recollectionSpeechPlan?.styleNote).not.toMatch(/continuity_closure_carry|low.pressure|restart/i)
   })
 
   it('threads corrected same-person humanlike recall into a lower-pressure slower follow-up instead of a generic relationship reopen', async () => {
@@ -7324,9 +7431,14 @@ describe('runtime-organic-memory-prompt', () => {
     expect(context.memoryDeliberation?.followUpAffordance?.summary).toMatch(/faded noise background|temporary noise|wobble/i)
     expect(context.memoryDeliberation?.followUpAffordance?.whyNow).toMatch(/merged same-thread continuity foreground/i)
     expect(context.memoryDeliberation?.followUpAffordance?.whyNow).toMatch(/faded noise background|temporary noise|wobble/i)
-    expect(systemText).toContain('why_withheld_present=true; why_withheld_source_text=withheld_non_structured_instruction')
-    expect(systemText).toContain('must_do_withheld_non_structured_count=')
-    expect(systemText).toContain('must_not_do=')
+    expect(context.memoryDeliberation?.stableCore).toEqual(expect.arrayContaining([
+      'Carry corrected same-person continuity forward before any status recap or task-shell continuation.',
+      'Keep the stronger same-thread continuity foregrounded instead of re-splitting older echoes.',
+    ]))
+    expect(context.memoryDeliberation?.unsafeDetails).toEqual(expect.arrayContaining([
+      'Do not let temporary wobble noise reopen like it still explains the line.',
+      'Do not let merged same-thread continuity split back into separate foreground memories.',
+    ]))
     expect(systemText).not.toContain('merged same-thread continuity foreground')
     expect(systemText).toMatch(/metabolized repeated same-thread echoes|stronger merged continuity/i)
     expect(systemText).toMatch(/faded temporary noise|stale emotional wobble/i)

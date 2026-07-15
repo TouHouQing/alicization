@@ -217,7 +217,7 @@ export function buildAlicizationMemoryAccessibilityPlan(input: {
       : expansionMode === 'deep-thread'
         ? ['hot-index', 'summary-layer', 'raw-ledger']
         : ['summary-layer', 'raw-ledger', 'hot-index'],
-    episodicLimit: Math.max(2, Math.round((latencyClass === 'fast' ? 3 : latencyClass === 'balanced' ? 5 : 8) * (input.policy?.topKMultiplier ?? 1))),
+    episodicLimit: Math.max(2, Math.round((latencyClass === 'fast' ? 3 : latencyClass === 'balanced' ? 5 : 8) * (input.policy?.topKMultiplier ?? 1) * (input.policy?.sourceWeights.episodic ?? 1))),
     consolidationLimit: Math.max(3, Math.round((latencyClass === 'fast' ? 4 : latencyClass === 'balanced' ? 6 : 10) * (input.policy?.topKMultiplier ?? 1) * (input.policy?.sourceWeights.consolidation ?? 1))),
     conversationLimit: Math.max(3, Math.round((latencyClass === 'fast' ? 4 : latencyClass === 'balanced' ? 6 : 8) * (input.policy?.topKMultiplier ?? 1) * (input.policy?.sourceWeights.conversation ?? 1))),
     graphExpansionLimit: Math.max(80, Math.round((latencyClass === 'fast' ? 120 : latencyClass === 'balanced' ? 240 : 480) * (input.policy?.topKMultiplier ?? 1))),

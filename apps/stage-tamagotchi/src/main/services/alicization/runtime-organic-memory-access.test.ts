@@ -2,6 +2,7 @@ import type { AlicizationEpisodicEventRecord } from '../../../shared/eventa'
 
 import { describe, expect, it, vi } from 'vitest'
 
+import { replayBenchmarkTuningAdviceMetaKey } from './memory-tuning-advice'
 import { createAlicizationOrganicMemoryAccessRuntime } from './runtime-organic-memory-access'
 
 describe('runtime-organic-memory-access', () => {
@@ -226,7 +227,7 @@ describe('runtime-organic-memory-access', () => {
     expect(snapshot.derivedMindStateBundle?.summary).toContain('anchor=candidate-1')
   })
 
-  it('keeps host-facing autobiographical consolidations explicit about quiet same-her continuity when inward carry is already known', async () => {
+  it('keeps host-facing autobiographical consolidations explicit about quiet inward continuity', async () => {
     const runtime = createAlicizationOrganicMemoryAccessRuntime({
       getActiveCardId: () => 'default',
       getSoulSnapshot: () => null,
@@ -293,9 +294,9 @@ describe('runtime-organic-memory-access', () => {
     expect(snapshot.memoryConsolidations).toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: 'consolidation-quiet-same-her-1',
-        summary: expect.stringContaining('quiet same-her continuity'),
-        lesson: expect.stringContaining('quiet same-her continuity'),
-        cues: expect.arrayContaining(['quiet-same-her-continuity']),
+        summary: expect.stringMatching(/quiet.*continuity/i),
+        lesson: expect.stringMatching(/quiet.*continuity/i),
+        cues: expect.arrayContaining(['quiet-inward-continuity']),
       }),
     ]))
   })
@@ -849,5 +850,82 @@ describe('runtime-organic-memory-access', () => {
         threadAnchor: 'callback repair seam',
       }),
     ]))
+  })
+
+  it('keeps the host person model invariant when non-retrieval tuning changes', async () => {
+    const event = {
+      id: 'event-host-model-invariant',
+      cardId: 'default',
+      decisionTraceId: null,
+      turnId: 'turn-host-model-invariant',
+      sessionId: 'session-host-model-invariant',
+      sourceKind: 'reply',
+      provenance: 'remembered',
+      occurredAt: 1,
+      whereSummary: 'focused-work',
+      withWhom: ['host'],
+      threadAnchor: 'focused runtime seam',
+      whatHappened: 'The host needed more room while focused.',
+      felt: null,
+      emotionTags: [],
+      whatChanged: 'A lighter interruption pattern worked better.',
+      relationshipMeaning: 'Keep more room during focused work.',
+      lesson: 'Use a lighter touch while the host is focused.',
+      sourceSummary: 'focused work preference',
+      confidence: 0.88,
+      salience: 0.82,
+      sceneAttachment: 0.6,
+      consolidationPriority: 0.7,
+      relationshipShift: null,
+      derivedFrom: [],
+      tags: ['focused-work', 'space'],
+      createdAt: 1,
+      updatedAt: 1,
+      lastRecalledAt: null,
+      recallCount: 0,
+      reconsolidationCount: 0,
+      latestReconsolidation: null,
+    } as any
+    const createRuntime = (rawTuningAdvice?: string) => createAlicizationOrganicMemoryAccessRuntime({
+      getActiveCardId: () => 'default',
+      listRecentEpisodicEvents: async () => [event],
+      listMemoryConsolidations: async () => [],
+      getLatestRelationshipDynamics: async () => null,
+      listRelationshipOutcomes: async () => [],
+      listPersonaReinforcementEvents: async () => [],
+      readMindHead: async () => null,
+      getMetaValue: async (key: string) => key === replayBenchmarkTuningAdviceMetaKey
+        ? rawTuningAdvice
+        : undefined,
+    } as any)
+    const tunedAdvice = JSON.stringify({
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 1,
+      sourceReportAt: 1,
+      focusDimensions: ['relationshipRepairAdaptation'],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0,
+        temporalWindowBias: 0,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 1,
+        delayUntilAfterPayoffBias: 1,
+        provenanceLabelBias: 1,
+        specificityClampBias: 1,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 1,
+        closenessCapBias: 1,
+      },
+      notes: ['This replay note must not rewrite the host person model.'],
+    })
+
+    const baseline = await createRuntime().buildHostPersonModel({ now: 2 })
+    const tuned = await createRuntime(tunedAdvice).buildHostPersonModel({ now: 2 })
+
+    expect(tuned).toEqual(baseline)
   })
 })

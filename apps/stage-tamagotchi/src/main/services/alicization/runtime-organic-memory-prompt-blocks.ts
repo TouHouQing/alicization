@@ -15,44 +15,6 @@ import {
 } from './person-memory-capsule'
 import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
 
-function buildMemoryTuningCausalityLines(context: OrganicMemoryPromptContext) {
-  const tuningAdvice = context.memoryTuningAdvice ?? null
-  const focus = tuningAdvice?.focusDimensions ?? []
-  if (!tuningAdvice || focus.length === 0)
-    return []
-
-  const lines: string[] = []
-  if (focus.includes('runtimeSameHerInitiativeExecutionCausality')) {
-    lines.push('initiative_execution=causal_link_required; lanes=proactive_opening,execution_callback,learning_feedback; source=recalled_memory_closure')
-  }
-  if (focus.includes('runtimeSameHerEmotionalCausality')) {
-    lines.push('emotion=causal_link_required; signal=emotional_afterglow; sources=prior_recall,execution_feedback')
-  }
-  if (focus.includes('runtimeSameHerEmbodimentCausality')) {
-    lines.push('embodiment=causal_link_required; modalities=voice,face,motion,lipsync,body; source=same_recalled_state')
-  }
-  if (focus.includes('runtimeMemoryClosureCausalIdentity')) {
-    lines.push('memory_closure_identity=required; proof_source=downstream_memoryClosureCausality.memoryIdentity')
-    lines.push('proof_boundary=route_chain_text:false; visible_reply_wording:false')
-  }
-  if (focus.includes('runtimeMemoryClosureIdentityContinuity')) {
-    lines.push('identity_continuity=stable_memory_identity_key; scope=recall,initiative,execution,emotion,embodiment')
-  }
-  if (focus.includes('runtimeMemoryClosureLaneCarry')) {
-    lines.push('lane_carry=causal_alteration_required; lanes=initiative,execution_feedback,emotional_residue,embodied_expression')
-  }
-  if (lines.length === 0)
-    return []
-
-  return [
-    '[ALICIZATION_MEMORY_TUNING_CAUSALITY]',
-    'source_role=nightly_replay; issue=runtime_continuity_closure_can_split_after_memory_recall; usage=next_turn_memory_governance; visible_surface=answer_payoff',
-    `source=${tuningAdvice.source}`,
-    ...lines,
-    'continuity_rule=one_memory_identity_across_recall_initiative_execution_feedback_emotional_residue_embodied_expression',
-  ]
-}
-
 function sanitizeOrganicMemoryProviderText(raw: unknown, maxChars = 220) {
   const normalized = sanitizeAlicizationProviderFacingText(raw, maxChars)
   if (!normalized || normalized === alicizationFixedTemplateReplacement)
@@ -132,7 +94,6 @@ export function buildOrganicMemorySystemBlocks(
     knowledgeEvidence: context.knowledgeEvidence ?? null,
     hostPersonModel: context.hostPersonModel ?? null,
     projectStateContinuity: context.projectStateContinuity ?? null,
-    tuningAdvice: context.memoryTuningAdvice ?? null,
   })
   if (context.hostAttitude) {
     blocks.push([
@@ -140,10 +101,6 @@ export function buildOrganicMemorySystemBlocks(
       `host_attitude=${context.hostAttitude}`,
     ].join('\n'))
   }
-
-  const memoryTuningCausalityLines = buildMemoryTuningCausalityLines(context)
-  if (memoryTuningCausalityLines.length > 0)
-    blocks.push(memoryTuningCausalityLines.join('\n'))
 
   if (context.coreIncarnation) {
     const coreIncarnation = sanitizeOrganicMemoryProviderText(context.coreIncarnation, 360)

@@ -63,7 +63,6 @@ import {
   runReconstructionAmbiguityRetrievalPass,
 } from './memory-search-retrieval-operators'
 import { buildMemorySituationCompetition } from './memory-situation-competition'
-import { applyMemoryTuningAdviceToSpeechPlan } from './memory-tuning-advice'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import { resolvePreferredPersonStateProjection } from './person-state-projection-resolution'
 import {
@@ -100,32 +99,11 @@ function rankByBenchmarkTuningBias<T>(input: {
       const provenance = input.getProvenance?.(item) ?? null
       const text = sanitizeOrganicMemoryText(input.toText(item), 260).toLowerCase()
       const relationshipCue = /relationship|bond|trust|care|boundary|space|repair|tone|distance|关系|信任|边界|空间|修复|语气|距离/u.test(text)
-      const selfCue = /self|my trait|my habit|my pattern|自我|性格|习惯|我会|我总是/u.test(text)
-      const worldCue = /api|schema|type|param|world fact|knowledge|规范|参数|类型|外部事实|知识/u.test(text)
 
-      if (input.mode === 'procedure')
-        score += tuningAdvice.retrievalAdjustments.proceduralBoost
-      if (input.mode === 'consolidation' || input.mode === 'window')
-        score += tuningAdvice.retrievalAdjustments.temporalWindowBias
       if ((input.mode === 'episode' || input.mode === 'conversation') && relationshipCue)
         score += tuningAdvice.retrievalAdjustments.relationshipBoost
       if ((input.mode === 'episode' || input.mode === 'conversation') && (provenance === 'reconstructed' || provenance === 'dreamt' || provenance === 'inferred' || provenance === 'shadow'))
         score -= tuningAdvice.retrievalAdjustments.wrongThreadPenalty
-      if (
-        tuningAdvice.focusDimensions.includes('learningRevisionDiscipline')
-        && (input.mode === 'episode' || input.mode === 'conversation' || input.mode === 'consolidation')
-        && (relationshipCue || selfCue)
-      ) {
-        score -= tuningAdvice.surfaceAdjustments.provenanceLabelBias * 0.08
-        score -= tuningAdvice.personStateAdjustments.closenessCapBias * 0.06
-      }
-      if (
-        tuningAdvice.focusDimensions.includes('worldModelValidationDiscipline')
-        && (input.mode === 'conversation' || input.mode === 'consolidation' || input.mode === 'episode')
-        && worldCue
-      ) {
-        score -= tuningAdvice.surfaceAdjustments.specificityClampBias * 0.12
-      }
 
       return { item, score }
     })
@@ -146,32 +124,6 @@ function uniquePromptList(values: Array<string | null | undefined>, maxItems = 6
       break
   }
   return result
-}
-
-function summarizeRuntimeSameHerTuningCausality(tuningAdvice: AlicizationMemoryTuningAdvice | null) {
-  const focus = tuningAdvice?.focusDimensions ?? []
-  if (focus.length === 0)
-    return ''
-
-  const lanes = uniquePromptList([
-    focus.includes('runtimeSameHerInitiativeExecutionCausality') ? 'initiative-execution' : null,
-    focus.includes('runtimeSameHerEmotionalCausality') ? 'emotion' : null,
-    focus.includes('runtimeSameHerEmbodimentCausality') ? 'embodiment' : null,
-  ], 3)
-  return lanes.length > 0 ? `tuning-causality=${lanes.join('|')}` : ''
-}
-
-function summarizeRuntimeMemoryClosureTuning(tuningAdvice: AlicizationMemoryTuningAdvice | null) {
-  const focus = tuningAdvice?.focusDimensions ?? []
-  if (focus.length === 0)
-    return ''
-
-  const dimensions = uniquePromptList([
-    focus.includes('runtimeMemoryClosureCausalIdentity') ? 'causal-identity' : null,
-    focus.includes('runtimeMemoryClosureLaneCarry') ? 'lane-carry' : null,
-    focus.includes('runtimeMemoryClosureIdentityContinuity') ? 'identity-continuity' : null,
-  ], 3)
-  return dimensions.length > 0 ? `tuning-memory-closure=${dimensions.join('|')}` : ''
 }
 
 function normalizeMemorySuppressionTag(raw: unknown) {
@@ -784,6 +736,7 @@ function buildOrganicMemoryProjectStateContextFromRecallGovernor(
         nextClosureTarget: null,
         preDialogueAwarenessLine: null,
         emotionalClosureCue: projectEmotionalClosure,
+        sameHerSelfLine: null,
         sameHerHoldDetail: null,
         sameHerDriftRisk: null,
       },
@@ -1522,7 +1475,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         recollectionIntent: activeRecollectionIntent ?? null,
         budgetClass,
       }),
-      memoryTuningAdvice,
       activeSelfEvolutionCandidateId: prelude.retrievalPolicySnapshot.activeSelfEvolutionCandidateId ?? null,
       activeSelfRevisionPatch: prelude.retrievalPolicySnapshot.selfRevisionPatch ?? null,
       recentRelationshipOutcomes,
@@ -1726,39 +1678,33 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         })
       : deliberatedConversationHistoryRaw
     const surfacePlanningStartedAt = Date.now()
-    const tunedRecollectionSpeechPlan = applyMemoryTuningAdviceToSpeechPlan({
-      // NOTICE: Surface planning remains mind-authored; telemetry only measures this shaping pass.
-      speechPlan: applyMemoryDeliberationToSpeechPlan({
-        deliberation: plannerMemoryDeliberation,
-        speechPlan: recollectionSpeechPlan,
-        hostPersonModel,
-      }),
-      memoryDeliberation: plannerMemoryDeliberation,
-      tuningAdvice: memoryTuningAdvice,
+    const deliberatedRecollectionSpeechPlan = applyMemoryDeliberationToSpeechPlan({
+      deliberation: plannerMemoryDeliberation,
+      speechPlan: recollectionSpeechPlan,
+      hostPersonModel,
     })
     const finalSurfaceKernel = buildAlicizationMemoryDeliberationKernel({
       deliberation: plannerMemoryDeliberation,
-      speech: tunedRecollectionSpeechPlan,
+      speech: deliberatedRecollectionSpeechPlan,
       recollectionIntent,
       knowledgeEvidence,
       hostPersonModel,
-      tuningAdvice: memoryTuningAdvice,
     })
-    const effectiveRecollectionSpeechPlan = tunedRecollectionSpeechPlan && finalSurfaceKernel?.shouldStayInward
+    const effectiveRecollectionSpeechPlan = deliberatedRecollectionSpeechPlan && finalSurfaceKernel?.shouldStayInward
       ? {
-          ...tunedRecollectionSpeechPlan,
+          ...deliberatedRecollectionSpeechPlan,
           shouldSurface: false,
           surfaceMode: 'internal-only' as const,
           placement: 'internal-only' as const,
           certainty: finalSurfaceKernel.memoryControl?.certaintyFloor
             ? lowerCertaintyToFloor({
-                certainty: tunedRecollectionSpeechPlan.certainty,
+                certainty: deliberatedRecollectionSpeechPlan.certainty,
                 floor: finalSurfaceKernel.memoryControl.certaintyFloor,
               })
-            : tunedRecollectionSpeechPlan.certainty,
+            : deliberatedRecollectionSpeechPlan.certainty,
           visibleLead: null,
           styleNote: [
-            tunedRecollectionSpeechPlan.styleNote,
+            deliberatedRecollectionSpeechPlan.styleNote,
             finalSurfaceKernel.whyWithheld,
             finalSurfaceKernel.memoryControl?.labelUncertainty
               ? 'uncertainty_label=required_when_needed; settled_recall_claim=false'
@@ -1766,7 +1712,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
             'recollection_visibility=internal_until_present_payoff_lands; boundary=room_first_repair_first_host_boundary',
           ].filter(Boolean).join(' '),
         }
-      : tunedRecollectionSpeechPlan
+      : deliberatedRecollectionSpeechPlan
     void recordOrganicMemoryStageBudget?.({
       stage: 'surface-planning',
       budgetClass,
@@ -2109,7 +2055,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       learningExecutionState: effectiveLearningExecutionState,
       recallLatencyPolicy,
       affectiveResidue,
-      memoryTuningAdvice,
       activeSelfEvolutionCandidateId: prelude.retrievalPolicySnapshot.activeSelfEvolutionCandidateId ?? null,
       activeSelfRevisionPatch: prelude.retrievalPolicySnapshot.selfRevisionPatch ?? null,
       recentRelationshipOutcomes,
@@ -2188,7 +2133,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         },
         {
           stage: 'surface-planning',
-          summary: 'Merged planner deliberation with tuning advice into final speech-facing recollection surface controls.',
+          summary: 'Merged planner deliberation with the recall-authored speech plan.',
           latencyMs: Date.now() - surfacePlanningStartedAt,
           budgetClass,
           inputs: [plannerMemoryDeliberation?.surfacePolicy ?? 'none', recollectionSpeechPlan?.surfaceMode ?? 'none'],
@@ -2198,9 +2143,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
             `shouldSurface=${effectiveRecollectionSpeechPlan?.shouldSurface ? 'yes' : 'no'}`,
           ],
           diagnostics: [
-            summarizeRuntimeSameHerTuningCausality(memoryTuningAdvice),
-            summarizeRuntimeMemoryClosureTuning(memoryTuningAdvice),
-            memoryTuningAdvice?.notes?.[0] ?? '',
             plannerMemoryDeliberation?.whyNow ?? '',
           ],
         },
@@ -2296,4 +2238,8 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     buildPerformanceManifestSystemBlocks: buildPerformanceManifestBlocks,
     resolveOrganicMemoryPromptContext,
   }
+}
+
+export const __alicizationOrganicMemoryPromptTestOnly = {
+  rankByBenchmarkTuningBias,
 }

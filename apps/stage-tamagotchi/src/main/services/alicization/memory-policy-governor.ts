@@ -83,7 +83,6 @@ export function deriveAlicizationOnlineMemoryPolicy(input: {
     ? 'quarantine'
     : wrongThreadPressure >= 0.2
       || precisionPressure >= 0.22
-      || (tuningAdvice?.surfaceAdjustments.specificityClampBias ?? 0) >= 0.14
       || (telemetry?.learningPolicyStrictnessBias ?? 0) >= 0.12
       ? 'strict'
       : 'normal'
@@ -109,8 +108,7 @@ export function deriveAlicizationOnlineMemoryPolicy(input: {
     verificationStrictness: strictness,
     wrongThreadSuppressionBias: rounded(suppressionBias),
     provenanceLabelingBias: rounded(clamp(
-      (tuningAdvice?.surfaceAdjustments.provenanceLabelBias ?? 0)
-      + wrongThreadPressure * 0.35
+      wrongThreadPressure * 0.35
       + precisionPressure * 0.25
       + (telemetry?.learningPolicyProvenanceLabelBias ?? 0),
       0,

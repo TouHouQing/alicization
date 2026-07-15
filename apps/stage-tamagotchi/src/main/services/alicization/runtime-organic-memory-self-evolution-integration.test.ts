@@ -79,6 +79,51 @@ const activeSelfRevisionPatch: AlicizationSelfRevisionStatePatch = {
 }
 
 describe('runtime organic memory self evolution integration', () => {
+  it('does not turn replay tuning focus into derived causality repair pressure', () => {
+    const result = buildOrganicMemoryEvolutionState({
+      producedAt: 100,
+      retrievedFacts: [],
+      proceduralMemories: [],
+      hostPersonModel: null,
+      recollectionIntent: null,
+      recollectionPlan: null,
+      recollectionSpeechPlan: null,
+      memoryDeliberation: null,
+      personStateProjection: null,
+      memoryTuningAdvice: {
+        version: 'memory-tuning-advice-v1',
+        source: 'nightly-replay-benchmark',
+        updatedAt: 100,
+        sourceReportAt: 90,
+        focusDimensions: [
+          'runtimeMemoryClosureCausalIdentity',
+          'runtimeSameHerInitiativeExecutionCausality',
+          'runtimeSameHerEmotionalCausality',
+          'runtimeSameHerEmbodimentCausality',
+        ],
+        retrievalAdjustments: {
+          proceduralBoost: 0,
+          relationshipBoost: 0.12,
+          temporalWindowBias: 0.04,
+          wrongThreadPenalty: 0,
+        },
+        surfaceAdjustments: {
+          inwardCarryBias: 0.14,
+          delayUntilAfterPayoffBias: 0.14,
+          provenanceLabelBias: 0.04,
+          specificityClampBias: 0,
+        },
+        personStateAdjustments: {
+          repairWindowBias: 0.04,
+          closenessCapBias: 0.07,
+        },
+        notes: ['Replay focus is diagnostic data, not reply or action governance.'],
+      },
+    } as any)
+
+    expect(result.derivedMindStateBundle.sameHerCausalityRepairPressure).toBeNull()
+  })
+
   it('does not let historical self-revision telemetry alone alter the long-horizon self-evolution kernel', () => {
     const result = buildOrganicMemoryEvolutionState({
       producedAt: 100,
