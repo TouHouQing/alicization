@@ -2237,9 +2237,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       threadRuntime,
       mindDynamics,
       mindKernel,
-      memoryTuningAdvice: input.organicMemoryContext?.memoryTuningAdvice ?? null,
       previous: input.previousVisualPresenceState.counterfactualDeliberation ?? null,
-      projectState: mindProjectStateRuntimeSnapshot,
     })
     const actionEcology = buildActionEcology({
       now: input.now,

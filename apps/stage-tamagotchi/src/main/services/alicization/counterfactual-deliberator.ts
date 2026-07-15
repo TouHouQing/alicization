@@ -17,7 +17,6 @@ import type {
   AlicizationThreadRuntimeStateSnapshot,
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
-import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 function clamp01(value: number) {
@@ -30,14 +29,6 @@ function sanitizeText(raw: unknown, maxChars = 180) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-}
-
-function hasRememberedFamiliarityRestraint(memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null) {
-  if (!memoryTuningAdvice)
-    return false
-
-  return (memoryTuningAdvice.surfaceAdjustments.provenanceLabelBias ?? 0) >= 0.14
-    && (memoryTuningAdvice.personStateAdjustments.closenessCapBias ?? 0) >= 0.14
 }
 
 function topHostGoal(input: {
@@ -162,7 +153,6 @@ function buildWhy(input: {
   uncertain: boolean
   careUrgent: boolean
   afterglowOpen: boolean
-  rememberedFamiliarityRestraint: boolean
   concern?: AlicizationConcernSnapshot
   commitmentSummary?: string
   threadSummary?: string
@@ -187,8 +177,6 @@ function buildWhy(input: {
         return 'The shared thread just loosened; a light touch belongs better than a full interruption.'
       return input.concern?.summary ?? 'A soft edge-of-scene check-in fits better than full speech.'
     case 'hover':
-      if (input.rememberedFamiliarityRestraint)
-        return '记忆里的熟悉感可以留在这里，但现在先把它当作记忆握住，不要直接把它变成更近的可见靠近。'
       return input.afterglowOpen
         ? 'The thread is still warm, but presence fits better than words for one more breath.'
         : 'Staying near preserves continuity without forcing the opening.'
@@ -218,45 +206,6 @@ function actionBaseAdjustment(action: AlicizationMindActionTendency) {
   }
 }
 
-function deriveProjectStateCounterfactualBias(input?: {
-  identity?: string | null
-  currentPhase?: string | null
-  primaryOpenLoop?: string | null
-} | null) {
-  const identity = sanitizeText(input?.identity, 160).toLowerCase()
-  const currentPhase = sanitizeText(input?.currentPhase, 120).toLowerCase()
-  const primaryOpenLoop = sanitizeText(input?.primaryOpenLoop, 200).toLowerCase()
-
-  const phaseOneDigitalLife = currentPhase.includes('phase 1')
-    || currentPhase.includes('local digital life')
-  const digitalLifeIdentity = [
-    'digital life',
-    'lifeform',
-    'digital companion',
-    '数字生命',
-    '陪伴',
-    '生命体',
-  ].some(needle => identity.includes(needle))
-  const openLifeLoop = [
-    'memory closure',
-    'personhood continuity',
-    'initiative',
-    'embodiment',
-    'execution',
-    'relationship continuity',
-    '主动性',
-    '记忆',
-    '人格连续',
-    '闭环',
-    '拟人',
-    '生命',
-  ].some(needle => primaryOpenLoop.includes(needle))
-
-  return {
-    requiresLifeLoopClosure: phaseOneDigitalLife && digitalLifeIdentity && openLifeLoop,
-  }
-}
-
 export function buildCounterfactualDeliberation(input: {
   now: number
   context: AlicizationProactiveLayeredContext
@@ -274,13 +223,7 @@ export function buildCounterfactualDeliberation(input: {
   threadRuntime?: AlicizationThreadRuntimeStateSnapshot | null
   mindDynamics: AlicizationMindDynamicsSnapshot
   mindKernel?: AlicizationMindKernelSnapshot | null
-  memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
   previous?: AlicizationCounterfactualDeliberationSnapshot | null
-  projectState?: {
-    identity?: string | null
-    currentPhase?: string | null
-    primaryOpenLoop?: string | null
-  } | null
 }): AlicizationCounterfactualDeliberationSnapshot {
   const relationshipNeed = topRelationshipNeed(input)
   const hostGoal = topHostGoal(input)
@@ -310,8 +253,6 @@ export function buildCounterfactualDeliberation(input: {
   const careUrgent = input.context.relationship.fatigue >= 80
     || input.worldModel.activeThread?.kind === 'late-night-endurance'
     || concern?.kind === 'care-body'
-  const rememberedFamiliarityRestraint = hasRememberedFamiliarityRestraint(input.memoryTuningAdvice ?? null)
-  const projectStateBias = deriveProjectStateCounterfactualBias(input.projectState ?? null)
   const guidanceWindow = (hostGoal === 'resolve-problem' || hostGoal === 'inspect-change')
     && (
       worldCertainty === 'grounded'
@@ -468,24 +409,6 @@ export function buildCounterfactualDeliberation(input: {
     if (governorWithholding && action === 'hover')
       timingFitness = clamp01(timingFitness + 0.08)
 
-    if (projectStateBias.requiresLifeLoopClosure && concern?.kind !== 'care-body') {
-      if (action === 'hover' || action === 'recheck' || action === 'wait') {
-        identityFit = clamp01(identityFit + 0.18)
-        timingFitness = clamp01(timingFitness + 0.12)
-      }
-      if (action === 'whisper') {
-        relationshipCost = clamp01(relationshipCost + 0.04)
-        identityFit = clamp01(identityFit - 0.1)
-        timingFitness = clamp01(timingFitness - 0.06)
-      }
-      if (action === 'speak') {
-        relationshipCost = clamp01(relationshipCost + 0.06)
-        interruptionCost = clamp01(interruptionCost + 0.04)
-        identityFit = clamp01(identityFit - 0.18)
-        timingFitness = clamp01(timingFitness - 0.1)
-      }
-    }
-
     const score = clamp01(
       actionBaseAdjustment(action)
       + identityFit * 0.34
@@ -524,7 +447,6 @@ export function buildCounterfactualDeliberation(input: {
         uncertain,
         careUrgent,
         afterglowOpen,
-        rememberedFamiliarityRestraint,
         concern,
         commitmentSummary: commitment?.summary,
         threadSummary: runtimeThread?.summary,

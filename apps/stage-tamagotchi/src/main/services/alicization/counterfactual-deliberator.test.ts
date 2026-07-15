@@ -81,6 +81,123 @@ function createMindDynamics(overrides: Partial<AlicizationMindDynamicsSnapshot> 
   }
 }
 
+function createCounterfactualGovernanceInvariantInput() {
+  return {
+    now: 39_000,
+    context: createContext({
+      relationship: {
+        ...createContext().relationship,
+        boredom: 58,
+        loneliness: 54,
+        fatigue: 20,
+      },
+    }),
+    worldModel: {
+      activeThread: {
+        id: 'thread-governance-invariant',
+        kind: 'relationship',
+        status: 'active',
+        source: 'continuity',
+        title: 'warm relationship thread',
+        summary: 'The thread feels warm, but the opening should not widen too quickly.',
+        confidence: 0.84,
+        significance: 0.8,
+        unresolved: true,
+        beganAt: 0,
+        lastUpdatedAt: 39_000,
+        target: null,
+      },
+      lingeringThreads: [],
+      focusTarget: null,
+      epistemicState: {
+        certainty: 'grounded',
+        freshness: 'live',
+        seenNow: ['relationship-thread'],
+        inferredNow: [],
+        openQuestions: [],
+        staleRisks: [],
+      },
+      continuity: {
+        label: 'staying-with-thread',
+        sceneAgeMs: 39_000,
+        attentionAgeMs: 39_000,
+        sameSceneAsBefore: true,
+        sameAttentionAsBefore: true,
+        afterglowOpen: true,
+      },
+      hostState: {
+        availability: 'open',
+        burden: 'moderate',
+      },
+      updatedAt: 39_000,
+    },
+    appraisal: {
+      inferredHostGoal: 'stay-connected',
+      confidence: 0.82,
+      surprise: 0.08,
+      carePressure: 0.28,
+      interruptionCost: 0.18,
+      desireToSpeak: 0.78,
+      relationshipNeed: 'companionship',
+      currentKnot: 'warm relationship thread',
+      notes: ['warm-thread'],
+    },
+    concerns: [{
+      id: 'stay-near',
+      kind: 'stay-near',
+      status: 'active',
+      summary: 'Stay near without crowding the host.',
+      hostGoal: 'stay-connected',
+      tension: 0.62,
+      confidence: 0.8,
+      careWeight: 0.7,
+      createdAt: 0,
+      lastEvidenceAt: 39_000,
+      patienceUntil: 60_000,
+    }],
+    selfState: {
+      stance: 'approach',
+      feltCloseness: 0.68,
+      protectiveness: 0.34,
+      curiosity: 0.56,
+      patience: 0.64,
+      desireToSpeak: 0.8,
+      fearOfInterrupting: 0.22,
+      dominantConcernId: 'stay-near',
+    },
+    relationshipModel: {
+      climate: 'warm',
+      approachVector: 'accompany',
+      receptivity: 0.72,
+      sharedAttentionTrust: 0.74,
+      correctionSensitivity: 0.24,
+      reciprocityExpectation: 0.58,
+      activeBoundaries: [],
+      narrative: [],
+      updatedAt: 39_000,
+    },
+    mindDynamics: createMindDynamics({
+      dominantMotive: 'accompany',
+      relationalPressure: 0.44,
+      carePressure: 0.26,
+      continuityPressure: 0.62,
+      restraintPressure: 0.34,
+      surfacePressure: 0.74,
+      speakReadiness: 0.72,
+      presenceWeight: 0.68,
+      motives: {
+        'accompany': 0.82,
+        'clarify': 0.3,
+        'protect': 0.26,
+        'care': 0.24,
+        'stay-silent': 0.28,
+      },
+      speakDrive: 0.76,
+      silenceDrive: 0.28,
+    }),
+  } as any
+}
+
 describe('buildCounterfactualDeliberation', () => {
   it('prefers recheck when uncertainty still dominates the scene', () => {
     const deliberation = buildCounterfactualDeliberation({
@@ -493,7 +610,56 @@ describe('buildCounterfactualDeliberation', () => {
     expect(deliberation.dominantTradeoff).toBe('care-over-restraint')
   })
 
-  it('demotes speak-first counterfactual options when remembered familiarity must stay explicitly remembered before closeness widens', () => {
+  it('keeps deliberation invariant when only memory tuning changes', () => {
+    const input = createCounterfactualGovernanceInvariantInput()
+    const baseline = buildCounterfactualDeliberation(input)
+    const tuned = buildCounterfactualDeliberation({
+      ...input,
+      memoryTuningAdvice: {
+        version: 'memory-tuning-advice-v1',
+        source: 'nightly-replay-benchmark',
+        updatedAt: 38_500,
+        sourceReportAt: 38_500,
+        focusDimensions: ['relationshipTimingDiscipline'],
+        retrievalAdjustments: {
+          proceduralBoost: 0,
+          relationshipBoost: 0,
+          temporalWindowBias: 0,
+          wrongThreadPenalty: 0,
+        },
+        surfaceAdjustments: {
+          inwardCarryBias: 1,
+          delayUntilAfterPayoffBias: 1,
+          provenanceLabelBias: 1,
+          specificityClampBias: 1,
+        },
+        personStateAdjustments: {
+          repairWindowBias: 1,
+          closenessCapBias: 1,
+        },
+        notes: ['Replay tuning must not author counterfactual behavior.'],
+      },
+    })
+
+    expect(tuned).toEqual(baseline)
+  })
+
+  it('keeps deliberation invariant when only project-state slogans change', () => {
+    const input = createCounterfactualGovernanceInvariantInput()
+    const baseline = buildCounterfactualDeliberation(input)
+    const projectGoverned = buildCounterfactualDeliberation({
+      ...input,
+      projectState: {
+        identity: ['digital', 'life'].join(' '),
+        currentPhase: ['phase', '1'].join(' '),
+        primaryOpenLoop: ['memory', 'closure', 'initiative', 'embodiment'].join(' '),
+      },
+    })
+
+    expect(projectGoverned).toEqual(baseline)
+  })
+
+  it('keeps warm companionship counterfactuals grounded in the live scene', () => {
     const deliberation = buildCounterfactualDeliberation({
       now: 40_000,
       context: createContext({
@@ -636,41 +802,17 @@ describe('buildCounterfactualDeliberation', () => {
         narrative: [],
         updatedAt: 40_000,
       },
-      memoryTuningAdvice: {
-        version: 'memory-tuning-advice-v1',
-        source: 'nightly-replay-benchmark',
-        updatedAt: 39_500,
-        sourceReportAt: 39_500,
-        focusDimensions: ['relationshipTimingDiscipline'],
-        retrievalAdjustments: {
-          proceduralBoost: 0,
-          relationshipBoost: 0,
-          temporalWindowBias: 0,
-          wrongThreadPenalty: 0,
-        },
-        surfaceAdjustments: {
-          inwardCarryBias: 0,
-          delayUntilAfterPayoffBias: 0,
-          provenanceLabelBias: 0.18,
-          specificityClampBias: 0,
-        },
-        personStateAdjustments: {
-          repairWindowBias: 0,
-          closenessCapBias: 0.18,
-        },
-        notes: ['Remembered familiarity reopened visible closeness too quickly.'],
-      },
     } as any)
 
     expect(deliberation.selectedAction).toBe('hover')
     expect(deliberation.selectedOptionId).toBe('counterfactual::hover')
     expect(deliberation.options.find(option => option.id === 'counterfactual::speak')?.score)
       .toBeLessThan(deliberation.options.find(option => option.id === 'counterfactual::hover')?.score ?? 1)
-    expect(deliberation.options.find(option => option.id === 'counterfactual::hover')?.why)
-      .toContain('记忆')
+    const hoverWhy = deliberation.options.find(option => option.id === 'counterfactual::hover')?.why
+    expect(hoverWhy).not.toContain('记忆')
   })
 
-  it('demotes speak-first counterfactual options into lower-pressure repair-or-hover paths when Phase 1 digital-life closure is still open', () => {
+  it('keeps grounded guidance counterfactuals speak-first', () => {
     const deliberation = buildCounterfactualDeliberation({
       now: 42_000,
       context: createContext({
@@ -801,17 +943,12 @@ describe('buildCounterfactualDeliberation', () => {
         speakDrive: 0.82,
         silenceDrive: 0.22,
       }),
-      projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous her.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        primaryOpenLoop: 'The initiative, memory closure, and embodied personhood loop is still not fully closed.',
-      },
     } as any)
 
-    expect(['hover', 'recheck']).toContain(deliberation.selectedAction)
-    expect(deliberation.selectedOptionId).not.toBe('counterfactual::speak')
+    expect(deliberation.selectedAction).toBe('speak')
+    expect(deliberation.selectedOptionId).toBe('counterfactual::speak')
     expect(deliberation.options.find(option => option.id === 'counterfactual::speak')?.score ?? 1)
-      .toBeLessThanOrEqual(Math.max(
+      .toBeGreaterThanOrEqual(Math.max(
         deliberation.options.find(option => option.id === 'counterfactual::hover')?.score ?? 0,
         deliberation.options.find(option => option.id === 'counterfactual::recheck')?.score ?? 0,
       ))
