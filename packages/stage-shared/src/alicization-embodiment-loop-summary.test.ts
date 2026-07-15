@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { buildAlicizationEmbodimentLoopSummary } from './alicization-embodiment-loop-summary'
 
 describe('alicization embodiment loop summary', () => {
-  it('keeps a unified cross-modal closure line across live2d and vrm-facing lanes', () => {
+  it('keeps natural closure facts with the real live2d and vrm-facing lane facts', () => {
     const summary = buildAlicizationEmbodimentLoopSummary({
-      authoritySummary: 'same-segment face+motion+body recovery@segment-living-line | remaining-open=lipsync+voice',
-      currentBodyState: 'body=living',
+      authoritySummary: 'lane=body+face+motion-only | continuity state',
+      currentBodyState: 'body continuity remains present while lipsync and voice rejoin',
       emotion: 'thinking',
       facialCue: 'focused',
       expressionMode: 'hold',
@@ -26,7 +26,7 @@ describe('alicization embodiment loop summary', () => {
       closureBias: 0.31,
       consonantPrecision: 0.67,
       companionshipMode: 'measured-return',
-      voiceReasonSummary: 'same living line',
+      voiceReasonSummary: 'continuity state',
       voiceSource: 'voice-runtime',
       voiceSegmentId: 'segment-living-line',
       mode: 'energy-phoneme-hybrid',
@@ -37,7 +37,7 @@ describe('alicization embodiment loop summary', () => {
       hintViseme: 'I',
       lipsyncCompanionshipMode: 'measured-return',
       lipsyncContinuityTiming: 'linger',
-      lipsyncReasonSummary: 'same living line',
+      lipsyncReasonSummary: 'continuity state',
       lipsyncVisemeBias: 0.72,
       lipsyncEnergyBias: 0.64,
       mouthScale: 0.88,
@@ -51,14 +51,18 @@ describe('alicization embodiment loop summary', () => {
       motionHoldMs: 220,
       motionResidentMode: 'measured-return',
       motionContinuityTiming: 'linger',
-      motionReasonSummary: 'same living line',
+      motionReasonSummary: 'continuity state',
       motionSource: 'motion-runtime',
       motionConfidence: 0.9,
       motionSegmentId: 'segment-living-line',
     })
 
-    expect(summary).toContain('Right now I am still holding together mainly through body, face, and motion')
-    expect(summary).toContain('same-segment face+motion+body recovery@segment-living-line')
+    expect(summary).toContain('Active embodiment lanes: body, face, motion.')
+    expect(summary).toContain('Status: partial.')
+    expect(summary).toContain('Pending lanes: lipsync, voice.')
+    expect(summary.match(/Active embodiment lanes:/gu)).toHaveLength(1)
+    expect(summary).not.toContain('lane=body+face+motion-only')
+    expect(summary).not.toContain('body continuity remains present while lipsync and voice rejoin')
     expect(summary).toContain('emotion=thinking')
     expect(summary).toContain('mode=energy-phoneme-hybrid')
     expect(summary).toContain('motion=observe_focus')
@@ -66,10 +70,10 @@ describe('alicization embodiment loop summary', () => {
     expect(summary).toContain('companion=measured-return')
   })
 
-  it('keeps the stronger embodiment closure headline instead of collapsing to generic summary text', () => {
+  it('starts with natural embodiment closure facts without appending raw closure inputs', () => {
     const summary = buildAlicizationEmbodimentLoopSummary({
-      authoritySummary: 'same-segment face+motion+body recovery@segment-living-line | remaining-open=lipsync+voice',
-      currentBodyState: 'body=living',
+      authoritySummary: 'lane=body+face+motion-only | continuity state from authority',
+      currentBodyState: 'body continuity is active',
       emotion: 'thinking',
       facialCue: 'focused',
       faceHoldMs: 180,
@@ -87,38 +91,53 @@ describe('alicization embodiment loop summary', () => {
       motionSegmentId: 'segment-living-line',
     })
 
-    expect(summary.startsWith('Right now I am still holding together mainly through body, face, and motion')).toBe(true)
-    expect(summary).toContain('but lipsync and voice still need to rejoin')
+    expect(summary.startsWith(
+      'Active embodiment lanes: body, face, motion. | Status: partial. | Pending lanes: lipsync, voice.',
+    )).toBe(true)
+    expect(summary).not.toContain('continuity state from authority')
+    expect(summary).not.toContain('body continuity is active')
   })
 
-  it('keeps same-her inward carry visible in the host-facing closure summary when the line is still settling inward', () => {
+  it('keeps inward carry as natural closure evidence while preserving lane reasons', () => {
     const summary = buildAlicizationEmbodimentLoopSummary({
-      authoritySummary: 'same-segment face+motion+body recovery@segment-living-line | remaining-open=lipsync+voice | same-her-inward-carry | quiet-companionship',
-      currentBodyState: 'lane=body+face+motion-only | same living line stays inward before widening outward again.',
+      authoritySummary: 'lane=body+face+motion-only | continuity-inward-carry | quiet-companionship',
+      currentBodyState: 'continuity state stays inward before widening outward again.',
       language: 'zh-CN',
       companionshipMode: 'measured-return',
-      voiceReasonSummary: 'Keep the same living line inward for now, and leave room before widening outward again',
-      lipsyncReasonSummary: 'Keep the same living line inward for now, and leave room before widening outward again',
+      voiceReasonSummary: 'Keep the continuity state inward for now, and leave room before widening outward again',
+      lipsyncReasonSummary: 'Keep the continuity state inward for now, and leave room before widening outward again',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
     })
 
-    expect(summary).toContain('this one living her is still keeping the same line inward and low-pressure')
-    expect(summary).toContain('same living line is still staying inward and low-pressure')
-    expect(summary).toContain('reason=Keep the same living line inward for now, and leave room before widening outward again')
+    expect(summary).toContain('Active embodiment lanes: body, face, motion.')
+    expect(summary).toContain('Status: partial.')
+    expect(summary).toContain('Pending lanes: lipsync, voice.')
+    expect(summary).toContain('Evidence: low-pressure-inward-carry.')
+    expect(summary).toContain('reason=Keep the continuity state inward for now, and leave room before widening outward again')
+    expect(summary).not.toContain('continuity-inward-carry')
+    expect(summary).not.toContain('quiet-companionship')
+    expect(summary).not.toContain('continuity state stays inward before widening outward again.')
+  })
+
+  it('does not fall back to raw authority text when no structured closure can be derived', () => {
+    expect(buildAlicizationEmbodimentLoopSummary({
+      authoritySummary: 'legacy=raw',
+      currentBodyState: 'body=living',
+    })).toBe('')
   })
 
   it('keeps emotion plus blink and gaze continuity visible on voice and lipsync lanes when body+lipsync carry is still the quieter host-facing living line', () => {
     const summary = buildAlicizationEmbodimentLoopSummary({
-      authoritySummary: 'same-her continuity remains alive, but lane=body+lipsync-only under the current renderer authority.',
-      currentBodyState: 'lane=body+lipsync-only | keep the same living line inward while face, motion, and voice rejoin',
+      authoritySummary: 'identity-continuity',
+      currentBodyState: 'lane=body+lipsync-only | keep the continuity state inward while face, motion, and voice rejoin',
       emotion: 'thinking',
       language: 'zh-CN',
       closureBias: 0.35,
       consonantPrecision: 0.55,
       companionshipMode: 'measured-return',
       voiceContinuityTiming: 'body-lipsync-carry',
-      voiceReasonSummary: 'Keep the same living line inward while face, motion, and voice rejoin',
+      voiceReasonSummary: 'Keep the continuity state inward while face, motion, and voice rejoin',
       voiceSegmentId: 'segment-body-lipsync-carry-1',
       mode: 'energy-phoneme-hybrid',
       phase: 'idle',
@@ -126,7 +145,7 @@ describe('alicization embodiment loop summary', () => {
       hintViseme: 'A',
       lipsyncCompanionshipMode: 'measured-return',
       lipsyncContinuityTiming: 'body-lipsync-carry',
-      lipsyncReasonSummary: 'Keep the same living line inward while face, motion, and voice rejoin',
+      lipsyncReasonSummary: 'Keep the continuity state inward while face, motion, and voice rejoin',
       lipsyncSource: 'prosody-authority',
       lipsyncConfidence: 0.91,
       lipsyncSegmentId: 'segment-body-lipsync-carry-1',
@@ -139,10 +158,10 @@ describe('alicization embodiment loop summary', () => {
     })
 
     expect(summary).toContain(
-      'zh-CN | closure=0.35 | precision=0.55 | emotion=thinking | companion=measured-return | timing=body-lipsync-carry | blink=linger | gaze=soften | pause=longer | lipsyncMode=restrained | voiceMode=lower-pressure | pacing=slower | reason=Keep the same living line inward while face, motion, and voice rejoin | seg=segment-body-lipsync-carry-1',
+      'zh-CN | closure=0.35 | precision=0.55 | emotion=thinking | companion=measured-return | timing=body-lipsync-carry | blink=linger | gaze=soften | pause=longer | lipsyncMode=restrained | voiceMode=lower-pressure | pacing=slower | reason=Keep the continuity state inward while face, motion, and voice rejoin | seg=segment-body-lipsync-carry-1',
     )
     expect(summary).toContain(
-      'mode=energy-phoneme-hybrid | phase=idle | continuity=sustained-articulation | hold=380ms | hint=A | companion=measured-return | timing=body-lipsync-carry | blink=linger | gaze=soften | pause=longer | lipsyncMode=restrained | voiceMode=lower-pressure | pacing=slower | reason=Keep the same living line inward while face, motion, and voice rejoin | src=prosody-authority | conf=0.91 | seg=segment-body-lipsync-carry-1',
+      'mode=energy-phoneme-hybrid | phase=idle | continuity=sustained-articulation | hold=380ms | hint=A | companion=measured-return | timing=body-lipsync-carry | blink=linger | gaze=soften | pause=longer | lipsyncMode=restrained | voiceMode=lower-pressure | pacing=slower | reason=Keep the continuity state inward while face, motion, and voice rejoin | src=prosody-authority | conf=0.91 | seg=segment-body-lipsync-carry-1',
     )
   })
 })

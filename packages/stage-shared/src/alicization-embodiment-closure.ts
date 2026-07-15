@@ -25,19 +25,19 @@ function resolveTopLevelSameHerContinuityLaneEvidence(summary: string) {
     || normalized.includes('身体、表情、动作 还没重新接回')
     || normalized.includes('表情、动作、身体 还没重新接回')
   ) {
-    return 'embodiment_lanes=lipsync+voice | missing_lanes=body+face+motion | status=partial'
+    return 'Active embodiment lanes: lipsync and voice. Pending lanes: body, face, and motion. Status: partial.'
   }
 
   if (normalized.includes('处在 audible-body-carry') || normalized.includes('表情、动作 还没重新接回')) {
-    return 'embodiment_lanes=body+lipsync+voice | missing_lanes=face+motion | status=partial'
+    return 'Active embodiment lanes: body, lipsync, and voice. Pending lanes: face and motion. Status: partial.'
   }
 
   if (normalized.includes('处在 renderer-rejoin-without-body') || normalized.includes('身体 还没重新接回')) {
-    return 'embodiment_lanes=face+motion+lipsync+voice | missing_lanes=body | status=partial'
+    return 'Active embodiment lanes: face, motion, lipsync, and voice. Pending lane: body. Status: partial.'
   }
 
   if (normalized.includes('处在 body-carried-to-renderer-rejoin') || normalized.includes('口型、声音 还没重新接回')) {
-    return 'embodiment_lanes=body+face+motion | missing_lanes=lipsync+voice | status=partial'
+    return 'Active embodiment lanes: body, face, and motion. Pending lanes: lipsync and voice. Status: partial.'
   }
 
   return null
@@ -646,36 +646,104 @@ function hasLongHorizonEmotionMemoryFaceLipsyncVoiceCarry(combined: string) {
     )
 }
 
-function hasFullCrossModalLockSameHerContinuity(combined: string) {
-  return combined.includes('bodyContinuityPhase: full-cross-modal-lock')
-    || combined.includes('bodyContinuityPhase=full-cross-modal-lock')
-    || combined.includes('locked back onto the same living segment together')
-    || combined.includes('continuity embodiment line instead of a temporary visual alignment')
-    || combined.includes('共同锁回同一段 living segment')
-    || combined.includes('跨模态重锁态')
-    || hasExplicitFullCrossModalAuthorityLock(combined)
+const ALICIZATION_FULL_CROSS_MODAL_AUTHORITY_TOKENS = [
+  'authority-body:yes',
+  'authority-face:yes',
+  'authority-motion:yes',
+  'authority-lipsync:yes',
+  'authority-voice:yes',
+] as const
+const ALICIZATION_CANONICAL_FULL_CROSS_MODAL_AUTHORITY_LOCK
+  = 'authority=body+face+motion+lipsync+voice | segment=locked'
+const ALICIZATION_FULL_CROSS_MODAL_AUTHORITY_CONTEXT = 'same living segment together'
+
+function hasExplicitFullCrossModalAuthorityLockInSource(source: string) {
+  const normalizedSource = source.trim()
+  if (normalizedSource === ALICIZATION_CANONICAL_FULL_CROSS_MODAL_AUTHORITY_LOCK)
+    return true
+
+  const segments = source
+    .split(/\s*\|\s*/u)
+    .map(segment => segment.trim())
+    .filter(Boolean)
+
+  if (
+    segments.length < ALICIZATION_FULL_CROSS_MODAL_AUTHORITY_TOKENS.length
+    || segments.length > ALICIZATION_FULL_CROSS_MODAL_AUTHORITY_TOKENS.length + 1
+  ) {
+    return false
+  }
+
+  const allowedSegments = new Set<string>([
+    ...ALICIZATION_FULL_CROSS_MODAL_AUTHORITY_TOKENS,
+    ALICIZATION_FULL_CROSS_MODAL_AUTHORITY_CONTEXT,
+  ])
+  if (segments.some(segment => !allowedSegments.has(segment)))
+    return false
+
+  return ALICIZATION_FULL_CROSS_MODAL_AUTHORITY_TOKENS.every(token =>
+    segments.filter(segment => segment === token).length === 1,
+  )
 }
 
-function hasExplicitFullCrossModalAuthorityLock(combined: string) {
-  return combined.includes('authority-body:yes')
-    && combined.includes('authority-face:yes')
-    && combined.includes('authority-motion:yes')
-    && combined.includes('authority-lipsync:yes')
-    && combined.includes('authority-voice:yes')
+function hasExplicitFullCrossModalAuthorityLock(input: {
+  authoritySummary?: string | null
+  currentBodyState?: string | null
+}) {
+  const rawSources = [
+    input.authoritySummary,
+    input.currentBodyState,
+  ]
+  const nonEmptySources = rawSources.filter(
+    (source): source is string => typeof source === 'string' && source.trim().length > 0,
+  )
+  const sources = nonEmptySources.map(source => source.trim())
+  if (sources.some(hasContradictoryFullCrossModalAuthorityEvidence))
+    return false
+
+  return sources.some(source => hasExplicitFullCrossModalAuthorityLockInSource(source))
 }
 
-function hasLegacyFullCrossModalLockMarker(combined: string) {
-  return combined.includes('bodyContinuityPhase: full-cross-modal-lock')
-    || combined.includes('bodyContinuityPhase=full-cross-modal-lock')
-    || combined.includes('locked back onto the same living segment together')
-    || combined.includes('continuity embodiment line instead of a temporary visual alignment')
-    || combined.includes('共同锁回同一段 living segment')
-    || combined.includes('跨模态重锁态')
+function hasContradictoryFullCrossModalAuthorityEvidence(source: string) {
+  return /\b(?:lane|missing_lanes|remaining-open)\s*=/iu.test(source)
+    || /\bsegment\s*=\s*open\b/iu.test(source)
 }
 
-function hasAuthorityOnlyFullCrossModalLock(combined: string) {
-  return hasExplicitFullCrossModalAuthorityLock(combined)
-    && !hasLegacyFullCrossModalLockMarker(combined)
+function hasAnyExplicitFullCrossModalAuthorityToken(source: string) {
+  return ALICIZATION_FULL_CROSS_MODAL_AUTHORITY_TOKENS.some(token => source.includes(token))
+}
+
+function hasFullCrossModalLockSameHerContinuity(input: {
+  authoritySummary?: string | null
+  currentBodyState?: string | null
+}) {
+  const rawSources = [
+    input.authoritySummary,
+    input.currentBodyState,
+  ]
+  const nonEmptySources = rawSources.filter(
+    (source): source is string => typeof source === 'string' && source.trim().length > 0,
+  )
+  const sources = nonEmptySources.map(source => source.trim())
+  if (!sources.length || sources.some(hasContradictoryFullCrossModalAuthorityEvidence))
+    return false
+
+  const hasAnyAuthorityToken = sources.some(hasAnyExplicitFullCrossModalAuthorityToken)
+  if (
+    hasAnyAuthorityToken
+    && !sources.some(source => hasExplicitFullCrossModalAuthorityLockInSource(source))
+  ) {
+    return false
+  }
+
+  return sources.some(source =>
+    source.includes('bodyContinuityPhase: full-cross-modal-lock')
+    || source.includes('bodyContinuityPhase=full-cross-modal-lock')
+    || source.includes('locked back onto the same living segment together')
+    || source.includes('continuity embodiment line instead of a temporary visual alignment')
+    || source.includes('共同锁回同一段 living segment')
+    || source.includes('跨模态重锁态'),
+  )
 }
 
 function resolveEmbodimentClosureLane(combined: string) {
@@ -744,9 +812,13 @@ function splitEmbodimentClosureLane(lane: string | null) {
     )
 }
 
-function hasStructuredEmbodimentContinuityEvidence(combined: string) {
-  return hasAuthorityOnlyFullCrossModalLock(combined)
-    || hasFullCrossModalLockSameHerContinuity(combined)
+function hasStructuredEmbodimentContinuityEvidence(
+  combined: string,
+  hasExplicitAuthorityLock: boolean,
+  hasLegacyFullCrossModalLock: boolean,
+) {
+  return hasExplicitAuthorityLock
+    || hasLegacyFullCrossModalLock
     || hasLongHorizonEmotionMemoryFaceCarry(combined)
     || hasLongHorizonEmotionMemoryMotionCarry(combined)
     || hasLongHorizonEmotionMemoryLipsyncCarry(combined)
@@ -779,10 +851,13 @@ function buildAlicizationStructuredEmbodimentClosureFacts(input: {
   perspective: 'headline' | 'reminder'
 }) {
   const combined = normalizeLaneEvidence(input)
-  if (!combined || !hasStructuredEmbodimentContinuityEvidence(combined))
+  const hasExplicitAuthorityLock = hasExplicitFullCrossModalAuthorityLock(input)
+  const hasLegacyFullCrossModalLock = hasFullCrossModalLockSameHerContinuity(input)
+  if (!combined || !hasStructuredEmbodimentContinuityEvidence(combined, hasExplicitAuthorityLock, hasLegacyFullCrossModalLock)) {
     return ''
+  }
 
-  const hasFullLock = hasAuthorityOnlyFullCrossModalLock(combined) || hasFullCrossModalLockSameHerContinuity(combined)
+  const hasFullLock = hasExplicitAuthorityLock || hasLegacyFullCrossModalLock
   const lane = hasFullLock
     ? 'body+face+motion+lipsync+voice'
     : resolveEmbodimentClosureLane(combined)
@@ -802,10 +877,10 @@ function buildAlicizationStructuredEmbodimentClosureFacts(input: {
   ].filter(Boolean)
 
   return [
-    `embodiment_lanes=${activeLanes.length ? activeLanes.join('+') : 'unknown'}`,
-    `status=${hasFullLock ? 'closed' : 'partial'}`,
-    pendingLanes.length ? `missing_lanes=${pendingLanes.join('+')}` : '',
-    evidence.length ? `evidence=${evidence.join('+')}` : '',
+    `Active embodiment lanes: ${activeLanes.length ? activeLanes.join(', ') : 'unknown'}.`,
+    `Status: ${hasFullLock ? 'closed' : 'partial'}.`,
+    pendingLanes.length ? `Pending lanes: ${pendingLanes.join(', ')}.` : '',
+    evidence.length ? `Evidence: ${evidence.join(', ')}.` : '',
   ].filter(Boolean).join(' | ')
 }
 
@@ -840,9 +915,9 @@ export function describeAlicizationProjectClosureBriefing(input: {
     return ''
 
   return [
-    input.identity ? `identity=${input.identity}` : '',
-    input.currentPhase ? `phase=${input.currentPhase}` : '',
-    input.primaryOpenLoop ? `open=${input.primaryOpenLoop}` : '',
+    input.identity ? `Identity: ${input.identity}.` : '',
+    input.currentPhase ? `Phase: ${input.currentPhase}.` : '',
+    input.primaryOpenLoop ? `Open loop: ${input.primaryOpenLoop}.` : '',
   ].filter(Boolean).join(' | ')
 }
 
@@ -856,5 +931,5 @@ export function describeAlicizationProjectNextClosure(input: {
   if (!nextClosureTarget)
     return ''
 
-  return `next=${nextClosureTarget}`
+  return `Next closure: ${nextClosureTarget}.`
 }

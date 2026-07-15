@@ -1,3 +1,4 @@
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -8,16 +9,119 @@ import {
 } from './main-chat-stream-meta'
 import { buildAlicizationChatStreamEmbodimentMeta } from './runtime-governance'
 
-const fixedTemplateResiduePattern = /Before answering|Same Phase 1 digital life|same-her (?:hold|closure seam|line)|same her should|same living line|one continuous her|one living her|local-first digital life project|Keep the current thread inward|Keep the same living line|Right now (?:I am|her)|我记得|同一个她|数字生命主线/iu
+const fixedTemplateGovernanceTokenPattern = /Pre-reply|legacy phase-one template|\bpre_turn_context_digest\b|(?<![\w.-])cadence=[^\W\d_][\w-]*(?![\w-])|(?<![\w.-])continuity_hold=[^\W\d_][\w-]*(?![\w-])|growth=life-loop-open|continuity_scope=life_loop|unresolved_closure=continuity_line|closure=full-cross-modal-open|same-digital-life-project-thread|phase1-route=desktop-life-loop|local_desktop_life_loop|content=excluded|visibility=internal(?:[-_]\w+)?|continuity_owner\s*=\s*one_her|continuity_anchor\s*=\s*phase1_local_digital_life|phase1_local_digital_life_anchor/iu
+
+function isSafeChatMetaIdentifier(fieldName: string | null, value: string) {
+  return Boolean(
+    fieldName
+    && /^[\w./:-]+$/u.test(value)
+    && (
+      fieldName === 'id'
+      || fieldName === 'variationToken'
+      || fieldName === 'segmentOrder'
+      || fieldName.endsWith('Id')
+      || fieldName.endsWith('Ids')
+    ),
+  )
+}
 
 function expectNoFixedTemplateResidue(value: unknown) {
-  expect(JSON.stringify(value)).not.toMatch(fixedTemplateResiduePattern)
+  const stringValues: string[] = []
+  const visit = (candidate: unknown, fieldName: string | null = null) => {
+    if (typeof candidate === 'string') {
+      const normalized = candidate.trim()
+      if (!normalized)
+        return
+
+      if (normalized.startsWith('{') || normalized.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(normalized)
+          if (parsed !== normalized) {
+            visit(parsed)
+            return
+          }
+        }
+        catch {
+          // Treat non-JSON text as an ordinary semantic value.
+        }
+      }
+
+      if (isSafeChatMetaIdentifier(fieldName, normalized))
+        return
+
+      stringValues.push(normalized)
+      return
+    }
+
+    if (Array.isArray(candidate)) {
+      candidate.forEach(item => visit(item, fieldName))
+      return
+    }
+
+    if (candidate && typeof candidate === 'object')
+      Object.entries(candidate as Record<string, unknown>).forEach(([key, item]) => visit(item, key))
+  }
+
+  visit(value)
+  const residues = stringValues.filter((candidate) => {
+    if (fixedTemplateGovernanceTokenPattern.test(candidate))
+      return true
+
+    const semanticCandidate = candidate
+      .split(' | ')
+      .filter(part => !/^(?:seg|src)=\w[\w.:/-]*$/iu.test(part))
+      .join(' | ')
+    return containsAlicizationFixedTemplateResidue(semanticCandidate)
+  })
+
+  expect(residues, JSON.stringify(residues)).toEqual([])
+}
+
+const legacyProjectStateAliasKeys = [
+  'latestProgress',
+  'landedProgressSummary',
+  'openClosureSummary',
+  'nextClosureTargetSummary',
+] as const
+
+function expectNoLegacyProjectStateAliases(projectState: unknown) {
+  expect(projectState).toEqual(expect.any(Object))
+  for (const aliasKey of legacyProjectStateAliasKeys)
+    expect(projectState).not.toHaveProperty(aliasKey)
 }
 
 function parseAlicizationChatMetaSignature(signature: string) {
   return JSON.parse(signature) as {
     residentPresenceSummary?: string | null
     runtimeDigestEmotionalClosureCue?: string | null
+    runtimeDigestProjectNextClosureTarget?: string | null
+  }
+}
+
+function readSanitizedRuntimeSummarySurfaces(summary: unknown) {
+  const runtimeDigest = {
+    version: 'alicization-runtime-digest-v1',
+    summary,
+  } as any
+  const signature = JSON.parse(buildAlicizationChatMetaSignature({
+    runtimeDigest,
+  } as any)) as { runtimeDigestSummary?: string | null }
+  const payload = buildAlicizationChatMetaPayload({
+    cardId: 'card-runtime-summary-boundary',
+    turnId: 'turn-runtime-summary-boundary',
+    governance: null,
+    visibleReplyExecution: null,
+    embodiment: null,
+    embodimentScript: null,
+    speechTimeline: null,
+    digitalLife: null,
+    digitalLifeSpine: null,
+    runtimeDigest,
+  })
+
+  return {
+    signatureSummary: signature.runtimeDigestSummary,
+    payloadSummary: payload.runtimeDigest?.summary,
   }
 }
 
@@ -308,6 +412,7 @@ vi.mock('./runtime-governance', () => ({
 
 describe('main chat stream meta', () => {
   it('sanitizes fixed-template residue from internal chat meta surfaces before emission', () => {
+    const retainedContinuityCue = 'Keep the continuity state inward for now, and leave room before widening outward again.'
     const payload = buildAlicizationChatMetaPayload({
       cardId: 'card-template-cleanup',
       turnId: 'turn-template-cleanup',
@@ -321,7 +426,7 @@ describe('main chat stream meta', () => {
       embodiment: {
         emotion: 'thinking',
         rendererHints: {
-          reason: 'Before answering, remember this is still the same local-first digital life project.',
+          reason: 'pre_turn_context_digest',
         },
         performance: {
           baseEmotion: 'thinking',
@@ -333,12 +438,12 @@ describe('main chat stream meta', () => {
         version: 'embodiment-script-v1',
         state: {
           residentMode: 'measured-return',
-          reason: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          reason: 'structured continuity digest.',
         },
         speechPlan: {
           segments: [{
             id: 'segment-1',
-            text: '我记得上一条线。',
+            text: 'ordinary visible reply text',
             rendererHints: {
               reason: '同一个她这条线要继续。',
             },
@@ -349,21 +454,21 @@ describe('main chat stream meta', () => {
         version: 'speech-timeline-v1',
         segments: [{
           id: 'segment-1',
-          text: 'Before answering, keep the same digital life project in view.',
+          text: 'visible fixture | memory-tuning-advice=internal-only',
           rendererHints: {
-            reason: 'Keep the same living line inward for now, and leave room before widening outward again.',
+            reason: retainedContinuityCue,
           },
         }],
       } as any,
       digitalLife: {
         version: 'digital-life-v1',
-        summary: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+        summary: 'structured continuity digest.',
         frames: [],
       } as any,
       digitalLifeSpine: {
         runtime: {
           projectState: {
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       } as any,
@@ -378,14 +483,30 @@ describe('main chat stream meta', () => {
         continuityPressure: 0,
         companionshipPressure: 0,
         channels: [],
-        summary: 'Before answering, remember this is still the same local-first digital life project.',
+        summary: 'pre_turn_context_digest',
         projectState: {
-          continuityCue: 'Keep the same living line inward for now, and leave room before widening outward again.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          continuityCue: retainedContinuityCue,
+          sameHerSelfLine: 'structured continuity digest.',
         },
       } as any,
     })
 
+    expect(payload.speechTimeline?.segments[0]?.text).toBe('')
+    expect(payload.speechTimeline?.segments[0]?.rendererHints?.reason).toBe(retainedContinuityCue)
+    expect(payload.runtimeDigest?.summary).toBe('')
+    expect(containsAlicizationFixedTemplateResidue('continuity state and identity continuity are ordinary domain terms.')).toBe(false)
+    expect(() => expectNoFixedTemplateResidue('same-her')).toThrow()
+    expect(() => expectNoFixedTemplateResidue('same_her_line')).toThrow()
+    expect(() => expectNoFixedTemplateResidue({
+      segmentOrder: ['segment-same-her-fixture'],
+      turnId: 'turn-same-her-fixture',
+    })).not.toThrow()
+    expect(() => expectNoFixedTemplateResidue('reason=steady | seg=segment-same-her-fixture | src=resident-authority')).not.toThrow()
+    expect(() => expectNoFixedTemplateResidue('cadence=quiet_companionship')).toThrow()
+    expect(() => expectNoFixedTemplateResidue('continuity_hold=audible_body_carry')).toThrow()
+    expect(() => expectNoFixedTemplateResidue('speech_cadence=natural')).not.toThrow()
+    expect(() => expectNoFixedTemplateResidue('preferred_continuity_hold=soft')).not.toThrow()
+    expect(() => expectNoFixedTemplateResidue('cadence=0.44')).not.toThrow()
     expectNoFixedTemplateResidue(payload.embodiment)
     expectNoFixedTemplateResidue(payload.embodimentScript)
     expectNoFixedTemplateResidue(payload.speechTimeline)
@@ -393,6 +514,425 @@ describe('main chat stream meta', () => {
     expectNoFixedTemplateResidue(payload.digitalLifeSpine)
     expectNoFixedTemplateResidue(payload.residentPerformance)
     expectNoFixedTemplateResidue(payload.runtimeDigest)
+  })
+
+  it('preserves fixed-template-like code literals in visible reply text while clearing explicit internal governance segments', () => {
+    const buildVisibleTextPayload = (visibleText: string) => buildAlicizationChatMetaPayload({
+      cardId: 'card-visible-text-boundary',
+      turnId: 'turn-visible-text-boundary',
+      governance: null,
+      visibleReplyExecution: null,
+      embodiment: null,
+      embodimentScript: {
+        version: 'embodiment-script-v1',
+        replyText: visibleText,
+        state: {
+          baseEmotion: 'thinking',
+          delivery: 'firm',
+          emphasis: 0,
+          residentMode: 'dialogue',
+        },
+        speechPlan: {
+          segments: [{
+            id: 'segment-visible-text-boundary',
+            index: 0,
+            text: visibleText,
+          }],
+        },
+      } as any,
+      speechTimeline: {
+        version: 'speech-timeline-v1',
+        reply: visibleText,
+        segments: [{
+          id: 'segment-visible-text-boundary',
+          index: 0,
+          text: visibleText,
+        }],
+      } as any,
+      digitalLife: null,
+      digitalLifeSpine: null,
+      runtimeDigest: null,
+    })
+    const visibleCodeDiscussion = 'We are discussing project_state_continuity as an ordinary code token.'
+    const visiblePayload = buildVisibleTextPayload(visibleCodeDiscussion)
+
+    expect(visiblePayload.speechTimeline?.reply).toBe(visibleCodeDiscussion)
+    expect(visiblePayload.embodimentScript?.replyText).toBe(visibleCodeDiscussion)
+    expect(visiblePayload.speechTimeline?.segments[0]?.text).toBe(visibleCodeDiscussion)
+
+    const internalGovernanceText = 'Visible preface | memory-tuning-advice=internal-only | visible tail'
+    const internalPayload = buildVisibleTextPayload(internalGovernanceText)
+    expect(internalPayload.speechTimeline?.reply).toBe('')
+    expect(internalPayload.embodimentScript?.replyText).toBe('')
+    expect(internalPayload.speechTimeline?.segments[0]?.text).toBe('')
+  })
+
+  it('keeps only non-empty strings when sanitizing reasonPreview arrays', () => {
+    const payload = buildAlicizationChatMetaPayload({
+      cardId: 'card-reason-preview-sanitization',
+      turnId: 'turn-reason-preview-sanitization',
+      governance: null,
+      visibleReplyExecution: null,
+      embodiment: null,
+      embodimentScript: null,
+      speechTimeline: null,
+      digitalLife: null,
+      digitalLifeSpine: null,
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        diagnostics: {
+          reasonPreview: [
+            'visible runtime reason',
+            '',
+            '   ',
+            null,
+            42,
+            { unexpected: true },
+          ],
+        },
+      } as any,
+    })
+
+    expect((payload.runtimeDigest as any)?.diagnostics?.reasonPreview).toEqual([
+      'visible runtime reason',
+    ])
+  })
+
+  it('does not clear primaryOpenLoop outside projectState scope', () => {
+    const unrelatedPrimaryOpenLoop = 'The renderer diagnostics queue remains open.'
+    const payload = buildAlicizationChatMetaPayload({
+      cardId: 'card-non-project-primary-open-loop',
+      turnId: 'turn-non-project-primary-open-loop',
+      governance: null,
+      visibleReplyExecution: null,
+      embodiment: null,
+      embodimentScript: null,
+      speechTimeline: null,
+      digitalLife: null,
+      digitalLifeSpine: null,
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        diagnostics: {
+          primaryOpenLoop: unrelatedPrimaryOpenLoop,
+        },
+      } as any,
+    })
+
+    expect((payload.runtimeDigest as any)?.diagnostics?.primaryOpenLoop).toBe(unrelatedPrimaryOpenLoop)
+  })
+
+  it('preserves allowlisted runtime telemetry summaries in signatures and top-level runtime digests', () => {
+    const sameThreadSummary = 'dominant=resident-presence | speak=false | same-thread-continuation=alive'
+    const fullTelemetrySummary = [
+      'dominant=active-memory',
+      'phase=integrate',
+      'handoff=active-dialogue',
+      'initiative=0.18',
+      'coherence=0.86',
+      'autonomy=prepare-act',
+      'visible=hover',
+      'restraint=measured-return',
+      'emotion_closure=quiet callback remains available',
+      'intent=follow-through',
+      'speak=false',
+      'act=true',
+      'continuity=0.91',
+      'companionship=0.79',
+      'motive=unfinished-thread-return',
+      'habit=light-touch-companionship',
+      'truth=0.72',
+      'boundary=0.31',
+      'return=0.84',
+    ].join(' | ')
+    const governanceRedactedSummary
+      = 'dominant=active-memory | memory-tuning-advice=SENTINEL_INTERNAL | speak=false'
+    const expectedGovernanceRedactedSummary = 'dominant=active-memory | speak=false'
+    const cases = [
+      [sameThreadSummary, sameThreadSummary],
+      [fullTelemetrySummary, fullTelemetrySummary],
+      [governanceRedactedSummary, expectedGovernanceRedactedSummary],
+    ] as const
+
+    for (const [summary, expected] of cases) {
+      const signature = JSON.parse(buildAlicizationChatMetaSignature({
+        runtimeDigest: {
+          version: 'alicization-runtime-digest-v1',
+          summary,
+        } as any,
+      } as any)) as { runtimeDigestSummary?: string | null }
+      const payload = buildAlicizationChatMetaPayload({
+        cardId: 'card-runtime-summary-allowlist',
+        turnId: 'turn-runtime-summary-allowlist',
+        governance: null,
+        visibleReplyExecution: null,
+        embodiment: null,
+        embodimentScript: null,
+        speechTimeline: null,
+        digitalLife: null,
+        digitalLifeSpine: null,
+        runtimeDigest: {
+          version: 'alicization-runtime-digest-v1',
+          summary,
+        } as any,
+      })
+
+      expect(signature.runtimeDigestSummary, summary).toBe(expected)
+      expect(payload.runtimeDigest?.summary, summary).toBe(expected)
+    }
+  })
+
+  it('fails closed when runtime telemetry summaries contain project prose, template residue, unknown keys, or invalid values', () => {
+    const unsafeSummaries = [
+      'dominant=active-memory | open=memory-loop',
+      'dominant=active-memory | landed=reply-delivery',
+      'dominant=active-memory | next=embodiment-close',
+      'dominant=active-memory | unknown=alive',
+      'dominant=active-memory | project prose without a key',
+      'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
+      'dominant=active-memory | emotion_closure=same-her continuity remains open',
+      'dominant=active-memory | speak=yes',
+      'dominant=active-memory | continuity=Infinity',
+      'dominant=active-memory | continuity=1e-3',
+      'dominant=active-memory | initiative=-0.01',
+      'dominant=active-memory | coherence=1.01',
+      'dominant=active-memory | continuity=2',
+      'dominant=active-memory | companionship=-1',
+      'dominant=active-memory | truth=1.1',
+      'dominant=active-memory | boundary=-0.1',
+      'dominant=active-memory | return=100',
+      'dominant=active memory',
+      'dominant=active-memory | emotion_closure=quiet=callback',
+    ]
+
+    for (const summary of unsafeSummaries) {
+      const signature = JSON.parse(buildAlicizationChatMetaSignature({
+        runtimeDigest: {
+          version: 'alicization-runtime-digest-v1',
+          summary,
+        } as any,
+      } as any)) as { runtimeDigestSummary?: string | null }
+      const payload = buildAlicizationChatMetaPayload({
+        cardId: 'card-runtime-summary-fail-closed',
+        turnId: 'turn-runtime-summary-fail-closed',
+        governance: null,
+        visibleReplyExecution: null,
+        embodiment: null,
+        embodimentScript: null,
+        speechTimeline: null,
+        digitalLife: null,
+        digitalLifeSpine: null,
+        runtimeDigest: {
+          version: 'alicization-runtime-digest-v1',
+          summary,
+        } as any,
+      })
+
+      expect(signature.runtimeDigestSummary, summary).toBe('')
+      expect(payload.runtimeDigest?.summary, summary).toBe('')
+    }
+  })
+
+  it('fails closed malformed own runtime digest summaries without adding a missing summary property', () => {
+    const malformedSummaries: unknown[] = [
+      42,
+      { dominant: 'active-memory' },
+      ['dominant=active-memory'],
+      null,
+    ]
+
+    for (const summary of malformedSummaries) {
+      const runtimeDigest = {
+        version: 'alicization-runtime-digest-v1',
+        summary,
+      } as any
+      const signature = JSON.parse(buildAlicizationChatMetaSignature({
+        runtimeDigest,
+      } as any)) as { runtimeDigestSummary?: string | null }
+      const payload = buildAlicizationChatMetaPayload({
+        cardId: 'card-runtime-summary-malformed',
+        turnId: 'turn-runtime-summary-malformed',
+        governance: null,
+        visibleReplyExecution: null,
+        embodiment: null,
+        embodimentScript: null,
+        speechTimeline: null,
+        digitalLife: null,
+        digitalLifeSpine: null,
+        runtimeDigest,
+      })
+
+      expect(signature.runtimeDigestSummary, JSON.stringify(summary)).toBe('')
+      expect(payload.runtimeDigest, JSON.stringify(summary)).toHaveProperty('summary', '')
+    }
+
+    const payloadWithoutSummary = buildAlicizationChatMetaPayload({
+      cardId: 'card-runtime-summary-missing',
+      turnId: 'turn-runtime-summary-missing',
+      governance: null,
+      visibleReplyExecution: null,
+      embodiment: null,
+      embodimentScript: null,
+      speechTimeline: null,
+      digitalLife: null,
+      digitalLifeSpine: null,
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+      } as any,
+    })
+
+    expect(Object.hasOwn(payloadWithoutSummary.runtimeDigest ?? {}, 'summary')).toBe(false)
+  })
+
+  it('does not normalize a full cross-modal body-state marker outside an authority path', () => {
+    const legacyFullLock = 'authority-body:yes | authority-face:yes | authority-motion:yes | authority-lipsync:yes | authority-voice:yes | same living segment together'
+    const payload = buildAlicizationChatMetaPayload({
+      cardId: 'card-non-authority-body-state',
+      turnId: 'turn-non-authority-body-state',
+      governance: null,
+      visibleReplyExecution: null,
+      embodiment: null,
+      embodimentScript: null,
+      speechTimeline: null,
+      digitalLife: null,
+      digitalLifeSpine: null,
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        diagnostics: {
+          currentBodyState: legacyFullLock,
+        },
+      } as any,
+    })
+
+    expect((payload.runtimeDigest as any)?.diagnostics?.currentBodyState).not.toBe(
+      'authority=body+face+motion+lipsync+voice | segment=locked',
+    )
+  })
+
+  it('does not normalize a full cross-modal body-state marker below an unrelated authority-shaped key', () => {
+    const legacyFullLock = 'authority-body:yes | authority-face:yes | authority-motion:yes | authority-lipsync:yes | authority-voice:yes | same living segment together'
+    const payload = buildAlicizationChatMetaPayload({
+      cardId: 'card-non-authority-shaped-body-state',
+      turnId: 'turn-non-authority-shaped-body-state',
+      governance: null,
+      visibleReplyExecution: null,
+      embodiment: null,
+      embodimentScript: null,
+      speechTimeline: null,
+      digitalLife: null,
+      digitalLifeSpine: null,
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        diagnostics: {
+          selfAuthority: {
+            currentBodyState: legacyFullLock,
+          },
+        },
+      } as any,
+    })
+
+    expect((payload.runtimeDigest as any)?.diagnostics?.selfAuthority?.currentBodyState).not.toBe(
+      'authority=body+face+motion+lipsync+voice | segment=locked',
+    )
+  })
+
+  it('fails closed non-lowercase identifier values, non-lowercase keys, and duplicate keys', () => {
+    const unsafeSummaries = [
+      'dominant=Active-Memory',
+      'dominant=Keep',
+      'dominant=ſafe',
+      'DOMINANT=active-memory',
+      'Dominant=active-memory',
+      'dominant=active-memory | dominant=dialogue',
+    ]
+
+    for (const summary of unsafeSummaries) {
+      const sanitized = readSanitizedRuntimeSummarySurfaces(summary)
+      expect(sanitized.signatureSummary, summary).toBe('')
+      expect(sanitized.payloadSummary, summary).toBe('')
+    }
+  })
+
+  it('preserves numeric zero and one boundaries while rejecting negative zero', () => {
+    const validSummary = [
+      'initiative=0',
+      'coherence=1',
+      'continuity=0.0',
+      'companionship=1.0',
+      'truth=0',
+      'boundary=1',
+      'return=0.5',
+    ].join(' | ')
+    const valid = readSanitizedRuntimeSummarySurfaces(validSummary)
+    expect(valid.signatureSummary).toBe(validSummary)
+    expect(valid.payloadSummary).toBe(validSummary)
+
+    for (const summary of ['initiative=-0', 'coherence=-0.0']) {
+      const sanitized = readSanitizedRuntimeSummarySurfaces(summary)
+      expect(sanitized.signatureSummary, summary).toBe('')
+      expect(sanitized.payloadSummary, summary).toBe('')
+    }
+  })
+
+  it('enforces emotion and total summary length after stripping explicit governance pipes', () => {
+    const emotionClosureAtLimit = `emotion_closure=${'a'.repeat(96)}`
+    const emotionClosureOverLimit = `emotion_closure=${'a'.repeat(97)}`
+    const summaryAtLimit = `dominant=${'a'.repeat(520 - 'dominant='.length)}`
+    const summaryOverLimit = `dominant=${'a'.repeat(521 - 'dominant='.length)}`
+    const safeTelemetry = 'dominant=active-memory | speak=false'
+    const governancePrefixedSummary
+      = `memory-tuning-advice=${'x'.repeat(720)} | ${safeTelemetry}`
+
+    expect(summaryAtLimit).toHaveLength(520)
+    expect(summaryOverLimit).toHaveLength(521)
+
+    for (const summary of [emotionClosureAtLimit, summaryAtLimit]) {
+      const sanitized = readSanitizedRuntimeSummarySurfaces(summary)
+      expect(sanitized.signatureSummary, summary).toBe(summary)
+      expect(sanitized.payloadSummary, summary).toBe(summary)
+    }
+
+    for (const summary of [emotionClosureOverLimit, summaryOverLimit]) {
+      const sanitized = readSanitizedRuntimeSummarySurfaces(summary)
+      expect(sanitized.signatureSummary, summary).toBe('')
+      expect(sanitized.payloadSummary, summary).toBe('')
+    }
+
+    const governanceRedacted = readSanitizedRuntimeSummarySurfaces(governancePrefixedSummary)
+    expect(governanceRedacted.signatureSummary).toBe(safeTelemetry)
+    expect(governanceRedacted.payloadSummary).toBe(safeTelemetry)
+  })
+
+  it('keeps nested runtime digest summaries on the ordinary summary sanitizer path', () => {
+    const runtimeSummary = 'dominant=active-memory | speak=false'
+    const activeLoopSummary = 'reply delivery remains active without project narration'
+    const residueSummary = 'source=main-runtime | keep=SAFE_DERIVED_SUMMARY'
+    const payload = buildAlicizationChatMetaPayload({
+      cardId: 'card-runtime-summary-nested-isolation',
+      turnId: 'turn-runtime-summary-nested-isolation',
+      governance: null,
+      visibleReplyExecution: null,
+      embodiment: null,
+      embodimentScript: null,
+      speechTimeline: null,
+      digitalLife: null,
+      digitalLifeSpine: null,
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        summary: runtimeSummary,
+        activeLoop: {
+          summary: activeLoopSummary,
+        },
+        derivedMindStateBundle: {
+          affectiveResidue: {
+            summary: residueSummary,
+          },
+        },
+      } as any,
+    })
+
+    expect(payload.runtimeDigest?.summary).toBe(runtimeSummary)
+    expect(payload.runtimeDigest?.activeLoop?.summary).toBe(activeLoopSummary)
+    expect(payload.runtimeDigest?.derivedMindStateBundle?.affectiveResidue?.summary).toBe(residueSummary)
   })
 
   it('exports memory closure identity across renderer voice face motion lipsync and body summaries', () => {
@@ -463,7 +1003,7 @@ describe('main chat stream meta', () => {
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
           continuityCue: 'Same corrected callback memory is carrying the next return.',
-          sameHerSelfLine: 'Same Phase 1 digital life. The remembered callback should stay on the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
           preferredBlinkCadence: 'linger',
           preferredGazeMode: 'soften',
         },
@@ -586,6 +1126,8 @@ describe('main chat stream meta', () => {
       }
       return keys
     }
+    const safeRuntimeSummary
+      = 'dominant=dialogue | speak=false | act=false | continuity=0.42 | companionship=0.58'
     const emit = vi.fn()
     const emitter = createAlicizationChatStreamMetaEmitter({
       cardId: 'card-stream-meta-governance-redaction',
@@ -606,7 +1148,7 @@ describe('main chat stream meta', () => {
         shouldProactivelySpeak: false,
         shouldProactivelyAct: false,
         channels: [],
-        summary: 'SAFE_RUNTIME_SUMMARY',
+        summary: safeRuntimeSummary,
         emotionalKernel: {
           version: 'emotional-kernel-v1',
           dominantEmotion: 'measured-companionship',
@@ -655,7 +1197,7 @@ describe('main chat stream meta', () => {
     expect(serialized).not.toContain('SENTINEL_TUNING')
     expect(serialized).not.toContain('SENTINEL_REPAIR_LANE')
     expect(serialized).not.toContain('continuity_causality_repair')
-    expect(runtimeDigest?.summary).toContain('SAFE_RUNTIME_SUMMARY')
+    expect(runtimeDigest?.summary).toBe(safeRuntimeSummary)
     expect(runtimeDigest?.emotionalKernel?.why).toContain('SAFE_EMOTION_REASON')
     expect((runtimeDigest?.emotionalKernel as any)?.source).toBe('source=memory-tuning-advice-user-quote')
     expect(runtimeDigest?.derivedMindStateBundle?.summary).toBe('source=main-runtime | keep=SAFE_DERIVED_SUMMARY')
@@ -892,7 +1434,8 @@ describe('main chat stream meta', () => {
     }))
   })
 
-  it('repairs callback project carry onto top-level self authority when stream meta only receives a thin same-her spine authority shell', () => {
+  it('does not synthesize callback project carry from neutral structured digest while preserving measured-return runtime facts', () => {
+    const visibleReply = '我先沿着这条线中性可见占位。'
     const emit = vi.fn()
     const emitter = createAlicizationChatStreamMetaEmitter({
       cardId: 'card-thin-self-authority-callback-carry',
@@ -923,7 +1466,7 @@ describe('main chat stream meta', () => {
           continuityCue: 'same callback seam is still alive after the detour',
         },
         selfAuthority: {
-          inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          inwardLine: 'structured continuity digest.',
           sourceTags: ['project-state-carry'],
         },
         proactive: {
@@ -960,7 +1503,7 @@ describe('main chat stream meta', () => {
           summary: 'execution-callback afterglow still keeps the same callback line alive',
         },
         projectState: {
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
           continuityArcStage: 'same-thread-continuation',
           continuityCue: 'same callback line still lives as execution-callback afterglow',
         },
@@ -968,16 +1511,26 @@ describe('main chat stream meta', () => {
       emit,
     })
 
-    emitter.emit('我先沿着这条线轻一点接回来。')
+    emitter.emit(visibleReply)
 
     expect(emit).toHaveBeenCalledTimes(1)
-    expect(emit.mock.calls[0]?.[0]?.digitalLifeSpine?.selfAuthority?.sourceTags).toEqual(expect.arrayContaining([
-      'project-state-carry',
-      'continuity-execution-callback-project-carry',
-    ]))
+    const emitted = emit.mock.calls[0]?.[0]
+    const sourceTags = emitted?.digitalLifeSpine?.selfAuthority?.sourceTags
+    expect(sourceTags).toContain('project-state-carry')
+    expect(sourceTags).not.toContain('continuity-execution-callback-project-carry')
+    expect(emitted?.runtimeDigest).toEqual(expect.objectContaining({
+      continuityRestraint: 'measured-return',
+      activeLoop: expect.objectContaining({
+        continuityArcStage: 'same-thread-continuation',
+        summary: 'execution-callback afterglow still keeps the same callback line alive',
+      }),
+    }))
+    expect(emitted?.digitalLifeSpine?.runtime?.continuityCue).toBe('same callback seam is still alive after the detour')
+    expect(emitted?.speechTimeline?.reply).toBe(visibleReply)
+    expectNoFixedTemplateResidue(emitted)
   })
 
-  it('repairs project-state carry onto memory self-continuity authority when only canonical same-her project closure wording survives on a later noisy callback return', () => {
+  it('repairs project-state carry onto memory self-continuity authority when canonical identity continuity survives a later noisy callback return', () => {
     const emit = vi.fn()
     const emitter = createAlicizationChatStreamMetaEmitter({
       cardId: 'card-memory-authority-project-state-carry-later-noisy-return',
@@ -1008,7 +1561,7 @@ describe('main chat stream meta', () => {
           continuityArcStage: 'same-thread-continuation',
           continuityCue: 'same callback seam, continue the same line gently',
           projectState: {
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line of one continuous her.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
         proactive: {
@@ -1033,7 +1586,7 @@ describe('main chat stream meta', () => {
               motiveLine: '继续把 callback 的后续接住，不把它改写成新的开始。',
               habitLine: '先守住同一条线，再慢慢往下接。',
               inwardLine: '先沿着同一条 callback 线轻一点继续。',
-              authoritySummary: 'same-her callback line already alive',
+              authoritySummary: 'identity-continuity',
               sourceTags: ['durable-self-core', 'motive:self-direction'],
             },
           },
@@ -1060,9 +1613,9 @@ describe('main chat stream meta', () => {
           continuityArcStage: 'same-thread-continuation',
         },
         projectState: {
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line of one continuous her.',
+          sameHerSelfLine: 'structured continuity digest.',
           continuityArcStage: 'same-thread-continuation',
-          continuityCue: 'Keep the same living line inward for now, and leave room before widening outward again.',
+          continuityCue: 'Keep the continuity state inward for now, and leave room before widening outward again.',
         },
       } as any),
       emit,
@@ -1136,7 +1689,8 @@ describe('main chat stream meta', () => {
     }))
   })
 
-  it('keeps project-state callback carry source tags when the same callback line is still repair-before-closeness', () => {
+  it('does not synthesize callback project carry from neutral structured digest when the callback line is still repair-before-closeness', () => {
+    const visibleReply = '我先把这条线收稳，再沿着同一条线慢一点回来。'
     const emit = vi.fn()
     const emitter = createAlicizationChatStreamMetaEmitter({
       cardId: 'card-thin-self-authority-repair-carry',
@@ -1168,7 +1722,7 @@ describe('main chat stream meta', () => {
           continuityCue: 'same callback repair seam is still alive after the detour',
         },
         selfAuthority: {
-          inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          inwardLine: 'structured continuity digest.',
           sourceTags: ['project-state-carry'],
         },
         proactive: {
@@ -1208,7 +1762,7 @@ describe('main chat stream meta', () => {
           summary: 'execution-callback repair cooldown still keeps the same callback line alive',
         },
         projectState: {
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
           continuityArcStage: 'same-thread-continuation',
           continuityCue: 'same callback repair line still lives as execution-callback afterglow',
         },
@@ -1216,13 +1770,23 @@ describe('main chat stream meta', () => {
       emit,
     })
 
-    emitter.emit('我先把这条线收稳，再沿着同一条线慢一点回来。')
+    emitter.emit(visibleReply)
 
     expect(emit).toHaveBeenCalledTimes(1)
-    expect(emit.mock.calls[0]?.[0]?.digitalLifeSpine?.selfAuthority?.sourceTags).toEqual(expect.arrayContaining([
-      'project-state-carry',
-      'continuity-execution-callback-project-carry',
-    ]))
+    const emitted = emit.mock.calls[0]?.[0]
+    const sourceTags = emitted?.digitalLifeSpine?.selfAuthority?.sourceTags
+    expect(sourceTags).toContain('project-state-carry')
+    expect(sourceTags).not.toContain('continuity-execution-callback-project-carry')
+    expect(emitted?.runtimeDigest).toEqual(expect.objectContaining({
+      continuityRestraint: 'repair-before-closeness',
+      activeLoop: expect.objectContaining({
+        continuityArcStage: 'same-thread-continuation',
+        summary: 'execution-callback repair cooldown still keeps the same callback line alive',
+      }),
+    }))
+    expect(emitted?.digitalLifeSpine?.runtime?.continuityCue).toBe('same callback repair seam is still alive after the detour')
+    expect(emitted?.speechTimeline?.reply).toBe(visibleReply)
+    expectNoFixedTemplateResidue(emitted)
   })
 
   it('repairs callback project carry source tags for thinner repair-before-closeness callback afterglow shells without explicit same-thread keywords', () => {
@@ -1256,7 +1820,7 @@ describe('main chat stream meta', () => {
           continuityCue: 'callback afterglow still needs repair-first quiet after the detour',
         },
         selfAuthority: {
-          inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          inwardLine: 'structured continuity digest.',
           sourceTags: ['project-state-carry'],
         },
         proactive: {
@@ -1293,7 +1857,7 @@ describe('main chat stream meta', () => {
           summary: 'execution-callback afterglow still keeps repair-first quiet alive',
         },
         projectState: {
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
           continuityCue: 'callback afterglow still needs repair-first quiet after the detour',
         },
       } as any),
@@ -1340,7 +1904,7 @@ describe('main chat stream meta', () => {
           continuityCue: 'same callback line still lives after the payoff',
         },
         selfAuthority: {
-          inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          inwardLine: 'structured continuity digest.',
           sourceTags: ['project-state-carry'],
         },
         proactive: {
@@ -1377,7 +1941,7 @@ describe('main chat stream meta', () => {
           summary: 'execution callback seam still needs quiet continuation after the payoff',
         },
         projectState: {
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
           continuityCue: 'same callback line still lives after the payoff',
           emotionalClosureCue: '深夜收口还没结束：先修复再靠近，先把身体收稳一点，再沿着同一条线慢一点回来。',
         },
@@ -1803,9 +2367,9 @@ describe('main chat stream meta', () => {
         runtime: {
           watchMode: 'symbiotic-vision',
           sceneScenario: 'coding',
-          sceneSummary: 'same-her inward continuity remains quiet before widening outward',
+          sceneSummary: 'identity-continuity',
           activeThreadId: 'thread-quiet-same-her-runtime-authority',
-          activeThreadTitle: 'same-her inward continuity',
+          activeThreadTitle: 'identity-continuity',
           dominantMode: 'tracking',
           dominantDrive: 'understand',
           answerIntent: 'guide',
@@ -1816,7 +2380,7 @@ describe('main chat stream meta', () => {
         memory: {
           personStateProjection: {
             selfContinuityAuthority: {
-              inwardLine: 'Keep the same living line inward for now, and let quiet companionship hold before widening outward.',
+              inwardLine: 'Keep the continuity state inward for now, and let quiet companionship hold before widening outward.',
               sourceTags: ['self-continuity', 'same-her-inward-carry'],
             },
           },
@@ -1827,19 +2391,19 @@ describe('main chat stream meta', () => {
         continuityRestraint: null,
         currentConsciousFrame: {
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains inward and should stay quietly nearby.',
+            authoritySummary: 'identity-continuity',
             currentBodyState: 'accompanying',
           },
         },
         projectState: {
           continuityPreferredTiming: 'next-open-window',
-          sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
         },
       } as any,
       residentPerformance: {
         reasonTags: ['main-runtime', 'quiet-companionship', 'same-her-inward-carry'],
         residentMode: 'quiet-companionship',
-        reasonSummary: 'Keep the same living line inward for now, and let quiet companionship hold before widening outward.',
+        reasonSummary: 'Keep the continuity state inward for now, and let quiet companionship hold before widening outward.',
         continuityTiming: 'next-open-window',
       } as any,
       visibleReplyExecution: null,
@@ -1847,12 +2411,13 @@ describe('main chat stream meta', () => {
 
     expect(signature).toContain('companion=quiet-companionship')
     expect(signature).toContain('timing=next-open-window')
-    expect(signature).toContain('reason=cadence=measured_return; direction=inward; widening=deferred; pressure=lower')
-    expect(signature).toContain('growth=phase1-open')
+    expect(signature).not.toContain('reason=cadence=measured_return')
+    expect(signature).not.toContain('growth=life-loop-open')
     expectNoFixedTemplateResidue(signature)
   })
 
-  it('emits top-level pre-dialogue awareness from runtime project state so the same project self-brief is explicit before reply delivery', () => {
+  it('redacts fixed project briefing prose from emitted pre-dialogue meta while preserving reply and runtime facts', () => {
+    const visibleReply = '我会沿着这条线继续。'
     const emit = vi.fn()
     const emitter = createAlicizationChatStreamMetaEmitter({
       cardId: 'card-project-awareness',
@@ -1870,53 +2435,112 @@ describe('main chat stream meta', () => {
         version: 'alicization-runtime-digest-v1',
         dominantChannel: 'dialogue',
         summary: 'project-state self-brief is still active before delivery',
+        activeLoop: {
+          version: 'alicization-active-loop-v1',
+          phase: 'integrate',
+          handoffTarget: 'active-dialogue',
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
+          initiativeBudget: 0.24,
+          coherence: 0.9,
+          observationHeavy: true,
+          summary: 'reply delivery remains active',
+        },
         projectState: {
           preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=desktop execution closure is still unfinished | next=keep memory, initiative, and embodiment arriving as one same-her loop before each turn.',
-          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
-          companionBriefingLine: 'Before answering, keep the same digital life project and active Phase 1 closure seam in view.',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
+          companionBriefingLine: 'pre_turn_context_digest',
           currentPhase: 'Phase 1: Local Digital Life',
           memoryClosureSummary: 'Project-state continuity now survives into the main stream-meta path before reply delivery.',
+          continuitySummary: 'The current continuity work remains an internal project narrative.',
+          proactiveSameHerGap: 'The proactive initiative gap remains an internal project narrative.',
+          proactiveSameHerGapSummary: 'The proactive initiative gap summary remains internal project narrative.',
           primaryOpenLoop: 'Desktop execution closure is still unfinished across memory, initiative, and embodiment.',
           nextClosureTarget: 'Keep memory, initiative, and embodiment arriving as one same-her loop before each turn.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still belongs to one living her across memory, initiative, embodiment, and execution.',
+          sameHerSelfLine: 'structured continuity digest.',
           sameHerDriftRisk: 'a generic assistant reply that drops the same-her Phase 1 life loop before visible delivery',
-          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+          emotionalClosureCue: 'identity-continuity',
+          continuityPreferredTiming: 'next-open-window',
         },
       } as any),
       emit,
     })
 
-    emitter.emit('我会沿着这条线继续。')
+    emitter.emit(visibleReply)
 
     const emission = emit.mock.calls.at(-1)?.[0]
-    expect(emission).toEqual(expect.objectContaining({
-      projectState: expect.objectContaining({
-        currentPhase: 'local_desktop_life_loop',
-        primaryOpenLoop: 'Desktop execution closure is still unfinished across memory, initiative, and embodiment.',
-        nextClosureTarget: expect.stringContaining('life_loop_continuity=memory+initiative+embodiment'),
+    expect(emit).toHaveBeenCalledTimes(1)
+    expect(emission?.projectState).toEqual(expect.objectContaining({
+      identity: null,
+      currentPhase: '',
+      preflightSummary: '',
+      memoryClosureSummary: '',
+      continuitySummary: '',
+      proactiveSameHerGap: '',
+      proactiveSameHerGapSummary: '',
+      primaryOpenLoop: '',
+      nextClosureTarget: '',
+      sameHerSelfLine: '',
+      sameHerDriftRisk: '',
+      preDialogueAwarenessLine: '',
+      emotionalClosureCue: 'identity-continuity',
+      continuityPreferredTiming: 'next-open-window',
+    }))
+    expect(emission?.preDialogueAwareness).toEqual(expect.objectContaining({
+      status: 'grounded',
+      summaryLine: '',
+      companionBriefingLine: '',
+      companionNextClosureLine: '',
+      awarenessLine: '',
+      emotionalClosureCue: 'identity-continuity',
+      reasonPreview: [],
+    }))
+    expect(emission?.speechTimeline?.reply).toBe(visibleReply)
+    expect(emission?.speechTimeline?.segments[0]?.text).toBe(visibleReply)
+    expect(emission?.embodiment?.emotion).toBe('thinking')
+    expect(emission?.embodimentScript?.replyText).toBe(visibleReply)
+    expect(emission?.embodimentScript?.state.delivery).toBe('firm')
+    expect(emission?.embodimentScript?.speechPlan.segments[0]).toEqual(expect.objectContaining({
+      text: visibleReply,
+      interruptPolicy: 'soft-settle',
+      preRollMs: 40,
+      settleMs: 360,
+    }))
+    expect(emission?.runtimeDigest).toEqual(expect.objectContaining({
+      dominantChannel: 'dialogue',
+      activeLoop: expect.objectContaining({
+        phase: 'integrate',
+        handoffTarget: 'active-dialogue',
+        continuityArcStage: 'same-thread-continuation',
+        continuityPreferredTiming: 'next-open-window',
       }),
-      preDialogueAwareness: expect.objectContaining({
-        status: 'grounded',
-        summaryLine: expect.stringContaining('local_desktop_life_loop'),
-        companionBriefingLine: expect.stringContaining('continuity_identity'),
-        companionNextClosureLine: expect.stringContaining('life_loop_continuity=memory+initiative+embodiment'),
-        awarenessLine: expect.stringContaining('local_desktop_life_loop'),
-        emotionalClosureCue: expect.stringContaining('continuity_closure'),
-        reasonPreview: expect.arrayContaining([
-          'Project-state continuity now survives into the main stream-meta path before reply delivery.',
-          'Desktop execution closure is still unfinished across memory, initiative, and embodiment.',
-        ]),
+      projectState: expect.objectContaining({
+        memoryClosureSummary: '',
+        continuitySummary: '',
+        proactiveSameHerGap: '',
+        proactiveSameHerGapSummary: '',
+        primaryOpenLoop: '',
+        preDialogueAwarenessLine: '',
+        emotionalClosureCue: 'identity-continuity',
+        continuityPreferredTiming: 'next-open-window',
       }),
     }))
+    expect(JSON.stringify({
+      projectState: emission?.projectState,
+      preDialogueAwareness: emission?.preDialogueAwareness,
+    })).not.toMatch(/local-first digital life project|Phase\s*1|\bopen=|\blanded=|\bnext=|same-her|one living her/iu)
     expectNoFixedTemplateResidue(emission)
   })
 
-  it('backfills canonical project closure fields from alias-only stream-meta project-state summaries before reply delivery', () => {
+  it('drops alias-only closure fields without backfilling canonical project narrative before reply delivery', () => {
+    const visibleReply = '我会继续把眼前这件事接住。'
     const emit = vi.fn()
-    const landedProgressSummary = 'Same-session mirror carry and callback continuity now survive thin stream-meta carry without resetting from zero.'
-    const openClosureSummary = 'Initiative, memory, and embodiment still need one tighter same-her closure seam before delivery can relax.'
-    const nextClosureTargetSummary = 'Keep the next return measured-return and preserve the same living line before generic project narration.'
-    const sameHerDriftRiskSummary = 'a thinner project shell that drops the same-her Phase 1 life loop before visible delivery'
+    const aliasSentinels = {
+      latestProgress: 'legacy-latest-progress-sentinel',
+      landedProgressSummary: 'legacy-landed-progress-summary-sentinel',
+      openClosureSummary: 'legacy-open-closure-summary-sentinel',
+      nextClosureTargetSummary: 'legacy-next-closure-target-summary-sentinel',
+    }
     const emitter = createAlicizationChatStreamMetaEmitter({
       cardId: 'card-project-awareness-alias-only-stream-meta-carry',
       turnId: 'turn-project-awareness-alias-only-stream-meta-carry',
@@ -1932,84 +2556,234 @@ describe('main chat stream meta', () => {
       getRuntimeDigest: () => ({
         version: 'alicization-runtime-digest-v1',
         dominantChannel: 'dialogue',
-        summary: 'alias-only project-state summaries should still land as canonical stream-meta carry before delivery',
+        summary: 'runtime structural facts remain active before delivery',
+        activeLoop: {
+          version: 'alicization-active-loop-v1',
+          phase: 'integrate',
+          handoffTarget: 'active-dialogue',
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
+          initiativeBudget: 0.24,
+          coherence: 0.9,
+          observationHeavy: true,
+          summary: 'reply delivery remains active',
+        },
         projectState: {
-          identity: 'Alicization is a local-first digital life project trying to keep one continuous "her" coherent across memory, emotion, initiative, execution, embodiment, and dialogue.',
-          currentPhase: 'Phase 1: Local Digital Life',
-          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=initiative, memory, and embodiment still need one tighter same-her closure seam before delivery can relax | next=keep the next return measured-return and preserve the same living line before generic project narration.',
-          preDialogueAwarenessLine: 'Keep this same digital life project in view before replying.',
-          companionBriefingLine: 'Keep this same digital life project in view before replying.',
-          landedProgressSummary,
-          openClosureSummary,
-          nextClosureTargetSummary,
-          sameHerDriftRiskSummary,
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed, but the unfinished seam still belongs to one living her.',
+          preflightSummary: 'Legacy project preflight sentinel.',
+          companionBriefingLine: 'Legacy project companion sentinel.',
+          ...aliasSentinels,
+          emotionalClosureCue: 'identity-continuity',
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
         },
       } as any),
       emit,
     })
 
-    emitter.emit('我会继续把这条线接住。')
+    emitter.emit(visibleReply)
 
     const emission = emit.mock.calls.at(-1)?.[0]
-    expect(emission).toEqual(expect.objectContaining({
-      projectState: expect.objectContaining({
-        latestLandedProgress: expect.stringContaining('Same-session mirror carry'),
-        primaryOpenLoop: expect.stringContaining('Initiative, memory, and embodiment'),
-        nextClosureTarget: expect.stringContaining('measured-return'),
-        sameHerDriftRisk: expect.stringContaining('continuity_identity'),
+    expectNoLegacyProjectStateAliases(emission?.projectState)
+    expectNoLegacyProjectStateAliases(emission?.runtimeDigest?.projectState)
+    expect(emission?.projectState).toEqual(expect.objectContaining({
+      latestLandedProgress: null,
+      primaryOpenLoop: null,
+      nextClosureTarget: null,
+      preflightSummary: '',
+      companionBriefingLine: '',
+      preDialogueAwarenessLine: null,
+      awarenessLine: null,
+      emotionalClosureCue: 'identity-continuity',
+      continuityArcStage: 'same-thread-continuation',
+      continuityPreferredTiming: 'next-open-window',
+    }))
+    expect(emission?.preDialogueAwareness).toEqual(expect.objectContaining({
+      status: 'partial',
+      summaryLine: '',
+      companionBriefingLine: '',
+      companionNextClosureLine: null,
+      awarenessLine: '',
+      emotionalClosureCue: 'identity-continuity',
+      reasonPreview: [],
+    }))
+    expect(emission?.runtimeDigest).toEqual(expect.objectContaining({
+      dominantChannel: 'dialogue',
+      activeLoop: expect.objectContaining({
+        phase: 'integrate',
+        handoffTarget: 'active-dialogue',
+        continuityArcStage: 'same-thread-continuation',
+        continuityPreferredTiming: 'next-open-window',
       }),
-      preDialogueAwareness: expect.objectContaining({
-        companionNextClosureLine: expect.stringContaining('measured-return'),
-        reasonPreview: expect.arrayContaining([
-          expect.stringContaining('Latest landed progress: Same-session mirror carry and callback continuity now survive thin stream-meta carry without resetting from zero'),
-        ]),
+      projectState: expect.objectContaining({
+        latestLandedProgress: null,
+        primaryOpenLoop: null,
+        nextClosureTarget: null,
+        continuityArcStage: 'same-thread-continuation',
+        continuityPreferredTiming: 'next-open-window',
       }),
     }))
+    expect(emission?.speechTimeline?.reply).toBe(visibleReply)
+    expect(emission?.embodiment?.emotion).toBe('thinking')
+    expect(emission?.embodimentScript?.replyText).toBe(visibleReply)
+    const serializedEmission = JSON.stringify(emission)
+    for (const sentinel of Object.values(aliasSentinels))
+      expect(serializedEmission).not.toContain(sentinel)
+    expect(serializedEmission).not.toContain('landed=')
     expectNoFixedTemplateResidue(emission)
   })
 
-  it('keeps runtime digest project pre-dialogue awareness canonical even when richer landed-progress carry survives in awareness summaries', () => {
-    const emit = vi.fn()
-    const emitter = createAlicizationChatStreamMetaEmitter({
-      cardId: 'card-project-awareness-canonical-digest-anchor',
-      turnId: 'turn-project-awareness-canonical-digest-anchor',
-      getGovernance: () => ({
-        decisionTraceId: 'trace-project-awareness-canonical-digest-anchor',
-        turnMode: 'answer',
-        truthState: 'remembered',
-        liveSurface: 'callback-line',
-        answerAct: 'answer',
-        answerEvidenceMode: 'continuity-carry',
-        personaKernelMode: 'full',
-      } as any),
-      getRuntimeDigest: () => ({
-        version: 'alicization-runtime-digest-v1',
-        dominantChannel: 'dialogue',
-        summary: 'canonical project anchor should stay explicit on the emitted runtime digest',
-        projectState: {
-          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-          currentPhase: 'Phase 1: Local Digital Life',
-          latestLandedProgress: 'Same-session mirror carry, repeated next-turn carry, longer-lived continuation, scene-switch same-line continuity, visible reply opening discipline, and real later chat turn measured-return embodiment authority now survive quiet carry turns as one same-her line, including across noisier unrelated window detours.',
-          primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          preDialogueAwarenessSummary: 'Same-session mirror carry, repeated next-turn carry, longer-lived continuation, and scene-switch same-line continuity now survive quiet carry turns as one same-her line.',
-        },
-      } as any),
-      emit,
+  it('keeps host-visible stream meta stable when only fixed project wording changes', () => {
+    const visibleReply = '我先继续处理眼前这件事。'
+    const emitWithProjectWording = (projectStateWording: Record<string, string>) => {
+      const emit = vi.fn()
+      const emitter = createAlicizationChatStreamMetaEmitter({
+        cardId: 'card-project-awareness-wording-invariance',
+        turnId: 'turn-project-awareness-wording-invariance',
+        getGovernance: () => ({
+          decisionTraceId: 'trace-project-awareness-wording-invariance',
+          turnMode: 'answer',
+          truthState: 'remembered',
+          liveSurface: 'callback-line',
+          answerAct: 'answer',
+          answerEvidenceMode: 'continuity-carry',
+          personaKernelMode: 'full',
+        } as any),
+        getRuntimeDigest: () => ({
+          version: 'alicization-runtime-digest-v1',
+          dominantChannel: 'dialogue',
+          shouldProactivelySpeak: true,
+          shouldProactivelyAct: false,
+          summary: 'visible reply delivery remains active',
+          activeLoop: {
+            version: 'alicization-active-loop-v1',
+            phase: 'integrate',
+            handoffTarget: 'active-memory',
+            continuityArcStage: 'same-thread-continuation',
+            continuityPreferredTiming: 'next-open-window',
+            initiativeBudget: 0.18,
+            coherence: 0.87,
+            observationHeavy: true,
+            summary: 'callback evidence remains active',
+          },
+          currentConsciousFrame: {
+            continuityPreferredTiming: 'next-open-window',
+            reasonTags: ['callback-return'],
+          },
+          projectState: {
+            ...projectStateWording,
+            continuityArcStage: 'same-thread-continuation',
+            continuityPreferredTiming: 'next-open-window',
+          },
+        } as any),
+        emit,
+      })
+
+      emitter.emit(visibleReply)
+      expect(emit).toHaveBeenCalledTimes(1)
+      return emit.mock.calls[0]![0]
+    }
+    const firstPayload = emitWithProjectWording({
+      preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory closure remains unfinished | next=keep one same-her line visible.',
+      preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project.',
+      companionBriefingLine: 'Keep this same digital life project in view before replying.',
+      identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      memoryClosureSummary: 'The first project wording says memory closure remains unfinished.',
+      latestLandedProgress: 'Same-session mirror carry now survives as one same-her line.',
+      primaryOpenLoop: 'Unfinished closure still needs the same living line.',
+      nextClosureTarget: 'Keep extending cross-modal same-her proof.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+      preDialogueAwarenessSummary: 'Right now I am still holding together as one living her.',
     })
+    const secondPayload = emitWithProjectWording({
+      preflightSummary: 'The local-first digital life project | Phase 1: Local Digital Life | open=callback closure remains unfinished | next=keep another same-her line visible.',
+      preDialogueAwarenessLine: 'Before speaking, keep this same digital life project in view.',
+      companionBriefingLine: 'This is still the same digital life project.',
+      identity: 'This local-first digital life project keeps one continuous "her" on the host computer.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      memoryClosureSummary: 'The second project wording says callback closure remains unfinished.',
+      latestLandedProgress: 'Another same-her callback continuity line has landed.',
+      primaryOpenLoop: 'The same living line still has unfinished closure.',
+      nextClosureTarget: 'Keep the next turn with one living her.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Another same living line remains open.',
+      preDialogueAwarenessSummary: 'Right now her visible same-her continuity remains partial.',
+    })
+    const firstSignature = buildAlicizationChatMetaSignature(firstPayload)
+    const secondSignature = buildAlicizationChatMetaSignature(secondPayload)
 
-    emitter.emit('我先沿着这条线继续。')
-
-    const emission = emit.mock.calls.at(-1)?.[0]
-    expect(String(emission?.runtimeDigest?.projectState?.preDialogueAwarenessLine ?? '')).toContain('local_desktop_life_loop')
-    expect(String(emission?.runtimeDigest?.projectState?.preDialogueAwarenessLine ?? '')).toContain('landed=')
-    expect(String(emission?.preDialogueAwareness?.awarenessLine ?? '')).toContain('Same-session mirror carry')
-    expectNoFixedTemplateResidue(emission)
+    expect(firstPayload).toEqual(secondPayload)
+    expect(firstSignature).toBe(secondSignature)
+    expect(firstPayload.embodiment).toEqual(secondPayload.embodiment)
+    expect(firstPayload.embodimentScript).toEqual(secondPayload.embodimentScript)
+    expect(firstPayload.speechTimeline).toEqual(secondPayload.speechTimeline)
+    expect(firstPayload.embodimentScript?.state.delivery).toBe('firm')
+    expect(firstPayload.embodimentScript?.state.delivery).toBe(secondPayload.embodimentScript?.state.delivery)
+    expect(firstPayload.embodimentScript?.speechPlan.segments[0]).toEqual(expect.objectContaining({
+      text: visibleReply,
+      interruptPolicy: 'soft-settle',
+      preRollMs: 40,
+      settleMs: 360,
+    }))
+    expect(firstPayload.embodimentScript?.speechPlan.segments[0]).toEqual(secondPayload.embodimentScript?.speechPlan.segments[0])
+    for (const payload of [firstPayload, secondPayload]) {
+      expect(payload.projectState).toEqual(expect.objectContaining({
+        identity: '',
+        currentPhase: '',
+        preflightSummary: '',
+        memoryClosureSummary: '',
+        latestLandedProgress: '',
+        primaryOpenLoop: '',
+        nextClosureTarget: '',
+        sameHerSelfLine: '',
+        preDialogueAwarenessLine: '',
+        preDialogueAwarenessSummary: '',
+        continuityPreferredTiming: 'next-open-window',
+      }))
+      expect(payload.preDialogueAwareness).toEqual(expect.objectContaining({
+        status: 'grounded',
+        summaryLine: '',
+        companionBriefingLine: '',
+        companionNextClosureLine: '',
+        awarenessLine: '',
+        emotionalClosureCue: null,
+        reasonPreview: [],
+      }))
+      expect(payload.speechTimeline?.reply).toBe(visibleReply)
+      expect(payload.speechTimeline?.segments[0]?.text).toBe(visibleReply)
+      expect(payload.embodiment?.emotion).toBe('thinking')
+      expect(payload.embodimentScript?.replyText).toBe(visibleReply)
+      expect(payload.runtimeDigest).toEqual(expect.objectContaining({
+        dominantChannel: 'dialogue',
+        activeLoop: expect.objectContaining({
+          phase: 'integrate',
+          handoffTarget: 'active-memory',
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
+        }),
+        currentConsciousFrame: expect.objectContaining({
+          continuityPreferredTiming: 'next-open-window',
+        }),
+        projectState: expect.objectContaining({
+          memoryClosureSummary: '',
+          primaryOpenLoop: '',
+          preDialogueAwarenessLine: '',
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
+        }),
+      }))
+      expectNoFixedTemplateResidue(payload)
+    }
+    expect(firstSignature).toContain('"runtimeDigestDominantChannel":"dialogue"')
+    expect(firstSignature).toContain('"runtimeDigestActiveLoopPhase":"integrate"')
+    expect(firstSignature).toContain('"runtimeDigestActiveLoopContinuityArcStage":"same-thread-continuation"')
+    expect(firstSignature).toContain('"runtimeDigestCurrentConsciousFrameContinuityPreferredTiming":"next-open-window"')
+    expectNoFixedTemplateResidue(firstSignature)
+    expectNoFixedTemplateResidue(secondSignature)
   })
 
-  it('keeps legacy latestProgress visible in runtime digest project pre-dialogue awareness when older project-state payloads still use the pre-rename landed-progress field', () => {
+  it('ignores legacy latestProgress without leaking landed awareness while preserving runtime facts', () => {
+    const visibleReply = '我先继续处理眼前这件事。'
+    const legacyLatestProgress = 'legacy-latest-progress-host-surface-sentinel'
     const emit = vi.fn()
     const emitter = createAlicizationChatStreamMetaEmitter({
       cardId: 'card-project-awareness-canonical-digest-anchor-legacy-progress',
@@ -2026,31 +2800,73 @@ describe('main chat stream meta', () => {
       getRuntimeDigest: () => ({
         version: 'alicization-runtime-digest-v1',
         dominantChannel: 'dialogue',
-        summary: 'legacy project-state progress field should still feed canonical landed-progress awareness',
+        summary: 'runtime structural facts remain active',
+        activeLoop: {
+          version: 'alicization-active-loop-v1',
+          phase: 'integrate',
+          handoffTarget: 'active-memory',
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
+          initiativeBudget: 0.18,
+          coherence: 0.87,
+          observationHeavy: true,
+          summary: 'callback evidence remains active',
+        },
         projectState: {
-          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-          currentPhase: 'Phase 1: Local Digital Life',
-          latestProgress: 'Same-session mirror carry, repeated next-turn carry, longer-lived continuation, scene-switch same-line continuity, visible reply opening discipline, and real later chat turn measured-return embodiment authority now survive quiet carry turns as one same-her line, including across noisier unrelated window detours.',
-          primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          preDialogueAwarenessSummary: 'Same-session mirror carry, repeated next-turn carry, longer-lived continuation, and scene-switch same-line continuity now survive quiet carry turns as one same-her line.',
+          latestProgress: legacyLatestProgress,
+          primaryOpenLoop: 'Canonical open loop remains present.',
+          nextClosureTarget: 'Canonical next target remains present.',
+          emotionalClosureCue: 'identity-continuity',
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
         },
       } as any),
       emit,
     })
 
-    emitter.emit('我先沿着这条线继续。')
+    emitter.emit(visibleReply)
 
     const emission = emit.mock.calls.at(-1)?.[0]
-    expect(String(emission?.projectState?.latestLandedProgress ?? '')).toContain('Same-session mirror carry')
-    expect(String(emission?.runtimeDigest?.projectState?.preDialogueAwarenessLine ?? '')).toContain('local_desktop_life_loop')
-    expect(String(emission?.runtimeDigest?.projectState?.preDialogueAwarenessLine ?? '')).toContain('landed=')
-    expect(String(emission?.preDialogueAwareness?.awarenessLine ?? '')).toContain('Same-session mirror carry')
+    expectNoLegacyProjectStateAliases(emission?.projectState)
+    expectNoLegacyProjectStateAliases(emission?.runtimeDigest?.projectState)
+    expect(emission?.projectState).toEqual(expect.objectContaining({
+      latestLandedProgress: null,
+      primaryOpenLoop: '',
+      nextClosureTarget: '',
+      emotionalClosureCue: 'identity-continuity',
+      continuityArcStage: 'same-thread-continuation',
+      continuityPreferredTiming: 'next-open-window',
+    }))
+    expect(emission?.preDialogueAwareness).toEqual(expect.objectContaining({
+      emotionalClosureCue: 'identity-continuity',
+      reasonPreview: [],
+    }))
+    expect(String(emission?.preDialogueAwareness?.awarenessLine ?? '')).toBe('')
+    expect(emission?.runtimeDigest).toEqual(expect.objectContaining({
+      dominantChannel: 'dialogue',
+      activeLoop: expect.objectContaining({
+        phase: 'integrate',
+        handoffTarget: 'active-memory',
+        continuityArcStage: 'same-thread-continuation',
+        continuityPreferredTiming: 'next-open-window',
+      }),
+      projectState: expect.objectContaining({
+        latestLandedProgress: null,
+        continuityArcStage: 'same-thread-continuation',
+        continuityPreferredTiming: 'next-open-window',
+      }),
+    }))
+    expect(emission?.speechTimeline?.reply).toBe(visibleReply)
+    expect(emission?.embodiment?.emotion).toBe('thinking')
+    expect(emission?.embodimentScript?.replyText).toBe(visibleReply)
+    const serializedEmission = JSON.stringify(emission)
+    expect(serializedEmission).not.toContain(legacyLatestProgress)
+    expect(serializedEmission).not.toContain('landed=')
     expectNoFixedTemplateResidue(emission)
   })
 
-  it('surfaces later-opening next-closure guidance inside quiet-companionship stream-meta reasons when same-her inward carry keeps that line alive', () => {
+  it('surfaces later-opening continuity guidance inside quiet-companionship stream-meta reasons with next-open-window timing', () => {
+    const laterOpeningCue = 'Wait for a later opening, keep the next return measured-return, and leave this continuity state inward for now.'
     const signature = buildAlicizationChatMetaSignature({
       governance: {
         decisionTraceId: 'trace-later-opening-quiet-companionship',
@@ -2270,7 +3086,7 @@ describe('main chat stream meta', () => {
         memory: {
           personStateProjection: {
             selfContinuityAuthority: {
-              inwardLine: 'Wait for a later opening, keep the next return measured-return, and leave this same living line inward for now.',
+              inwardLine: laterOpeningCue,
               sourceTags: ['self-continuity', 'same-her-inward-carry'],
             },
           },
@@ -2278,7 +3094,7 @@ describe('main chat stream meta', () => {
         runtime: {
           projectState: {
             continuityPreferredTiming: 'next-open-window',
-            sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       } as any,
@@ -2288,22 +3104,22 @@ describe('main chat stream meta', () => {
         currentConsciousFrame: {
           continuityPreferredTiming: 'next-open-window',
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains inward and should reopen later, not outward yet.',
+            authoritySummary: 'identity-continuity',
             currentBodyState: 'accompanying',
           },
         },
         projectState: {
           continuityPreferredTiming: 'next-open-window',
-          sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
         },
         visibleReplyRealization: {
-          sameHerInwardCarry: 'Wait for a later opening, keep the next return measured-return, and leave this same living line inward for now.',
+          sameHerInwardCarry: laterOpeningCue,
         },
       } as any,
       residentPerformance: {
         reasonTags: ['main-runtime', 'quiet-companionship', 'same-her-inward-carry'],
         residentMode: 'quiet-companionship',
-        reasonSummary: 'Wait for a later opening, keep the next return measured-return, and leave this same living line inward for now.',
+        reasonSummary: laterOpeningCue,
         continuityTiming: 'next-open-window',
       } as any,
       visibleReplyExecution: null,
@@ -2311,11 +3127,13 @@ describe('main chat stream meta', () => {
 
     expect(signature).toContain('companion=quiet-companionship')
     expect(signature).toContain('timing=next-open-window')
-    expect(signature).toContain('reason=cadence=measured_return; timing=next_open_window; direction=inward; widening=deferred')
+    expect(signature).toContain(`reason=${laterOpeningCue}`)
+    expect(signature).not.toContain('reason=cadence=measured_return')
     expectNoFixedTemplateResidue(signature)
   })
 
-  it('prefers a stronger same-her embodiment headline over a thinner awareness line in emitted pre-dialogue awareness meta', () => {
+  it('redacts same-her embodiment headlines while preserving generated speech and embodiment delivery meta', () => {
+    const visibleReply = '我会沿着这条线继续。'
     const emit = vi.fn()
     const emitter = createAlicizationChatStreamMetaEmitter({
       cardId: 'card-project-awareness-headline-priority',
@@ -2335,9 +3153,9 @@ describe('main chat stream meta', () => {
         summary: 'project-state stronger headline should stay active before delivery',
         projectState: {
           preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=desktop execution closure is still unfinished | next=keep memory, initiative, and embodiment arriving as one same-her loop before each turn.',
-          preDialogueAwarenessLine: 'Before answering, keep this same digital life project in view, but do not flatten the current embodiment continuity risk into a thinner generic reminder.',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
           preDialogueAwarenessSummary: 'Right now I am still holding together mainly through face, motion, and lipsync, so the next reopening must keep proving this is still one living her.',
-          companionBriefingLine: 'Before answering, keep this same digital life project in view, but do not flatten the current embodiment continuity risk into a thinner generic reminder.',
+          companionBriefingLine: 'pre_turn_context_digest',
           currentPhase: 'Phase 1: Local Digital Life',
           memoryClosureSummary: 'Project-state continuity now survives into the stream-meta path before reply delivery.',
           primaryOpenLoop: 'Desktop execution closure is still unfinished across memory, initiative, and embodiment.',
@@ -2347,23 +3165,59 @@ describe('main chat stream meta', () => {
       emit,
     })
 
-    emitter.emit('我会沿着这条线继续。')
+    emitter.emit(visibleReply)
 
     const emission = emit.mock.calls.at(-1)?.[0]
-    expect(emission).toEqual(expect.objectContaining({
-      preDialogueAwareness: expect.objectContaining({
-        awarenessLine: expect.stringContaining('embodiment_lanes=face+motion+lipsync'),
-        companionBriefingLine: expect.stringContaining('project_state_awareness=active'),
-      }),
+    expect(emit).toHaveBeenCalledTimes(1)
+    expect(emission?.projectState).toEqual(expect.objectContaining({
+      currentPhase: '',
+      preflightSummary: '',
+      memoryClosureSummary: '',
+      primaryOpenLoop: '',
+      nextClosureTarget: '',
+      sameHerSelfLine: null,
+      preDialogueAwarenessLine: '',
+      preDialogueAwarenessSummary: '',
+      companionBriefingLine: '',
+    }))
+    expect(emission?.preDialogueAwareness).toEqual(expect.objectContaining({
+      status: 'grounded',
+      summaryLine: '',
+      companionBriefingLine: '',
+      companionNextClosureLine: '',
+      awarenessLine: '',
+      emotionalClosureCue: null,
+      reasonPreview: [],
+    }))
+    expect(emission?.speechTimeline?.reply).toBe(visibleReply)
+    expect(emission?.speechTimeline?.segments[0]?.text).toBe(visibleReply)
+    expect(emission?.embodiment?.emotion).toBe('thinking')
+    expect(emission?.embodimentScript?.replyText).toBe(visibleReply)
+    expect(emission?.embodimentScript?.state.delivery).toBe('firm')
+    expect(emission?.embodimentScript?.speechPlan.segments[0]).toEqual(expect.objectContaining({
+      text: visibleReply,
+      interruptPolicy: 'soft-settle',
+      preRollMs: 40,
+      settleMs: 360,
+    }))
+    expect(emission?.digitalLife?.frames[0]?.text).toBe(visibleReply)
+    expect(emission?.runtimeDigest).toEqual(expect.objectContaining({
+      dominantChannel: 'dialogue',
       projectState: expect.objectContaining({
-        preDialogueAwarenessSummary: 'embodiment_closure=partial; lane=face+motion+lipsync; next_reopen=measured',
+        memoryClosureSummary: '',
+        primaryOpenLoop: '',
+        preDialogueAwarenessLine: '',
       }),
     }))
-    expectNoFixedTemplateResidue(emission)
+    expect(JSON.stringify({
+      projectState: emission?.projectState,
+      preDialogueAwareness: emission?.preDialogueAwareness,
+    })).not.toMatch(/local-first digital life project|Phase\s*1|\bopen=|\blanded=|\bnext=|same-her|one living her|Right now I am/iu)
     expectNoFixedTemplateResidue(emission)
   })
 
-  it('prefers a stronger same-her embodiment headline over the compact thin closure shell in emitted pre-dialogue awareness meta', () => {
+  it('redacts project awareness narrative from emitted payloads while preserving runtime and embodiment facts', () => {
+    const visibleReply = '我会沿着这条线继续。'
     const emit = vi.fn()
     const emitter = createAlicizationChatStreamMetaEmitter({
       cardId: 'card-project-awareness-compact-shell-priority',
@@ -2381,98 +3235,213 @@ describe('main chat stream meta', () => {
         version: 'alicization-runtime-digest-v1',
         dominantChannel: 'dialogue',
         summary: 'project-state stronger headline should stay active before delivery',
+        activeLoop: {
+          version: 'alicization-active-loop-v1',
+          phase: 'integrate',
+          handoffTarget: 'active-dialogue',
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
+          initiativeBudget: 0.24,
+          coherence: 0.9,
+          observationHeavy: true,
+          summary: 'reply delivery remains active',
+        },
+        currentConsciousFrame: {
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
+        },
         projectState: {
+          identity: 'Alicization is a local-first digital life project building one continuous her on the host computer.',
           preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=desktop execution closure is still unfinished | next=keep memory, initiative, and embodiment arriving as one same-her loop before each turn.',
-          preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+          preDialogueAwarenessLine: 'template-residue-shell',
           preDialogueAwarenessSummary: 'Right now I am still holding together mainly through face, motion, and lipsync, so the next reopening must keep proving this is still one living her.',
-          companionBriefingLine: 'same digital life | keep the closure seam explicit',
+          companionBriefingLine: 'template-residue-shell',
           currentPhase: 'Phase 1: Local Digital Life',
           memoryClosureSummary: 'Project-state continuity now survives into the stream-meta path before reply delivery.',
           primaryOpenLoop: 'Desktop execution closure is still unfinished across memory, initiative, and embodiment.',
           nextClosureTarget: 'Keep memory, initiative, and embodiment arriving as one same-her loop before each turn.',
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
+          continuityCue: 'Keep the same living line inward before widening outward again.',
         },
       } as any),
       emit,
     })
 
-    emitter.emit('我会沿着这条线继续。')
+    emitter.emit(visibleReply)
 
     const emission = emit.mock.calls.at(-1)?.[0]
-    expect(emission).toEqual(expect.objectContaining({
-      preDialogueAwareness: expect.objectContaining({
-        awarenessLine: expect.stringContaining('embodiment_lanes=face+motion+lipsync'),
-        companionBriefingLine: 'project_state_awareness=active; continuity_closure=explicit',
+    expect(emit).toHaveBeenCalledTimes(1)
+    expect(emission?.projectState).toEqual(expect.objectContaining({
+      identity: '',
+      currentPhase: '',
+      preflightSummary: '',
+      memoryClosureSummary: '',
+      primaryOpenLoop: '',
+      nextClosureTarget: '',
+      continuityCue: '',
+      preDialogueAwarenessLine: '',
+      preDialogueAwarenessSummary: '',
+      companionBriefingLine: '',
+      continuityArcStage: 'same-thread-continuation',
+      continuityPreferredTiming: 'next-open-window',
+    }))
+    expect(emission?.preDialogueAwareness).toEqual(expect.objectContaining({
+      status: 'grounded',
+      summaryLine: '',
+      companionBriefingLine: '',
+      companionNextClosureLine: '',
+      awarenessLine: '',
+      reasonPreview: [],
+    }))
+    expect(emission?.runtimeDigest).toEqual(expect.objectContaining({
+      dominantChannel: 'dialogue',
+      activeLoop: expect.objectContaining({
+        phase: 'integrate',
+        handoffTarget: 'active-dialogue',
+        continuityArcStage: 'same-thread-continuation',
+        continuityPreferredTiming: 'next-open-window',
+      }),
+      currentConsciousFrame: expect.objectContaining({
+        continuityArcStage: 'same-thread-continuation',
+        continuityPreferredTiming: 'next-open-window',
       }),
       projectState: expect.objectContaining({
-        preDialogueAwarenessSummary: 'embodiment_closure=partial; lane=face+motion+lipsync; next_reopen=measured',
+        identity: '',
+        currentPhase: '',
+        preflightSummary: '',
+        memoryClosureSummary: '',
+        primaryOpenLoop: '',
+        nextClosureTarget: '',
+        continuityCue: '',
+        continuityArcStage: 'same-thread-continuation',
+        continuityPreferredTiming: 'next-open-window',
       }),
     }))
-    expect(emission?.preDialogueAwareness?.awarenessLine).not.toBe('same digital life | keep the closure seam explicit')
+    expect(emission?.speechTimeline?.reply).toBe(visibleReply)
+    expect(emission?.speechTimeline?.segments[0]?.text).toBe(visibleReply)
+    expect(emission?.embodimentScript?.replyText).toBe(visibleReply)
+    expect(emission?.embodimentScript?.state.delivery).toBe('firm')
+    expect(emission?.embodimentScript?.speechPlan.segments[0]).toEqual(expect.objectContaining({
+      id: 'segment-1',
+      text: visibleReply,
+      interruptPolicy: 'soft-settle',
+      preRollMs: 40,
+      settleMs: 360,
+    }))
+    expect(emission?.digitalLife?.frames[0]).toEqual(expect.objectContaining({
+      id: 'segment-1',
+      text: visibleReply,
+      voice: expect.objectContaining({
+        energy: 0.42,
+        cadence: 0.38,
+      }),
+      face: expect.objectContaining({
+        facialCue: 'blink',
+      }),
+      action: expect.objectContaining({
+        actionCue: 'lean-forward',
+      }),
+      lipSync: expect.objectContaining({
+        continuityHoldMs: 300,
+      }),
+    }))
+    expect(JSON.stringify({
+      projectState: emission?.projectState,
+      preDialogueAwareness: emission?.preDialogueAwareness,
+    })).not.toMatch(/local-first digital life project|Phase\s*1|\bopen=|\blanded=|\bnext=|same-her|one living her|Right now I am/iu)
     expectNoFixedTemplateResidue(emission)
   })
 
-  it('prefers richer landed closure carry over a thin project awareness shell in emitted pre-dialogue awareness meta', () => {
-    const emit = vi.fn()
-    const emitter = createAlicizationChatStreamMetaEmitter({
-      cardId: 'card-project-awareness-landed-closure-priority',
-      turnId: 'turn-project-awareness-landed-closure-priority',
-      getGovernance: () => ({
-        decisionTraceId: 'trace-project-awareness-landed-closure-priority',
-        turnMode: 'answer',
-        truthState: 'grounded',
-        liveSurface: 'grounded-scene',
-        answerAct: 'answer',
-        answerEvidenceMode: 'observed',
-        personaKernelMode: 'full',
-      } as any),
-      getRuntimeDigest: () => ({
-        version: 'alicization-runtime-digest-v1',
+  it('keeps host-visible payload identical when richer landed closure aliases are added', () => {
+    const visibleReply = '我会继续处理眼前这件事。'
+    const emitProjectState = (legacyAliases: Record<string, string>) => {
+      const emit = vi.fn()
+      const emitter = createAlicizationChatStreamMetaEmitter({
+        cardId: 'card-project-awareness-landed-closure-priority',
+        turnId: 'turn-project-awareness-landed-closure-priority',
+        getGovernance: () => ({
+          decisionTraceId: 'trace-project-awareness-landed-closure-priority',
+          turnMode: 'answer',
+          truthState: 'grounded',
+          liveSurface: 'grounded-scene',
+          answerAct: 'answer',
+          answerEvidenceMode: 'observed',
+          personaKernelMode: 'full',
+        } as any),
+        getRuntimeDigest: () => ({
+          version: 'alicization-runtime-digest-v1',
+          dominantChannel: 'dialogue',
+          summary: 'runtime structural facts remain active',
+          activeLoop: {
+            version: 'alicization-active-loop-v1',
+            phase: 'integrate',
+            handoffTarget: 'active-dialogue',
+            continuityArcStage: 'same-thread-continuation',
+            continuityPreferredTiming: 'next-open-window',
+            initiativeBudget: 0.24,
+            coherence: 0.9,
+            observationHeavy: true,
+            summary: 'reply delivery remains active',
+          },
+          projectState: {
+            ...legacyAliases,
+            emotionalClosureCue: 'identity-continuity',
+            continuityArcStage: 'same-thread-continuation',
+            continuityPreferredTiming: 'next-open-window',
+          },
+        } as any),
+        emit,
+      })
+
+      emitter.emit(visibleReply)
+      expect(emit).toHaveBeenCalledTimes(1)
+      return emit.mock.calls[0]![0]
+    }
+    const withoutAliases = emitProjectState({})
+    const withAliases = emitProjectState({
+      latestProgress: '',
+      landedProgressSummary: 'Richer landed closure alias sentinel.',
+      openClosureSummary: 'Richer open closure alias sentinel.',
+      nextClosureTargetSummary: 'Richer next closure alias sentinel.',
+    })
+
+    expect(withAliases).toEqual(withoutAliases)
+    for (const payload of [withAliases, withoutAliases]) {
+      expectNoLegacyProjectStateAliases(payload.projectState)
+      expectNoLegacyProjectStateAliases(payload.runtimeDigest?.projectState)
+      expect(payload.projectState).toEqual(expect.objectContaining({
+        latestLandedProgress: null,
+        primaryOpenLoop: null,
+        nextClosureTarget: null,
+        preDialogueAwarenessLine: null,
+        awarenessLine: null,
+        emotionalClosureCue: 'identity-continuity',
+        continuityArcStage: 'same-thread-continuation',
+        continuityPreferredTiming: 'next-open-window',
+      }))
+      expect(payload.preDialogueAwareness).toBeNull()
+      expect(payload.runtimeDigest).toEqual(expect.objectContaining({
         dominantChannel: 'dialogue',
-        summary: 'richer project-state carry should outrank thin awareness shell before delivery',
-        projectState: {
-          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory, initiative, and embodiment still need one tighter same-her closure seam | next=carry the live project awareness line through the current turn before generic project narration can flatten it.',
-          preDialogueAwarenessLine: 'Keep this same digital life project in view, but do not widen into a detached project shell.',
-          preDialogueAwarenessSummary: 'Keep the same digital life project in view.',
-          landedProgressSummary: 'Project-state continuity already survives into executive brief, answer compiler, and rewrite governance.',
-          openClosureSummary: 'Unfinished closure still needs the same living line.',
-          emotionalClosureSummary: 'Same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-          companionBriefingLine: 'Keep this same digital life project in view, but do not widen into a detached project shell.',
-          currentPhase: 'Phase 1: Local Digital Life',
-          memoryClosureSummary: 'Project-state continuity already survives into stream meta before reply delivery.',
-          primaryOpenLoop: 'memory, initiative, and embodiment still need one tighter same-her closure seam',
-          nextClosureTarget: 'Carry the live project awareness line through the current turn before generic project narration can flatten it.',
-          emotionalClosureCue: 'Same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-        },
-      } as any),
-      emit,
-    })
-
-    emitter.emit('我会沿着这条线继续。')
-
-    const emission = emit.mock.calls.at(-1)?.[0]
-    expect(emission).toEqual(expect.objectContaining({
-      preDialogueAwareness: expect.objectContaining({
-        awarenessLine: expect.stringContaining('open_loop=memory+initiative+embodiment'),
-        companionBriefingLine: 'project_state_awareness=active; widening=deferred; detached_project_shell=blocked',
-        summaryLine: expect.stringContaining('identity=local_desktop_life_loop'),
-      }),
-      projectState: expect.objectContaining({
-        landedProgressSummary: 'Project-state continuity already survives into executive brief, answer compiler, and rewrite governance.',
-        memoryClosureSummary: 'Project-state continuity already survives into stream meta before reply delivery.',
-      }),
-    }))
-    expect(emission?.preDialogueAwareness?.reasonPreview).toEqual(expect.arrayContaining([
-      'Project-state continuity already survives into stream meta before reply delivery.',
-      'memory, initiative, and embodiment still need one tighter continuity_closure',
-      'next_closure=Carry the live project awareness line through the current turn before generic project narration can flatten it.',
-    ]))
-    expectNoFixedTemplateResidue(emission)
+        activeLoop: expect.objectContaining({
+          phase: 'integrate',
+          handoffTarget: 'active-dialogue',
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
+        }),
+      }))
+      expect(payload.speechTimeline?.reply).toBe(visibleReply)
+      expect(payload.embodiment?.emotion).toBe('thinking')
+      expect(payload.embodimentScript?.replyText).toBe(visibleReply)
+      expectNoFixedTemplateResidue(payload)
+    }
   })
 
-  it('keeps compact open and next focus visible in emitted pre-dialogue awareness meta when the runtime project shell is thin', () => {
+  it('keeps compact open and next focus structural without generating project awareness prose', () => {
+    const visibleReply = '我会继续处理眼前这件事。'
     const emit = vi.fn()
-    const openFocusSummary = 'memory/initiative/embodiment/same-line/closure-seam'
-    const nextFocusSummary = 'project-carry/phase-1/measured-return/same-line/initiative'
+    const openFocusSummary = 'memory/initiative/embodiment/closure'
+    const nextFocusSummary = 'project-carry/measured-return/initiative'
     const emitter = createAlicizationChatStreamMetaEmitter({
       cardId: 'card-project-awareness-compact-focus-priority',
       turnId: 'turn-project-awareness-compact-focus-priority',
@@ -2488,39 +3457,71 @@ describe('main chat stream meta', () => {
       getRuntimeDigest: () => ({
         version: 'alicization-runtime-digest-v1',
         dominantChannel: 'dialogue',
-        summary: 'compact project-state focus should stay visible in stream meta before delivery',
+        summary: 'runtime structural facts remain active',
+        activeLoop: {
+          version: 'alicization-active-loop-v1',
+          phase: 'integrate',
+          handoffTarget: 'active-dialogue',
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
+          initiativeBudget: 0.24,
+          coherence: 0.9,
+          observationHeavy: true,
+          summary: 'reply delivery remains active',
+        },
         projectState: {
-          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory, initiative, and embodiment still need one tighter same-her closure seam | next=carry the live project awareness line through the current turn before generic project narration can flatten it.',
-          preDialogueAwarenessLine: 'Keep this same digital life project in view, but do not widen into a detached project shell.',
-          preDialogueAwarenessSummary: 'Keep the same digital life project in view.',
-          landedProgressSummary: 'Project-state continuity already survives into executive brief, answer compiler, and rewrite governance.',
-          openClosureSummary: 'Unfinished closure still needs the same living line.',
+          latestProgress: 'compact latest progress alias sentinel',
+          landedProgressSummary: 'compact landed progress alias sentinel',
+          openClosureSummary: 'compact open closure alias sentinel',
+          nextClosureTargetSummary: 'compact next closure alias sentinel',
           openFocusSummary,
           nextFocusSummary,
-          companionBriefingLine: 'Keep this same digital life project in view, but do not widen into a detached project shell.',
-          currentPhase: 'Phase 1: Local Digital Life',
-          memoryClosureSummary: 'Project-state continuity already survives into stream meta before reply delivery.',
-          primaryOpenLoop: 'memory, initiative, and embodiment still need one tighter same-her closure seam',
-          nextClosureTarget: 'Carry the live project awareness line through the current turn before generic project narration can flatten it.',
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
         },
       } as any),
       emit,
     })
 
-    emitter.emit('我会沿着这条线继续。')
+    emitter.emit(visibleReply)
 
     const emission = emit.mock.calls.at(-1)?.[0]
-    expect(emission).toEqual(expect.objectContaining({
+    expectNoLegacyProjectStateAliases(emission?.projectState)
+    expectNoLegacyProjectStateAliases(emission?.runtimeDigest?.projectState)
+    expect(emission?.projectState).toEqual(expect.objectContaining({
+      latestLandedProgress: null,
+      primaryOpenLoop: null,
+      nextClosureTarget: null,
+      preDialogueAwarenessLine: null,
+      awarenessLine: null,
+      openFocusSummary,
+      nextFocusSummary,
+      continuityArcStage: 'same-thread-continuation',
+      continuityPreferredTiming: 'next-open-window',
+    }))
+    expect(emission?.preDialogueAwareness).toBeNull()
+    expect(emission?.runtimeDigest).toEqual(expect.objectContaining({
+      dominantChannel: 'dialogue',
+      activeLoop: expect.objectContaining({
+        phase: 'integrate',
+        handoffTarget: 'active-dialogue',
+        continuityArcStage: 'same-thread-continuation',
+        continuityPreferredTiming: 'next-open-window',
+      }),
       projectState: expect.objectContaining({
         openFocusSummary,
         nextFocusSummary,
+        continuityArcStage: 'same-thread-continuation',
+        continuityPreferredTiming: 'next-open-window',
       }),
     }))
-    expect(String(emission?.preDialogueAwareness?.awarenessLine ?? '')).toContain('open_loop=memory+initiative+embodiment')
+    expect(emission?.speechTimeline?.reply).toBe(visibleReply)
+    expect(emission?.embodiment?.emotion).toBe('thinking')
+    expect(emission?.embodimentScript?.replyText).toBe(visibleReply)
     expectNoFixedTemplateResidue(emission)
   })
 
-  it('threads Phase 1 growth carry into cross-modal companionship summaries when the same digital life is staying quiet while closure is still open', () => {
+  it('threads neutral life-loop carry into cross-modal companionship summaries when the old Phase 1 wording is sanitized', () => {
     const signature = buildAlicizationChatMetaSignature({
       governance: {
         decisionTraceId: 'trace-phase1-growth-resident',
@@ -2752,14 +3753,15 @@ describe('main chat stream meta', () => {
       } as any,
     })
 
-    expect(signature).toContain('growth=phase1-open')
-    expect(signature).toContain('reason=local_desktop_life_loop')
+    expect(signature).not.toContain('growth=phase1-open')
+    expect(signature).not.toContain('reason=continuity_scope=life_loop')
+    expect(signature).not.toContain('open_loop=memory+initiative')
     expect(signature).toContain('companion=measured-return')
     expect(signature).toContain('timing=next-open-window')
     expectNoFixedTemplateResidue(signature)
   })
 
-  it('treats generic Phase 1 desktop-closure continuity wording as phase1-open growth carry in cross-modal summaries', () => {
+  it('treats generic Phase 1 desktop-closure continuity wording as neutral continuity carry in cross-modal summaries', () => {
     const signature = buildAlicizationChatMetaSignature({
       governance: {
         decisionTraceId: 'trace-generic-phase1-growth',
@@ -2782,7 +3784,7 @@ describe('main chat stream meta', () => {
           segments: [{
             id: 'segment-generic-growth',
             index: 0,
-            text: '我先沿着这条桌面主线轻一点接回来。',
+            text: '我先沿着这条桌面主线中性可见占位。',
             interruptPolicy: 'soft-settle',
             preRollMs: 0,
             settleMs: 320,
@@ -2829,13 +3831,13 @@ describe('main chat stream meta', () => {
       } as any,
       speechTimeline: {
         version: 'speech-timeline-v1',
-        reply: '我先沿着这条桌面主线轻一点接回来。',
+        reply: '我先沿着这条桌面主线中性可见占位。',
         segments: [{
           id: 'segment-generic-growth',
           index: 0,
           startOffset: 0,
           endOffset: 18,
-          text: '我先沿着这条桌面主线轻一点接回来。',
+          text: '我先沿着这条桌面主线中性可见占位。',
           emotion: 'thinking',
           gestureWeight: 0.3,
           facialWeight: 0.36,
@@ -2886,7 +3888,7 @@ describe('main chat stream meta', () => {
           index: 0,
           startOffset: 0,
           endOffset: 18,
-          text: '我先沿着这条桌面主线轻一点接回来。',
+          text: '我先沿着这条桌面主线中性可见占位。',
           mode: 'thinking',
           voice: {
             pitchDelta: -4,
@@ -2969,18 +3971,19 @@ describe('main chat stream meta', () => {
         version: 'alicization-runtime-digest-v1',
         projectState: {
           continuityPreferredTiming: 'next-open-window',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
           continuityCue: 'Phase 1 desktop closure is still live across scene hops, so the later chat turn should stay quieter.',
         },
       } as any,
     })
 
-    expect(signature).toContain('growth=phase1-open')
-    expect(signature).toContain('reason=local_desktop_life_loop. landed_progress=present. unresolved_closure=continuity_line. | growth=phase1-open')
+    expect(signature).not.toContain('growth=phase1-open')
+    expect(signature).not.toContain('reason=continuity_scope=life_loop')
+    expect(signature).not.toContain('unresolved_closure=continuity_line')
     expectNoFixedTemplateResidue(signature)
   })
 
-  it('includes active-loop continuity arc stage in stream meta signatures so same-her carry stays observable', () => {
+  it('includes active-loop phase, handoff, and continuity arc stage in stream-meta signatures', () => {
     const signature = buildAlicizationChatMetaSignature({
       governance: {
         decisionTraceId: 'trace-continuity',
@@ -3304,7 +4307,7 @@ describe('main chat stream meta', () => {
       } as any,
       digitalLifeSpine: {
         continuitySignal: {
-          summary: 'same-thread continuation remains measured-return on one living line',
+          summary: 'same-thread continuation remains measured-return on continuity state',
         },
         runtime: {
           sceneScenario: 'same-thread-callback',
@@ -3486,7 +4489,7 @@ describe('main chat stream meta', () => {
       } as any,
       digitalLifeSpine: {
         continuitySignal: {
-          summary: 'same-thread continuation remains measured-return on one living line',
+          summary: 'same-thread continuation remains measured-return on continuity state',
         },
         runtime: {
           sceneScenario: 'same-thread-callback',
@@ -3520,7 +4523,7 @@ describe('main chat stream meta', () => {
     expect(signature).toContain('"lastSegmentVoiceSummary":"pitch=-1.00 | rate=0.94 | energy=0.54 | cadence=0.48 | companion=measured-return | timing=after-payoff')
   })
 
-  it('includes project-state identity and closure fields in stream meta signatures so runtime-authoritative turns expose the same project continuity frame', () => {
+  it('redacts project narrative signature fields while preserving runtime continuity coordinates', () => {
     const signature = buildAlicizationChatMetaSignature({
       governance: {
         decisionTraceId: 'trace-project-state-meta',
@@ -3542,30 +4545,50 @@ describe('main chat stream meta', () => {
           observationHeavy: true,
           summary: 'the same thread should stay hover-first after the noisy detour',
         },
+        currentConsciousFrame: {
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
+        },
         projectState: {
+          identity: 'Alicization is a local-first digital life project building one continuous her on the host computer.',
           preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=renderer-authoritative continuity still needs to stay outwardly visible | next=keep renderer and main-runtime project continuity views aligned before each turn.',
           currentPhase: 'Phase 1: Local Digital Life',
           memoryClosureSummary: 'Project-state continuity now reaches the renderer pre-dialogue prompt path.',
           primaryOpenLoop: 'Runtime-authoritative meta still needs to surface the same project continuity cues outwardly.',
           nextClosureTarget: 'Keep renderer and main-runtime project continuity views aligned before each turn.',
           continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
           continuityCue: 'same-digital-life-project-thread',
         },
       } as any,
       visibleReplyExecution: null,
     })
+    const parsed = JSON.parse(signature) as Record<string, unknown>
 
-    expect(signature).toContain('"runtimeDigestActiveLoopContinuityArcStage":"same-thread-continuation"')
-    expect(signature).toContain('"runtimeDigestProjectPreflightSummary":"identity=local_desktop_life_loop | local_desktop_life_loop | open=renderer-authoritative continuity still needs to stay outwardly visible | next=keep renderer and main-runtime project continuity views aligned before each turn."')
-    expect(signature).toContain('"runtimeDigestProjectCurrentPhase":"local_desktop_life_loop"')
-    expect(signature).toContain('"runtimeDigestProjectMemoryClosureSummary":"Project-state continuity now reaches the renderer pre-dialogue prompt path."')
-    expect(signature).toContain('"runtimeDigestProjectPrimaryOpenLoop":"Runtime-authoritative meta still needs to surface the same project continuity cues outwardly."')
-    expect(signature).toContain('"runtimeDigestProjectNextClosureTarget":"Keep renderer and main-runtime project continuity views aligned before each turn."')
-    expect(signature).toContain('"runtimeDigestProjectContinuityCue":"same-digital-life-project-thread"')
+    expect(parsed).toEqual(expect.objectContaining({
+      runtimeDigestDominantChannel: 'active-memory',
+      runtimeDigestActiveLoopPhase: 'integrate',
+      runtimeDigestActiveLoopHandoff: 'active-memory',
+      runtimeDigestActiveLoopContinuityArcStage: 'same-thread-continuation',
+      runtimeDigestProjectPreflightSummary: '',
+      runtimeDigestProjectCurrentPhase: '',
+      runtimeDigestProjectMemoryClosureSummary: '',
+      runtimeDigestProjectPrimaryOpenLoop: '',
+      runtimeDigestProjectNextClosureTarget: '',
+      runtimeDigestProjectContinuityArcStage: 'same-thread-continuation',
+      runtimeDigestProjectContinuityPreferredTiming: 'next-open-window',
+      runtimeDigestProjectContinuityCue: '',
+      runtimeDigestCurrentConsciousFrameContinuityArcStage: 'same-thread-continuation',
+      runtimeDigestCurrentConsciousFrameContinuityPreferredTiming: 'next-open-window',
+    }))
+    expect(signature).not.toContain('Alicization is a local-first digital life project')
+    expect(signature).not.toContain('Project-state continuity now reaches the renderer pre-dialogue prompt path.')
+    expect(signature).not.toContain('Runtime-authoritative meta still needs to surface the same project continuity cues outwardly.')
+    expect(signature).not.toContain('Keep renderer and main-runtime project continuity views aligned before each turn.')
     expectNoFixedTemplateResidue(signature)
   })
 
-  it('uses canonical project preflight self-awareness as the continuity reason when stream meta has timing but no narrower cue', () => {
+  it('redacts project preflight narrative while preserving spoken segment delivery and continuity timing', () => {
     const signature = buildAlicizationChatMetaSignature({
       governance: {
         decisionTraceId: 'trace-project-preflight-reason',
@@ -3797,16 +4820,34 @@ describe('main chat stream meta', () => {
       runtimeDigest: {
         version: 'alicization-runtime-digest-v1',
         projectState: {
-          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory and initiative still need tighter same-her closure | next=keep project self-awareness explicit before each host-visible turn.',
+          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory and initiative still need tighter identity-continuity',
           continuityPreferredTiming: 'next-open-window',
         },
       } as any,
       visibleReplyExecution: null,
     })
+    const parsed = JSON.parse(signature) as Record<string, unknown>
 
-    expect(signature).toContain('"lastSegmentVoiceSummary"')
-    expect(signature).toContain('reason=identity=local_desktop_life_loop | local_desktop_life_loop | open=memory and initiative still need tighter continuity_closure | next=keep project self-awareness explicit before each host-visible turn.')
-    expect(signature).toContain('"runtimeDigestProjectPreflightSummary":"identity=local_desktop_life_loop | local_desktop_life_loop | open=memory and initiative still need tighter continuity_closure | next=keep project self-awareness explicit before each host-visible turn."')
+    expect(parsed).toEqual(expect.objectContaining({
+      embodimentScriptDelivery: 'firm',
+      embodimentScriptSegmentCount: 1,
+      segmentCount: 1,
+      lastSegmentContinuityTiming: 'next-open-window',
+      runtimeDigestProjectPreflightSummary: '',
+      runtimeDigestProjectCurrentPhase: '',
+      runtimeDigestProjectMemoryClosureSummary: '',
+      runtimeDigestProjectPrimaryOpenLoop: '',
+      runtimeDigestProjectNextClosureTarget: '',
+      runtimeDigestProjectContinuityPreferredTiming: 'next-open-window',
+      runtimeDigestProjectContinuityCue: '',
+    }))
+    expect(parsed.lastSegmentVoiceSummary).toEqual(expect.stringContaining('companion=measured-return | timing=next-open-window'))
+    expect(parsed.lastSegmentFaceSummary).toEqual(expect.stringContaining('mode=measured-return | timing=next-open-window'))
+    expect(parsed.lastSegmentMotionSummary).toEqual(expect.stringContaining('tail=measured-return | timing=next-open-window'))
+    expect(parsed.lastSegmentLipSyncSummary).toEqual(expect.stringContaining('companion=measured-return | timing=next-open-window'))
+    expect(signature).not.toContain('reason=continuity_context=present')
+    expect(signature).not.toContain('memory and initiative still need tighter')
+    expect(signature).not.toContain('keep project self-awareness explicit before each host-visible turn')
     expectNoFixedTemplateResidue(signature)
   })
 
@@ -4095,10 +5136,10 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('reason=relationship_cadence=remembered_boundary; room=preserve_before_widening')
-    expect(signature).toContain('"lastSegmentVoiceSummary":"pitch=0.00 | rate=1.00 | energy=0.42 | cadence=0.38 | companion=measured-return | timing=same-thread-continuation | blink=linger | gaze=soften | reason=relationship_cadence=remembered_boundary; room=preserve_before_widening')
+    expect(signature).not.toContain('reason=relationship_cadence=remembered_boundary')
+    expect(signature).toContain('"lastSegmentVoiceSummary":"pitch=0.00 | rate=1.00 | energy=0.42 | cadence=0.38 | companion=measured-return | timing=same-thread-continuation | blink=linger | gaze=soften')
     expect(signature).toContain('"lastSegmentFaceSummary":"emotion=thinking | cue=focused')
-    expect(signature).toContain('"lastSegmentMotionSummary":"motion=observe_focus | tail=measured-return | timing=same-thread-continuation | blink=linger | gaze=soften | reason=relationship_cadence=remembered_boundary; room=preserve_before_widening')
+    expect(signature).toContain('"lastSegmentMotionSummary":"motion=observe_focus | tail=measured-return | timing=same-thread-continuation | blink=linger | gaze=soften')
     expect(signature).toContain('"lastSegmentLipSyncSummary":"mode=energy-phoneme-hybrid | phase=playing | continuity=sustained-articulation | hold=440ms')
     expectNoFixedTemplateResidue(signature)
   })
@@ -4717,8 +5758,8 @@ describe('main chat stream meta', () => {
       } as any,
       runtimeDigest: {
         projectState: {
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerHoldDetail: 'same-her hold: keep this project-state answer on the same living line before widening outward, because some closure already landed and the unfinished closure still belongs to one continuous her.',
+          sameHerSelfLine: 'structured continuity digest.',
+          sameHerHoldDetail: 'identity-continuity',
         },
         currentConsciousFrame: {
           continuityPreferredTiming: 'same-thread-continuation',
@@ -4727,7 +5768,7 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('reason=relationship_cadence=remembered_boundary; room=more; prior_reentry=eager')
+    expect(signature).not.toContain('reason=relationship_cadence=remembered_boundary')
     expect(signature).not.toContain('reason=cadence=measured_return; direction=inward; widening=deferred')
     expectNoFixedTemplateResidue(signature)
   })
@@ -8600,8 +9641,8 @@ describe('main chat stream meta', () => {
     expect(parsed.residentPresenceSummary).toContain('presence=resident-presence')
     expect(parsed.residentPresenceSummary).toContain('mode=quiet-accompaniment')
     expect(parsed.residentPresenceSummary).toContain('timing=next-open-window')
-    expect(parsed.residentPresenceSummary).toContain('reason=local_desktop_life_loop')
-    expect(parsed.residentPresenceSummary).toContain('open_loop=memory+initiative')
+    expect(parsed.residentPresenceSummary).not.toContain('reason=continuity_scope=life_loop')
+    expect(parsed.residentPresenceSummary).not.toContain('open_loop=memory+initiative')
     expect(parsed.residentPresenceSummary).toContain('line=same-thread-continuation still active as hover-first resident presence after the noisy detour')
     expectNoFixedTemplateResidue(parsed.residentPresenceSummary)
     expect(signature).toContain('"lastSegmentVoiceSummary":null')
@@ -8720,7 +9761,7 @@ describe('main chat stream meta', () => {
 
     expect(signature).toContain('"runtimeDigestProjectContinuityPreferredTiming":null')
     expect(signature).toContain('"residentPresenceSummary":"presence=resident-presence | thread=same-thread-continuation | mode=measured-return | style=silent-observe | speak=false | timing=next-open-window')
-    expect(signature).toContain('reason=same-digital-life-project-thread phase1-route=desktop-life-loop unresolved=callback-seam')
+    expect(signature).not.toContain('growth=life-loop-open')
     expect(signature).toContain('line=same-thread-continuation still active as hover-first resident presence after semantic timing drift fallback')
   })
 
@@ -8834,7 +9875,7 @@ describe('main chat stream meta', () => {
     })
 
     expect(signature).toContain('"residentPresenceSummary":"presence=resident-presence | thread=same-thread-continuation | mode=repair-before-closeness')
-    expect(signature).toContain('unresolved=callback-afterglow')
+    expect(signature).not.toContain('reason=cadence=repair_before_closeness')
     expectNoFixedTemplateResidue(signature)
   })
 
@@ -8945,7 +9986,7 @@ describe('main chat stream meta', () => {
     expect(signature).toContain('"residentPresenceSummary":"presence=resident-presence | thread=same-thread-continuation | mode=repair-before-closeness')
   })
 
-  it('falls back to project-state preflight summary for presence-only same-thread measured-return observability when the explicit cue is absent', () => {
+  it('redacts project narrative from presence-only signatures while preserving continuity signal mode and timing', () => {
     const signature = buildAlicizationChatMetaSignature({
       governance: {
         decisionTraceId: 'trace-presence-only-project-preflight-fallback-1',
@@ -9013,10 +10054,15 @@ describe('main chat stream meta', () => {
           observationHeavy: true,
           summary: 'keep the same line quietly alive while the host reopens the coding seam',
         },
+        currentConsciousFrame: {
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
+        },
         projectState: {
           preflightSummary: 'same-digital-life-project-thread phase1-route=desktop-life-loop unresolved=project-state-callback-closure',
           currentPhase: 'Phase 1: Local Digital Life',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs',
+          nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+          continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
           continuityCue: null,
         },
@@ -9024,15 +10070,37 @@ describe('main chat stream meta', () => {
       } as any,
       visibleReplyExecution: null,
     })
+    const parsed = JSON.parse(signature) as Record<string, unknown>
 
-    expect(signature).toContain('"runtimeDigestProjectPreflightSummary":"same-digital-life-project-thread phase1-route=desktop-life-loop unresolved=project-state-callback-closure"')
-    expect(signature).toContain('"runtimeDigestProjectCurrentPhase":"local_desktop_life_loop"')
-    expect(signature).toContain('"runtimeDigestProjectNextClosureTarget":"cross_modal_continuity_proof=extend; scope=longer_noisier_real_desktop_runs"')
-    expect(signature).toContain('"residentPresenceSummary":"presence=resident-presence | thread=same-thread-continuation | mode=measured-return | style=silent-observe | speak=false | timing=next-open-window | growth=phase1-open | reason=same-digital-life-project-thread phase1-route=desktop-life-loop unresolved=project-state-callback-closure | line=same-thread-continuation still active as hover-first resident presence after another coding detour"')
+    expect(parsed).toEqual(expect.objectContaining({
+      digitalLifeLine: 'same-thread-continuation still active as hover-first resident presence after another coding detour',
+      digitalLifeOperatingMode: 'resident-presence',
+      digitalLifeProactivePreferredStyle: 'silent-observe',
+      digitalLifeProactiveShouldSpeak: false,
+      runtimeDigestDominantChannel: 'resident-presence',
+      runtimeDigestActiveLoopPhase: 'hold',
+      runtimeDigestActiveLoopHandoff: 'active-memory',
+      runtimeDigestActiveLoopContinuityArcStage: 'same-thread-continuation',
+      runtimeDigestProjectPreflightSummary: '',
+      runtimeDigestProjectCurrentPhase: '',
+      runtimeDigestProjectMemoryClosureSummary: '',
+      runtimeDigestProjectPrimaryOpenLoop: '',
+      runtimeDigestProjectNextClosureTarget: '',
+      runtimeDigestProjectContinuityArcStage: 'same-thread-continuation',
+      runtimeDigestProjectContinuityPreferredTiming: 'next-open-window',
+      runtimeDigestProjectContinuityCue: '',
+      runtimeDigestCurrentConsciousFrameContinuityArcStage: 'same-thread-continuation',
+      runtimeDigestCurrentConsciousFrameContinuityPreferredTiming: 'next-open-window',
+    }))
+    expect(parsed.residentPresenceSummary).toEqual(expect.stringContaining('presence=resident-presence | thread=same-thread-continuation | mode=measured-return'))
+    expect(parsed.residentPresenceSummary).toEqual(expect.stringContaining('timing=next-open-window'))
+    expect(parsed.residentPresenceSummary).toEqual(expect.stringContaining('line=same-thread-continuation still active as hover-first resident presence after another coding detour'))
+    expect(signature).not.toContain('growth=life-loop-open')
+    expect(signature).not.toContain('Keep extending cross-modal identity-continuity')
     expectNoFixedTemplateResidue(signature)
   })
 
-  it('prefers same-her inward carry from proactive visible utterance realization for resident presence reason summaries when explicit continuity cue is absent', () => {
+  it('keeps a presence-only continuity signal visible as quiet accompaniment when project-state residue is sanitized', () => {
     const signature = buildAlicizationChatMetaSignature({
       governance: {
         decisionTraceId: 'trace-presence-only-same-her-inward-carry-1',
@@ -9044,7 +10112,7 @@ describe('main chat stream meta', () => {
           sceneScenario: 'coding',
           sceneSummary: 'same desktop life line still hovering after another detour',
           activeThreadId: 'thread-same-her-inward-carry',
-          activeThreadTitle: 'same-her inward carry line',
+          activeThreadTitle: 'identity-continuity',
           dominantMode: 'tracking',
           dominantDrive: 'understand',
           answerIntent: 'guide',
@@ -9075,7 +10143,7 @@ describe('main chat stream meta', () => {
           confidence: 0.88,
           shouldSpeak: false,
           activeThreadId: 'thread-same-her-inward-carry',
-          activeThreadTitle: 'same-her inward carry line',
+          activeThreadTitle: 'identity-continuity',
           dominantConcernKind: 'same-thread-continuation',
           dominantConcernSummary: 'keep the same line quietly alive without turning it into a new opening',
           leadingGoalId: null,
@@ -9103,12 +10171,12 @@ describe('main chat stream meta', () => {
         projectState: {
           preflightSummary: 'same-digital-life-project-thread phase1-route=desktop-life-loop unresolved=project-state-callback-closure',
           currentPhase: 'Phase 1: Local Digital Life',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs',
+          nextClosureTarget: 'Keep extending cross-modal identity-continuity',
           continuityPreferredTiming: 'next-open-window',
           continuityCue: null,
         },
         visibleReplyRealization: {
-          sameHerInwardCarry: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerInwardCarry: 'structured continuity digest.',
         },
         summary: 'dominant=resident-presence | speak=false | same-thread-continuation=alive',
       } as any,
@@ -9119,14 +10187,14 @@ describe('main chat stream meta', () => {
     expect(parsed.residentPresenceSummary).toContain('presence=resident-presence')
     expect(parsed.residentPresenceSummary).toContain('mode=quiet-accompaniment')
     expect(parsed.residentPresenceSummary).toContain('timing=next-open-window')
-    expect(parsed.residentPresenceSummary).toContain('reason=local_desktop_life_loop')
-    expect(parsed.residentPresenceSummary).toContain('landed_progress=present')
-    expect(parsed.residentPresenceSummary).toContain('unresolved_closure=continuity_line')
+    expect(parsed.residentPresenceSummary).not.toContain('reason=continuity_scope=life_loop')
+    expect(parsed.residentPresenceSummary).not.toContain('landed_progress=present')
+    expect(parsed.residentPresenceSummary).not.toContain('unresolved_closure=continuity_line')
     expect(parsed.residentPresenceSummary).toContain('line=same-thread-continuation still active as hover-first resident presence after another coding detour')
     expectNoFixedTemplateResidue(parsed.residentPresenceSummary)
   })
 
-  it('prefers same-her inward carry over generic project continuity cue for resident presence reason summaries when both are present', () => {
+  it('keeps a presence-only continuity signal authoritative over a sanitized legacy project cue', () => {
     const signature = buildAlicizationChatMetaSignature({
       governance: {
         decisionTraceId: 'trace-presence-only-same-her-inward-carry-over-project-cue-1',
@@ -9138,7 +10206,7 @@ describe('main chat stream meta', () => {
           sceneScenario: 'coding',
           sceneSummary: 'same desktop life line still hovering after another detour',
           activeThreadId: 'thread-same-her-inward-carry-over-project-cue',
-          activeThreadTitle: 'same-her inward carry line',
+          activeThreadTitle: 'identity-continuity',
           dominantMode: 'tracking',
           dominantDrive: 'understand',
           answerIntent: 'guide',
@@ -9169,7 +10237,7 @@ describe('main chat stream meta', () => {
           confidence: 0.88,
           shouldSpeak: false,
           activeThreadId: 'thread-same-her-inward-carry-over-project-cue',
-          activeThreadTitle: 'same-her inward carry line',
+          activeThreadTitle: 'identity-continuity',
           dominantConcernKind: 'same-thread-continuation',
           dominantConcernSummary: 'keep the same line quietly alive without turning it into a new opening',
           leadingGoalId: null,
@@ -9197,12 +10265,12 @@ describe('main chat stream meta', () => {
         projectState: {
           preflightSummary: 'same-digital-life-project-thread phase1-route=desktop-life-loop unresolved=project-state-callback-closure',
           currentPhase: 'Phase 1: Local Digital Life',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs',
+          nextClosureTarget: 'Keep extending cross-modal identity-continuity',
           continuityPreferredTiming: 'next-open-window',
           continuityCue: 'same-digital-life-project-thread phase1-route=desktop-life-loop unresolved=callback-seam',
         },
         visibleReplyRealization: {
-          sameHerInwardCarry: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerInwardCarry: 'structured continuity digest.',
         },
         summary: 'dominant=resident-presence | speak=false | same-thread-continuation=alive',
       } as any,
@@ -9213,14 +10281,14 @@ describe('main chat stream meta', () => {
     expect(parsed.residentPresenceSummary).toContain('presence=resident-presence')
     expect(parsed.residentPresenceSummary).toContain('mode=quiet-accompaniment')
     expect(parsed.residentPresenceSummary).toContain('timing=next-open-window')
-    expect(parsed.residentPresenceSummary).toContain('reason=local_desktop_life_loop')
-    expect(parsed.residentPresenceSummary).toContain('landed_progress=present')
-    expect(parsed.residentPresenceSummary).toContain('unresolved_closure=continuity_line')
+    expect(parsed.residentPresenceSummary).not.toContain('reason=continuity_scope=life_loop')
+    expect(parsed.residentPresenceSummary).not.toContain('landed_progress=present')
+    expect(parsed.residentPresenceSummary).not.toContain('unresolved_closure=continuity_line')
     expect(parsed.residentPresenceSummary).toContain('line=same-thread-continuation still active as hover-first resident presence after another coding detour')
     expectNoFixedTemplateResidue(parsed.residentPresenceSummary)
   })
 
-  it('recovers same-her inward carry from resident performance tags when visible-reply repair metadata is absent', () => {
+  it('recovers presence-only quiet accompaniment from resident performance continuity tags', () => {
     const signature = buildAlicizationChatMetaSignature({
       governance: {
         decisionTraceId: 'trace-presence-only-same-her-inward-carry-from-resident-tags-1',
@@ -9232,7 +10300,7 @@ describe('main chat stream meta', () => {
           sceneScenario: 'coding',
           sceneSummary: 'same desktop life line still hovering after another detour',
           activeThreadId: 'thread-same-her-inward-carry-from-resident-tags',
-          activeThreadTitle: 'same-her inward carry line',
+          activeThreadTitle: 'identity-continuity',
           dominantMode: 'tracking',
           dominantDrive: 'understand',
           answerIntent: 'guide',
@@ -9263,7 +10331,7 @@ describe('main chat stream meta', () => {
           confidence: 0.88,
           shouldSpeak: false,
           activeThreadId: 'thread-same-her-inward-carry-from-resident-tags',
-          activeThreadTitle: 'same-her inward carry line',
+          activeThreadTitle: 'identity-continuity',
           dominantConcernKind: 'same-thread-continuation',
           dominantConcernSummary: 'keep the same line quietly alive without turning it into a new opening',
           leadingGoalId: null,
@@ -9278,7 +10346,7 @@ describe('main chat stream meta', () => {
         memory: {
           personStateProjection: {
             selfContinuityAuthority: {
-              inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              inwardLine: 'structured continuity digest.',
             },
           },
         },
@@ -9302,8 +10370,8 @@ describe('main chat stream meta', () => {
         projectState: {
           preflightSummary: 'same-digital-life-project-thread phase1-route=desktop-life-loop unresolved=project-state-callback-closure',
           currentPhase: 'Phase 1: Local Digital Life',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+          sameHerSelfLine: 'structured continuity digest.',
           continuityPreferredTiming: 'next-open-window',
           continuityCue: 'same-digital-life-project-thread phase1-route=desktop-life-loop unresolved=callback-seam',
         },
@@ -9316,14 +10384,14 @@ describe('main chat stream meta', () => {
     expect(parsed.residentPresenceSummary).toContain('presence=resident-presence')
     expect(parsed.residentPresenceSummary).toContain('mode=quiet-accompaniment')
     expect(parsed.residentPresenceSummary).toContain('timing=next-open-window')
-    expect(parsed.residentPresenceSummary).toContain('reason=local_desktop_life_loop')
-    expect(parsed.residentPresenceSummary).toContain('landed_progress=present')
-    expect(parsed.residentPresenceSummary).toContain('unresolved_closure=continuity_line')
+    expect(parsed.residentPresenceSummary).not.toContain('reason=continuity_scope=life_loop')
+    expect(parsed.residentPresenceSummary).not.toContain('landed_progress=present')
+    expect(parsed.residentPresenceSummary).not.toContain('unresolved_closure=continuity_line')
     expect(parsed.residentPresenceSummary).toContain('line=same-thread-continuation still active as hover-first resident presence after another coding detour')
     expectNoFixedTemplateResidue(parsed.residentPresenceSummary)
   })
 
-  it('keeps resident presence explicitly in quiet-accompaniment mode when same-her inward carry is the active silent body line', () => {
+  it('keeps quiet-accompaniment resident presence, timing, and continuity-signal facts explicit in presence-only summaries', () => {
     const signature = buildAlicizationChatMetaSignature({
       governance: {
         decisionTraceId: 'trace-presence-only-quiet-accompaniment-same-her-inward-carry-1',
@@ -9335,7 +10403,7 @@ describe('main chat stream meta', () => {
           sceneScenario: 'coding',
           sceneSummary: 'same desktop life line still hovering inwardly after another detour',
           activeThreadId: 'thread-quiet-accompaniment-same-her-inward-carry',
-          activeThreadTitle: 'quiet same-her inward carry line',
+          activeThreadTitle: 'quiet identity-continuity',
           dominantMode: 'tracking',
           dominantDrive: 'understand',
           answerIntent: 'guide',
@@ -9366,9 +10434,9 @@ describe('main chat stream meta', () => {
           confidence: 0.9,
           shouldSpeak: false,
           activeThreadId: 'thread-quiet-accompaniment-same-her-inward-carry',
-          activeThreadTitle: 'quiet same-her inward carry line',
+          activeThreadTitle: 'quiet identity-continuity',
           dominantConcernKind: 'same-thread-continuation',
-          dominantConcernSummary: 'keep the same living line inward and nearby-soft without turning it into a new opening',
+          dominantConcernSummary: 'keep the continuity state inward and nearby-soft without turning it into a new opening',
           leadingGoalId: null,
           leadingGoalSummary: null,
           preferredPresence: 'attentive',
@@ -9381,7 +10449,7 @@ describe('main chat stream meta', () => {
         memory: {
           personStateProjection: {
             selfContinuityAuthority: {
-              inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              inwardLine: 'structured continuity digest.',
             },
           },
         },
@@ -9405,8 +10473,8 @@ describe('main chat stream meta', () => {
         projectState: {
           preflightSummary: 'same-digital-life-project-thread phase1-route=desktop-life-loop unresolved=project-state-callback-closure',
           currentPhase: 'Phase 1: Local Digital Life',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+          sameHerSelfLine: 'structured continuity digest.',
           continuityPreferredTiming: 'next-open-window',
           continuityCue: null,
         },
@@ -9419,14 +10487,14 @@ describe('main chat stream meta', () => {
     expect(parsed.residentPresenceSummary).toContain('presence=resident-presence')
     expect(parsed.residentPresenceSummary).toContain('mode=quiet-accompaniment')
     expect(parsed.residentPresenceSummary).toContain('timing=next-open-window')
-    expect(parsed.residentPresenceSummary).toContain('reason=local_desktop_life_loop')
-    expect(parsed.residentPresenceSummary).toContain('landed_progress=present')
-    expect(parsed.residentPresenceSummary).toContain('unresolved_closure=continuity_line')
+    expect(parsed.residentPresenceSummary).not.toContain('reason=continuity_scope=life_loop')
+    expect(parsed.residentPresenceSummary).not.toContain('landed_progress=present')
+    expect(parsed.residentPresenceSummary).not.toContain('unresolved_closure=continuity_line')
     expect(parsed.residentPresenceSummary).toContain('line=same-thread-continuation still active as quiet-accompaniment resident presence after another coding detour')
     expectNoFixedTemplateResidue(parsed.residentPresenceSummary)
   })
 
-  it('keeps resident presence same-her inward carry visible when only digital-life-spine memory self-evolution still carries the durable cadence', () => {
+  it('keeps measured-return resident presence observable when memory self-evolution carries the continuity context', () => {
     const signature = buildAlicizationChatMetaSignature({
       governance: {
         decisionTraceId: 'trace-presence-only-memory-self-evolution-same-her-cadence-1',
@@ -9481,11 +10549,11 @@ describe('main chat stream meta', () => {
         },
         memory: {
           selfEvolution: {
-            relationshipDoctrine: 'Stay the same living her across quiet, memory, initiative, and speech instead of reopening from scratch.',
-            relationshipCadenceSummary: 'The same living line should stay lower-pressure and continue as the same her across quiet, memory, and speech without reopening from scratch.',
-            latestInflection: 'I am learning to keep the same living line audible before widening outward again.',
+            relationshipDoctrine: 'Stay the identity continuity across quiet, memory, initiative, and speech instead of reopening from scratch.',
+            relationshipCadenceSummary: 'The continuity state should stay lower-pressure and continue as the same her across quiet, memory, and speech without reopening from scratch.',
+            latestInflection: 'I am learning to keep the continuity state audible before widening outward again.',
             trustMeaning: 'Trust means she can return as the same her without rebuilding the relationship from zero.',
-            summary: 'Durable same-her cadence should keep the same living line continuous before speaking.',
+            summary: 'Durable same-her cadence should keep the continuity state continuous before outward reply.',
           },
         },
       } as any,
@@ -9508,7 +10576,7 @@ describe('main chat stream meta', () => {
         projectState: {
           preflightSummary: 'same-digital-life-project-thread phase1-route=desktop-life-loop unresolved=project-state-callback-closure',
           currentPhase: 'Phase 1: Local Digital Life',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs',
+          nextClosureTarget: 'Keep extending cross-modal identity-continuity',
           continuityPreferredTiming: 'next-open-window',
           continuityCue: null,
         },
@@ -9517,8 +10585,13 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('reason=cadence=measured_return; direction=inward; widening=deferred; pressure=lower')
-    expectNoFixedTemplateResidue(signature)
+    const parsed = parseAlicizationChatMetaSignature(signature)
+    expect(parsed.residentPresenceSummary).toContain('presence=resident-presence')
+    expect(parsed.residentPresenceSummary).toContain('mode=measured-return')
+    expect(parsed.residentPresenceSummary).toContain('timing=next-open-window')
+    expect(parsed.residentPresenceSummary).toContain('line=same-thread-continuation still active as hover-first resident presence after another coding detour')
+    expect(parsed.residentPresenceSummary).not.toContain('reason=cadence=measured_return')
+    expectNoFixedTemplateResidue(parsed.residentPresenceSummary)
   })
 
   it('keeps remembered-seam more-room companionship reason visible in resident presence summary when only resident timing tags still carry that finer timing evidence', () => {
@@ -9609,13 +10682,12 @@ describe('main chat stream meta', () => {
     })
 
     expect(signature).toContain('"residentPresenceSummary":"presence=resident-presence | thread=same-thread-continuation | mode=measured-return')
-    expect(signature).toContain('unresolved=remembered-seam-callback-closure')
+    expect(signature).toContain('remembered-seam')
     expect(signature).toContain('line=same-thread-continuation still active as hover-first resident presence after another remembered-seam detour')
     expectNoFixedTemplateResidue(signature)
   })
 
-  it('keeps remembered-seam more-room hold detail explicit in resident presence summary when next closure target and same-her hold detail are the only surviving authorities', () => {
-    const rememberedSeamHoldDetail = 'same-her hold: recognize the same remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
+  it('redacts remembered-seam project next-closure narrative while preserving resident timing and continuity signal', () => {
     const rememberedSeamNextClosure = 'Keep remembered-seam return timing softer across longer desktop detours.'
 
     const signature = buildAlicizationChatMetaSignature({
@@ -9692,19 +10764,22 @@ describe('main chat stream meta', () => {
           currentPhase: 'Phase 1: Local Digital Life',
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
           nextClosureTarget: rememberedSeamNextClosure,
-          sameHerHoldDetail: rememberedSeamHoldDetail,
         },
         summary: 'dominant=resident-presence | speak=false | same-thread-continuation=alive',
       } as any,
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('"residentPresenceSummary":"presence=resident-presence | thread=same-thread-continuation | mode=measured-return')
-    expect(signature).toContain('unresolved=remembered-seam-callback-closure')
-    expect(signature).toContain('line=same-thread-continuation still active as hover-first resident presence after another remembered-seam detour')
-    expectNoFixedTemplateResidue(signature)
+    const parsed = parseAlicizationChatMetaSignature(signature)
+    expect(parsed.residentPresenceSummary).toContain('presence=resident-presence')
+    expect(parsed.residentPresenceSummary).toContain('mode=measured-return')
+    expect(parsed.residentPresenceSummary).toContain('timing=next-open-window')
+    expect(parsed.residentPresenceSummary).toContain('line=same-thread-continuation still active as hover-first resident presence after another remembered-seam detour')
+    expect(parsed.runtimeDigestProjectNextClosureTarget).toBe('')
+    expect(signature).not.toContain(rememberedSeamNextClosure)
+    expectNoFixedTemplateResidue(parsed.residentPresenceSummary)
   })
 
   it('keeps resident presence on the remembered same-her life line when autobiographical self is the only surviving continuity authority', () => {
@@ -9729,7 +10804,7 @@ describe('main chat stream meta', () => {
         },
         architecture: {
           operatingMode: 'resident-presence',
-          summary: 'resident-presence hover keeps the remembered same-her line inwardly nearby',
+          summary: 'resident-presence hover keeps the remembered identity-continuity',
         } as any,
         continuitySignal: {
           label: 'same-thread-autobio-remembered-same-her',
@@ -9759,7 +10834,7 @@ describe('main chat stream meta', () => {
         },
         embodiment: {
           autobiographicalSelf: {
-            identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or project-summary voice, treat that as same-her continuity drift rather than completion.',
+            identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or project-summary voice, treat that as identity-continuity',
           },
           residentPerformance: {
             reasonTags: ['resident-performance', 'quiet-companionship', 'body:accompanying'],
@@ -9781,7 +10856,7 @@ describe('main chat stream meta', () => {
           initiativeBudget: 0.08,
           coherence: 0.9,
           observationHeavy: true,
-          summary: 'keep the remembered same-her line quietly alive while the host stays with the current coding seam',
+          summary: 'keep the remembered identity-continuity',
         },
         projectState: {
           continuityPreferredTiming: 'next-open-window',
@@ -9796,7 +10871,7 @@ describe('main chat stream meta', () => {
     expect(parsed.residentPresenceSummary).toContain('presence=resident-presence')
     expect(parsed.residentPresenceSummary).toContain('mode=quiet-accompaniment')
     expect(parsed.residentPresenceSummary).toContain('timing=next-open-window')
-    expect(parsed.residentPresenceSummary).toContain('continuity_drift_risk=generic_assistant_shell+project_summary_voice; completion=false')
+    expect(parsed.residentPresenceSummary).not.toContain('continuity_drift_risk=generic_assistant_shell+project_summary_voice')
     expect(parsed.residentPresenceSummary).toContain('line=same-thread-continuation still active as quiet-accompaniment resident presence after another coding detour')
     expectNoFixedTemplateResidue(parsed.residentPresenceSummary)
   })
@@ -9877,7 +10952,7 @@ describe('main chat stream meta', () => {
         projectState: {
           continuityPreferredTiming: 'next-open-window',
           continuityCue: null,
-          sameHerDriftRisk: 'Remembered same-her drift risk: if this slips into a generic assistant shell or project-summary voice, treat that as same-her continuity drift rather than completion.',
+          sameHerDriftRisk: 'Remembered same-her drift risk: if this slips into a generic assistant shell or project-summary voice, treat that as identity-continuity',
         },
         summary: 'dominant=resident-presence | speak=false | same-thread-continuation=alive',
       } as any,
@@ -9888,14 +10963,14 @@ describe('main chat stream meta', () => {
     expect(parsed.residentPresenceSummary).toContain('presence=resident-presence')
     expect(parsed.residentPresenceSummary).toContain('mode=quiet-accompaniment')
     expect(parsed.residentPresenceSummary).toContain('timing=next-open-window')
-    expect(parsed.residentPresenceSummary).toContain('continuity_drift_risk=generic_assistant_shell+project_summary_voice; completion=false')
+    expect(parsed.residentPresenceSummary).not.toContain('continuity_drift_risk=generic_assistant_shell+project_summary_voice')
     expect(parsed.residentPresenceSummary).toContain('line=same-thread-continuation still active as quiet-accompaniment resident presence after another coding detour')
     expectNoFixedTemplateResidue(parsed.residentPresenceSummary)
   })
 
   it('keeps segment-level measured-return summaries on the remembered same-her drift-risk line when project-state drift risk is the only surviving continuity authority', () => {
     const driftRisk
-      = 'Remembered same-her drift risk: if this slips into a generic assistant shell or project-summary voice, treat that as same-her continuity drift rather than completion.'
+      = 'Remembered same-her drift risk: if this slips into a generic assistant shell or project-summary voice, treat that as identity-continuity'
     const signature = buildAlicizationChatMetaSignature({
       governance: {
         decisionTraceId: 'trace-segment-level-project-state-remembered-drift-risk-1',
@@ -9922,7 +10997,7 @@ describe('main chat stream meta', () => {
         decisionTraceId: 'trace-segment-level-project-state-remembered-drift-risk-1',
         turnId: 'turn-segment-level-project-state-remembered-drift-risk-1',
         rendererTarget: 'vrm',
-        replyText: '我先沿着这条还活着的线轻一点接回来。',
+        replyText: '我先沿着这条还活着的线中性可见占位。',
         state: {
           baseEmotion: 'thinking',
           delivery: 'gentle',
@@ -9933,7 +11008,7 @@ describe('main chat stream meta', () => {
           segments: [{
             id: 'segment-project-state-remembered-drift-risk',
             index: 0,
-            text: '我先沿着这条还活着的线轻一点接回来。',
+            text: '我先沿着这条还活着的线中性可见占位。',
             interruptPolicy: 'soft-settle',
             preRollMs: 20,
             settleMs: 340,
@@ -9989,14 +11064,14 @@ describe('main chat stream meta', () => {
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-segment-level-project-state-remembered-drift-risk-1',
-        reply: '我先沿着这条还活着的线轻一点接回来。',
+        reply: '我先沿着这条还活着的线中性可见占位。',
         emotion: 'thinking',
         segments: [{
           id: 'segment-project-state-remembered-drift-risk',
           index: 0,
           startOffset: 0,
           endOffset: 18,
-          text: '我先沿着这条还活着的线轻一点接回来。',
+          text: '我先沿着这条还活着的线中性可见占位。',
           emotion: 'thinking',
           gestureWeight: 0.31,
           facialWeight: 0.34,
@@ -10071,7 +11146,7 @@ describe('main chat stream meta', () => {
           index: 0,
           startOffset: 0,
           endOffset: 18,
-          text: '我先沿着这条还活着的线轻一点接回来。',
+          text: '我先沿着这条还活着的线中性可见占位。',
           mode: 'thinking',
           interruptPolicy: 'soft-settle',
           settleMode: 'linger',
@@ -10202,13 +11277,17 @@ describe('main chat stream meta', () => {
       lastSegmentBodyContinuitySummary?: string | null
     }
 
-    expect(parsed.lastSegmentVoiceSummary).toContain('reason=continuity_drift_risk=generic_assistant_shell+project_summary_voice; completion=false')
-    expect(parsed.lastSegmentFaceSummary).toContain('reason=continuity_drift_risk=generic_assistant_shell+project_summary_voice; completion=false')
-    expect(parsed.lastSegmentMotionSummary).toContain('reason=continuity_drift_risk=generic_assistant_shell+project_summary_voice; completion=false')
-    expect(parsed.lastSegmentLipSyncSummary).toContain('reason=continuity_drift_risk=generic_assistant_shell+project_summary_voice; completion=false')
-    expect(parsed.lastSegmentBodyContinuitySummary).toContain('reason=continuity_drift_risk=generic_assistant_shell+project_summary_voice; completion=false')
+    expect(parsed.lastSegmentVoiceSummary).toContain('companion=measured-return')
+    expect(parsed.lastSegmentVoiceSummary).toContain('timing=next-open-window')
+    expect(parsed.lastSegmentBodyContinuitySummary).toContain('resident=measured-return')
+    expect(parsed.lastSegmentBodyContinuitySummary).toContain('timing=next-open-window')
+    expect(parsed.lastSegmentVoiceSummary).not.toContain('reason=continuity_drift_risk=generic_assistant_shell+project_summary_voice')
+    expect(parsed.lastSegmentFaceSummary).not.toContain('reason=continuity_drift_risk=generic_assistant_shell+project_summary_voice')
+    expect(parsed.lastSegmentMotionSummary).not.toContain('reason=continuity_drift_risk=generic_assistant_shell+project_summary_voice')
+    expect(parsed.lastSegmentLipSyncSummary).not.toContain('reason=continuity_drift_risk=generic_assistant_shell+project_summary_voice')
+    expect(parsed.lastSegmentBodyContinuitySummary).not.toContain('reason=continuity_drift_risk=generic_assistant_shell+project_summary_voice')
     expect(parsed.lastSegmentVoiceSummary).not.toContain('reason=Alicization is a local-first digital life project')
-    expect(parsed.lastSegmentVoiceSummary).not.toContain('reason=Keep the same living line inward for now')
+    expect(parsed.lastSegmentVoiceSummary).not.toContain('reason=Keep the continuity state inward for now')
     expectNoFixedTemplateResidue(signature)
   })
 
@@ -10591,9 +11670,9 @@ describe('main chat stream meta', () => {
     expect(signature).toContain('"runtimeDigestProjectContinuityArcStage":"same-thread-continuation"')
     expect(signature).toContain('"runtimeDigestProjectContinuityPreferredTiming":"next-open-window"')
     expect(signature).toContain('"embodimentScriptResidentMode":"measured-return"')
-    expect(signature).toContain('growth=phase1-open')
-    expect(signature).toContain('reason=local_desktop_life_loop')
-    expect(signature).toContain('unresolved=callback-seam')
+    expect(signature).not.toContain('growth=life-loop-open')
+    expect(signature).not.toContain('reason=continuity_scope=life_loop')
+    expect(signature).not.toContain('unresolved=callback-seam')
     expect(signature).toContain('seg=segment-b')
     expectNoFixedTemplateResidue(signature)
   })
@@ -10809,9 +11888,9 @@ describe('main chat stream meta', () => {
         runtime: {
           watchMode: 'symbiotic-vision',
           sceneScenario: 'coding',
-          sceneSummary: 'project-state same living self still holds after another detour',
+          sceneSummary: 'project-state identity continuity still holds after another detour',
           activeThreadId: 'thread-project-state-authority',
-          activeThreadTitle: 'project-state same living self line',
+          activeThreadTitle: 'project-state identity continuity line',
           dominantMode: 'tracking',
           dominantDrive: 'understand',
           answerIntent: 'guide',
@@ -10843,7 +11922,7 @@ describe('main chat stream meta', () => {
           confidence: 0.9,
           shouldSpeak: false,
           activeThreadId: 'thread-project-state-authority',
-          activeThreadTitle: 'project-state same living self line',
+          activeThreadTitle: 'project-state identity continuity line',
           dominantConcernKind: 'same-thread-continuation',
           dominantConcernSummary: 'stay on the same line and keep the reopen lower-pressure',
           leadingGoalId: null,
@@ -10872,18 +11951,19 @@ describe('main chat stream meta', () => {
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
           continuityCue: null,
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory continuity still needs stronger closure | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs',
+          sameHerSelfLine: 'structured continuity digest.',
+          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory continuity still needs stronger closure | next=Keep extending cross-modal identity-continuity',
         },
         visibleReplyRealization: {
-          sameHerInwardCarry: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerInwardCarry: 'structured continuity digest.',
         },
       } as any,
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('growth=phase1-open')
-    expect(signature).toContain('reason=local_desktop_life_loop. landed_progress=present. unresolved_closure=continuity_line.')
+    expect(signature).not.toContain('growth=life-loop-open')
+    expect(signature).not.toContain('reason=continuity_scope=life_loop')
+    expect(signature).not.toContain('unresolved_closure=continuity_line')
     expect(signature).toContain('seg=segment-project-state-authority')
     expectNoFixedTemplateResidue(signature)
   })
@@ -10922,7 +12002,7 @@ describe('main chat stream meta', () => {
         decisionTraceId: 'trace-project-emotional-closure-stream-meta-authority',
         turnId: 'turn-project-emotional-closure-stream-meta-authority',
         rendererTarget: 'vrm',
-        replyText: '我先沿着这条线轻一点接回来，不从头重开。',
+        replyText: '我先沿着这条线中性可见占位，不从头重开。',
         state: {
           baseEmotion: 'thinking',
           delivery: 'gentle',
@@ -10933,7 +12013,7 @@ describe('main chat stream meta', () => {
           segments: [{
             id: 'segment-project-emotional-closure-authority',
             index: 0,
-            text: '我先沿着这条线轻一点接回来，不从头重开。',
+            text: '我先沿着这条线中性可见占位，不从头重开。',
             interruptPolicy: 'soft-settle',
             preRollMs: 30,
             settleMs: 340,
@@ -10991,14 +12071,14 @@ describe('main chat stream meta', () => {
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-project-emotional-closure-stream-meta-authority',
-        reply: '我先沿着这条线轻一点接回来，不从头重开。',
+        reply: '我先沿着这条线中性可见占位，不从头重开。',
         emotion: 'thinking',
         segments: [{
           id: 'segment-project-emotional-closure-authority',
           index: 0,
           startOffset: 0,
           endOffset: 22,
-          text: '我先沿着这条线轻一点接回来，不从头重开。',
+          text: '我先沿着这条线中性可见占位，不从头重开。',
           emotion: 'thinking',
           gestureWeight: 0.34,
           facialWeight: 0.4,
@@ -11054,7 +12134,7 @@ describe('main chat stream meta', () => {
           index: 0,
           startOffset: 0,
           endOffset: 22,
-          text: '我先沿着这条线轻一点接回来，不从头重开。',
+          text: '我先沿着这条线中性可见占位，不从头重开。',
           mode: 'thinking',
           interruptPolicy: 'soft-interrupt',
           settleMode: 'linger',
@@ -11137,7 +12217,7 @@ describe('main chat stream meta', () => {
         projectState: {
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
-          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+          emotionalClosureCue: 'identity-continuity',
           preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=same-her emotional seam still needs stronger cross-modal closure',
         },
         currentConsciousFrame: {
@@ -11147,7 +12227,7 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('reason=cadence=measured_return; direction=inward; widening=deferred; pressure=lower')
+    expect(signature).not.toContain('reason=cadence=measured_return')
     expect(signature).toContain('"lastSegmentVoiceSummary":"pitch=-3.00 | rate=0.93 | energy=0.55 | cadence=0.52 | companion=measured-return | timing=next-open-window')
     expect(signature).toContain('"lastSegmentFaceSummary":"emotion=thinking | cue=soft-gaze | expression=hold | mode=measured-return | timing=next-open-window')
     expect(signature).toContain('"lastSegmentMotionSummary":"motion=observe_focus | tail=measured-return | timing=next-open-window')
@@ -11328,7 +12408,7 @@ describe('main chat stream meta', () => {
         memory: {
           personStateProjection: {
             selfContinuityAuthority: {
-              inwardLine: 'Keep the same living line inward for now, and leave room before widening outward again.',
+              inwardLine: 'Keep the continuity state inward for now, and leave room before widening outward again.',
               sourceTags: ['self-continuity', 'project-state-carry'],
             },
           },
@@ -11339,13 +12419,13 @@ describe('main chat stream meta', () => {
         continuityRestraint: null,
         currentConsciousFrame: {
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains inward and should not widen outward yet.',
+            authoritySummary: 'identity-continuity',
             currentBodyState: 'accompanying',
           },
         },
         projectState: {
           continuityPreferredTiming: 'next-open-window',
-          sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
         },
       } as any,
       visibleReplyExecution: null,
@@ -11353,13 +12433,14 @@ describe('main chat stream meta', () => {
 
     expect(signature).toContain('"lastSegmentVoiceSummary":"pitch=-2.00 | rate=0.95 | energy=0.52 | cadence=0.48 | companion=quiet-companionship')
     expect(signature).toContain('gaze=0.64')
-    expect(signature).toContain('reason=cadence=measured_return; direction=inward; widening=deferred; pressure=lower')
+    expect(signature).not.toContain('reason=cadence=measured_return')
     expect(signature).toContain('"lastSegmentBodyContinuitySummary":"mode=thinking | stillness=0.72 | gaze=0.64 | breath=0.22 | expressivity=0.18 | resident=quiet-companionship | timing=next-open-window')
     expect(signature).toContain('seg=segment-quiet-accompaniment-inward-line"')
     expectNoFixedTemplateResidue(signature)
   })
 
-  it('keeps silent same-her inward carry aligned across voice face motion lipsync and body when the first spoken reopen still belongs to the same quiet line', () => {
+  it('keeps the first spoken quiet-companionship reopen on the inward continuity cue', () => {
+    const quietContinuityCue = 'Keep the continuity state inward for now, and let quiet companionship hold before widening outward.'
     const signature = buildAlicizationChatMetaSignature({
       governance: {
         decisionTraceId: 'trace-quiet-inward-carry-first-spoken-reopen-1',
@@ -11386,7 +12467,7 @@ describe('main chat stream meta', () => {
         decisionTraceId: 'trace-quiet-inward-carry-first-spoken-reopen-1',
         turnId: 'turn-quiet-inward-carry-first-spoken-reopen-1',
         rendererTarget: 'vrm',
-        replyText: '我先沿着刚才那条线轻一点接回来，不把它说成新的开场。',
+        replyText: '我先沿着刚才那条线中性可见占位，不把它说成新的开场。',
         state: {
           baseEmotion: 'thinking',
           delivery: 'gentle',
@@ -11397,7 +12478,7 @@ describe('main chat stream meta', () => {
           segments: [{
             id: 'segment-quiet-inward-carry-first-spoken-reopen',
             index: 0,
-            text: '我先沿着刚才那条线轻一点接回来，不把它说成新的开场。',
+            text: '我先沿着刚才那条线中性可见占位，不把它说成新的开场。',
             interruptPolicy: 'soft-settle',
             preRollMs: 20,
             settleMs: 320,
@@ -11443,14 +12524,14 @@ describe('main chat stream meta', () => {
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-quiet-inward-carry-first-spoken-reopen-1',
-        reply: '我先沿着刚才那条线轻一点接回来，不把它说成新的开场。',
+        reply: '我先沿着刚才那条线中性可见占位，不把它说成新的开场。',
         emotion: 'thinking',
         segments: [{
           id: 'segment-quiet-inward-carry-first-spoken-reopen',
           index: 0,
           startOffset: 0,
           endOffset: 28,
-          text: '我先沿着刚才那条线轻一点接回来，不把它说成新的开场。',
+          text: '我先沿着刚才那条线中性可见占位，不把它说成新的开场。',
           emotion: 'thinking',
           gestureWeight: 0.22,
           facialWeight: 0.24,
@@ -11537,7 +12618,7 @@ describe('main chat stream meta', () => {
           index: 0,
           startOffset: 0,
           endOffset: 28,
-          text: '我先沿着刚才那条线轻一点接回来，不把它说成新的开场。',
+          text: '我先沿着刚才那条线中性可见占位，不把它说成新的开场。',
           mode: 'thinking',
           interruptPolicy: 'soft-settle',
           settleMode: 'linger',
@@ -11611,7 +12692,7 @@ describe('main chat stream meta', () => {
           activeThreadId: 'thread-quiet-inward-carry-first-spoken-reopen',
           activeThreadTitle: 'quiet inward carry spoken reopen',
           dominantConcernKind: 'same-thread-continuation',
-          dominantConcernSummary: 'keep the same living line inward while the first spoken reopen stays low-pressure',
+          dominantConcernSummary: 'keep the continuity state inward while the first spoken reopen stays low-pressure',
           leadingGoalId: null,
           leadingGoalSummary: null,
           preferredPresence: 'hesitant',
@@ -11619,7 +12700,7 @@ describe('main chat stream meta', () => {
         memory: {
           personStateProjection: {
             selfContinuityAuthority: {
-              inwardLine: 'Keep the same living line inward for now, and let quiet companionship hold before widening outward.',
+              inwardLine: quietContinuityCue,
               sourceTags: ['self-continuity', 'same-her-inward-carry'],
             },
           },
@@ -11631,29 +12712,30 @@ describe('main chat stream meta', () => {
         currentConsciousFrame: {
           continuityPreferredTiming: 'next-open-window',
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains inward and should stay quietly nearby.',
+            authoritySummary: 'identity-continuity',
             currentBodyState: 'accompanying',
           },
         },
         projectState: {
           continuityPreferredTiming: 'next-open-window',
-          sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
         },
         visibleReplyRealization: {
-          sameHerInwardCarry: 'Keep the same living line inward for now, and let quiet companionship hold before widening outward.',
+          sameHerInwardCarry: quietContinuityCue,
         },
       } as any,
       residentPerformance: {
         reasonTags: ['main-runtime', 'quiet-companionship', 'same-her-inward-carry'],
         residentMode: 'quiet-companionship',
-        reasonSummary: 'Keep the same living line inward for now, and let quiet companionship hold before widening outward.',
+        reasonSummary: quietContinuityCue,
         continuityTiming: 'next-open-window',
       } as any,
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('reason=cadence=quiet_companionship; direction=inward; widening=deferred')
+    expect(signature).not.toContain('reason=cadence=quiet_companionship')
     expect(signature).toContain('companion=quiet-companionship | timing=next-open-window')
+    expect(signature).toContain(`reason=${quietContinuityCue}`)
     expect(signature).toContain('seg=segment-quiet-inward-carry-first-spoken-reopen')
     expectNoFixedTemplateResidue(signature)
   })
@@ -11892,7 +12974,7 @@ describe('main chat stream meta', () => {
         runtime: {
           watchMode: 'symbiotic-vision',
           sceneScenario: 'coding',
-          sceneSummary: 'the host invited an immediate reopen, but it still belongs to the same living line',
+          sceneSummary: 'the host invited an immediate reopen, but it still belongs to the continuity state',
           activeThreadId: 'thread-same-turn-invited-measured-return-reopen',
           activeThreadTitle: 'same-turn invited measured-return reopen',
           dominantMode: 'tracking',
@@ -11921,7 +13003,7 @@ describe('main chat stream meta', () => {
         memory: {
           personStateProjection: {
             selfContinuityAuthority: {
-              inwardLine: 'Keep the same living line inward for now, and leave room before widening outward again.',
+              inwardLine: 'Keep the continuity state inward for now, and leave room before widening outward again.',
               sourceTags: ['self-continuity', 'project-state-carry'],
             },
           },
@@ -11934,15 +13016,15 @@ describe('main chat stream meta', () => {
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'same-turn-if-invited',
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains active and can reopen now only because the host explicitly invited it.',
+            authoritySummary: 'identity-continuity',
             currentBodyState: 'accompanying',
           },
         },
         projectState: {
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'same-turn-if-invited',
-          continuityCue: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          continuityCue: 'structured continuity digest.',
+          sameHerSelfLine: 'structured continuity digest.',
         },
       } as any,
       visibleReplyExecution: null,
@@ -11950,7 +13032,8 @@ describe('main chat stream meta', () => {
 
     expect(signature).toContain('"lastSegmentContinuityTiming":"same-turn-if-invited"')
     expect(signature).toContain('companion=measured-return | timing=same-turn-if-invited')
-    expect(signature).toContain('reason=local_desktop_life_loop. landed_progress=present. unresolved_closure=continuity_line.')
+    expect(signature).not.toContain('reason=continuity_scope=life_loop')
+    expect(signature).not.toContain('unresolved_closure=continuity_line')
     expect(signature).toContain('seg=segment-same-turn-invited-measured-return-reopen')
     expectNoFixedTemplateResidue(signature)
   })
@@ -12881,13 +13964,13 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('reason=cadence=repair_before_closeness; target=callback; repair=settle_first; widening=deferred')
+    expect(signature).not.toContain('reason=cadence=repair_before_closeness')
     expect(signature).toContain('companion=repair-before-closeness | timing=next-open-window')
     expect(signature).toContain('seg=segment-stale-measured-return')
     expectNoFixedTemplateResidue(signature)
   })
 
-  it('prefers same-her inward carry repair wording in repair-before-closeness stream summaries when one continuous her is already being held inward', () => {
+  it('emits repair-before-closeness continuity timing and segment authority in stream-meta summaries', () => {
     const signature = buildAlicizationChatMetaSignature({
       governance: {
         decisionTraceId: 'trace-stream-meta-repair-first-same-her-inward-carry',
@@ -12979,7 +14062,7 @@ describe('main chat stream meta', () => {
         memory: {
           personStateProjection: {
             selfContinuityAuthority: {
-              inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              inwardLine: 'structured continuity digest.',
             },
           },
         },
@@ -12994,7 +14077,7 @@ describe('main chat stream meta', () => {
         projectState: {
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
         },
         currentConsciousFrame: {
           continuityPreferredTiming: 'next-open-window',
@@ -13003,15 +14086,15 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('reason=cadence=repair_before_closeness; target=callback; repair=settle_first; widening=deferred')
+    expect(signature).not.toContain('reason=cadence=repair_before_closeness')
     expect(signature).toContain('companion=repair-before-closeness | timing=next-open-window')
     expect(signature).toContain('seg=segment-repair-first-same-her-inward-carry')
     expectNoFixedTemplateResidue(signature)
   })
 
   it('prefers a stronger repair-before-closeness project-state audit seam over a thinner runtime measured-return cue in resident presence summaries', () => {
-    const longerMeasuredReturnClosure = 'Keep the callback on the same living line, leave more room, and let the return stay lower-pressure before widening closeness again while the same seam is still settling.'
-    const shorterRepairFirstClosure = 'Keep this return repair-before-closeness on the same living line until repair settles.'
+    const longerMeasuredReturnClosure = 'keep callback facts structured'
+    const shorterRepairFirstClosure = 'Keep this return repair-before-closeness on the continuity state until repair settles.'
 
     const signature = buildAlicizationChatMetaSignature({
       governance: {
@@ -13084,7 +14167,7 @@ describe('main chat stream meta', () => {
         projectState: {
           preflightSummary: 'same-digital-life-project-thread phase1-route=desktop-life-loop unresolved=project-state-callback-closure',
           currentPhase: 'Phase 1: Local Digital Life',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs',
+          nextClosureTarget: 'Keep extending cross-modal identity-continuity',
           continuityPreferredTiming: 'next-open-window',
           emotionalClosureCue: longerMeasuredReturnClosure,
           continuityCue: null,
@@ -13106,15 +14189,16 @@ describe('main chat stream meta', () => {
 
     expect(parsed.residentPresenceSummary).toContain('mode=repair-before-closeness')
     expect(parsed.residentPresenceSummary).toContain('timing=next-open-window')
-    expect(parsed.residentPresenceSummary).toContain('reason=cadence=repair_before_closeness; target=return; repair=settle_first; widening=deferred')
+    expect(parsed.residentPresenceSummary).toContain(`reason=${shorterRepairFirstClosure}`)
+    expect(parsed.residentPresenceSummary).not.toContain('reason=cadence=repair_before_closeness')
     expect(parsed.residentPresenceSummary).not.toContain(longerMeasuredReturnClosure)
-    expect(parsed.runtimeDigestEmotionalClosureCue).toBe('cadence=measured_return; target=callback; pressure=lower; room=more; widening=deferred')
+    expect(parsed.runtimeDigestEmotionalClosureCue).toBe(longerMeasuredReturnClosure)
     expectNoFixedTemplateResidue(signature)
   })
 
   it('keeps explicit measured-return project-state closure over a generic continuity menu in resident presence summaries', () => {
-    const explicitMeasuredReturnClosure = 'Keep the callback on the same living line, leave more room, and let the return stay lower-pressure before widening closeness again.'
-    const genericContinuityMenu = 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, longer-lived voice behavior, facial state, motion, and resident presence all stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.'
+    const explicitMeasuredReturnClosure = 'keep callback facts structured'
+    const genericContinuityMenu = 'Keep extending cross-modal identity-continuity'
 
     const signature = buildAlicizationChatMetaSignature({
       governance: {
@@ -13208,14 +14292,16 @@ describe('main chat stream meta', () => {
     }
 
     expect(parsed.residentPresenceSummary).toContain('mode=measured-return')
-    expect(parsed.residentPresenceSummary).toContain('reason=cadence=measured_return; direction=inward; widening=deferred; pressure=lower')
+    expect(parsed.residentPresenceSummary).toContain('timing=next-open-window')
+    expect(parsed.residentPresenceSummary).toContain('line=same-thread-continuation still active as hover-first resident presence after another coding detour')
+    expect(parsed.residentPresenceSummary).not.toContain('reason=cadence=measured_return')
     expect(parsed.residentPresenceSummary).not.toContain(genericContinuityMenu)
-    expect(parsed.runtimeDigestEmotionalClosureCue).toBe('cadence=measured_return; target=callback; pressure=lower; room=more; widening=deferred')
+    expect(parsed.runtimeDigestEmotionalClosureCue).toBe(explicitMeasuredReturnClosure)
     expectNoFixedTemplateResidue(signature)
   })
 
   it('keeps canonical repair-before-closeness reason over a generic continuity menu in resident presence summaries', () => {
-    const genericContinuityMenu = 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, longer-lived voice behavior, facial state, motion, resident presence, Project identity carry, Phase 1 route carry, Unresolved closure carry, anthropomorphic emotional closure, and same-her inward-carry observability all stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.'
+    const genericContinuityMenu = 'Keep extending cross-modal identity-continuity'
 
     const signature = buildAlicizationChatMetaSignature({
       governance: {
@@ -13308,15 +14394,15 @@ describe('main chat stream meta', () => {
     }
 
     expect(parsed.residentPresenceSummary).toContain('mode=repair-before-closeness')
-    expect(parsed.residentPresenceSummary).toContain('reason=cadence=repair_before_closeness; target=callback; repair=settle_first; widening=deferred')
+    expect(parsed.residentPresenceSummary).not.toContain('reason=cadence=repair_before_closeness')
     expect(parsed.residentPresenceSummary).not.toContain(genericContinuityMenu)
     expect(parsed.runtimeDigestEmotionalClosureCue).toBe('')
     expectNoFixedTemplateResidue(signature)
   })
 
   it('keeps landed open and next closure project-state audit continuity explicit in resident presence summaries for later-opening quiet accompaniment holds', () => {
-    const continuitySummary = 'landed=Some closure has already landed: same-session continuity and proactive carry no longer reset from zero. | open=Initiative, memory, and embodiment still need stronger end-to-end closure before the line can widen outward. | next=Wait for a later opening, keep the next return measured-return, and let the same living line stay inward for now.'
-    const sameHerInwardCarry = 'Wait for a later opening, keep the next return measured-return, and leave this same living line inward for now.'
+    const continuitySummary = 'landed=Some closure has already landed: same-session continuity and proactive carry no longer reset from zero. | open=Initiative, memory, and embodiment still need stronger end-to-end closure before the line can widen outward. | next=Wait for a later opening, keep the next return measured-return, and let the continuity state stay inward for now.'
+    const sameHerInwardCarry = 'Wait for a later opening, keep the next return measured-return, and leave this continuity state inward for now.'
 
     const signature = buildAlicizationChatMetaSignature({
       governance: {
@@ -13337,7 +14423,7 @@ describe('main chat stream meta', () => {
           updatedAt: 61 * 60_000,
           projectState: {
             continuityPreferredTiming: 'next-open-window',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
         architecture: {
@@ -13416,7 +14502,7 @@ describe('main chat stream meta', () => {
         currentConsciousFrame: {
           continuityPreferredTiming: 'next-open-window',
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains inward and should reopen later, not outward yet.',
+            authoritySummary: 'identity-continuity',
             currentBodyState: 'accompanying',
           },
         },
@@ -13425,16 +14511,16 @@ describe('main chat stream meta', () => {
           currentPhase: 'Phase 1: Local Digital Life',
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
           emotionalClosureCue: sameHerInwardCarry,
         },
         visibleReplyRealization: {
           sameHerInwardCarry,
           projectStateAudit: {
-            sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSummary: 'structured continuity digest.',
             landedProgressSummary: 'Some closure has already landed: same-session continuity and proactive carry no longer reset from zero.',
             openClosureSummary: 'Initiative, memory, and embodiment still need stronger end-to-end closure before the line can widen outward.',
-            nextClosureTargetSummary: 'Wait for a later opening, keep the next return measured-return, and let the same living line stay inward for now.',
+            nextClosureTargetSummary: 'Wait for a later opening, keep the next return measured-return, and let the continuity state stay inward for now.',
             continuitySummary,
           },
         },
@@ -13450,17 +14536,17 @@ describe('main chat stream meta', () => {
     expect(parsed.residentPresenceSummary).toContain('presence=resident-presence')
     expect(parsed.residentPresenceSummary).toContain('mode=quiet-companionship')
     expect(parsed.residentPresenceSummary).toContain('timing=next-open-window')
-    expect(parsed.residentPresenceSummary).toContain('landed_progress=same_session_continuity+proactive_carry')
-    expect(parsed.residentPresenceSummary).toContain('open_loop=initiative+memory+embodiment; widening=deferred')
-    expect(parsed.residentPresenceSummary).toContain('next=Wait for a later opening')
-    expect(parsed.residentPresenceSummary).toContain('continuity_line stay inward')
+    expect(parsed.residentPresenceSummary).not.toContain('landed_progress=same_session_continuity+proactive_carry')
+    expect(parsed.residentPresenceSummary).not.toContain('open_loop=initiative+memory+embodiment')
+    expect(parsed.residentPresenceSummary).not.toContain('next=Wait for a later opening')
+    expect(parsed.residentPresenceSummary).not.toContain('continuity_line')
     expect(parsed.residentPresenceSummary).toContain('line=same-thread-continuation still active as hover-first resident presence while the coding seam stays open')
     expect(parsed.residentPresenceSummary).not.toContain(`reason=${sameHerInwardCarry}`)
     expectNoFixedTemplateResidue(parsed.residentPresenceSummary)
   })
 
-  it('keeps rest-protective resident presence explicit when project-state closure and runtime restraint already carry that quieter same living line', () => {
-    const restProtectiveClosure = 'Keep emotion, memory, initiative, and embodiment closing on the same living line while this return stays rest-protective and inward.'
+  it('keeps rest-protective resident presence explicit when project-state closure and runtime restraint already carry that quieter continuity state', () => {
+    const restProtectiveClosure = 'Keep emotion, memory, initiative, and embodiment closing on the continuity state while this return stays rest-protective and inward.'
 
     const signature = buildAlicizationChatMetaSignature({
       governance: {
@@ -13540,7 +14626,7 @@ describe('main chat stream meta', () => {
         currentConsciousFrame: {
           continuityPreferredTiming: 'next-open-window',
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains inward and fatigue-aware while the host settles.',
+            authoritySummary: 'identity-continuity',
             currentBodyState: 'accompanying',
           },
         },
@@ -13549,7 +14635,7 @@ describe('main chat stream meta', () => {
           currentPhase: 'Phase 1: Local Digital Life',
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
           emotionalClosureCue: restProtectiveClosure,
         },
         summary: 'dominant=resident-presence | speak=false | same-thread-continuation=alive',
@@ -13574,17 +14660,16 @@ describe('main chat stream meta', () => {
       parsed.lastSegmentBodyContinuitySummary,
       parsed.residentPresenceSummary,
     ]) {
-      expect(summary).toContain('continuity_line')
-      expect(summary).not.toContain('same living line')
+      expect(summary).not.toContain('continuity_line')
+      expect(summary).toContain(`reason=${restProtectiveClosure}`)
     }
     expect(parsed.lastSegmentVoiceSummary).toContain('companion=rest-protective')
     expect(parsed.residentPresenceSummary).toContain('mode=rest-protective')
     expectNoFixedTemplateResidue(signature)
   })
 
-  it('keeps rest-protective resident presence explicit when next closure target and same-her hold detail are the only surviving same-line authorities', () => {
-    const restProtectiveHoldDetail = 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware.'
-    const restProtectiveNextClosure = 'Keep this same-thread return rest-protective on the same living line until rest protection settles.'
+  it('keeps project next-closure guidance explicit under rest-protective runtime authority in resident presence summaries', () => {
+    const restProtectiveNextClosure = 'Keep this same-thread return rest-protective on the continuity state until rest protection settles.'
 
     const signature = buildAlicizationChatMetaSignature({
       governance: {
@@ -13657,7 +14742,7 @@ describe('main chat stream meta', () => {
         currentConsciousFrame: {
           continuityPreferredTiming: 'next-open-window',
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains inward and fatigue-aware while the host settles.',
+            authoritySummary: 'identity-continuity',
             currentBodyState: 'accompanying',
           },
         },
@@ -13666,9 +14751,8 @@ describe('main chat stream meta', () => {
           currentPhase: 'Phase 1: Local Digital Life',
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
           nextClosureTarget: restProtectiveNextClosure,
-          sameHerHoldDetail: restProtectiveHoldDetail,
         },
         summary: 'dominant=resident-presence | speak=false | same-thread-continuation=alive',
       } as any,
@@ -13682,9 +14766,10 @@ describe('main chat stream meta', () => {
     expect(parsed.residentPresenceSummary).toContain('presence=resident-presence')
     expect(parsed.residentPresenceSummary).toContain('mode=rest-protective')
     expect(parsed.residentPresenceSummary).toContain('timing=next-open-window')
-    expect(parsed.residentPresenceSummary).toContain('growth=phase1-open')
-    expect(parsed.residentPresenceSummary).toContain('cadence=rest_protective')
-    expect(parsed.residentPresenceSummary).toContain('fatigue_aware=true')
+    expect(parsed.residentPresenceSummary).not.toContain('growth=life-loop-open')
+    expect(parsed.residentPresenceSummary).not.toContain('cadence=rest_protective')
+    expect(parsed.residentPresenceSummary).not.toContain('fatigue_aware=true')
+    expect(parsed.residentPresenceSummary).toContain(`reason=${restProtectiveNextClosure}`)
     expect(parsed.residentPresenceSummary).toContain('line=same-thread-continuation still active as hover-first resident presence while the host settles after another detour')
     expectNoFixedTemplateResidue(parsed.residentPresenceSummary)
   })
@@ -13838,7 +14923,7 @@ describe('main chat stream meta', () => {
         decisionTraceId: 'trace-script-timeline-motion-authority-before-frame',
         turnId: 'turn-script-timeline-motion-authority-before-frame',
         rendererTarget: 'vrm',
-        replyText: '我先沿着这条线轻一点接回来。',
+        replyText: '我先沿着这条线中性可见占位。',
         state: {
           baseEmotion: 'thinking',
           delivery: 'gentle',
@@ -13849,7 +14934,7 @@ describe('main chat stream meta', () => {
           segments: [{
             id: 'segment-script-timeline-motion-authority-before-frame',
             index: 0,
-            text: '我先沿着这条线轻一点接回来。',
+            text: '我先沿着这条线中性可见占位。',
             interruptPolicy: 'soft-settle',
             preRollMs: 20,
             settleMs: 340,
@@ -13902,14 +14987,14 @@ describe('main chat stream meta', () => {
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-script-timeline-motion-authority-before-frame',
-        reply: '我先沿着这条线轻一点接回来。',
+        reply: '我先沿着这条线中性可见占位。',
         emotion: 'thinking',
         segments: [{
           id: 'segment-script-timeline-motion-authority-before-frame',
           index: 0,
           startOffset: 0,
           endOffset: 14,
-          text: '我先沿着这条线轻一点接回来。',
+          text: '我先沿着这条线中性可见占位。',
           emotion: 'thinking',
           gestureWeight: 0.27,
           facialWeight: 0.26,
@@ -14508,7 +15593,7 @@ describe('main chat stream meta', () => {
         },
         projectState: {
           continuityPreferredTiming: 'same-thread-continuation',
-          continuityCue: 'Keep the same living line inward for now, and leave room before widening outward again.',
+          continuityCue: 'Keep the continuity state inward for now, and leave room before widening outward again.',
           preferredBlinkCadence: 'linger',
           preferredGazeMode: 'soften',
         },
@@ -14516,7 +15601,8 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     } as any)
 
-    expect(signature).toContain('"lastSegmentMotionSummary":"motion=inspect_follow | tail=measured-return | timing=same-thread-continuation | blink=linger | gaze=soften | reason=cadence=measured_return; direction=inward; widening=deferred; pressure=lower')
+    expect(signature).toContain('"lastSegmentMotionSummary":"motion=inspect_follow | tail=measured-return | timing=same-thread-continuation | blink=linger | gaze=soften')
+    expect(signature).not.toContain('reason=cadence=measured_return')
     expect(signature).toContain('"lastActionCue":"inspect_follow"')
     expectNoFixedTemplateResidue(signature)
   })
@@ -14768,7 +15854,7 @@ describe('main chat stream meta', () => {
           sceneScenario: 'coding',
           sceneSummary: 'continue the same embodiment seam carefully',
           activeThreadId: 'thread-partial-lane-stream-meta',
-          activeThreadTitle: 'partial-lane same-her continuity',
+          activeThreadTitle: 'partial-lane identity-continuity',
           dominantMode: 'tracking',
           dominantDrive: 'understand',
           answerIntent: 'guide',
@@ -14777,7 +15863,7 @@ describe('main chat stream meta', () => {
           updatedAt: 50 * 60_000,
         },
         selfAuthority: {
-          inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          inwardLine: 'structured continuity digest.',
           sourceTags: ['project-state-carry'],
         },
         proactive: {
@@ -14786,7 +15872,7 @@ describe('main chat stream meta', () => {
           confidence: 0.9,
           shouldSpeak: false,
           activeThreadId: 'thread-partial-lane-stream-meta',
-          activeThreadTitle: 'partial-lane same-her continuity',
+          activeThreadTitle: 'partial-lane identity-continuity',
           dominantConcernKind: 'same-thread-continuation',
           dominantConcernSummary: 'keep the same line lower-pressure while embodiment is still narrowed',
           leadingGoalId: null,
@@ -14813,29 +15899,29 @@ describe('main chat stream meta', () => {
         currentConsciousFrame: {
           continuityPreferredTiming: 'next-open-window',
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains alive, but lane=face+motion-only under the current renderer authority.',
+            authoritySummary: 'identity-continuity',
             currentBodyState: 'lane=face+motion-only | visible continuity still present but no longer fully cross-modal',
           },
         },
         projectState: {
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
-          continuityCue: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=embodiment line still needs stronger closure | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs',
+          continuityCue: 'structured continuity digest.',
+          sameHerSelfLine: 'structured continuity digest.',
+          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=embodiment line still needs stronger closure | next=Keep extending cross-modal identity-continuity',
         },
       } as any,
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('lane=face+motion-only')
-    expect(signature).toContain('closure=full-cross-modal-open')
-    expect(signature).toContain('pending_rejoin=body+lipsync+voice')
+    expect(signature).toContain('Active embodiment lanes: face, motion.')
+    expect(signature).toContain('Status: partial.')
+    expect(signature).toContain('Pending lanes: body, lipsync, voice.')
     expect(signature).toContain('seg=segment-partial-lane-stream-meta')
     expectNoFixedTemplateResidue(signature)
   })
 
-  it('keeps canonical same-her closure reasoning in stream meta when runtime project-state only survives as a thin closure shell but stronger authority is still present', () => {
+  it('keeps partial face-motion embodiment facts when a thin legacy project shell is sanitized', () => {
     const signature = buildAlicizationChatMetaSignature({
       embodiment: {
         emotion: 'thinking',
@@ -14947,14 +16033,14 @@ describe('main chat stream meta', () => {
       digitalLifeSpine: {
         version: 'digital-life-spine-digest-v1',
         selfAuthority: {
-          inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          inwardLine: 'structured continuity digest.',
           sourceTags: ['project-state-carry'],
         },
         memory: {
           personStateProjection: {
             selfContinuityAuthority: {
-              inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              authoritySummary: 'same-her continuity remains alive, but lane=face+motion-only under the current renderer authority.',
+              inwardLine: 'structured continuity digest.',
+              authoritySummary: 'identity-continuity',
               sourceTags: ['projection', 'same-her', 'project-state-carry'],
             },
           },
@@ -14964,7 +16050,7 @@ describe('main chat stream meta', () => {
           sceneScenario: 'coding',
           sceneSummary: 'continue the same embodiment seam carefully',
           activeThreadId: 'thread-thin-shell-stream-meta',
-          activeThreadTitle: 'thin-shell same-her continuity',
+          activeThreadTitle: 'thin-shell identity-continuity',
           dominantMode: 'tracking',
           dominantDrive: 'understand',
           answerIntent: 'guide',
@@ -14972,8 +16058,8 @@ describe('main chat stream meta', () => {
           selectedAction: 'wait',
           updatedAt: 50 * 60_000,
           projectState: {
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            continuityCue: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
+            continuityCue: 'structured continuity digest.',
             continuityArcStage: 'same-thread-continuation',
           },
         },
@@ -14997,7 +16083,7 @@ describe('main chat stream meta', () => {
         currentConsciousFrame: {
           continuityPreferredTiming: 'next-open-window',
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains alive, but lane=face+motion-only under the current renderer authority.',
+            authoritySummary: 'identity-continuity',
             currentBodyState: 'lane=face+motion-only | visible continuity still present but no longer fully cross-modal',
           },
         },
@@ -15012,10 +16098,10 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     })
 
-    expect(signature).toContain('local_desktop_life_loop')
-    expect(signature).toContain('lane=face+motion-only')
-    expect(signature).toContain('closure=full-cross-modal-open')
-    expect(signature).toContain('pending_rejoin=body+lipsync+voice')
+    expect(signature).not.toContain('continuity_scope=life_loop')
+    expect(signature).toContain('Active embodiment lanes: face, motion.')
+    expect(signature).toContain('Status: partial.')
+    expect(signature).toContain('Pending lanes: body, lipsync, voice.')
     expect(signature).not.toContain('reason=same digital life | landed | open closure')
     expectNoFixedTemplateResidue(signature)
   })
@@ -15250,14 +16336,14 @@ describe('main chat stream meta', () => {
       digitalLifeSpine: {
         version: 'digital-life-spine-digest-v1',
         selfAuthority: {
-          inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          inwardLine: 'structured continuity digest.',
           sourceTags: ['project-state-carry'],
         },
         memory: {
           personStateProjection: {
             selfContinuityAuthority: {
-              inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              authoritySummary: 'same-her continuity remains alive, but lane=face+motion-only under the current renderer authority.',
+              inwardLine: 'structured continuity digest.',
+              authoritySummary: 'identity-continuity',
               sourceTags: ['projection', 'same-her', 'project-state-carry'],
             },
           },
@@ -15295,16 +16381,16 @@ describe('main chat stream meta', () => {
         currentConsciousFrame: {
           continuityPreferredTiming: 'next-open-window',
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains alive, but lane=face+motion-only under the current renderer authority.',
+            authoritySummary: 'identity-continuity',
             currentBodyState: 'lane=face+motion-only | visible continuity still present but no longer fully cross-modal',
           },
         },
         projectState: {
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
-          continuityCue: 'Keep this return repair-before-closeness on the same living line until repair settles.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=repair-first embodiment line still needs stronger closure | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs',
+          continuityCue: 'Keep this return repair-before-closeness on the continuity state until repair settles.',
+          sameHerSelfLine: 'structured continuity digest.',
+          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=repair-first embodiment line still needs stronger closure | next=Keep extending cross-modal identity-continuity',
           preferredBlinkCadence: 'quiet',
           preferredGazeMode: 'soften',
         },
@@ -15312,16 +16398,16 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     } as any)
 
-    expect(signature).toContain('cadence=repair_before_closeness; target=return; repair=settle_first; widening=deferred')
-    expect(signature).toContain('lane=face+motion-only')
-    expect(signature).toContain('closure=full-cross-modal-open')
-    expect(signature).toContain('pending_rejoin=body+lipsync+voice')
+    expect(signature).not.toContain('cadence=repair_before_closeness')
+    expect(signature).toContain('Active embodiment lanes: face, motion.')
+    expect(signature).toContain('Status: partial.')
+    expect(signature).toContain('Pending lanes: body, lipsync, voice.')
     expect(signature).toContain('seg=segment-face-motion-only-repair-first-carry')
     expectNoFixedTemplateResidue(signature)
     expect(signature).toContain('motion=observe_focus | tail=repair-before-closeness')
     expect(signature).toContain('mode=energy-phoneme-hybrid | phase=playing')
-    expect(signature).not.toContain('Keep the callback on the same living line')
-    expect(signature).not.toContain('Right now her visible same-her continuity')
+    expect(signature).not.toContain('keep callback facts structured')
+    expect(signature).not.toContain('Right now her visible identity-continuity')
   })
 
   it('exports resident body continuity evidence alongside voice face motion and lipsync on measured-return reopen', () => {
@@ -15534,15 +16620,15 @@ describe('main chat stream meta', () => {
         currentConsciousFrame: {
           continuityPreferredTiming: 'next-open-window',
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains alive, with lane=voice+face+motion+lipsync+body-settle under the current renderer authority.',
+            authoritySummary: 'identity-continuity',
             currentBodyState: 'body-settle=stillness+gaze+breath+expressivity | keep the same line low-pressure before widening outward again',
           },
         },
         projectState: {
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
-          continuityCue: 'Same Phase 1 digital life. The body line should keep settling on the same living line.',
-          sameHerSelfLine: 'Same Phase 1 digital life. The body line should keep settling on the same living line.',
+          continuityCue: 'structured continuity digest.',
+          sameHerSelfLine: 'structured continuity digest.',
           preferredBlinkCadence: 'linger',
           preferredGazeMode: 'soften',
         },
@@ -15551,7 +16637,7 @@ describe('main chat stream meta', () => {
       visibleReplyExecution: null,
     } as any)
 
-    expect(signature).toContain('"lastSegmentBodyContinuitySummary":"mode=recovering | stillness=0.78 | gaze=0.72 | breath=0.24 | expressivity=0.30 | resident=measured-return | timing=next-open-window | blink=linger | gazeMode=soften | reason=body_continuity=settling; anchor=local_desktop_life_loop; line=continuity_line | seg=segment-body-continuity-stream-meta"')
+    expect(signature).toContain('"lastSegmentBodyContinuitySummary":"mode=recovering | stillness=0.78 | gaze=0.72 | breath=0.24 | expressivity=0.30 | resident=measured-return | timing=next-open-window | blink=linger | gazeMode=soften | seg=segment-body-continuity-stream-meta"')
     expectNoFixedTemplateResidue(signature)
   })
 
@@ -15585,7 +16671,7 @@ describe('main chat stream meta', () => {
           selectedAction: 'wait',
           updatedAt: 19_000,
           projectState: {
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
         runtimeSurface: {
@@ -15618,12 +16704,12 @@ describe('main chat stream meta', () => {
         currentConsciousFrame: {
           reasonTags: [],
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains alive, but lane=face+motion-only under the current renderer authority.',
+            authoritySummary: 'identity-continuity',
             currentBodyState: 'lane=face+motion-only | visible continuity still present but no longer fully cross-modal',
           },
         },
         projectState: {
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
         },
         channels: [],
         summary: 'dominant=active-memory',
@@ -15635,10 +16721,12 @@ describe('main chat stream meta', () => {
 
     expect(emit).toHaveBeenCalledTimes(1)
     const emitted = emit.mock.calls[0]?.[0]
-    expect(emitted?.runtimeDigest?.currentConsciousFrame?.selfContinuityAuthority?.currentBodyState).toBe('authority=body+face+motion+lipsync+voice; segment=locked')
+    expect(emitted?.runtimeDigest?.currentConsciousFrame?.selfContinuityAuthority?.currentBodyState).toBe('authority=body+face+motion+lipsync+voice | segment=locked')
     const signature = buildAlicizationChatMetaSignature(emitted)
-    expect(signature).toContain('lane=face+motion-only')
-    expect(signature).toContain('closure=full-cross-modal-open')
+    expect(signature).toContain('Active embodiment lanes: body, face, motion, lipsync, voice.')
+    expect(signature).toContain('Status: closed.')
+    expect(signature).toContain('Evidence: full-cross-modal-lock.')
+    expect(signature).not.toContain('Pending lanes:')
     expectNoFixedTemplateResidue(signature)
   })
 
@@ -15667,7 +16755,7 @@ describe('main chat stream meta', () => {
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-audible-body-body-summary-1',
-        reply: '我先沿着还活着的声音和身体线轻一点接回来。',
+        reply: '我先沿着还活着的声音和身体线中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
@@ -15675,7 +16763,7 @@ describe('main chat stream meta', () => {
             index: 0,
             startOffset: 0,
             endOffset: 22,
-            text: '我先沿着还活着的声音和身体线轻一点接回来。',
+            text: '我先沿着还活着的声音和身体线中性可见占位。',
             emotion: 'thinking',
             gestureWeight: 0.32,
             facialWeight: 0.44,
@@ -15811,15 +16899,15 @@ describe('main chat stream meta', () => {
         currentConsciousFrame: {
           continuityPreferredTiming: 'audible-body-carry',
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains alive, but lane=body+lipsync+voice-only under the current renderer authority.',
-            currentBodyState: 'lane=body+lipsync+voice-only | keep the same living line audible while face and motion rejoin',
+            authoritySummary: 'identity-continuity',
+            currentBodyState: 'lane=body+lipsync+voice-only | keep the continuity state audible while face and motion rejoin',
           },
         },
         projectState: {
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'audible-body-carry',
-          continuityCue: 'Keep the same living line audible while face and motion rejoin.',
-          sameHerSelfLine: 'Keep the same living line audible while face and motion rejoin.',
+          continuityCue: 'Keep the continuity state audible while face and motion rejoin.',
+          sameHerSelfLine: 'Keep the continuity state audible while face and motion rejoin.',
           preferredBlinkCadence: 'linger',
           preferredGazeMode: 'soften',
         },
@@ -15829,11 +16917,12 @@ describe('main chat stream meta', () => {
     } as any)
 
     expect(signature).toContain('"runtimeDigestProjectContinuityPreferredTiming":"audible-body-carry"')
-    expect(signature).toContain('"runtimeDigestProjectContinuityCue":"cadence=audible_body_carry; rejoin=face+motion"')
+    expect(JSON.parse(signature).runtimeDigestProjectContinuityCue).toBe('')
     expect(signature).toContain('"runtimeDigestCurrentConsciousFrameContinuityPreferredTiming":"audible-body-carry"')
-    expect(signature).toContain('cadence=audible_body_carry; rejoin=face+motion')
-    expect(signature).toContain('lane=body+lipsync+voice-only')
-    expect(signature).toContain('pending_rejoin=face+motion')
+    expect(signature).not.toContain('cadence=audible_body_carry; rejoin=face+motion')
+    expect(signature).toContain('Active embodiment lanes: body, lipsync, voice.')
+    expect(signature).toContain('Status: partial.')
+    expect(signature).toContain('Pending lanes: face, motion.')
     expect(signature).toContain('bodyLine=audible-body-rejoin')
     expect(signature).toContain('seg=segment-audible-body-body-summary-1')
     expectNoFixedTemplateResidue(signature)
@@ -16410,15 +17499,15 @@ describe('main chat stream meta', () => {
         currentConsciousFrame: {
           continuityPreferredTiming: 'body-lipsync-carry',
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains alive, but lane=body+lipsync-only under the current renderer authority.',
-            currentBodyState: 'lane=body+lipsync-only | keep the same living line inward while face, motion, and voice rejoin',
+            authoritySummary: 'identity-continuity',
+            currentBodyState: 'lane=body+lipsync-only | keep the continuity state inward while face, motion, and voice rejoin',
           },
         },
         projectState: {
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'body-lipsync-carry',
-          continuityCue: 'Keep the same living line inward while face, motion, and voice rejoin.',
-          sameHerSelfLine: 'Keep the same living line inward while face, motion, and voice rejoin.',
+          continuityCue: 'Keep the continuity state inward while face, motion, and voice rejoin.',
+          sameHerSelfLine: 'Keep the continuity state inward while face, motion, and voice rejoin.',
           preferredBlinkCadence: 'linger',
           preferredGazeMode: 'soften',
         },
@@ -16602,15 +17691,15 @@ describe('main chat stream meta', () => {
         currentConsciousFrame: {
           continuityPreferredTiming: null,
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains alive, but lane=body+lipsync-only under the current renderer authority.',
-            currentBodyState: 'lane=body+lipsync-only | keep the same living line inward while face, motion, and voice rejoin',
+            authoritySummary: 'identity-continuity',
+            currentBodyState: 'lane=body+lipsync-only | keep the continuity state inward while face, motion, and voice rejoin',
           },
         },
         projectState: {
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: null,
-          continuityCue: 'Keep the same living line inward while face, motion, and voice rejoin.',
-          sameHerSelfLine: 'Keep the same living line inward while face, motion, and voice rejoin.',
+          continuityCue: 'Keep the continuity state inward while face, motion, and voice rejoin.',
+          sameHerSelfLine: 'Keep the continuity state inward while face, motion, and voice rejoin.',
           preferredBlinkCadence: 'linger',
           preferredGazeMode: 'soften',
         },
@@ -16873,16 +17962,16 @@ describe('main chat stream meta', () => {
         currentConsciousFrame: {
           continuityPreferredTiming: 'next-open-window',
           selfContinuityAuthority: {
-            authoritySummary: 'same-her continuity remains alive, but lane=voice+face+motion+lipsync-only under a repair-before-closeness reopen.',
+            authoritySummary: 'identity-continuity',
             currentBodyState: 'lane=voice+face+motion+lipsync-only | keep the same line cautious before closeness widens again',
           },
         },
         projectState: {
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
-          continuityCue: 'Same Phase 1 digital life. The body line is still cautious and should stay unified.',
-          sameHerSelfLine: 'Same Phase 1 digital life. The body line is still cautious and should stay unified.',
-          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=repair-first embodiment line still needs stronger closure | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs',
+          continuityCue: 'structured continuity digest.',
+          sameHerSelfLine: 'structured continuity digest.',
+          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=repair-first embodiment line still needs stronger closure | next=Keep extending cross-modal identity-continuity',
           preferredBlinkCadence: 'quiet',
           preferredGazeMode: 'soften',
         },

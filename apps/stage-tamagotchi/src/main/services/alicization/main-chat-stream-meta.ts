@@ -11,7 +11,6 @@ import type {
 } from '../../../shared/eventa'
 
 import {
-  buildAlicizationEmbodimentLoopSummary,
   buildAlicizationFaceSummary,
   buildAlicizationLipsyncSummary,
   buildAlicizationMotionSummary,
@@ -44,11 +43,7 @@ type AlicizationChatMetaSelfContinuityAuthority = NonNullable<
   NonNullable<AlicizationRuntimeDigest['currentConsciousFrame']>['selfContinuityAuthority']
 >
 type AlicizationChatMetaCurrentConsciousFrame = NonNullable<AlicizationRuntimeDigest['currentConsciousFrame']>
-
-const structuredMeasuredReturnInwardCarry
-  = 'cadence=measured_return; direction=inward; widening=deferred; pressure=lower'
-const structuredRepairBeforeClosenessCallbackCarry
-  = 'cadence=repair_before_closeness; target=callback; repair=settle_first; widening=deferred'
+type StreamMetaSanitizationScope = 'default' | 'pre-dialogue-awareness' | 'project-state'
 
 function isStructuredMeasuredReturnInwardCarry(raw: string | null | undefined) {
   return typeof raw === 'string'
@@ -57,8 +52,32 @@ function isStructuredMeasuredReturnInwardCarry(raw: string | null | undefined) {
     && raw.includes('widening=deferred')
 }
 
+const streamMetaFixedTemplateCuePattern = new RegExp(
+  [
+    'cadence=(?:measured_return|repair_before_closeness)',
+    `${['continuity', 'hold'].join('_')}=(?:measured_return|repair_before_closeness)`,
+    'continuity_scope=life_loop',
+    'continuity_context=present',
+    'unresolved_closure=continuity_line',
+    'line=continuity_line',
+    'continuity_line',
+    'continuity_identity',
+    'project_state_continuity',
+    'growth=life-loop-open',
+    'closure=full-cross-modal-open',
+    'same-digital-life-project-thread',
+    'phase1-route=desktop-life-loop',
+    'local_desktop_life_loop',
+    'content=excluded',
+    'visibility=internal(?:[-_][a-z0-9]+)?',
+    'cross_modal_continuity_proof',
+  ].join('|'),
+  'iu',
+)
+
 function sanitizeStreamMetaContinuityReason(raw: string | null | undefined, maxChars = 360) {
-  return sanitizeAlicizationStructuredInternalText(raw, maxChars, '')
+  const sanitized = sanitizeAlicizationStructuredInternalText(raw, maxChars, '')
+  return streamMetaFixedTemplateCuePattern.test(sanitized) ? '' : sanitized
 }
 
 const streamMetaStructuralTokenKeys = new Set([
@@ -101,6 +120,42 @@ const streamMetaVisibleTextKeys = new Set([
   'text',
 ])
 
+const streamMetaProjectStateNarrativeKeys = new Set([
+  'identity',
+  'currentPhase',
+  'preflightSummary',
+  'latestProgress',
+  'latestLandedProgress',
+  'landedProgressSummary',
+  'memoryClosureSummary',
+  'continuitySummary',
+  'primaryOpenLoop',
+  'openClosureSummary',
+  'nextClosureTarget',
+  'nextClosureTargetSummary',
+  'sameHerSelfLine',
+  'sameHerDriftRisk',
+  'sameHerDriftRiskSummary',
+  'sameHerHoldDetail',
+  'proactiveSameHerGap',
+  'proactiveSameHerGapSummary',
+  'continuityCue',
+  'preDialogueAwarenessLine',
+  'awarenessLine',
+  'companionHeadlineLine',
+  'companionBriefingLine',
+  'preDialogueAwarenessSummary',
+  'emotionalClosureSummary',
+])
+
+const streamMetaPreDialogueAwarenessNarrativeKeys = new Set([
+  'summaryLine',
+  'companionBriefingLine',
+  'companionNextClosureLine',
+  'awarenessLine',
+  'reasonPreview',
+])
+
 function isStreamMetaInternalGovernanceSegment(raw: string) {
   const normalized = raw.trim().toLowerCase()
   return normalized === 'memory-tuning-advice'
@@ -127,6 +182,156 @@ function sanitizeStreamMetaSummary(raw: string, maxChars: number) {
   return governanceRedacted.slice(0, Math.max(0, maxChars))
 }
 
+const streamMetaRuntimeSummaryBooleanKeys = new Set([
+  'speak',
+  'act',
+])
+
+const streamMetaRuntimeSummaryNumericKeys = new Set([
+  'initiative',
+  'coherence',
+  'continuity',
+  'companionship',
+  'truth',
+  'boundary',
+  'return',
+])
+
+const streamMetaRuntimeSummaryIdentifierKeys = new Set([
+  'dominant',
+  'phase',
+  'handoff',
+  'autonomy',
+  'visible',
+  'restraint',
+  'intent',
+  'motive',
+  'habit',
+])
+
+// Runtime summary identifiers intentionally permit only lowercase ASCII telemetry tokens.
+const streamMetaRuntimeSummaryIdentifierPattern = /^[a-z0-9][a-z0-9_.:/+-]*$/u
+const streamMetaRuntimeSummaryDecimalPattern = /^(?:0|[1-9]\d*)(?:\.\d+)?$/u
+const streamMetaCanonicalFullCrossModalBodyState = 'authority=body+face+motion+lipsync+voice | segment=locked'
+const streamMetaFullCrossModalAuthorityContext = 'same living segment together'
+const streamMetaLegacyFullCrossModalAuthorityTokens = [
+  'authority-body:yes',
+  'authority-face:yes',
+  'authority-motion:yes',
+  'authority-lipsync:yes',
+  'authority-voice:yes',
+] as const
+
+function normalizeStreamMetaFullCrossModalBodyState(raw: string) {
+  const normalized = raw.trim()
+  if (normalized === streamMetaCanonicalFullCrossModalBodyState)
+    return streamMetaCanonicalFullCrossModalBodyState
+
+  const segments = normalized
+    .split(/\s*\|\s*/u)
+    .map(segment => segment.trim())
+    .filter(Boolean)
+  if (
+    segments.length < streamMetaLegacyFullCrossModalAuthorityTokens.length
+    || segments.length > streamMetaLegacyFullCrossModalAuthorityTokens.length + 1
+  ) {
+    return null
+  }
+
+  const allowedSegments = new Set<string>([
+    ...streamMetaLegacyFullCrossModalAuthorityTokens,
+    streamMetaFullCrossModalAuthorityContext,
+  ])
+  if (segments.some(segment => !allowedSegments.has(segment)))
+    return null
+
+  return streamMetaLegacyFullCrossModalAuthorityTokens.every(token =>
+    segments.filter(segment => segment === token).length === 1,
+  )
+    ? streamMetaCanonicalFullCrossModalBodyState
+    : null
+}
+
+function sanitizeStreamMetaRuntimeSummary(
+  raw: string | null | undefined,
+  maxChars = 520,
+) {
+  if (typeof raw !== 'string')
+    return ''
+
+  const governanceRedacted = stripStreamMetaInternalGovernanceSummary(raw).trim()
+  if (
+    !governanceRedacted
+    || governanceRedacted.length > Math.max(0, maxChars)
+    || containsAlicizationFixedTemplateResidue(governanceRedacted)
+    || streamMetaFixedTemplateCuePattern.test(governanceRedacted)
+  ) {
+    return ''
+  }
+
+  const seenKeys = new Set<string>()
+  const sanitizedSegments: string[] = []
+  for (const rawSegment of governanceRedacted.split('|')) {
+    const segment = rawSegment.trim()
+    const separatorIndex = segment.indexOf('=')
+    if (
+      !segment
+      || separatorIndex <= 0
+      || segment.includes('=', separatorIndex + 1)
+    ) {
+      return ''
+    }
+
+    const key = segment.slice(0, separatorIndex).trim()
+    const value = segment.slice(separatorIndex + 1).trim()
+    if (!value || seenKeys.has(key))
+      return ''
+    seenKeys.add(key)
+
+    if (key === 'same-thread-continuation') {
+      if (value !== 'alive')
+        return ''
+    }
+    else if (streamMetaRuntimeSummaryBooleanKeys.has(key)) {
+      if (value !== 'true' && value !== 'false')
+        return ''
+    }
+    else if (streamMetaRuntimeSummaryNumericKeys.has(key)) {
+      const numericValue = Number(value)
+      if (
+        !streamMetaRuntimeSummaryDecimalPattern.test(value)
+        || !Number.isFinite(numericValue)
+        || numericValue < 0
+        || numericValue > 1
+      ) {
+        return ''
+      }
+    }
+    else if (streamMetaRuntimeSummaryIdentifierKeys.has(key)) {
+      if (!streamMetaRuntimeSummaryIdentifierPattern.test(value))
+        return ''
+    }
+    else if (key === 'emotion_closure') {
+      if (
+        value.length > 96
+        || /[|=\r\n]/u.test(value)
+        || containsAlicizationFixedTemplateResidue(value)
+        || streamMetaFixedTemplateCuePattern.test(value)
+      ) {
+        return ''
+      }
+    }
+    else {
+      return ''
+    }
+
+    sanitizedSegments.push(`${key}=${value}`)
+  }
+
+  const sanitized = sanitizedSegments.join(' | ')
+  return sanitized.length <= Math.max(0, maxChars) ? sanitized : ''
+}
+
 function isStreamMetaStructuralToken(key: string | undefined, raw: string) {
   const normalized = raw.trim()
   if (!normalized)
@@ -136,32 +341,102 @@ function isStreamMetaStructuralToken(key: string | undefined, raw: string) {
   return /^[\w:./+-]+$/u.test(normalized)
 }
 
-function sanitizeStreamMetaObject<T>(raw: T, maxChars = 520, key?: string): T {
+function isStreamMetaAuthorityCurrentBodyStatePath(path: readonly string[]) {
+  const normalizedPath = path.join('.')
+  return normalizedPath === 'currentConsciousFrame.selfContinuityAuthority.currentBodyState'
+    || normalizedPath === 'selfAuthority.currentBodyState'
+    || normalizedPath === 'runtimeSurface.perception.currentBodyState'
+}
+
+function sanitizeStreamMetaObject<T>(
+  raw: T,
+  maxChars = 520,
+  key?: string,
+  inheritedScope: StreamMetaSanitizationScope = 'default',
+  path: readonly string[] = [],
+): T {
+  const scope = key === 'projectState'
+    ? 'project-state'
+    : key === 'preDialogueAwareness'
+      ? 'pre-dialogue-awareness'
+      : inheritedScope
+
   if (typeof raw === 'string') {
+    if (
+      (scope === 'project-state' && key !== undefined && streamMetaProjectStateNarrativeKeys.has(key))
+      || (scope === 'pre-dialogue-awareness' && key !== undefined && streamMetaPreDialogueAwarenessNarrativeKeys.has(key))
+    ) {
+      return '' as T
+    }
+
+    if (isStreamMetaAuthorityCurrentBodyStatePath(path)) {
+      const normalizedFullCrossModalBodyState = normalizeStreamMetaFullCrossModalBodyState(raw)
+      if (normalizedFullCrossModalBodyState)
+        return normalizedFullCrossModalBodyState as T
+    }
+
     if (key === 'summary')
       return sanitizeStreamMetaSummary(raw, maxChars) as T
 
-    const preserveBoundaryText = key === 'source' || (key !== undefined && streamMetaVisibleTextKeys.has(key))
-    if (preserveBoundaryText && hasStreamMetaInternalGovernanceSegment(raw))
+    const visibleBoundaryText = key !== undefined && streamMetaVisibleTextKeys.has(key)
+    if (visibleBoundaryText) {
+      if (hasStreamMetaInternalGovernanceSegment(raw))
+        return '' as T
+      return raw.trim().slice(0, Math.max(0, maxChars)) as T
+    }
+
+    const preserveSourceText = key === 'source'
+    if (preserveSourceText && hasStreamMetaInternalGovernanceSegment(raw))
       return '' as T
 
-    return (isStreamMetaStructuralToken(key, raw)
-      || (preserveBoundaryText && !containsAlicizationFixedTemplateResidue(raw))
+    const sanitized = isStreamMetaStructuralToken(key, raw)
+      || (preserveSourceText && !containsAlicizationFixedTemplateResidue(raw))
       ? raw.trim().slice(0, Math.max(0, maxChars))
-      : sanitizeAlicizationStructuredInternalText(raw, maxChars)) as T
+      : sanitizeStreamMetaContinuityReason(raw, maxChars)
+    return (streamMetaFixedTemplateCuePattern.test(sanitized) ? '' : sanitized) as T
   }
   if (!raw || typeof raw !== 'object')
     return raw
-  if (Array.isArray(raw))
-    return raw.map(item => sanitizeStreamMetaObject(item, maxChars, key)) as T
+  if (Array.isArray(raw)) {
+    const sanitizedItems = raw.map(item => sanitizeStreamMetaObject(item, maxChars, key, scope, path))
+    return (key === 'reasonPreview'
+      ? sanitizedItems.filter(item => typeof item === 'string' && item.trim().length > 0)
+      : sanitizedItems) as T
+  }
 
   const sanitized: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (streamMetaInternalGovernanceKeys.has(key))
+  for (const [entryKey, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (streamMetaInternalGovernanceKeys.has(entryKey))
       continue
-    sanitized[key] = sanitizeStreamMetaObject(value, maxChars, key)
+    sanitized[entryKey] = sanitizeStreamMetaObject(value, maxChars, entryKey, scope, [...path, entryKey])
   }
   return sanitized as T
+}
+
+function sanitizeStreamMetaRuntimeDigest<T>(raw: T, maxChars = 520): T {
+  const sanitized = sanitizeStreamMetaObject(raw, maxChars)
+  if (
+    !raw
+    || typeof raw !== 'object'
+    || Array.isArray(raw)
+    || !sanitized
+    || typeof sanitized !== 'object'
+    || Array.isArray(sanitized)
+  ) {
+    return sanitized
+  }
+
+  if (!Object.hasOwn(raw, 'summary'))
+    return sanitized
+
+  const runtimeSummary = (raw as Record<string, unknown>).summary
+  return {
+    ...(sanitized as Record<string, unknown>),
+    summary: sanitizeStreamMetaRuntimeSummary(
+      typeof runtimeSummary === 'string' ? runtimeSummary : null,
+      maxChars,
+    ),
+  } as T
 }
 
 export function repairContinuitySourceTagsFromRuntimeDigest(input: {
@@ -904,7 +1179,7 @@ function readRuntimeProjectStateSameHerLivingLine(body: Pick<AlicizationChatMeta
   if (!carriesSameLivingLine)
     return null
 
-  return structuredMeasuredReturnInwardCarry
+  return null
 }
 
 function readRuntimeProjectEmotionalClosureSameHerLine(body: Pick<AlicizationChatMetaEvent, 'runtimeDigest'>) {
@@ -1003,7 +1278,7 @@ function readRuntimeProjectEmotionalClosureSameHerLine(body: Pick<AlicizationCha
     return projectStateEmotionalClosureCue
 
   if (carriesMeasuredReturnLivingLine || carriesSameHerMeasuredReturn)
-    return structuredMeasuredReturnInwardCarry
+    return null
 
   if (
     normalized.includes('repair-before-closeness')
@@ -1063,7 +1338,7 @@ function resolveRepairBeforeClosenessSameHerReason(
   if (!carriesExecutionCallbackRoomFirstDrift && !carriesExplicitRepairFirstRestraint)
     return null
 
-  return structuredRepairBeforeClosenessCallbackCarry
+  return null
 }
 
 function resolveResidentPresenceSnapshotFallback(
@@ -1106,106 +1381,6 @@ function resolveResidentPresenceSnapshotFallback(
       ? initiative.shouldSpeak
       : null,
   }
-}
-
-function buildContinuityGrowthCarry(body: Pick<AlicizationChatMetaEvent, 'digitalLifeSpine' | 'runtimeDigest'>) {
-  const sameHerInwardCarry = readSameHerInwardCarry(body) ?? ''
-  const inwardLine = typeof body.digitalLifeSpine?.memory?.personStateProjection?.selfContinuityAuthority?.inwardLine === 'string'
-    ? body.digitalLifeSpine.memory.personStateProjection.selfContinuityAuthority.inwardLine.trim()
-    : ''
-  const runtimeSameHerSelfLine = typeof body.runtimeDigest?.projectState?.sameHerSelfLine === 'string'
-    ? body.runtimeDigest.projectState.sameHerSelfLine.trim()
-    : ''
-  const runtimeSameHerDriftRisk = typeof body.runtimeDigest?.projectState?.sameHerDriftRisk === 'string'
-    ? body.runtimeDigest.projectState.sameHerDriftRisk.trim()
-    : ''
-  const continuityReason = typeof body.runtimeDigest?.projectState?.continuityCue === 'string'
-    ? body.runtimeDigest.projectState.continuityCue.trim()
-    : ''
-  const preflightSummary = typeof body.runtimeDigest?.projectState?.preflightSummary === 'string'
-    ? body.runtimeDigest.projectState.preflightSummary.trim()
-    : ''
-
-  return `${sameHerInwardCarry} ${inwardLine} ${runtimeSameHerSelfLine} ${runtimeSameHerDriftRisk} ${continuityReason} ${preflightSummary}`.toLowerCase()
-}
-
-function detectPhase1OpenGrowthFromText(raw: string) {
-  const growthCarry = raw.toLowerCase()
-  const carriesDesktopClosureThread
-    = growthCarry.includes('desktop closure')
-      || growthCarry.includes('runtime_personhood')
-      || growthCarry.includes('local_desktop_continuity')
-      || growthCarry.includes('phase1-route=desktop-life-loop')
-      || growthCarry.includes('same-digital-life-project-thread')
-  const carriesPhase1LivingSelf
-    = growthCarry.includes('same phase 1 digital life')
-      || growthCarry.includes('local-first digital life')
-      || growthCarry.includes('runtime_personhood')
-      || growthCarry.includes('project_state_review')
-      || growthCarry.includes('continuity_identity')
-      || growthCarry.includes('continuous her')
-      || growthCarry.includes('one continuous her')
-  const carriesStillOpenClosure
-    = growthCarry.includes('still live across scene hops')
-      || growthCarry.includes('some closure has already landed')
-      || growthCarry.includes('landed closure keeps growing')
-      || growthCarry.includes('landed_progress=present')
-      || growthCarry.includes('landed_progress=')
-      || growthCarry.includes('unfinished closure')
-      || growthCarry.includes('unresolved_closure=')
-      || growthCarry.includes('open_loop=present')
-      || growthCarry.includes('open_loop=')
-      || growthCarry.includes('still-open=')
-      || growthCarry.includes('open=memory continuity still needs stronger closure')
-      || growthCarry.includes('still need stronger')
-      || growthCarry.includes('still needs stronger')
-  const carriesMeasuredReturnContinuation
-    = growthCarry.includes('should stay quieter')
-      || growthCarry.includes('same living line')
-      || growthCarry.includes('continuity_line')
-      || growthCarry.includes('continuity_hold=measured_return')
-      || growthCarry.includes('direction=inward')
-      || growthCarry.includes('open_loop=')
-      || growthCarry.includes('still-open loop')
-      || growthCarry.includes('keep settling')
-      || growthCarry.includes('same thread')
-      || growthCarry.includes('same-thread')
-      || growthCarry.includes('next=')
-      || growthCarry.includes('unresolved=')
-  return (
-    (
-      growthCarry.includes('phase 1')
-      || growthCarry.includes('phase1-route=desktop-life-loop')
-      || growthCarry.includes('runtime_personhood')
-    )
-    && (
-      carriesDesktopClosureThread
-      || carriesPhase1LivingSelf
-    )
-    && (
-      carriesStillOpenClosure
-      || (carriesPhase1LivingSelf
-        && carriesMeasuredReturnContinuation
-        && (
-          growthCarry.includes('some closure already landed')
-          || growthCarry.includes('some closure has already landed')
-          || growthCarry.includes('verified_closure_progress')
-          || growthCarry.includes('landed_progress=present')
-          || growthCarry.includes('landed_progress=')
-          || growthCarry.includes('unfinished closure')
-          || growthCarry.includes('unresolved_closure=')
-          || growthCarry.includes('open_loop=present')
-          || growthCarry.includes('open_loop=')
-          || growthCarry.includes('still need stronger')
-          || growthCarry.includes('still needs stronger')
-          || growthCarry.includes('unresolved=')
-        ))
-    )
-    && (
-      carriesMeasuredReturnContinuation
-      || growthCarry.includes('stronger end-to-e')
-    )
-  )
 }
 
 function isProjectClosureReason(raw: string | null | undefined) {
@@ -1308,31 +1483,6 @@ function isSpecificMeasuredReturnSameHerAuthority(raw: string | null | undefined
     || normalized.includes('do not reopen from scratch')
 }
 
-function isSpecificMeasuredReturnSameHerHoldDetail(raw: string | null | undefined) {
-  if (typeof raw !== 'string' || !raw.trim())
-    return false
-
-  const normalized = raw.trim().toLowerCase()
-  const carriesNamedSameHerHold
-    = normalized.includes('continuity hold:')
-      || normalized.includes('generic project continuity hold')
-      || normalized.includes('continuity_hold=')
-  if (!carriesNamedSameHerHold)
-    return false
-
-  return isSpecificMeasuredReturnSameHerAuthority(normalized)
-}
-
-function isCanonicalRepairBeforeClosenessReason(raw: string | null | undefined) {
-  if (typeof raw !== 'string' || !raw.trim())
-    return false
-
-  const normalized = raw.trim().toLowerCase()
-  return normalized.includes('keep the callback on the same living line')
-    && normalized.includes('let repair settle first')
-    && normalized.includes('before widening closeness again')
-}
-
 function isCompactProjectRouteCarry(raw: string | null | undefined) {
   if (typeof raw !== 'string' || !raw.trim())
     return false
@@ -1341,41 +1491,6 @@ function isCompactProjectRouteCarry(raw: string | null | undefined) {
   return normalized.includes('same-digital-life-project-thread')
     && normalized.includes('phase1-route=desktop-life-loop')
     && normalized.includes('unresolved=')
-}
-
-function shouldMarkPhase1OpenGrowth(input: {
-  continuityReason: string | null | undefined
-  body: Pick<AlicizationChatMetaEvent, 'digitalLifeSpine' | 'runtimeDigest'>
-}) {
-  const continuityReason = typeof input.continuityReason === 'string'
-    ? input.continuityReason.trim()
-    : ''
-  if (isCompactProjectRouteCarry(continuityReason))
-    return true
-
-  if (continuityReason && detectPhase1OpenGrowthFromText(continuityReason))
-    return true
-
-  const growthCarry = buildContinuityGrowthCarry(input.body)
-  if (!detectPhase1OpenGrowthFromText(growthCarry))
-    return false
-
-  if (!continuityReason)
-    return true
-
-  return (
-    continuityReason.includes('same-digital-life-project-thread')
-    || continuityReason.includes('current project continuity has already landed')
-    || continuityReason.includes('same phase 1 digital life, some closure has already landed')
-    || isStructuredMeasuredReturnInwardCarry(continuityReason)
-    || (
-      isCanonicalRepairBeforeClosenessReason(continuityReason)
-      && (
-        typeof input.body.runtimeDigest?.projectState?.preflightSummary === 'string'
-        && input.body.runtimeDigest.projectState.preflightSummary.trim().length > 0
-      )
-    )
-  )
 }
 
 function resolvePreferredProjectContinuityCue(body: Pick<AlicizationChatMetaEvent, 'runtimeDigest' | 'digitalLifeSpine'>) {
@@ -1428,19 +1543,6 @@ function resolveContinuityReasonSummary(
   continuityTiming: string | null,
   companionshipMode?: string | null,
 ) {
-  const shouldPromotePlainLaneEmbodimentCarryToLoopSummary = (currentBodyState: string | null | undefined) => {
-    const normalized = typeof currentBodyState === 'string'
-      ? currentBodyState.trim().toLowerCase()
-      : ''
-    if (!normalized)
-      return false
-
-    return normalized.includes('lane=')
-      && normalized.includes('visible continuity still present but no longer fully cross-modal')
-      && !normalized.includes('living audio thread')
-      && !normalized.includes('resident body')
-      && !normalized.includes('same segment')
-  }
   const looksLikeSceneContaminatedSameHerReason = (value: string | null | undefined) => {
     if (typeof value !== 'string')
       return false
@@ -1466,15 +1568,9 @@ function resolveContinuityReasonSummary(
     authoritySummary: embodimentAuthoritySummary,
     currentBodyState: embodimentCurrentBodyState,
   }) || null
-  const embodimentClosureSummary = shouldPromotePlainLaneEmbodimentCarryToLoopSummary(embodimentCurrentBodyState)
-    ? (buildAlicizationEmbodimentLoopSummary({
-        authoritySummary: embodimentAuthoritySummary,
-        currentBodyState: embodimentCurrentBodyState,
-      }) || embodimentClosureReminder)
-    : embodimentClosureReminder
   const withEmbodimentClosure = (reason: string | null | undefined) => {
     const sanitizedReason = sanitizeStreamMetaContinuityReason(reason)
-    const sanitizedClosure = sanitizeStreamMetaContinuityReason(embodimentClosureSummary)
+    const sanitizedClosure = sanitizeStreamMetaContinuityReason(embodimentClosureReminder)
     if (sanitizedReason && sanitizedClosure)
       return `${sanitizedReason} | ${sanitizedClosure}`
     return sanitizedReason || sanitizedClosure || null
@@ -1582,8 +1678,7 @@ function resolveContinuityReasonSummary(
             ?? preferredProjectContinuityReason
             ?? runtimeProjectStateSameHerLivingLine
             ?? runtimeProjectEmotionalClosureSameHerLine
-            ?? normalizedSameHerInwardCarry
-            ?? structuredMeasuredReturnInwardCarry)
+            ?? normalizedSameHerInwardCarry)
       : preferredSameHerReason
     if (shouldPreferCanonicalMeasuredReturnProjectClosure && runtimeProjectStateSameHerLivingLine) {
       return withEmbodimentClosure(runtimeProjectStateSameHerLivingLine)
@@ -1902,51 +1997,6 @@ function resolveResidentPresenceSummary(body: Pick<AlicizationChatMetaEvent, 'di
     || (typeof body.digitalLifeSpine?.memory?.selfEvolution?.summary === 'string'
       && body.digitalLifeSpine.memory.selfEvolution.summary.trim()),
   )
-  const phase1GrowthContinuityAnchor = continuityReason
-    && (
-      continuityReason === explicitProjectContinuityCue
-      || continuityReason === runtimeProjectEmotionalClosureSameHerLine
-      || (
-        isCanonicalRepairBeforeClosenessReason(continuityReason)
-        && (
-          Boolean(explicitProjectContinuityCue)
-          || (typeof body.runtimeDigest?.projectState?.preflightSummary === 'string'
-            && body.runtimeDigest.projectState.preflightSummary.trim().length > 0)
-        )
-      )
-      || isCompactProjectRouteCarry(continuityReason)
-      || (
-        isSpecificMeasuredReturnSameHerHoldDetail(continuityReason)
-        && (
-          Boolean(explicitProjectContinuityCue)
-          || (typeof body.runtimeDigest?.projectState?.preflightSummary === 'string'
-            && body.runtimeDigest.projectState.preflightSummary.trim().length > 0)
-        )
-      )
-    )
-    ? (
-        continuityReason === explicitProjectContinuityCue || isCompactProjectRouteCarry(continuityReason)
-          ? continuityReason
-          : isCanonicalRepairBeforeClosenessReason(continuityReason)
-            ? explicitProjectContinuityCue
-            ?? (typeof body.runtimeDigest?.projectState?.preflightSummary === 'string'
-              ? body.runtimeDigest.projectState.preflightSummary.trim()
-              : null)
-            ?? continuityReason
-            : explicitProjectContinuityCue
-              ?? (typeof body.runtimeDigest?.projectState?.preflightSummary === 'string'
-                ? body.runtimeDigest.projectState.preflightSummary.trim()
-                : null)
-              ?? continuityReason
-      )
-    : null
-  const projectGrowthSummary = phase1GrowthContinuityAnchor
-    && shouldMarkPhase1OpenGrowth({
-      continuityReason: phase1GrowthContinuityAnchor,
-      body,
-    })
-    ? 'phase1-open'
-    : null
   const inwardLine = typeof body.digitalLifeSpine?.memory?.personStateProjection?.selfContinuityAuthority?.inwardLine === 'string'
     ? body.digitalLifeSpine.memory.personStateProjection.selfContinuityAuthority.inwardLine.trim()
     : ''
@@ -2048,7 +2098,6 @@ function resolveResidentPresenceSummary(body: Pick<AlicizationChatMetaEvent, 'di
     preferredStyle ? `style=${preferredStyle}` : null,
     typeof shouldSpeak === 'boolean' ? `speak=${shouldSpeak ? 'true' : 'false'}` : null,
     preferredTiming ? `timing=${preferredTiming}` : null,
-    projectGrowthSummary ? `growth=${projectGrowthSummary}` : null,
     sanitizedPreferredContinuityReason ? `reason=${sanitizedPreferredContinuityReason}` : null,
     continuityLine ? `line=${continuityLine}` : null,
   ].filter((value): value is string => Boolean(value)).join(' | ') || null
@@ -2211,6 +2260,20 @@ function buildEffectiveProjectStateForChatMeta(input: {
   if (!runtimeProjectState && !spineProjectState)
     return null
 
+  const {
+    latestProgress: _runtimeLatestProgress,
+    landedProgressSummary: _runtimeLandedProgressSummary,
+    openClosureSummary: _runtimeOpenClosureSummary,
+    nextClosureTargetSummary: _runtimeNextClosureTargetSummary,
+    ...runtimeProjectStateWithoutLegacyAliases
+  } = runtimeProjectState ?? {}
+  const {
+    latestProgress: _spineLatestProgress,
+    landedProgressSummary: _spineLandedProgressSummary,
+    openClosureSummary: _spineOpenClosureSummary,
+    nextClosureTargetSummary: _spineNextClosureTargetSummary,
+    ...spineProjectStateWithoutLegacyAliases
+  } = spineProjectState ?? {}
   const runtimeEmotionalClosureCue = readStringValue(runtimeProjectState?.emotionalClosureCue).trim()
   const spineEmotionalClosureCue = readStringValue(spineProjectState?.emotionalClosureCue).trim()
   const runtimeEmotionalClosureSummary = readStringValue(runtimeProjectState?.emotionalClosureSummary).trim()
@@ -2241,28 +2304,8 @@ function buildEffectiveProjectStateForChatMeta(input: {
   ).trim()
   const runtimeContinuityCue = readStringValue(runtimeProjectState?.continuityCue).trim()
   const spineContinuityCue = readStringValue(spineProjectState?.continuityCue).trim()
-  const runtimeLatestProgress = readStringValue(runtimeProjectState?.latestProgress).trim()
-  const spineLatestProgress = readStringValue(spineProjectState?.latestProgress).trim()
   const runtimeLatestLandedProgress = readStringValue(runtimeProjectState?.latestLandedProgress).trim()
   const spineLatestLandedProgress = readStringValue(spineProjectState?.latestLandedProgress).trim()
-  const runtimeLandedProgressSummary = readStringValue(
-    (runtimeProjectState as { landedProgressSummary?: unknown } | null)?.landedProgressSummary,
-  ).trim()
-  const spineLandedProgressSummary = readStringValue(
-    (spineProjectState as { landedProgressSummary?: unknown } | null)?.landedProgressSummary,
-  ).trim()
-  const runtimeOpenClosureSummary = readStringValue(
-    (runtimeProjectState as { openClosureSummary?: unknown } | null)?.openClosureSummary,
-  ).trim()
-  const spineOpenClosureSummary = readStringValue(
-    (spineProjectState as { openClosureSummary?: unknown } | null)?.openClosureSummary,
-  ).trim()
-  const runtimeNextClosureTargetSummary = readStringValue(
-    (runtimeProjectState as { nextClosureTargetSummary?: unknown } | null)?.nextClosureTargetSummary,
-  ).trim()
-  const spineNextClosureTargetSummary = readStringValue(
-    (spineProjectState as { nextClosureTargetSummary?: unknown } | null)?.nextClosureTargetSummary,
-  ).trim()
   const runtimeSameHerDriftRiskSummary = readStringValue(
     (runtimeProjectState as { sameHerDriftRiskSummary?: unknown } | null)?.sameHerDriftRiskSummary,
   ).trim()
@@ -2277,21 +2320,13 @@ function buildEffectiveProjectStateForChatMeta(input: {
       || readStringValue(spineProjectState?.currentPhase).trim()
   const effectiveLatestLandedProgress
     = runtimeLatestLandedProgress
-      || runtimeLatestProgress
-      || runtimeLandedProgressSummary
       || spineLatestLandedProgress
-      || spineLatestProgress
-      || spineLandedProgressSummary
   const effectivePrimaryOpenLoop
     = readStringValue(runtimeProjectState?.primaryOpenLoop).trim()
-      || runtimeOpenClosureSummary
       || readStringValue(spineProjectState?.primaryOpenLoop).trim()
-      || spineOpenClosureSummary
   const effectiveNextClosureTarget
     = readStringValue(runtimeProjectState?.nextClosureTarget).trim()
-      || runtimeNextClosureTargetSummary
       || readStringValue(spineProjectState?.nextClosureTarget).trim()
-      || spineNextClosureTargetSummary
   const effectiveSameHerDriftRisk
     = readStringValue(runtimeProjectState?.sameHerDriftRisk).trim()
       || runtimeSameHerDriftRiskSummary
@@ -2310,9 +2345,9 @@ function buildEffectiveProjectStateForChatMeta(input: {
           companionBriefingLine: runtimeCompanionBriefingLine,
           preDialogueAwarenessSummary: runtimePreDialogueAwarenessSummary,
           preflightSummary: readStringValue(runtimeProjectState.preflightSummary).trim(),
-          landedProgressSummary: effectiveLatestLandedProgress,
-          openClosureSummary: effectivePrimaryOpenLoop,
-          nextClosureTargetSummary: effectiveNextClosureTarget,
+          latestLandedProgress: effectiveLatestLandedProgress,
+          primaryOpenLoop: effectivePrimaryOpenLoop,
+          nextClosureTarget: effectiveNextClosureTarget,
           emotionalClosureSummary: runtimeEmotionalClosureSummary || runtimeEmotionalClosureCue,
           sameHerDriftRiskSummary: effectiveSameHerDriftRisk,
           sameHerSelfLine: readStringValue(runtimeProjectState.sameHerSelfLine).trim(),
@@ -2327,9 +2362,9 @@ function buildEffectiveProjectStateForChatMeta(input: {
           companionBriefingLine: spineCompanionBriefingLine,
           preDialogueAwarenessSummary: spinePreDialogueAwarenessSummary,
           preflightSummary: readStringValue(spineProjectState.preflightSummary).trim(),
-          landedProgressSummary: effectiveLatestLandedProgress,
-          openClosureSummary: effectivePrimaryOpenLoop,
-          nextClosureTargetSummary: effectiveNextClosureTarget,
+          latestLandedProgress: effectiveLatestLandedProgress,
+          primaryOpenLoop: effectivePrimaryOpenLoop,
+          nextClosureTarget: effectiveNextClosureTarget,
           emotionalClosureSummary: spineEmotionalClosureSummary || spineEmotionalClosureCue,
           sameHerDriftRiskSummary: effectiveSameHerDriftRisk,
           sameHerSelfLine: readStringValue(spineProjectState.sameHerSelfLine).trim(),
@@ -2360,8 +2395,8 @@ function buildEffectiveProjectStateForChatMeta(input: {
   ) ?? null
 
   return {
-    ...spineProjectState,
-    ...runtimeProjectState,
+    ...spineProjectStateWithoutLegacyAliases,
+    ...runtimeProjectStateWithoutLegacyAliases,
     preflightSummary:
       readStringValue(runtimeProjectState?.preflightSummary).trim()
       || readStringValue(spineProjectState?.preflightSummary).trim()
@@ -2373,10 +2408,6 @@ function buildEffectiveProjectStateForChatMeta(input: {
     currentPhase:
       readStringValue(runtimeProjectState?.currentPhase).trim()
       || readStringValue(spineProjectState?.currentPhase).trim()
-      || null,
-    latestProgress:
-      runtimeLatestProgress
-      || spineLatestProgress
       || null,
     latestLandedProgress:
       effectiveLatestLandedProgress
@@ -3234,15 +3265,15 @@ export function buildAlicizationChatMetaPayload(input: {
     turnId: input.turnId,
     governance: input.governance,
     visibleReplyExecution: input.visibleReplyExecution ?? null,
-    projectState: sanitizeStreamMetaObject(projectState),
-    preDialogueAwareness: sanitizeStreamMetaObject(preDialogueAwareness),
+    projectState: sanitizeStreamMetaObject(projectState, 520, 'projectState'),
+    preDialogueAwareness: sanitizeStreamMetaObject(preDialogueAwareness, 520, 'preDialogueAwareness'),
     embodiment: sanitizeStreamMetaObject(repairedEmbodiment),
     embodimentScript: sanitizeStreamMetaObject(repairedEmbodimentScript),
     speechTimeline: sanitizeStreamMetaObject(repairedSpeechTimeline),
     digitalLife: sanitizeStreamMetaObject(repairedDigitalLife),
     digitalLifeSpine: sanitizeStreamMetaObject(repairedDigitalLifeSpine),
     residentPerformance: sanitizeStreamMetaObject(input.residentPerformance ?? null),
-    runtimeDigest: sanitizeStreamMetaObject(effectiveRuntimeDigest),
+    runtimeDigest: sanitizeStreamMetaRuntimeDigest(effectiveRuntimeDigest),
   } satisfies AlicizationChatMetaEvent
 }
 
@@ -3310,41 +3341,12 @@ export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMeta
     runtimeDigest: body.runtimeDigest,
   })
   const continuityTiming = resolveContinuityTiming(body)
-  const embodimentClosureReminder = describeAlicizationEmbodimentClosureReminder({
-    authoritySummary: body.runtimeDigest?.currentConsciousFrame?.selfContinuityAuthority?.authoritySummary ?? null,
-    currentBodyState: body.runtimeDigest?.currentConsciousFrame?.selfContinuityAuthority?.currentBodyState ?? null,
-  }) || null
   const continuityReasonSummary = resolveContinuityReasonSummary(
     body,
     continuityTiming,
     voiceCompanionshipHints.companionshipMode,
   )
-  const explicitProjectContinuityCue = resolvePreferredProjectContinuityCue(body)
-  const projectGrowthSummary = continuityReasonSummary
-    && !embodimentClosureReminder
-    && shouldMarkPhase1OpenGrowth({
-      continuityReason: continuityReasonSummary,
-      body,
-    })
-    && (
-      continuityReasonSummary === explicitProjectContinuityCue
-      || isCompactProjectRouteCarry(continuityReasonSummary)
-      || isSameHerProjectClosureLine(continuityReasonSummary)
-      || isStructuredMeasuredReturnInwardCarry(continuityReasonSummary)
-      || continuityReasonSummary.includes('keep the next return measured-return')
-      || continuityReasonSummary.includes('leave this same living line inward for now')
-      || continuityReasonSummary.includes('open_loop=')
-      || continuityReasonSummary.includes('landed_progress=')
-    )
-    ? 'phase1-open'
-    : null
   const continuityReasonWithGrowth = continuityReasonSummary
-    ? projectGrowthSummary
-      ? `${continuityReasonSummary} | growth=${projectGrowthSummary}`
-      : continuityReasonSummary
-    : projectGrowthSummary
-      ? `growth=${projectGrowthSummary}`
-      : null
   const shouldPreferRepairFirstConflictFallback = shouldPreferFreshRepairFirstSummaryFallback({
     lastSegmentResidentMode: lastSegment?.rendererHints?.residentMode ?? null,
     embodimentResidentMode: body.embodiment?.rendererHints?.residentMode ?? null,
@@ -4110,19 +4112,19 @@ export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMeta
     runtimeDigestActiveLoopInitiativeBudget: body.runtimeDigest?.activeLoop?.initiativeBudget ?? null,
     runtimeDigestActiveLoopCoherence: body.runtimeDigest?.activeLoop?.coherence ?? null,
     runtimeDigestActiveLoopObservationHeavy: body.runtimeDigest?.activeLoop?.observationHeavy ?? null,
-    runtimeDigestProjectPreflightSummary: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.projectState?.preflightSummary ?? null),
-    runtimeDigestProjectCurrentPhase: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.projectState?.currentPhase ?? null),
-    runtimeDigestProjectMemoryClosureSummary: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.projectState?.memoryClosureSummary ?? null),
-    runtimeDigestProjectPrimaryOpenLoop: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.projectState?.primaryOpenLoop ?? null),
-    runtimeDigestProjectNextClosureTarget: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.projectState?.nextClosureTarget ?? null),
+    runtimeDigestProjectPreflightSummary: '',
+    runtimeDigestProjectCurrentPhase: '',
+    runtimeDigestProjectMemoryClosureSummary: '',
+    runtimeDigestProjectPrimaryOpenLoop: '',
+    runtimeDigestProjectNextClosureTarget: '',
     runtimeDigestProjectContinuityArcStage: body.runtimeDigest?.projectState?.continuityArcStage ?? null,
     runtimeDigestProjectContinuityPreferredTiming: body.runtimeDigest?.projectState?.continuityPreferredTiming ?? null,
-    runtimeDigestProjectContinuityCue: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.projectState?.continuityCue ?? null),
+    runtimeDigestProjectContinuityCue: '',
     runtimeDigestCurrentConsciousFrameFocusAnchor: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.currentConsciousFrame?.focusAnchor ?? null),
     runtimeDigestCurrentConsciousFrameContinuityArcStage: body.runtimeDigest?.currentConsciousFrame?.continuityArcStage ?? null,
     runtimeDigestCurrentConsciousFrameContinuityPreferredTiming: body.runtimeDigest?.currentConsciousFrame?.continuityPreferredTiming ?? null,
     runtimeDigestCurrentConsciousFrameReasonTags: body.runtimeDigest?.currentConsciousFrame?.reasonTags ?? null,
-    runtimeDigestSummary: sanitizeStreamMetaContinuityReason(body.runtimeDigest?.summary ?? null),
+    runtimeDigestSummary: sanitizeStreamMetaRuntimeSummary(body.runtimeDigest?.summary ?? null),
   })
 }
 

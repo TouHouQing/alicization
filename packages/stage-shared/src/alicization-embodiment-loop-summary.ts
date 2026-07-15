@@ -162,16 +162,13 @@ export function buildAlicizationEmbodimentLoopSummary(input: {
     authoritySummary: normalizeSummaryText(input.authoritySummary),
     currentBodyState: normalizeSummaryText(input.currentBodyState),
   })
-
+  const closure = closureHeadline || closureReminder
   return [
-    closureHeadline,
-    closureReminder,
+    closure,
     face,
     voice,
     lipsync,
     motion,
-    normalizeSummaryText(input.authoritySummary),
-    normalizeSummaryText(input.currentBodyState),
   ]
     .filter((value): value is string => Boolean(value))
     .join(' | ')
