@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -57,6 +59,29 @@ function createAlicizationBridgeStub(overrides?: Partial<Parameters<typeof setAl
 }
 
 describe('alicization mind replay store', () => {
+  it('uses only the three-state replay fact contract in the production store', () => {
+    const source = readFileSync(new URL('./alicization-mind-replay.ts', import.meta.url), 'utf8')
+    const legacyRowKeys = [
+      'project_state_review_hit_rate',
+      'emotional_closure_preserved_rate',
+      'emotional_closure_rewrite_applied_rate',
+      'emotional_closure_fully_closed_rate',
+      'self_authority_preserved_rate',
+      'self_authority_rewrite_applied_rate',
+      'self_authority_fully_carried_rate',
+      'project_state_audit_preserved_rate',
+      'project_state_audit_rewrite_applied_rate',
+      'project_state_audit_fully_carried_rate',
+    ]
+
+    expect(source).toContain('visibleReplyValidationStatus')
+    expect(source).toContain('projectStateEvidenceStatus')
+    expect(source).toContain('contentCompleteTurnCount')
+    expect(source).not.toMatch(/\b(?:preservedIntoRewrite|rewriteClosureApplied|preservedTurnCount|rewriteAppliedTurnCount|fullyClosed|fullyCarried)\b/u)
+    for (const legacyRowKey of legacyRowKeys)
+      expect(source).not.toContain(`'${legacyRowKey}'`)
+  })
+
   beforeEach(() => {
     setActivePinia(createPinia())
     clearAlicizationBridge()
@@ -527,11 +552,14 @@ describe('alicization mind replay store', () => {
         emotionalClosureSummary: {
           comparedTurnCount: 3,
           activeCueTurnCount: 3,
-          preservedTurnCount: 2,
-          rewriteAppliedTurnCount: 1,
-          fullyClosedTurnCount: 1,
           lowPressureRequiredTurnCount: 2,
           antiRestartRequiredTurnCount: 1,
+          validationStatus: {
+            knownTurnCount: 2,
+            approvedTurnCount: 1,
+            blockedTurnCount: 1,
+            unknownTurnCount: 1,
+          },
         },
       },
     })
@@ -648,39 +676,43 @@ describe('alicization mind replay store', () => {
       {
         key: 'emotional_closure_compared_turn_count',
         value: 3,
-        detail: '3 replay turn(s) carried continuity emotional closure audit.',
+        detail: '已比较 3 个含情绪收束审计的 replay turn。',
       },
       {
         key: 'emotional_closure_active_cue_rate',
         value: 1,
-        detail: 'activeCue=1 (3/3)',
-      },
-      {
-        key: 'emotional_closure_preserved_rate',
-        value: 0.67,
-        detail: 'preservedIntoRewrite=0.67 (2/3)',
-      },
-      {
-        key: 'emotional_closure_rewrite_applied_rate',
-        value: 0.33,
-        detail: 'rewriteClosureApplied=0.33 (1/3)',
-      },
-      {
-        key: 'emotional_closure_fully_closed_rate',
-        value: 0.33,
-        detail: 'drift=emotionalClosureDrift | fullyClosed=0.33 (1/3)',
+        detail: '有效提示覆盖率=1 (3/3)',
       },
       {
         key: 'emotional_closure_low_pressure_required_rate',
         value: 0.67,
-        detail: 'lowPressureRequired=0.67 (2/3) | checks whether the continuity return still needs a lower-pressure landing instead of widening too fast.',
+        detail: '低压力要求率=0.67 (2/3)',
       },
       {
         key: 'emotional_closure_anti_restart_required_rate',
         value: 0.33,
-        detail: 'antiRestartRequired=0.33 (1/3) | checks whether the continuity return still must avoid reopening from scratch.',
+        detail: '避免重新开始要求率=0.33 (1/3)',
+      },
+      {
+        key: 'emotional_closure_validation_approved_rate',
+        value: 0.5,
+        detail: '可见回复校验通过率=0.5 (1/2，分母为已知状态)',
+      },
+      {
+        key: 'emotional_closure_validation_blocked_rate',
+        value: 0.5,
+        detail: '可见回复校验阻断率=0.5 (1/2，分母为已知状态)',
+      },
+      {
+        key: 'emotional_closure_validation_unknown_rate',
+        value: 0.33,
+        detail: '可见回复校验未知率=0.33 (1/3，分母为全部比较 turn)',
       },
     ])
+    const emotionalClosureRowKeys = store.benchmarkEmotionalClosureRows.map(row => row.key)
+    expect(emotionalClosureRowKeys).not.toContain('emotional_closure_preserved_rate')
+    expect(emotionalClosureRowKeys).not.toContain('emotional_closure_rewrite_applied_rate')
+    expect(emotionalClosureRowKeys).not.toContain('emotional_closure_fully_closed_rate')
     expect(store.benchmarkPreDialogueBriefingRows).toEqual([
       {
         key: 'pre_dialogue_briefing_compared_turn_count',
@@ -1454,7 +1486,7 @@ describe('alicization mind replay store', () => {
     ])
   })
 
-  it('surfaces cross-modal embodiment repair reasons in same-her lane gap rows', () => {
+  it('surfaces cross-modal embodiment repair reasons in identity-continuity', () => {
     const store = useAlicizationMindReplayStore()
     store.benchmarkReport = {
       packId: 'sampled-humanlike-memory-v1',
@@ -2133,7 +2165,7 @@ describe('alicization mind replay store', () => {
     expect(store.selectedBenchmarkPackId).toBe('final-humanlike-memory-v1')
   })
 
-  it('summarizes real desktop same-her proof without treating dataset closure as runtime closure', async () => {
+  it('summarizes real desktop identity-continuity', async () => {
     const runReplayBenchmark = vi.fn().mockResolvedValue({
       packId: 'sampled-humanlike-memory-v1',
       ranAt: 1_700_000_000_000,
@@ -2331,7 +2363,7 @@ describe('alicization mind replay store', () => {
     ])
   })
 
-  it('marks real desktop same-her proof closed only when runtime decision-trace provenance is complete', async () => {
+  it('marks real desktop identity-continuity', async () => {
     const runReplayBenchmark = vi.fn().mockResolvedValue({
       packId: 'sampled-humanlike-memory-v1',
       ranAt: 1_700_000_000_000,
@@ -2835,7 +2867,7 @@ describe('alicization mind replay store', () => {
     ])
   })
 
-  it('surfaces self-authority replay benchmark rows when same-her audit is present', () => {
+  it('uses null validation rates when self-authority has no known validation turns', () => {
     const store = useAlicizationMindReplayStore()
     store.benchmarkReport = {
       packId: 'sampled-humanlike-memory-v1',
@@ -2865,9 +2897,13 @@ describe('alicization mind replay store', () => {
           comparedTurnCount: 2,
           authoritySummaryTurnCount: 2,
           closenessPostureTurnCount: 2,
-          preservedTurnCount: 1,
-          rewriteAppliedTurnCount: 1,
-          fullyCarriedTurnCount: 1,
+          contentCompleteTurnCount: 1,
+          validationStatus: {
+            knownTurnCount: 0,
+            approvedTurnCount: 0,
+            blockedTurnCount: 0,
+            unknownTurnCount: 2,
+          },
         },
       },
       quality: [],
@@ -2881,13 +2917,30 @@ describe('alicization mind replay store', () => {
         value: 2,
       }),
       expect.objectContaining({
-        key: 'self_authority_fully_carried_rate',
+        key: 'self_authority_content_complete_rate',
+        value: 0.5,
+      }),
+      expect.objectContaining({
+        key: 'self_authority_validation_approved_rate',
+        value: null,
+      }),
+      expect.objectContaining({
+        key: 'self_authority_validation_blocked_rate',
+        value: null,
+      }),
+      expect.objectContaining({
+        key: 'self_authority_validation_unknown_rate',
+        value: 1,
       }),
     ]))
-    expect(store.benchmarkSelfAuthorityRows.find(row => row.key === 'self_authority_fully_carried_rate')?.detail).toContain('drift=selfAuthorityDrift')
+    const selfAuthorityRowKeys = store.benchmarkSelfAuthorityRows.map(row => row.key)
+    expect(selfAuthorityRowKeys).not.toContain('self_authority_preserved_rate')
+    expect(selfAuthorityRowKeys).not.toContain('self_authority_rewrite_applied_rate')
+    expect(selfAuthorityRowKeys).not.toContain('self_authority_fully_carried_rate')
+    expect(store.benchmarkSelfAuthorityRows.find(row => row.key === 'self_authority_validation_approved_rate')?.detail).toContain('n/a (0/0')
   })
 
-  it('surfaces project-state audit replay benchmark rows when same-her continuity audit is present', () => {
+  it('separates known and unknown denominators for project-state validation and evidence rows', () => {
     const store = useAlicizationMindReplayStore()
     store.benchmarkReport = {
       packId: 'sampled-humanlike-memory-v1',
@@ -2915,21 +2968,35 @@ describe('alicization mind replay store', () => {
         emotionalClosureSummary: null,
         selfAuthoritySummary: null,
         projectStateAuditSummary: {
-          comparedTurnCount: 2,
-          sameHerSummaryTurnCount: 2,
-          sameHerSelfLineTurnCount: 1,
-          sameHerHoldDetailTurnCount: 1,
-          continuityArcStageTurnCount: 1,
-          continuityCueTurnCount: 1,
-          landedProgressTurnCount: 1,
-          openClosureTurnCount: 1,
-          preDialogueAwarenessTurnCount: 1,
-          continuitySummaryTurnCount: 1,
-          embodimentClosureTurnCount: 1,
-          preDialogueClosureTurnCount: 1,
-          preservedTurnCount: 1,
-          rewriteAppliedTurnCount: 1,
-          fullyCarriedTurnCount: 1,
+          comparedTurnCount: 4,
+          sameHerSummaryTurnCount: 4,
+          sameHerSelfLineTurnCount: 2,
+          sameHerHoldDetailTurnCount: 2,
+          continuityArcStageTurnCount: 2,
+          continuityCueTurnCount: 2,
+          currentPhaseTurnCount: 3,
+          landedProgressTurnCount: 3,
+          openClosureTurnCount: 2,
+          nextClosureTargetTurnCount: 2,
+          emotionalClosureTurnCount: 2,
+          preDialogueAwarenessTurnCount: 3,
+          richPreDialogueAwarenessTurnCount: 2,
+          continuitySummaryTurnCount: 2,
+          embodimentClosureTurnCount: 2,
+          preDialogueClosureTurnCount: 2,
+          contentCompleteTurnCount: 2,
+          validationStatus: {
+            knownTurnCount: 2,
+            approvedTurnCount: 1,
+            blockedTurnCount: 1,
+            unknownTurnCount: 2,
+          },
+          evidenceStatus: {
+            knownTurnCount: 2,
+            presentTurnCount: 1,
+            missingTurnCount: 1,
+            unknownTurnCount: 2,
+          },
         },
       },
       quality: [],
@@ -2940,10 +3007,11 @@ describe('alicization mind replay store', () => {
     expect(store.benchmarkProjectStateAuditRows).toEqual(expect.arrayContaining([
       expect.objectContaining({
         key: 'project_state_audit_compared_turn_count',
-        value: 2,
+        value: 4,
       }),
       expect.objectContaining({
-        key: 'project_state_audit_fully_carried_rate',
+        key: 'project_state_audit_content_complete_rate',
+        value: 0.5,
       }),
       expect.objectContaining({
         key: 'project_state_audit_landed_progress_rate',
@@ -2966,14 +3034,44 @@ describe('alicization mind replay store', () => {
       expect.objectContaining({
         key: 'project_state_audit_continuity_cue_rate',
       }),
+      expect.objectContaining({
+        key: 'project_state_audit_validation_approved_rate',
+        value: 0.5,
+      }),
+      expect.objectContaining({
+        key: 'project_state_audit_validation_blocked_rate',
+        value: 0.5,
+      }),
+      expect.objectContaining({
+        key: 'project_state_audit_validation_unknown_rate',
+        value: 0.5,
+      }),
+      expect.objectContaining({
+        key: 'project_state_audit_evidence_present_rate',
+        value: 0.5,
+      }),
+      expect.objectContaining({
+        key: 'project_state_audit_evidence_missing_rate',
+        value: 0.5,
+      }),
+      expect.objectContaining({
+        key: 'project_state_audit_evidence_unknown_rate',
+        value: 0.5,
+      }),
     ]))
-    expect(store.benchmarkProjectStateAuditRows.find(row => row.key === 'project_state_audit_fully_carried_rate')?.detail).toContain('drift=projectStateAuditDrift')
-    expect(store.benchmarkProjectStateAuditRows.find(row => row.key === 'project_state_audit_pre_dialogue_awareness_rate')?.detail).toContain('preDialogueAwareness=0.5 (1/2)')
-    expect(store.benchmarkProjectStateAuditRows.find(row => row.key === 'project_state_audit_continuity_summary_rate')?.detail).toContain('continuitySummary=0.5 (1/2)')
-    expect(store.benchmarkProjectStateAuditRows.find(row => row.key === 'project_state_audit_continuity_summary_rate')?.detail).toContain('continuity drift boundary')
-    expect(store.benchmarkProjectStateAuditRows.find(row => row.key === 'project_state_audit_same_her_hold_detail_rate')?.detail).toContain('sameHerHoldDetail=0.5 (1/2)')
-    expect(store.benchmarkProjectStateAuditRows.find(row => row.key === 'project_state_audit_continuity_arc_stage_rate')?.detail).toContain('continuityArcStage=0.5 (1/2)')
-    expect(store.benchmarkProjectStateAuditRows.find(row => row.key === 'project_state_audit_continuity_cue_rate')?.detail).toContain('continuityCue=0.5 (1/2)')
+    const projectStateAuditRowKeys = store.benchmarkProjectStateAuditRows.map(row => row.key)
+    expect(projectStateAuditRowKeys).not.toContain('project_state_audit_preserved_rate')
+    expect(projectStateAuditRowKeys).not.toContain('project_state_audit_rewrite_applied_rate')
+    expect(projectStateAuditRowKeys).not.toContain('project_state_audit_fully_carried_rate')
+    expect(store.benchmarkProjectStateAuditRows.find(row => row.key === 'project_state_audit_validation_approved_rate')?.detail).toContain('1/2，分母为已知状态')
+    expect(store.benchmarkProjectStateAuditRows.find(row => row.key === 'project_state_audit_validation_unknown_rate')?.detail).toContain('2/4，分母为全部比较 turn')
+    expect(store.benchmarkProjectStateAuditRows.find(row => row.key === 'project_state_audit_evidence_present_rate')?.detail).toContain('1/2，分母为已知状态')
+    expect(store.benchmarkProjectStateAuditRows.find(row => row.key === 'project_state_audit_evidence_unknown_rate')?.detail).toContain('2/4，分母为全部比较 turn')
+    expect(store.benchmarkProjectStateAuditRows.find(row => row.key === 'project_state_audit_pre_dialogue_awareness_rate')?.detail).toContain('3/4')
+    expect(store.benchmarkProjectStateAuditRows.find(row => row.key === 'project_state_audit_continuity_summary_rate')?.detail).toContain('2/4')
+    expect(store.benchmarkProjectStateAuditRows.find(row => row.key === 'project_state_audit_same_her_hold_detail_rate')?.detail).toContain('2/4')
+    expect(store.benchmarkProjectStateAuditRows.find(row => row.key === 'project_state_audit_continuity_arc_stage_rate')?.detail).toContain('2/4')
+    expect(store.benchmarkProjectStateAuditRows.find(row => row.key === 'project_state_audit_continuity_cue_rate')?.detail).toContain('2/4')
   })
 
   it('routes project-state and briefing drift triage back to the full pre-dialogue same-her boundary chain', () => {
@@ -3016,7 +3114,7 @@ describe('alicization mind replay store', () => {
     ]))
   })
 
-  it('prefers self-authority drift diagnosis when the same-her self line was not fully preserved into rewrite', async () => {
+  it('reports failing-turn validation and evidence facts without generating reply advice', async () => {
     const listMindTurnEvents = vi.fn().mockResolvedValue([])
     const listMemoryDecisionTraces = vi.fn().mockResolvedValue([])
     const runReplayBenchmark = vi.fn().mockResolvedValue({
@@ -3044,11 +3142,15 @@ describe('alicization mind replay store', () => {
         dimensions: [{
           key: 'sameHerSelfAuthority',
           status: 'fail',
-          applicableCount: 1,
+          applicableCount: 3,
           passedCount: 0,
           minimumPassingRatio: 0.75,
           passedRatio: 0,
-          failingTurnIds: ['turn-self-authority-drift-1'],
+          failingTurnIds: [
+            'turn-self-authority-blocked',
+            'turn-self-authority-unknown',
+            'turn-self-authority-approved',
+          ],
         }],
         standards: {
           eraSelectionQuality: 'pass',
@@ -3075,26 +3177,68 @@ describe('alicization mind replay store', () => {
         },
       },
       telemetryPersisted: true,
-      failingTurnSet: [{
-        turnId: 'turn-self-authority-drift-1',
-        userText: '别让她像是重新变成另一个人',
-        failingDimensions: ['sameHerSelfAuthority'],
-        tracePointer: {
-          kind: 'decision-trace',
-          packId: 'sampled-humanlike-memory-v1',
-          turnId: 'turn-self-authority-drift-1',
-          decisionTraceId: 'mind:self-authority-drift:1',
-          sessionId: 'session-self-authority-drift-1',
-          activeThreadId: 'thread-self-authority-drift-1',
+      failingTurnSet: [
+        {
+          turnId: 'turn-self-authority-blocked',
+          userText: '显示被校验阻断的事实',
+          failingDimensions: ['sameHerSelfAuthority'],
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-self-authority-blocked',
+            decisionTraceId: 'mind:self-authority:blocked',
+            sessionId: 'session-self-authority',
+            activeThreadId: 'thread-self-authority',
+          },
+          sampledCategories: ['dialogue'],
+          selfAuthoritySummary: {
+            authoritySummary: 'WorkingMemory 权限摘要已记录。',
+            closenessPosture: 'measured-return',
+            visibleReplyValidationStatus: 'blocked',
+            projectStateEvidenceStatus: 'missing',
+          },
         },
-        sampledCategories: ['dialogue'],
-        selfAuthoritySummary: {
-          authoritySummary: 'She already knew she was continuing one shared self line.',
-          closenessPosture: 'measured-return',
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
+        {
+          turnId: 'turn-self-authority-unknown',
+          userText: '显示未知状态的事实',
+          failingDimensions: ['sameHerSelfAuthority'],
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-self-authority-unknown',
+            decisionTraceId: 'mind:self-authority:unknown',
+            sessionId: 'session-self-authority',
+            activeThreadId: 'thread-self-authority',
+          },
+          sampledCategories: ['dialogue'],
+          selfAuthoritySummary: {
+            authoritySummary: 'LongTermMemoryRecall 权限摘要已记录。',
+            closenessPosture: null,
+            visibleReplyValidationStatus: 'unknown',
+            projectStateEvidenceStatus: 'unknown',
+          },
         },
-      }],
+        {
+          turnId: 'turn-self-authority-approved',
+          userText: '显示已知通过事实',
+          failingDimensions: ['sameHerSelfAuthority'],
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-self-authority-approved',
+            decisionTraceId: 'mind:self-authority:approved',
+            sessionId: 'session-self-authority',
+            activeThreadId: 'thread-self-authority',
+          },
+          sampledCategories: ['dialogue'],
+          selfAuthoritySummary: {
+            authoritySummary: '权限摘要已记录。',
+            closenessPosture: 'working-memory-review',
+            visibleReplyValidationStatus: 'approved',
+            projectStateEvidenceStatus: 'present',
+          },
+        },
+      ],
       datasetFeedback: {
         backlogKey: 'replay_benchmark_dataset_backlog_v1',
         appendedCount: 1,
@@ -3111,10 +3255,101 @@ describe('alicization mind replay store', () => {
     const store = useAlicizationMindReplayStore()
     await store.runReplayBenchmark()
 
-    expect(store.selectedBenchmarkTurn?.diagnosisSummary).toContain('Self-authority drift is still open here')
-    expect(store.selectedBenchmarkTurn?.diagnosisSummary).toContain('closeness posture: measured-return')
-    expect(store.selectedBenchmarkTurn?.diagnosisSummary).toContain('preserve it into rewrite')
-    expect(store.selectedBenchmarkTurn?.diagnosisSummary).toContain('apply it in the final rewrite')
+    const blocked = store.benchmarkFailingTurns.find(turn => turn.turnId === 'turn-self-authority-blocked')
+    const unknown = store.benchmarkFailingTurns.find(turn => turn.turnId === 'turn-self-authority-unknown')
+    const approved = store.benchmarkFailingTurns.find(turn => turn.turnId === 'turn-self-authority-approved')
+
+    expect(blocked?.diagnosisSummary).toContain('可见回复校验已阻断')
+    expect(blocked?.diagnosisSummary).toContain('项目状态证据缺失')
+    expect(unknown?.diagnosisSummary).toContain('校验状态未知，不能判定成功')
+    expect(unknown?.diagnosisSummary).toContain('项目状态证据状态未知')
+    expect(approved?.diagnosisSummary).toContain('可见回复校验已通过')
+    expect(approved?.diagnosisSummary).toContain('项目状态证据存在')
+    expect(approved?.diagnosisSummary).toContain('校验与证据状态已知，但该维度仍有内容差异')
+    for (const diagnosis of [blocked, unknown, approved])
+      expect(diagnosis?.diagnosisSummary).not.toMatch(/rewrite|preserv|下一轮|固定回复建议/iu)
+  })
+
+  it('does not let healthy self-authority facts mask an unrelated failure diagnosis', () => {
+    const store = useAlicizationMindReplayStore()
+    store.benchmarkReport = {
+      gate: {
+        dimensions: [],
+      },
+      failingTurnSet: [{
+        turnId: 'turn-unrelated-stale-self-model',
+        userText: '优先显示真正的失败原因',
+        failingDimensions: ['wrongThreadSuppression'],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-unrelated-stale-self-model',
+          decisionTraceId: 'mind:unrelated:stale-self-model',
+          sessionId: 'session-unrelated',
+          activeThreadId: 'thread-unrelated',
+        },
+        sampledCategories: ['memory'],
+        selfAuthoritySummary: {
+          authoritySummary: '权限摘要已记录。',
+          closenessPosture: 'working-memory-review',
+          visibleReplyValidationStatus: 'approved',
+          projectStateEvidenceStatus: 'present',
+        },
+        resolutionLedgerSummary: {
+          dominantClusterSummary: null,
+          competingClusterSummary: null,
+          finalSurfacePolicy: null,
+          shouldStayInward: true,
+          shouldDelayUntilAfterPayoff: false,
+          rejectedCandidateCount: 1,
+          suppressionTags: ['self-model-stale'],
+        },
+      }],
+    } as any
+
+    expect(store.benchmarkFailingTurns[0]?.diagnosisSummary).toContain('Older self-model continuity was vetoed')
+    expect(store.benchmarkFailingTurns[0]?.diagnosisSummary).not.toContain('可见回复校验已通过')
+  })
+
+  it('does not let healthy self-authority facts mask another failure in a mixed dimension set', () => {
+    const store = useAlicizationMindReplayStore()
+    store.benchmarkReport = {
+      gate: {
+        dimensions: [],
+      },
+      failingTurnSet: [{
+        turnId: 'turn-mixed-self-authority-and-memory',
+        userText: '显示混合失败中的真正原因',
+        failingDimensions: ['sameHerSelfAuthority', 'wrongThreadSuppression'],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-mixed-self-authority-and-memory',
+          decisionTraceId: 'mind:mixed:self-authority-and-memory',
+          sessionId: 'session-mixed',
+          activeThreadId: 'thread-mixed',
+        },
+        sampledCategories: ['memory', 'dialogue'],
+        selfAuthoritySummary: {
+          authoritySummary: '权限摘要已记录。',
+          closenessPosture: 'working-memory-review',
+          visibleReplyValidationStatus: 'approved',
+          projectStateEvidenceStatus: 'present',
+        },
+        resolutionLedgerSummary: {
+          dominantClusterSummary: null,
+          competingClusterSummary: null,
+          finalSurfacePolicy: null,
+          shouldStayInward: true,
+          shouldDelayUntilAfterPayoff: false,
+          rejectedCandidateCount: 1,
+          suppressionTags: ['self-model-stale'],
+        },
+      }],
+    } as any
+
+    expect(store.benchmarkFailingTurns[0]?.diagnosisSummary).toContain('Older self-model continuity was vetoed')
+    expect(store.benchmarkFailingTurns[0]?.diagnosisSummary).not.toContain('校验与证据状态已知，但该维度仍有内容差异')
   })
 
   it('routes pre-dialogue briefing drift toward the project-awareness chain before generic visible realization debugging', async () => {

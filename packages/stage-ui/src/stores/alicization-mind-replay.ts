@@ -126,23 +126,48 @@ function buildMindReplayDiagnosisSummary(input: {
   selfAuthoritySummary?: {
     authoritySummary: string | null
     closenessPosture: string | null
-    preservedIntoRewrite: boolean
-    rewriteClosureApplied: boolean
+    visibleReplyValidationStatus: 'approved' | 'blocked' | 'unknown'
+    projectStateEvidenceStatus: 'present' | 'missing' | 'unknown'
   } | null
 }) {
   const selfAuthoritySummary = input.selfAuthoritySummary ?? null
-  if (
-    selfAuthoritySummary
-    && (!selfAuthoritySummary.preservedIntoRewrite || !selfAuthoritySummary.rewriteClosureApplied)
-    && (selfAuthoritySummary.authoritySummary || selfAuthoritySummary.closenessPosture)
-  ) {
-    const authorityLine = selfAuthoritySummary.authoritySummary?.trim() || 'continuity self authority present'
-    const postureLine = selfAuthoritySummary.closenessPosture?.trim()
-    const missingSteps = [
-      selfAuthoritySummary.preservedIntoRewrite ? null : 'preserve it into rewrite',
-      selfAuthoritySummary.rewriteClosureApplied ? null : 'apply it in the final rewrite',
-    ].filter(Boolean).join(' and ')
-    return `${authorityLine}${postureLine ? ` | closeness posture: ${postureLine}` : ''}. Self-authority drift is still open here, so the next turn should ${missingSteps}.`
+  const hasSelfAuthorityFailure = input.failingDimensions.some(dimension =>
+    dimension.toLowerCase().replace(/[^a-z0-9]/gu, '').includes('selfauthority'),
+  )
+  const hasOnlySelfAuthorityFailure = input.failingDimensions.length === 1
+    && hasSelfAuthorityFailure
+  const shouldPrioritizeSelfAuthority = selfAuthoritySummary
+    && (
+      selfAuthoritySummary.visibleReplyValidationStatus !== 'approved'
+      || selfAuthoritySummary.projectStateEvidenceStatus !== 'present'
+      || hasOnlySelfAuthorityFailure
+    )
+  if (shouldPrioritizeSelfAuthority) {
+    const validationLine = selfAuthoritySummary.visibleReplyValidationStatus === 'approved'
+      ? '可见回复校验已通过'
+      : selfAuthoritySummary.visibleReplyValidationStatus === 'blocked'
+        ? '可见回复校验已阻断'
+        : '校验状态未知，不能判定成功'
+    const evidenceLine = selfAuthoritySummary.projectStateEvidenceStatus === 'present'
+      ? '项目状态证据存在'
+      : selfAuthoritySummary.projectStateEvidenceStatus === 'missing'
+        ? '项目状态证据缺失'
+        : '项目状态证据状态未知'
+    return [
+      selfAuthoritySummary.authoritySummary?.trim()
+        ? `权限摘要：${selfAuthoritySummary.authoritySummary.trim()}`
+        : null,
+      selfAuthoritySummary.closenessPosture?.trim()
+        ? `亲近姿态：${selfAuthoritySummary.closenessPosture.trim()}`
+        : null,
+      validationLine,
+      evidenceLine,
+      selfAuthoritySummary.visibleReplyValidationStatus === 'approved'
+      && selfAuthoritySummary.projectStateEvidenceStatus === 'present'
+      && hasOnlySelfAuthorityFailure
+        ? '校验与证据状态已知，但该维度仍有内容差异'
+        : null,
+    ].filter((value): value is string => Boolean(value)).join('；')
   }
   if (input.resolutionLedgerSummary?.suppressionTags?.includes('self-model-stale') && input.replyMemoryCoherenceSummary?.whyWithheld) {
     const timing = describeFollowUpTiming(input.replyMemoryCoherenceSummary.followUpPreferredTiming)
@@ -256,8 +281,8 @@ export interface AlicizationMindReplayBenchmarkTurnDiagnosis {
   selfAuthoritySummary: {
     authoritySummary: string | null
     closenessPosture: string | null
-    preservedIntoRewrite: boolean
-    rewriteClosureApplied: boolean
+    visibleReplyValidationStatus: 'approved' | 'blocked' | 'unknown'
+    projectStateEvidenceStatus: 'present' | 'missing' | 'unknown'
   } | null
   resolutionLedgerSummary: {
     dominantClusterSummary: string | null
@@ -582,8 +607,8 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
             ? {
                 authoritySummary: item.selfAuthoritySummary.authoritySummary ?? null,
                 closenessPosture: item.selfAuthoritySummary.closenessPosture ?? null,
-                preservedIntoRewrite: item.selfAuthoritySummary.preservedIntoRewrite === true,
-                rewriteClosureApplied: item.selfAuthoritySummary.rewriteClosureApplied === true,
+                visibleReplyValidationStatus: item.selfAuthoritySummary.visibleReplyValidationStatus,
+                projectStateEvidenceStatus: item.selfAuthoritySummary.projectStateEvidenceStatus,
               }
             : null,
         }),
@@ -594,8 +619,8 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
           ? {
               authoritySummary: item.selfAuthoritySummary.authoritySummary ?? null,
               closenessPosture: item.selfAuthoritySummary.closenessPosture ?? null,
-              preservedIntoRewrite: item.selfAuthoritySummary.preservedIntoRewrite === true,
-              rewriteClosureApplied: item.selfAuthoritySummary.rewriteClosureApplied === true,
+              visibleReplyValidationStatus: item.selfAuthoritySummary.visibleReplyValidationStatus,
+              projectStateEvidenceStatus: item.selfAuthoritySummary.projectStateEvidenceStatus,
             }
           : null,
         resolutionLedgerSummary,
@@ -750,7 +775,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
           }]
         : []),
       {
-        key: 'project_state_review_hit_rate',
+        key: 'project_state_continuity_hit_rate',
         value: continuityHitRate,
         detail: `continuity=${continuityHitRate ?? 'n/a'} (${projectState.continuityHitCount}/${comparedTurnCount}) | checks whether identity, phase, open loops, and the continuity self line still arrive together as one continuity brief.`,
       },
@@ -761,48 +786,48 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     if (!summary)
       return []
     const comparedTurnCount = Math.max(0, summary.comparedTurnCount)
+    const validationKnownTurnCount = Math.max(0, summary.validationStatus.knownTurnCount)
     const activeCueRate = pickRatio(summary.activeCueTurnCount, comparedTurnCount)
-    const preservedRate = pickRatio(summary.preservedTurnCount, comparedTurnCount)
-    const rewriteAppliedRate = pickRatio(summary.rewriteAppliedTurnCount, comparedTurnCount)
-    const fullyClosedRate = pickRatio(summary.fullyClosedTurnCount, comparedTurnCount)
     const lowPressureRequiredRate = pickRatio(summary.lowPressureRequiredTurnCount, comparedTurnCount)
     const antiRestartRequiredRate = pickRatio(summary.antiRestartRequiredTurnCount, comparedTurnCount)
-    const drifted = benchmarkReport.value?.datasetFeedback.driftSignals?.includes('emotionalClosureDrift') === true
+    const validationApprovedRate = pickRatio(summary.validationStatus.approvedTurnCount, validationKnownTurnCount)
+    const validationBlockedRate = pickRatio(summary.validationStatus.blockedTurnCount, validationKnownTurnCount)
+    const validationUnknownRate = pickRatio(summary.validationStatus.unknownTurnCount, comparedTurnCount)
     return [
       {
         key: 'emotional_closure_compared_turn_count',
         value: comparedTurnCount,
-        detail: `${comparedTurnCount} replay turn(s) carried continuity emotional closure audit.`,
+        detail: `已比较 ${comparedTurnCount} 个含情绪收束审计的 replay turn。`,
       },
       {
         key: 'emotional_closure_active_cue_rate',
         value: activeCueRate,
-        detail: `activeCue=${activeCueRate ?? 'n/a'} (${summary.activeCueTurnCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'emotional_closure_preserved_rate',
-        value: preservedRate,
-        detail: `preservedIntoRewrite=${preservedRate ?? 'n/a'} (${summary.preservedTurnCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'emotional_closure_rewrite_applied_rate',
-        value: rewriteAppliedRate,
-        detail: `rewriteClosureApplied=${rewriteAppliedRate ?? 'n/a'} (${summary.rewriteAppliedTurnCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'emotional_closure_fully_closed_rate',
-        value: fullyClosedRate,
-        detail: `${drifted ? 'drift=emotionalClosureDrift | ' : ''}fullyClosed=${fullyClosedRate ?? 'n/a'} (${summary.fullyClosedTurnCount}/${comparedTurnCount})`,
+        detail: `有效提示覆盖率=${activeCueRate ?? 'n/a'} (${summary.activeCueTurnCount}/${comparedTurnCount})`,
       },
       {
         key: 'emotional_closure_low_pressure_required_rate',
         value: lowPressureRequiredRate,
-        detail: `lowPressureRequired=${lowPressureRequiredRate ?? 'n/a'} (${summary.lowPressureRequiredTurnCount}/${comparedTurnCount}) | checks whether the continuity return still needs a lower-pressure landing instead of widening too fast.`,
+        detail: `低压力要求率=${lowPressureRequiredRate ?? 'n/a'} (${summary.lowPressureRequiredTurnCount}/${comparedTurnCount})`,
       },
       {
         key: 'emotional_closure_anti_restart_required_rate',
         value: antiRestartRequiredRate,
-        detail: `antiRestartRequired=${antiRestartRequiredRate ?? 'n/a'} (${summary.antiRestartRequiredTurnCount}/${comparedTurnCount}) | checks whether the continuity return still must avoid reopening from scratch.`,
+        detail: `避免重新开始要求率=${antiRestartRequiredRate ?? 'n/a'} (${summary.antiRestartRequiredTurnCount}/${comparedTurnCount})`,
+      },
+      {
+        key: 'emotional_closure_validation_approved_rate',
+        value: validationApprovedRate,
+        detail: `可见回复校验通过率=${validationApprovedRate ?? 'n/a'} (${summary.validationStatus.approvedTurnCount}/${validationKnownTurnCount}，分母为已知状态)`,
+      },
+      {
+        key: 'emotional_closure_validation_blocked_rate',
+        value: validationBlockedRate,
+        detail: `可见回复校验阻断率=${validationBlockedRate ?? 'n/a'} (${summary.validationStatus.blockedTurnCount}/${validationKnownTurnCount}，分母为已知状态)`,
+      },
+      {
+        key: 'emotional_closure_validation_unknown_rate',
+        value: validationUnknownRate,
+        detail: `可见回复校验未知率=${validationUnknownRate ?? 'n/a'} (${summary.validationStatus.unknownTurnCount}/${comparedTurnCount}，分母为全部比较 turn)`,
       },
     ]
   })
@@ -1158,42 +1183,48 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     if (!summary)
       return []
     const comparedTurnCount = Math.max(0, summary.comparedTurnCount)
+    const validationKnownTurnCount = Math.max(0, summary.validationStatus.knownTurnCount)
     const authoritySummaryRate = pickRatio(summary.authoritySummaryTurnCount, comparedTurnCount)
     const closenessPostureRate = pickRatio(summary.closenessPostureTurnCount, comparedTurnCount)
-    const preservedRate = pickRatio(summary.preservedTurnCount, comparedTurnCount)
-    const rewriteAppliedRate = pickRatio(summary.rewriteAppliedTurnCount, comparedTurnCount)
-    const fullyCarriedRate = pickRatio(summary.fullyCarriedTurnCount, comparedTurnCount)
-    const drifted = benchmarkReport.value?.datasetFeedback.driftSignals?.includes('selfAuthorityDrift') === true
+    const contentCompleteRate = pickRatio(summary.contentCompleteTurnCount, comparedTurnCount)
+    const validationApprovedRate = pickRatio(summary.validationStatus.approvedTurnCount, validationKnownTurnCount)
+    const validationBlockedRate = pickRatio(summary.validationStatus.blockedTurnCount, validationKnownTurnCount)
+    const validationUnknownRate = pickRatio(summary.validationStatus.unknownTurnCount, comparedTurnCount)
     return [
       {
         key: 'self_authority_compared_turn_count',
         value: comparedTurnCount,
-        detail: `${comparedTurnCount} replay turn(s) carried continuity self authority audit.`,
+        detail: `已比较 ${comparedTurnCount} 个含权限审计的 replay turn。`,
       },
       {
         key: 'self_authority_summary_rate',
         value: authoritySummaryRate,
-        detail: `authoritySummary=${authoritySummaryRate ?? 'n/a'} (${summary.authoritySummaryTurnCount}/${comparedTurnCount})`,
+        detail: `权限摘要内容覆盖率=${authoritySummaryRate ?? 'n/a'} (${summary.authoritySummaryTurnCount}/${comparedTurnCount})`,
       },
       {
         key: 'self_authority_closeness_posture_rate',
         value: closenessPostureRate,
-        detail: `closenessPosture=${closenessPostureRate ?? 'n/a'} (${summary.closenessPostureTurnCount}/${comparedTurnCount})`,
+        detail: `亲近姿态内容覆盖率=${closenessPostureRate ?? 'n/a'} (${summary.closenessPostureTurnCount}/${comparedTurnCount})`,
       },
       {
-        key: 'self_authority_preserved_rate',
-        value: preservedRate,
-        detail: `preservedIntoRewrite=${preservedRate ?? 'n/a'} (${summary.preservedTurnCount}/${comparedTurnCount})`,
+        key: 'self_authority_content_complete_rate',
+        value: contentCompleteRate,
+        detail: `内容完整率=${contentCompleteRate ?? 'n/a'} (${summary.contentCompleteTurnCount}/${comparedTurnCount})`,
       },
       {
-        key: 'self_authority_rewrite_applied_rate',
-        value: rewriteAppliedRate,
-        detail: `rewriteClosureApplied=${rewriteAppliedRate ?? 'n/a'} (${summary.rewriteAppliedTurnCount}/${comparedTurnCount})`,
+        key: 'self_authority_validation_approved_rate',
+        value: validationApprovedRate,
+        detail: `可见回复校验通过率=${validationApprovedRate ?? 'n/a'} (${summary.validationStatus.approvedTurnCount}/${validationKnownTurnCount}，分母为已知状态)`,
       },
       {
-        key: 'self_authority_fully_carried_rate',
-        value: fullyCarriedRate,
-        detail: `${drifted ? 'drift=selfAuthorityDrift | ' : ''}fullyCarried=${fullyCarriedRate ?? 'n/a'} (${summary.fullyCarriedTurnCount}/${comparedTurnCount}) | checks whether the continuity self line stayed explicit, preserved, and rewrite-applied together.`,
+        key: 'self_authority_validation_blocked_rate',
+        value: validationBlockedRate,
+        detail: `可见回复校验阻断率=${validationBlockedRate ?? 'n/a'} (${summary.validationStatus.blockedTurnCount}/${validationKnownTurnCount}，分母为已知状态)`,
+      },
+      {
+        key: 'self_authority_validation_unknown_rate',
+        value: validationUnknownRate,
+        detail: `可见回复校验未知率=${validationUnknownRate ?? 'n/a'} (${summary.validationStatus.unknownTurnCount}/${comparedTurnCount}，分母为全部比较 turn)`,
       },
     ]
   })
@@ -1202,6 +1233,8 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     if (!summary)
       return []
     const comparedTurnCount = Math.max(0, summary.comparedTurnCount)
+    const validationKnownTurnCount = Math.max(0, summary.validationStatus.knownTurnCount)
+    const evidenceKnownTurnCount = Math.max(0, summary.evidenceStatus.knownTurnCount)
     const sameHerSummaryRate = pickRatio(summary.sameHerSummaryTurnCount, comparedTurnCount)
     const landedProgressRate = pickRatio(summary.landedProgressTurnCount, comparedTurnCount)
     const openClosureRate = pickRatio(summary.openClosureTurnCount, comparedTurnCount)
@@ -1216,74 +1249,97 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     const hasExplicitContinuityAnchors = summary.sameHerHoldDetailTurnCount != null
       || summary.continuityArcStageTurnCount != null
       || summary.continuityCueTurnCount != null
-    const preservedRate = pickRatio(summary.preservedTurnCount, comparedTurnCount)
-    const rewriteAppliedRate = pickRatio(summary.rewriteAppliedTurnCount, comparedTurnCount)
-    const fullyCarriedRate = pickRatio(summary.fullyCarriedTurnCount, comparedTurnCount)
-    const drifted = benchmarkReport.value?.datasetFeedback.driftSignals?.includes('projectStateAuditDrift') === true
+    const contentCompleteRate = pickRatio(summary.contentCompleteTurnCount, comparedTurnCount)
+    const validationApprovedRate = pickRatio(summary.validationStatus.approvedTurnCount, validationKnownTurnCount)
+    const validationBlockedRate = pickRatio(summary.validationStatus.blockedTurnCount, validationKnownTurnCount)
+    const validationUnknownRate = pickRatio(summary.validationStatus.unknownTurnCount, comparedTurnCount)
+    const evidencePresentRate = pickRatio(summary.evidenceStatus.presentTurnCount, evidenceKnownTurnCount)
+    const evidenceMissingRate = pickRatio(summary.evidenceStatus.missingTurnCount, evidenceKnownTurnCount)
+    const evidenceUnknownRate = pickRatio(summary.evidenceStatus.unknownTurnCount, comparedTurnCount)
     return [
       {
         key: 'project_state_audit_compared_turn_count',
         value: comparedTurnCount,
-        detail: `${comparedTurnCount} replay turn(s) carried continuity project-state audit.`,
+        detail: `已比较 ${comparedTurnCount} 个含项目状态审计的 replay turn。`,
       },
       {
         key: 'project_state_audit_same_her_summary_rate',
         value: sameHerSummaryRate,
-        detail: `sameHerSummary=${sameHerSummaryRate ?? 'n/a'} (${summary.sameHerSummaryTurnCount}/${comparedTurnCount}) | checks whether project-state answers stay inside one continuity continuity.`,
+        detail: `项目状态摘要覆盖率=${sameHerSummaryRate ?? 'n/a'} (${summary.sameHerSummaryTurnCount}/${comparedTurnCount})`,
       },
       {
         key: 'project_state_audit_landed_progress_rate',
         value: landedProgressRate,
-        detail: `landedProgress=${landedProgressRate ?? 'n/a'} (${summary.landedProgressTurnCount}/${comparedTurnCount}) | checks whether project-state answers still say what has already landed.`,
+        detail: `已落地信息覆盖率=${landedProgressRate ?? 'n/a'} (${summary.landedProgressTurnCount}/${comparedTurnCount})`,
       },
       {
         key: 'project_state_audit_open_closure_rate',
         value: openClosureRate,
-        detail: `openClosure=${openClosureRate ?? 'n/a'} (${summary.openClosureTurnCount}/${comparedTurnCount}) | checks whether project-state answers still keep the unfinished closure work explicit.`,
+        detail: `未完成事项覆盖率=${openClosureRate ?? 'n/a'} (${summary.openClosureTurnCount}/${comparedTurnCount})`,
       },
       {
         key: 'project_state_audit_pre_dialogue_awareness_rate',
         value: preDialogueAwarenessRate,
-        detail: `preDialogueAwareness=${preDialogueAwarenessRate ?? 'n/a'} (${summary.preDialogueAwarenessTurnCount}/${comparedTurnCount}) | checks whether the answer-side audit still carries the pre-dialogue project awareness line before local fluency takes over.`,
+        detail: `对话前状态信息覆盖率=${preDialogueAwarenessRate ?? 'n/a'} (${summary.preDialogueAwarenessTurnCount}/${comparedTurnCount})`,
       },
       {
         key: 'project_state_audit_continuity_summary_rate',
         value: continuitySummaryRate,
-        detail: `continuitySummary=${continuitySummaryRate ?? 'n/a'} (${summary.continuitySummaryTurnCount}/${comparedTurnCount}) | checks whether continuity line, landed progress, open closure, and the continuity drift boundary arrived together as one project continuity brief.`,
+        detail: `状态汇总覆盖率=${continuitySummaryRate ?? 'n/a'} (${summary.continuitySummaryTurnCount}/${comparedTurnCount})`,
       },
       ...(hasExplicitContinuityAnchors
         ? [
           {
             key: 'project_state_audit_same_her_hold_detail_rate',
             value: sameHerHoldDetailRate,
-            detail: `sameHerHoldDetail=${sameHerHoldDetailRate ?? 'n/a'} (${sameHerHoldDetailCount}/${comparedTurnCount}) | checks whether replay kept the concrete continuity hold detail instead of flattening her into generic continuity.`,
+            detail: `保持细节覆盖率=${sameHerHoldDetailRate ?? 'n/a'} (${sameHerHoldDetailCount}/${comparedTurnCount})`,
           },
           {
             key: 'project_state_audit_continuity_arc_stage_rate',
             value: continuityArcStageRate,
-            detail: `continuityArcStage=${continuityArcStageRate ?? 'n/a'} (${continuityArcStageCount}/${comparedTurnCount}) | checks whether replay kept the active same-thread arc stage visible for long-horizon audit.`,
+            detail: `过程阶段覆盖率=${continuityArcStageRate ?? 'n/a'} (${continuityArcStageCount}/${comparedTurnCount})`,
           },
           {
             key: 'project_state_audit_continuity_cue_rate',
             value: continuityCueRate,
-            detail: `continuityCue=${continuityCueRate ?? 'n/a'} (${continuityCueCount}/${comparedTurnCount}) | checks whether replay kept the concrete continuity cue that tells the next turn how to stay with the continuity identity.`,
+            detail: `状态提示覆盖率=${continuityCueRate ?? 'n/a'} (${continuityCueCount}/${comparedTurnCount})`,
           },
         ] satisfies AlicizationMindReplayMetricRow[]
         : []),
       {
-        key: 'project_state_audit_preserved_rate',
-        value: preservedRate,
-        detail: `preservedIntoRewrite=${preservedRate ?? 'n/a'} (${summary.preservedTurnCount}/${comparedTurnCount})`,
+        key: 'project_state_audit_content_complete_rate',
+        value: contentCompleteRate,
+        detail: `内容完整率=${contentCompleteRate ?? 'n/a'} (${summary.contentCompleteTurnCount}/${comparedTurnCount})`,
       },
       {
-        key: 'project_state_audit_rewrite_applied_rate',
-        value: rewriteAppliedRate,
-        detail: `rewriteClosureApplied=${rewriteAppliedRate ?? 'n/a'} (${summary.rewriteAppliedTurnCount}/${comparedTurnCount})`,
+        key: 'project_state_audit_validation_approved_rate',
+        value: validationApprovedRate,
+        detail: `可见回复校验通过率=${validationApprovedRate ?? 'n/a'} (${summary.validationStatus.approvedTurnCount}/${validationKnownTurnCount}，分母为已知状态)`,
       },
       {
-        key: 'project_state_audit_fully_carried_rate',
-        value: fullyCarriedRate,
-        detail: `${drifted ? 'drift=projectStateAuditDrift | ' : ''}fullyCarried=${fullyCarriedRate ?? 'n/a'} (${summary.fullyCarriedTurnCount}/${comparedTurnCount}) | checks whether project identity, Phase 1 route, and still-open closure work stayed inside one current continuity.`,
+        key: 'project_state_audit_validation_blocked_rate',
+        value: validationBlockedRate,
+        detail: `可见回复校验阻断率=${validationBlockedRate ?? 'n/a'} (${summary.validationStatus.blockedTurnCount}/${validationKnownTurnCount}，分母为已知状态)`,
+      },
+      {
+        key: 'project_state_audit_validation_unknown_rate',
+        value: validationUnknownRate,
+        detail: `可见回复校验未知率=${validationUnknownRate ?? 'n/a'} (${summary.validationStatus.unknownTurnCount}/${comparedTurnCount}，分母为全部比较 turn)`,
+      },
+      {
+        key: 'project_state_audit_evidence_present_rate',
+        value: evidencePresentRate,
+        detail: `项目状态证据存在率=${evidencePresentRate ?? 'n/a'} (${summary.evidenceStatus.presentTurnCount}/${evidenceKnownTurnCount}，分母为已知状态)`,
+      },
+      {
+        key: 'project_state_audit_evidence_missing_rate',
+        value: evidenceMissingRate,
+        detail: `项目状态证据缺失率=${evidenceMissingRate ?? 'n/a'} (${summary.evidenceStatus.missingTurnCount}/${evidenceKnownTurnCount}，分母为已知状态)`,
+      },
+      {
+        key: 'project_state_audit_evidence_unknown_rate',
+        value: evidenceUnknownRate,
+        detail: `项目状态证据未知率=${evidenceUnknownRate ?? 'n/a'} (${summary.evidenceStatus.unknownTurnCount}/${comparedTurnCount}，分母为全部比较 turn)`,
       },
     ]
   })

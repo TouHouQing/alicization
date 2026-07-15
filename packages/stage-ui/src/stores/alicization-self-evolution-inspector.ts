@@ -200,8 +200,11 @@ interface ProactiveDecisionConsumptionSummary {
 const PRE_DIALOGUE_AWARENESS_REASON_PREVIEW_LIMIT = 16
 const INSPECTOR_CONTINUITY_ANCHOR_LINE
   = ''
+const inspectorInternalClosureMarkerPattern = /^\s*continuity_closure\s*:/iu
 
 function sanitizeInspectorTemplateText(value: string | null | undefined, maxChars = 420) {
+  if (typeof value === 'string' && inspectorInternalClosureMarkerPattern.test(value))
+    return null
   return sanitizeAlicizationProviderFacingText(
     value,
     maxChars,
@@ -336,6 +339,8 @@ function sanitizeInspectorClosureSnapshot(
     return null
 
   const fallback = fallbackStructuredProjectAwarenessLine(continuitySnapshot)
+  const emotionalClosureCue = sanitizeInspectorSnapshotLine(closure.emotionalClosureCue, { dropResidue: true })
+    ?? sanitizeInspectorSnapshotLine(continuitySnapshot?.emotionalClosureCue ?? null, { dropResidue: true })
   return {
     ...closure,
     summaryLine: sanitizeInspectorSnapshotLine(closure.summaryLine, { fallback }),
@@ -344,7 +349,7 @@ function sanitizeInspectorClosureSnapshot(
     companionNextClosureLine: sanitizeInspectorSnapshotLine(closure.companionNextClosureLine, { dropResidue: true }),
     sameHerDriftRiskLine: sanitizeInspectorSnapshotLine(closure.sameHerDriftRiskLine, { dropResidue: true }),
     companionshipReasonLine: sanitizeInspectorSnapshotLine(closure.companionshipReasonLine, { dropResidue: true }),
-    emotionalClosureCue: sanitizeInspectorSnapshotLine(closure.emotionalClosureCue, { dropResidue: true }),
+    emotionalClosureCue,
     briefingLines: sanitizeInspectorTemplateList(closure.briefingLines, 16),
     reasons: sanitizeInspectorTemplateList(closure.reasons, 16),
   } satisfies NormalizedPreDialogueClosureSnapshot
@@ -470,6 +475,21 @@ interface NormalizedPreDialogueClosureSnapshot {
   emotionalClosureCue: string | null
   briefingLines: string[]
   reasons: string[]
+}
+
+const preDialogueClosureStatusSeverity: Record<NormalizedPreDialogueClosureSnapshot['status'], number> = {
+  grounded: 0,
+  partial: 1,
+  drift: 2,
+}
+
+function mergePreDialogueClosureStatus(
+  left: NormalizedPreDialogueClosureSnapshot['status'],
+  right: NormalizedPreDialogueClosureSnapshot['status'],
+) {
+  return preDialogueClosureStatusSeverity[left] >= preDialogueClosureStatusSeverity[right]
+    ? left
+    : right
 }
 
 function normalizePreDialogueAwarenessSnapshot(raw: unknown): NormalizedPreDialogueAwarenessSnapshot | null {
@@ -811,6 +831,44 @@ function describeInspectorContinuityMetricDetail(detail: string | null | undefin
     .replace(/\bproactiveSameHerGap\b/gu, 'proactiveIdentityContinuityGap')
     .replace(/\bsameHer\b/gu, 'identityContinuity')
     .replace(/\bsame-her\b/giu, 'identity-continuity')
+}
+
+function formatInspectorReplayMetricFacts(
+  label: string,
+  facts: Array<{ key: string, detail: string | null | undefined }>,
+) {
+  const entries = facts.flatMap((fact) => {
+    const detail = fact.detail?.trim()
+    return detail ? [`${fact.key}[${detail}]`] : []
+  })
+  return entries.length > 0
+    ? `${label}：${entries.join('；')}`
+    : null
+}
+
+function formatInspectorRuntimeProofFacts(proof: {
+  status: string
+  source: string | null
+  sourceIsRuntime: boolean
+  runtimeClosureRate: number
+  runtimeSourcedSessionCount: number
+  comparedSessionCount: number
+  runtimeTurnCount: number
+  decisionTraceTurnCount: number
+  syntheticTurnCount: number
+  sessionClosureRate: number
+}) {
+  return [
+    `状态=${proof.status}`,
+    `来源=${proof.source ?? 'unknown'}`,
+    `运行时来源=${proof.sourceIsRuntime ? '是' : '否'}`,
+    `运行时闭环率=${proof.runtimeClosureRate}`,
+    `运行时会话=${proof.runtimeSourcedSessionCount}/${proof.comparedSessionCount}`,
+    `运行时回合=${proof.runtimeTurnCount}`,
+    `决策轨迹回合=${proof.decisionTraceTurnCount}`,
+    `合成回合=${proof.syntheticTurnCount}`,
+    `会话闭环率=${proof.sessionClosureRate}`,
+  ].join('；')
 }
 
 function hasReason(reasons: string[] | null | undefined, target: string) {
@@ -3351,65 +3409,186 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const projectStateAuditRows = replayStore.benchmarkProjectStateAuditRows
     const briefingRows = replayStore.benchmarkPreDialogueBriefingRows
     const runtimeSameHerProof = replayStore.benchmarkRuntimeSameHerProofSummary
+    const benchmarkReport = replayStore.benchmarkReport
+    const datasetFeedback = benchmarkReport?.datasetFeedback
+    const emotionalClosureSummary = datasetFeedback?.emotionalClosureSummary ?? null
+    const selfAuthoritySummary = datasetFeedback?.selfAuthoritySummary ?? null
+    const projectStateAuditSummary = datasetFeedback?.projectStateAuditSummary ?? null
     const continuitySnapshot = projectStateContinuitySnapshot.value
     const latestLandedProgress = resolveContinuityLatestLandedProgress(continuitySnapshot)
     const runtimeContinuityProjection = selectedCandidateRuntimeContinuityProjection.value
     const sameHerEmbodimentLaneImpact = describeSameHerEmbodimentLaneImpact(runtimeContinuityProjection?.matchedSignals ?? [])
     const sameSegmentFaceMotionRecovery = resolveSameSegmentFaceMotionRecoverySignal(runtimeContinuityProjection?.matchedSignals ?? [])
-    if (projectRows.length === 0 && emotionalRows.length === 0 && selfAuthorityRows.length === 0 && projectStateAuditRows.length === 0 && !runtimeSameHerProof)
+    if (!benchmarkReport && projectRows.length === 0 && emotionalRows.length === 0 && selfAuthorityRows.length === 0 && projectStateAuditRows.length === 0 && !runtimeSameHerProof)
       return null
 
-    const projectContinuity = projectRows.find(row => row.key === 'project_state_review_hit_rate')
+    const projectContinuity = projectRows.find(row => row.key === 'project_state_continuity_hit_rate')
     const projectIdentity = projectRows.find(row => row.key === 'project_state_identity_hit_rate')
     const projectPhase = projectRows.find(row => row.key === 'project_state_phase_hit_rate')
     const projectOpenLoop = projectRows.find(row => row.key === 'project_state_open_loop_hit_rate')
     const projectSameHer = projectRows.find(row => row.key === 'project_state_same_her_hit_rate')
     const projectProactiveSameHerGap = projectRows.find(row => row.key === 'project_state_proactive_same_her_gap_hit_rate')
     const briefingFull = briefingRows.find(row => row.key === 'pre_dialogue_briefing_fully_briefed_rate')
-    const emotionalClosure = emotionalRows.find(row => row.key === 'emotional_closure_fully_closed_rate')
-    const emotionalPreserve = emotionalRows.find(row => row.key === 'emotional_closure_preserved_rate')
+    const emotionalActiveCue = emotionalRows.find(row => row.key === 'emotional_closure_active_cue_rate')
     const emotionalLowPressure = emotionalRows.find(row => row.key === 'emotional_closure_low_pressure_required_rate')
     const emotionalAntiRestart = emotionalRows.find(row => row.key === 'emotional_closure_anti_restart_required_rate')
-    const selfAuthorityCarry = selfAuthorityRows.find(row => row.key === 'self_authority_fully_carried_rate')
-    const selfAuthorityPreserve = selfAuthorityRows.find(row => row.key === 'self_authority_preserved_rate')
-    const projectStateAuditCarry = projectStateAuditRows.find(row => row.key === 'project_state_audit_fully_carried_rate')
+    const emotionalValidationApproved = emotionalRows.find(row => row.key === 'emotional_closure_validation_approved_rate')
+    const emotionalValidationBlocked = emotionalRows.find(row => row.key === 'emotional_closure_validation_blocked_rate')
+    const emotionalValidationUnknown = emotionalRows.find(row => row.key === 'emotional_closure_validation_unknown_rate')
+    const selfAuthorityContentComplete = selfAuthorityRows.find(row => row.key === 'self_authority_content_complete_rate')
+    const selfAuthorityValidationApproved = selfAuthorityRows.find(row => row.key === 'self_authority_validation_approved_rate')
+    const selfAuthorityValidationBlocked = selfAuthorityRows.find(row => row.key === 'self_authority_validation_blocked_rate')
+    const selfAuthorityValidationUnknown = selfAuthorityRows.find(row => row.key === 'self_authority_validation_unknown_rate')
+    const projectStateAuditContentComplete = projectStateAuditRows.find(row => row.key === 'project_state_audit_content_complete_rate')
     const projectStateAuditContinuitySummary = projectStateAuditRows.find(row => row.key === 'project_state_audit_continuity_summary_rate')
-    const projectStateAuditPreserve = projectStateAuditRows.find(row => row.key === 'project_state_audit_preserved_rate')
+    const projectStateAuditValidationApproved = projectStateAuditRows.find(row => row.key === 'project_state_audit_validation_approved_rate')
+    const projectStateAuditValidationBlocked = projectStateAuditRows.find(row => row.key === 'project_state_audit_validation_blocked_rate')
+    const projectStateAuditValidationUnknown = projectStateAuditRows.find(row => row.key === 'project_state_audit_validation_unknown_rate')
+    const projectStateAuditEvidencePresent = projectStateAuditRows.find(row => row.key === 'project_state_audit_evidence_present_rate')
+    const projectStateAuditEvidenceMissing = projectStateAuditRows.find(row => row.key === 'project_state_audit_evidence_missing_rate')
+    const projectStateAuditEvidenceUnknown = projectStateAuditRows.find(row => row.key === 'project_state_audit_evidence_unknown_rate')
     const sameHerEmbodimentGroundedCarry = hasGroundedSameHerEmbodimentCarry(runtimeContinuityProjection?.matchedSignals ?? [])
     const projectSameHerDetail = describeInspectorContinuityMetricDetail(projectSameHer?.detail)
     const projectProactiveSameHerGapDetail = describeInspectorContinuityMetricDetail(projectProactiveSameHerGap?.detail)
-    const runtimeSameHerProofHeadline = describeInspectorContinuityMetricDetail(runtimeSameHerProof?.headline)
-    const runtimeSameHerProofDetail = describeInspectorContinuityMetricDetail(runtimeSameHerProof?.detail)
-    const runtimeSameHerProofNextRepairTarget = describeInspectorContinuityMetricDetail(runtimeSameHerProof?.nextRepairTarget)
+    const runtimeProofFacts = runtimeSameHerProof
+      ? `运行时证明事实：${formatInspectorRuntimeProofFacts(runtimeSameHerProof)}`
+      : null
+    const emotionalClosureFacts = formatInspectorReplayMetricFacts('情绪收束事实', [
+      { key: 'activeCue', detail: emotionalActiveCue?.detail },
+      { key: 'lowPressureRequired', detail: emotionalLowPressure?.detail },
+      { key: 'antiRestartRequired', detail: emotionalAntiRestart?.detail },
+      { key: 'validationApproved', detail: emotionalValidationApproved?.detail },
+      { key: 'validationBlocked', detail: emotionalValidationBlocked?.detail },
+      { key: 'validationUnknown', detail: emotionalValidationUnknown?.detail },
+    ])
+    const selfAuthorityFacts = formatInspectorReplayMetricFacts('权限事实', [
+      { key: 'contentComplete', detail: selfAuthorityContentComplete?.detail },
+      { key: 'validationApproved', detail: selfAuthorityValidationApproved?.detail },
+      { key: 'validationBlocked', detail: selfAuthorityValidationBlocked?.detail },
+      { key: 'validationUnknown', detail: selfAuthorityValidationUnknown?.detail },
+    ])
+    const projectStateAuditFacts = formatInspectorReplayMetricFacts('项目状态审计事实', [
+      { key: 'contentComplete', detail: projectStateAuditContentComplete?.detail },
+      { key: 'summary', detail: projectStateAuditContinuitySummary?.detail },
+      { key: 'validationApproved', detail: projectStateAuditValidationApproved?.detail },
+      { key: 'validationBlocked', detail: projectStateAuditValidationBlocked?.detail },
+      { key: 'validationUnknown', detail: projectStateAuditValidationUnknown?.detail },
+      { key: 'evidencePresent', detail: projectStateAuditEvidencePresent?.detail },
+      { key: 'evidenceMissing', detail: projectStateAuditEvidenceMissing?.detail },
+      { key: 'evidenceUnknown', detail: projectStateAuditEvidenceUnknown?.detail },
+    ])
     const summaryParts = [
       projectContinuity?.detail ? `project=${projectContinuity.detail}` : null,
       projectSameHerDetail ? `identityContinuity=${projectSameHerDetail}` : null,
       projectProactiveSameHerGapDetail ? `proactiveIdentityContinuityGap=${projectProactiveSameHerGapDetail}` : null,
       projectOpenLoop?.detail ? `openLoop=${projectOpenLoop.detail}` : null,
       briefingFull?.detail ? `briefing=${briefingFull.detail}` : null,
-      emotionalClosure?.detail ? `emotionalClosure=${emotionalClosure.detail}` : null,
-      emotionalLowPressure?.detail ? `emotionalClosureLowPressure=${emotionalLowPressure.detail}` : null,
-      emotionalAntiRestart?.detail ? `emotionalClosureAntiRestart=${emotionalAntiRestart.detail}` : null,
-      emotionalPreserve?.detail ? `preserve=${emotionalPreserve.detail}` : null,
-      selfAuthorityCarry?.detail ? `selfAuthority=${selfAuthorityCarry.detail}` : null,
-      selfAuthorityPreserve?.detail ? `selfAuthorityPreserve=${selfAuthorityPreserve.detail}` : null,
-      projectStateAuditCarry?.detail ? `projectStateAudit=${projectStateAuditCarry.detail}` : null,
-      projectStateAuditContinuitySummary?.detail ? `projectStateAuditContinuity=${projectStateAuditContinuitySummary.detail}` : null,
-      projectStateAuditPreserve?.detail ? `projectStateAuditPreserve=${projectStateAuditPreserve.detail}` : null,
-      runtimeSameHerProofHeadline ? `runtimeIdentityContinuity=${runtimeSameHerProofHeadline}` : null,
+      emotionalClosureFacts,
+      selfAuthorityFacts,
+      projectStateAuditFacts,
+      runtimeProofFacts,
       sameHerEmbodimentLaneImpact
         ? sameHerEmbodimentLaneImpact.replace('continuity-impact: ', 'embodiment=')
         : null,
     ].filter((value): value is string => Boolean(value))
-    const hasExplicitDriftSignal = summaryParts.some(part => part.includes('drift='))
+    const validationSummaries = [
+      emotionalClosureSummary,
+      selfAuthoritySummary,
+      projectStateAuditSummary,
+    ].filter((summary): summary is NonNullable<typeof summary> => Boolean(summary))
+    const evidenceSummaries = projectStateAuditSummary
+      ? [projectStateAuditSummary]
+      : []
+    const contentCompleteSummaries = [
+      selfAuthoritySummary,
+      projectStateAuditSummary,
+    ].filter((summary): summary is NonNullable<typeof summary> => Boolean(summary))
+    const hasMissingRequiredFactSummary = [
+      emotionalClosureSummary,
+      selfAuthoritySummary,
+      projectStateAuditSummary,
+    ].some(summary => !summary)
+    const hasBlockedOrMissingFact = validationSummaries.some(summary =>
+      Number.isFinite(summary.validationStatus?.blockedTurnCount)
+      && summary.validationStatus.blockedTurnCount > 0,
+    ) || evidenceSummaries.some(summary =>
+      Number.isFinite(summary.evidenceStatus?.missingTurnCount)
+      && summary.evidenceStatus.missingTurnCount > 0,
+    )
+    const hasUnknownFact = validationSummaries.some(summary =>
+      Number.isFinite(summary.validationStatus?.unknownTurnCount)
+      && summary.validationStatus.unknownTurnCount > 0,
+    ) || evidenceSummaries.some(summary =>
+      Number.isFinite(summary.evidenceStatus?.unknownTurnCount)
+      && summary.evidenceStatus.unknownTurnCount > 0,
+    )
+    const hasIndeterminateStatusFact = validationSummaries.some((summary) => {
+      const status = summary.validationStatus
+      return !status
+        || !Number.isFinite(summary.comparedTurnCount)
+        || summary.comparedTurnCount <= 0
+        || !Number.isFinite(status.knownTurnCount)
+        || status.knownTurnCount <= 0
+        || !Number.isFinite(status.approvedTurnCount)
+        || !Number.isFinite(status.blockedTurnCount)
+        || !Number.isFinite(status.unknownTurnCount)
+    }) || evidenceSummaries.some((summary) => {
+      const status = summary.evidenceStatus
+      return !status
+        || !Number.isFinite(summary.comparedTurnCount)
+        || summary.comparedTurnCount <= 0
+        || !Number.isFinite(status.knownTurnCount)
+        || status.knownTurnCount <= 0
+        || !Number.isFinite(status.presentTurnCount)
+        || !Number.isFinite(status.missingTurnCount)
+        || !Number.isFinite(status.unknownTurnCount)
+    })
+    const hasIncompleteEmotionalClosureContent = Boolean(
+      emotionalClosureSummary
+      && Number.isFinite(emotionalClosureSummary.comparedTurnCount)
+      && emotionalClosureSummary.comparedTurnCount > 0
+      && Number.isFinite(emotionalClosureSummary.activeCueTurnCount)
+      && emotionalClosureSummary.activeCueTurnCount < emotionalClosureSummary.comparedTurnCount,
+    )
+    const hasIncompleteContent = hasIncompleteEmotionalClosureContent
+      || contentCompleteSummaries.some(summary =>
+        Number.isFinite(summary.comparedTurnCount)
+        && summary.comparedTurnCount > 0
+        && Number.isFinite(summary.contentCompleteTurnCount)
+        && summary.contentCompleteTurnCount < summary.comparedTurnCount,
+      )
+    const hasCompleteEmotionalClosureGate = Boolean(
+      emotionalClosureSummary
+      && Number.isFinite(emotionalClosureSummary.comparedTurnCount)
+      && emotionalClosureSummary.comparedTurnCount > 0
+      && Number.isFinite(emotionalClosureSummary.activeCueTurnCount)
+      && emotionalClosureSummary.activeCueTurnCount === emotionalClosureSummary.comparedTurnCount,
+    )
+    const hasCompleteContentGate = hasCompleteEmotionalClosureGate
+      && contentCompleteSummaries.length === 2
+      && contentCompleteSummaries.every(summary =>
+        Number.isFinite(summary.comparedTurnCount)
+        && summary.comparedTurnCount > 0
+        && Number.isFinite(summary.contentCompleteTurnCount)
+        && summary.contentCompleteTurnCount === summary.comparedTurnCount,
+      )
+    const runtimeProofRequiresPartial = Boolean(
+      runtimeSameHerProof
+      && runtimeSameHerProof.status !== 'closed',
+    )
+    const hasExplicitDriftSignal = hasBlockedOrMissingFact
+      || hasIncompleteContent
+      || summaryParts.some(part => part.includes('drift='))
       || (Boolean(sameHerEmbodimentLaneImpact) && !sameHerEmbodimentGroundedCarry)
 
     const benchmarkDerivedClosure: NormalizedPreDialogueClosureSnapshot = {
       status: hasExplicitDriftSignal
         ? 'drift'
-        : summaryParts.length >= 3
-          ? 'grounded'
-          : 'partial',
+        : hasMissingRequiredFactSummary || hasUnknownFact || hasIndeterminateStatusFact || runtimeProofRequiresPartial || !hasCompleteContentGate
+          ? 'partial'
+          : summaryParts.length >= 3
+            ? 'grounded'
+            : 'partial',
       summaryLine: summaryParts.length > 0 ? summaryParts.join(' | ') : null,
       companionHeadlineLine: sameHerEmbodimentLaneImpact
         ? describeAlicizationEmbodimentClosureHeadline({
@@ -3436,6 +3615,9 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         : null,
       emotionalClosureCue: continuitySnapshot?.emotionalClosureCue ?? null,
       briefingLines: uniquePreviewReasons([
+        emotionalClosureFacts,
+        selfAuthorityFacts,
+        projectStateAuditFacts,
         continuitySnapshot?.identity
           ? `Identity: ${continuitySnapshot.identity}`
           : null,
@@ -3463,59 +3645,18 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         briefingFull?.detail
           ? `Briefing carry: ${briefingFull.detail}`
           : null,
-        emotionalClosure?.detail
-          ? `Emotional closure: ${emotionalClosure.detail}`
-          : null,
-        emotionalLowPressure?.detail
-          ? `Emotional low-pressure carry: ${emotionalLowPressure.detail}`
-          : null,
-        emotionalAntiRestart?.detail
-          ? `Emotional anti-restart carry: ${emotionalAntiRestart.detail}`
-          : null,
-        selfAuthorityCarry?.detail
-          ? `Self authority: ${selfAuthorityCarry.detail}`
-          : null,
-        projectStateAuditCarry?.detail
-          ? `Project-state identity-continuity audit: ${projectStateAuditCarry.detail}`
-          : null,
-        projectStateAuditContinuitySummary?.detail
-          ? `Project-state continuity brief: ${projectStateAuditContinuitySummary.detail}`
-          : null,
-        runtimeSameHerProofDetail
-          ? `Runtime identity-continuity proof: ${runtimeSameHerProofDetail}`
-          : null,
-      ], 7),
+        runtimeProofFacts,
+      ], 12),
       reasons: uniquePreviewReasons([
-        runtimeSameHerProofNextRepairTarget ?? null,
+        emotionalClosureFacts,
+        selfAuthorityFacts,
+        projectStateAuditFacts,
+        runtimeProofFacts,
         metricDetailHasConcreteCount(projectSameHerDetail) && projectSameHerDetail
           ? `Project identity-continuity self line currently reads ${projectSameHerDetail}, so the next turn should verify that Alicization still names identity continuity before any outward reply widening begins.`
           : null,
         metricDetailHasConcreteCount(projectProactiveSameHerGapDetail) && projectProactiveSameHerGapDetail
           ? `Proactive identity-continuity follow-through currently reads ${projectProactiveSameHerGapDetail}, so the next turn should check whether visible proactive hold, subconscious carry, and next-session feedback are still arriving on one identity-continuity line instead of fragmenting into detached follow-up beats.`
-          : null,
-        emotionalClosure?.detail
-          ? `Emotional continuity closure currently reads ${emotionalClosure.detail}, so the next turn should check whether the current identity route is still speaking through one emotional seam.`
-          : null,
-        emotionalLowPressure?.detail
-          ? `Low-pressure identity-continuity closure currently reads ${emotionalLowPressure.detail}, so the next turn should keep the return soft enough that the current continuity route does not widen too fast.`
-          : null,
-        emotionalAntiRestart?.detail
-          ? `Anti-restart identity-continuity closure currently reads ${emotionalAntiRestart.detail}, so the next turn should avoid reopening the current continuity route from scratch.`
-          : null,
-        selfAuthorityCarry?.detail
-          ? `Self authority currently reads ${selfAuthorityCarry.detail}, so the next turn should check whether the explicit self line is still surviving all the way into host-visible wording.`
-          : null,
-        selfAuthorityPreserve?.detail
-          ? `Self authority preservation currently reads ${selfAuthorityPreserve.detail}, which shows whether rewrite is still keeping the identity-continuity self line intact instead of smoothing it away.`
-          : null,
-        projectStateAuditCarry?.detail
-          ? `Project-status continuity currently reads ${projectStateAuditCarry.detail}, so the next turn should verify that project identity, Phase 1 route, and unfinished closure still arrive as one identity brief instead of a detached status shell.`
-          : null,
-        projectStateAuditContinuitySummary?.detail
-          ? `Project-state continuity brief currently reads ${projectStateAuditContinuitySummary.detail}, so the next turn should verify that identity-continuity line, landed progress, and still-open closure are arriving together instead of being carried as disconnected fragments.`
-          : null,
-        projectStateAuditPreserve?.detail
-          ? `Project-state audit preservation currently reads ${projectStateAuditPreserve.detail}, which shows whether rewrite is still keeping the identity-continuity project brief intact instead of flattening it into generic status reporting.`
           : null,
         continuitySnapshot?.proactiveSameHerGap
           ? `Proactive identity-continuity follow-through still reads ${continuitySnapshot.proactiveSameHerGap}, so the next turn should keep visible proactive hold, subconscious carry, and next-session feedback arriving as one identity-continuity line instead of splitting them across detached follow-up shells.`
@@ -3552,9 +3693,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         briefingFull?.detail
           ? `Pre-dialogue self briefing currently reads ${briefingFull.detail}, so the next turn should check whether identity, phase, landed progress, open loop, and next closure are still arriving as one stable self brief.`
           : null,
-        emotionalPreserve?.detail
-          ? `Emotional seam preservation currently reads ${emotionalPreserve.detail}, which shows whether rewrite and realization layers are still carrying the same inner line.`
-          : null,
       ], 12),
     }
     const explicitClosure = normalizePreDialogueClosureSnapshot(
@@ -3564,10 +3702,16 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     )
     const benchmarkClosureLooksThin = looksLikeThinPreDialogueClosureSnapshot(benchmarkDerivedClosure)
     const explicitClosureLooksThin = looksLikeThinPreDialogueClosureSnapshot(explicitClosure)
-    if (benchmarkClosureLooksThin && explicitClosure && !explicitClosureLooksThin)
-      return sanitizeInspectorClosureSnapshot(explicitClosure, continuitySnapshot)
-
-    return sanitizeInspectorClosureSnapshot(benchmarkDerivedClosure, continuitySnapshot)
+    const closureTextSource = benchmarkClosureLooksThin && explicitClosure && !explicitClosureLooksThin
+      ? explicitClosure
+      : benchmarkDerivedClosure
+    const mergedStatus = explicitClosure
+      ? mergePreDialogueClosureStatus(benchmarkDerivedClosure.status, explicitClosure.status)
+      : benchmarkDerivedClosure.status
+    return sanitizeInspectorClosureSnapshot({
+      ...closureTextSource,
+      status: mergedStatus,
+    }, continuitySnapshot)
   })
 
   const preDialogueAwarenessSnapshot = computed<NormalizedPreDialogueAwarenessSnapshot | null>(() => {
