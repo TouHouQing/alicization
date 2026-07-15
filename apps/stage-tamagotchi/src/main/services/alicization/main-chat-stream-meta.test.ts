@@ -493,96 +493,82 @@ describe('main chat stream meta', () => {
     expect(signature.lastSegmentBodyContinuitySummary).toContain(expectedIdentity)
   })
 
-  it('projects pending same-her embodiment repair pressure into renderer hints without closing memory causality', () => {
-    const emit = vi.fn()
-    const emitter = createAlicizationChatStreamMetaEmitter({
-      cardId: 'card-pending-same-her-embodiment-pressure',
-      turnId: 'turn-pending-same-her-embodiment-pressure',
-      getGovernance: () => ({
-        decisionTraceId: 'trace-pending-same-her-embodiment-pressure',
-        turnMode: 'answer',
-        truthState: 'grounded',
-        liveSurface: 'callback-line',
-        answerAct: 'answer',
-        answerEvidenceMode: 'observed',
-        personaKernelMode: 'full',
-      } as any),
-      getRuntimeDigest: () => ({
-        version: 'alicization-runtime-digest-v1',
-        dominantChannel: 'active-memory',
-        continuityPressure: 0.78,
-        companionshipPressure: 0.72,
-        shouldProactivelySpeak: true,
-        shouldProactivelyAct: false,
-        channels: [],
-        summary: 'pending same-her embodiment causality needs runtime evidence before closure',
-        derivedMindStateBundle: {
-          version: 'alicization-derived-mind-state-bundle-v1',
-          sameHerCausalityRepairPressure: {
-            version: 'same-her-causality-repair-pressure-v1',
-            source: 'memory-tuning-advice',
-            status: 'pending-runtime-evidence',
-            updatedAt: 1_234,
-            sourceReportAt: 1_200,
-            focusDimensions: ['runtimeSameHerEmbodimentCausality'],
-            lanes: [{
-              lane: 'embodiment',
-              reasonTags: ['runtimeSameHerEmbodimentCausality'],
-              summary: 'body, voice, lipsync, face, and motion must stay on one same-her line before closure.',
-            }],
-            notes: ['pending pressure must shape body output without becoming memory closure evidence'],
-            summary: 'pending same-her embodiment repair pressure from memory tuning advice',
+  it('does not let replay repair pressure change stream embodiment or governance cues', () => {
+    buildAlicizationChatStreamEmbodimentMetaMock.mockClear()
+    const emitWithRepairPressure = (withRepairPressure: boolean) => {
+      const emit = vi.fn()
+      const emitter = createAlicizationChatStreamMetaEmitter({
+        cardId: 'card-replay-pressure-invariance',
+        turnId: 'turn-replay-pressure-invariance',
+        getGovernance: () => ({
+          decisionTraceId: 'trace-replay-pressure-invariance',
+          turnMode: 'answer',
+          truthState: 'grounded',
+          liveSurface: 'callback-line',
+          answerAct: 'answer',
+          answerEvidenceMode: 'observed',
+          personaKernelMode: 'full',
+        } as any),
+        getRuntimeDigest: () => ({
+          version: 'alicization-runtime-digest-v1',
+          dominantChannel: 'active-memory',
+          continuityPressure: 0.78,
+          companionshipPressure: 0.72,
+          shouldProactivelySpeak: true,
+          shouldProactivelyAct: false,
+          channels: [],
+          summary: 'runtime continuity evidence',
+          derivedMindStateBundle: {
+            version: 'alicization-derived-mind-state-bundle-v1',
+            ...(withRepairPressure
+              ? {
+                  sameHerCausalityRepairPressure: {
+                    version: 'same-her-causality-repair-pressure-v1',
+                    source: 'memory-tuning-advice',
+                    status: 'pending-runtime-evidence',
+                    updatedAt: 1_234,
+                    sourceReportAt: 1_200,
+                    focusDimensions: ['runtimeSameHerEmbodimentCausality'],
+                    lanes: [{
+                      lane: 'embodiment',
+                      reasonTags: ['runtimeSameHerEmbodimentCausality'],
+                      summary: 'Pending replay diagnostics for embodiment.',
+                    }],
+                    notes: ['Replay diagnostics are not embodiment authority.'],
+                    summary: 'pending replay repair pressure',
+                  },
+                }
+              : {}),
           },
-        },
-        projectState: {
-          preflightSummary: 'Phase 1 memory loop still needs embodied same-her runtime evidence',
-        },
-      } as any),
-      emit,
-    })
+        } as any),
+        emit,
+      })
 
-    emitter.emit('我会先把身体这条线放轻一点，等运行证据接上。')
+      emitter.emit('继续当前回复。')
 
-    expect(emit).toHaveBeenCalledTimes(1)
-    const payload = emit.mock.calls[0]?.[0]
-    const expectedRendererHints = expect.objectContaining({
-      preferredBlinkCadence: 'quiet',
-      preferredGazeMode: 'soften',
-      preferredLipsyncMode: 'restrained',
-      preferredMotionAliases: expect.arrayContaining(['idle_settle']),
-      reasonTags: expect.arrayContaining([
-        'same-her-causality-repair-pressure',
-        'runtimeSameHerEmbodimentCausality',
-      ]),
-    })
+      return {
+        payload: emit.mock.calls[0]?.[0],
+        currentConsciousFrame: buildAlicizationChatStreamEmbodimentMetaMock.mock.calls.at(-1)?.[0]?.currentConsciousFrame,
+      }
+    }
 
-    expect(payload?.embodiment?.rendererHints).toEqual(expectedRendererHints)
-    expect(payload?.speechTimeline?.segments?.[0]?.rendererHints).toEqual(expectedRendererHints)
-    expect(payload?.embodimentScript?.speechPlan?.segments?.[0]?.rendererHints).toEqual(expectedRendererHints)
-    expect(payload?.digitalLife?.rendererHints).toEqual(expectedRendererHints)
-    expect(payload?.digitalLife?.frames?.[0]?.face.rendererHints).toEqual(expectedRendererHints)
-    expect(payload?.digitalLife?.frames?.[0]?.action.rendererHints).toEqual(expectedRendererHints)
-    expect(payload?.runtimeDigest?.derivedMindStateBundle?.sameHerCausalityRepairPressure?.status).toBe('pending-runtime-evidence')
-    expect(payload?.runtimeDigest?.derivedMindStateBundle?.memoryClosureCausality).toBeFalsy()
-    expect(buildAlicizationChatStreamEmbodimentMeta).toHaveBeenCalledWith(expect.objectContaining({
-      currentConsciousFrame: expect.objectContaining({
-        reasonTags: expect.arrayContaining([
-          'same-her-causality-repair-pressure',
-          'runtimeSameHerEmbodimentCausality',
-        ]),
-      }),
-    }))
+    const baseline = emitWithRepairPressure(false)
+    const pressured = emitWithRepairPressure(true)
 
-    const signature = JSON.parse(buildAlicizationChatMetaSignature(payload ?? {} as any)) as Record<string, unknown>
-    expect(signature.lastSegmentRendererHintSummary).toContain('lipsync=restrained')
-    expect(signature.lastSegmentRendererHintSummary).toContain('motion=idle_settle')
-    expect(signature.lastSegmentRendererHintSummary).toContain('reason=same-her-causality-repair-pressure,runtimeSameHerEmbodimentCausality')
-    expect(signature.lastSegmentPreferredLipsyncMode).toBe('restrained')
-    expect(signature.lastSegmentPreferredMotionAlias).toBe('idle_settle')
-    expect(signature.lastSegmentRendererReasonTags).toEqual(expect.arrayContaining([
-      'same-her-causality-repair-pressure',
-      'runtimeSameHerEmbodimentCausality',
-    ]))
+    expect(pressured.payload?.embodiment).toEqual(baseline.payload?.embodiment)
+    expect(pressured.payload?.embodimentScript).toEqual(baseline.payload?.embodimentScript)
+    expect(pressured.payload?.speechTimeline).toEqual(baseline.payload?.speechTimeline)
+    expect(pressured.payload?.digitalLife).toEqual(baseline.payload?.digitalLife)
+    expect(pressured.currentConsciousFrame).toEqual(baseline.currentConsciousFrame)
+    expect(pressured.payload?.digitalLife?.action.actionCue).toBe('lean-forward')
+    expect(pressured.payload?.digitalLife?.frames[0]?.action.actionCue).toBe('lean-forward')
+
+    const baselineSignature = JSON.parse(buildAlicizationChatMetaSignature(baseline.payload ?? {} as any)) as Record<string, unknown>
+    const pressuredSignature = JSON.parse(buildAlicizationChatMetaSignature(pressured.payload ?? {} as any)) as Record<string, unknown>
+    expect(pressuredSignature.lastSegmentRendererHintSummary).toBe(baselineSignature.lastSegmentRendererHintSummary)
+    expect(pressuredSignature.lastSegmentPreferredLipsyncMode).toBe(baselineSignature.lastSegmentPreferredLipsyncMode)
+    expect(pressuredSignature.lastSegmentPreferredMotionAlias).toBe(baselineSignature.lastSegmentPreferredMotionAlias)
+    expect(pressuredSignature.lastSegmentRendererReasonTags).toEqual(baselineSignature.lastSegmentRendererReasonTags)
   })
 
   it('dedupes unchanged embodiment meta signatures and tracks the last emitted reply', () => {
@@ -13133,7 +13119,6 @@ describe('main chat stream meta', () => {
 
   it('keeps canonical repair-before-closeness reason over a generic continuity menu in resident presence summaries', () => {
     const genericContinuityMenu = 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, longer-lived voice behavior, facial state, motion, resident presence, Project identity carry, Phase 1 route carry, Unresolved closure carry, anthropomorphic emotional closure, and same-her inward-carry observability all stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.'
-    const canonicalRepairFirstLine = 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again'
 
     const signature = buildAlicizationChatMetaSignature({
       governance: {

@@ -39,16 +39,10 @@ import { buildAlicizationChatStreamEmbodimentMeta, readStringValue } from './run
 type AlicizationChatMetaDigitalLifeFrame = NonNullable<AlicizationChatMetaEvent['digitalLife']>['frames'][number]
 type AlicizationChatMetaSpeechTimelineSegment = NonNullable<NonNullable<AlicizationChatMetaEvent['speechTimeline']>['segments'][number]>
 type AlicizationChatMetaEmotionalKernel = NonNullable<AlicizationRuntimeDigest['emotionalKernel']>
-type AlicizationChatMetaRendererHints = NonNullable<AlicizationChatMetaSpeechTimelineSegment['rendererHints']>
 type AlicizationChatMetaSelfContinuityAuthority = NonNullable<
   NonNullable<AlicizationRuntimeDigest['currentConsciousFrame']>['selfContinuityAuthority']
 >
 type AlicizationChatMetaCurrentConsciousFrame = NonNullable<AlicizationRuntimeDigest['currentConsciousFrame']>
-
-const pendingSameHerEmbodimentRepairPressureReasonTags = [
-  'same-her-causality-repair-pressure',
-  'runtimeSameHerEmbodimentCausality',
-] as const
 
 const structuredMeasuredReturnInwardCarry
   = 'cadence=measured_return; direction=inward; widening=deferred; pressure=lower'
@@ -2716,191 +2710,10 @@ function buildEffectiveRuntimeDigestForChatMeta(input: {
   } satisfies AlicizationRuntimeDigest
 }
 
-function resolvePendingSameHerEmbodimentRepairPressureRendererHints(
-  runtimeDigest: AlicizationRuntimeDigest | null | undefined,
-): AlicizationChatMetaRendererHints | null {
-  const pressure = runtimeDigest?.derivedMindStateBundle?.sameHerCausalityRepairPressure
-  if (
-    pressure?.version !== 'same-her-causality-repair-pressure-v1'
-    || pressure.status !== 'pending-runtime-evidence'
-    || !pressure.lanes.some(lane => lane.lane === 'embodiment')
-  ) {
-    return null
-  }
-
-  const reasonTags = Array.from(new Set([
-    ...pendingSameHerEmbodimentRepairPressureReasonTags,
-    ...pressure.lanes
-      .filter(lane => lane.lane === 'embodiment')
-      .flatMap(lane => lane.reasonTags),
-  ])).slice(0, 12)
-
-  return {
-    preferredBlinkCadence: 'quiet',
-    preferredGazeMode: 'soften',
-    preferredLipsyncMode: 'restrained',
-    preferredMotionAliases: ['idle_settle'],
-    reasonTags,
-  } satisfies AlicizationChatMetaRendererHints
-}
-
-function mergePendingSameHerEmbodimentRepairPressureRendererHints(input: {
-  current: AlicizationChatMetaRendererHints | null | undefined
-  pressure: AlicizationChatMetaRendererHints | null
-}): AlicizationChatMetaRendererHints | null {
-  if (!input.pressure)
-    return input.current ?? null
-
-  const currentReasonTags = Array.isArray(input.current?.reasonTags)
-    ? input.current.reasonTags
-    : []
-  const pressureReasonTags = Array.isArray(input.pressure.reasonTags)
-    ? input.pressure.reasonTags
-    : []
-  const currentMotionAliases = Array.isArray(input.current?.preferredMotionAliases)
-    ? input.current.preferredMotionAliases
-    : []
-  const pressureMotionAliases = Array.isArray(input.pressure.preferredMotionAliases)
-    ? input.pressure.preferredMotionAliases
-    : []
-
-  return {
-    ...input.current,
-    preferredBlinkCadence: input.pressure.preferredBlinkCadence ?? input.current?.preferredBlinkCadence,
-    preferredGazeMode: input.pressure.preferredGazeMode ?? input.current?.preferredGazeMode,
-    preferredLipsyncMode: input.pressure.preferredLipsyncMode ?? input.current?.preferredLipsyncMode,
-    preferredMotionAliases: Array.from(new Set([
-      ...pressureMotionAliases,
-      ...currentMotionAliases,
-    ])),
-    reasonTags: Array.from(new Set([
-      ...currentReasonTags,
-      ...pressureReasonTags,
-    ])).slice(0, 12),
-  } satisfies AlicizationChatMetaRendererHints
-}
-
-function applyPendingSameHerEmbodimentRepairPressureToEmbodimentPayload(input: {
-  embodiment: AlicizationChatMetaEvent['embodiment']
-  pressure: AlicizationChatMetaRendererHints | null
-}): AlicizationChatMetaEvent['embodiment'] {
-  if (!input.embodiment || !input.pressure)
-    return input.embodiment
-
-  return {
-    ...input.embodiment,
-    rendererHints: mergePendingSameHerEmbodimentRepairPressureRendererHints({
-      current: input.embodiment.rendererHints,
-      pressure: input.pressure,
-    }),
-  }
-}
-
-function applyPendingSameHerEmbodimentRepairPressureToEmbodimentScript(input: {
-  embodimentScript: AlicizationChatMetaEvent['embodimentScript']
-  pressure: AlicizationChatMetaRendererHints | null
-}): AlicizationChatMetaEvent['embodimentScript'] {
-  if (!input.embodimentScript || !input.pressure)
-    return input.embodimentScript
-
-  return {
-    ...input.embodimentScript,
-    speechPlan: {
-      ...input.embodimentScript.speechPlan,
-      segments: input.embodimentScript.speechPlan.segments.map(segment => ({
-        ...segment,
-        rendererHints: mergePendingSameHerEmbodimentRepairPressureRendererHints({
-          current: segment.rendererHints,
-          pressure: input.pressure,
-        }),
-      })),
-    },
-  }
-}
-
-function applyPendingSameHerEmbodimentRepairPressureToSpeechTimeline(input: {
-  speechTimeline: AlicizationChatMetaEvent['speechTimeline']
-  pressure: AlicizationChatMetaRendererHints | null
-}): AlicizationChatMetaEvent['speechTimeline'] {
-  if (!input.speechTimeline || !input.pressure)
-    return input.speechTimeline
-
-  return {
-    ...input.speechTimeline,
-    segments: input.speechTimeline.segments.map(segment => ({
-      ...segment,
-      rendererHints: mergePendingSameHerEmbodimentRepairPressureRendererHints({
-        current: segment.rendererHints,
-        pressure: input.pressure,
-      }),
-    })),
-  }
-}
-
-function applyPendingSameHerEmbodimentRepairPressureToDigitalLifePayload(input: {
-  digitalLife: AlicizationChatMetaEvent['digitalLife']
-  pressure: AlicizationChatMetaRendererHints | null
-}): AlicizationChatMetaEvent['digitalLife'] {
-  if (!input.digitalLife || !input.pressure)
-    return input.digitalLife
-
-  return {
-    ...input.digitalLife,
-    rendererHints: mergePendingSameHerEmbodimentRepairPressureRendererHints({
-      current: input.digitalLife.rendererHints,
-      pressure: input.pressure,
-    }),
-    face: {
-      ...input.digitalLife.face,
-      rendererHints: mergePendingSameHerEmbodimentRepairPressureRendererHints({
-        current: input.digitalLife.face.rendererHints,
-        pressure: input.pressure,
-      }),
-    },
-    action: {
-      ...input.digitalLife.action,
-      actionCue: input.digitalLife.action.actionCue === 'lean-forward'
-        ? 'idle_settle'
-        : input.digitalLife.action.actionCue,
-      rendererHints: mergePendingSameHerEmbodimentRepairPressureRendererHints({
-        current: input.digitalLife.action.rendererHints,
-        pressure: input.pressure,
-      }),
-    },
-    frames: input.digitalLife.frames.map(frame => ({
-      ...frame,
-      face: {
-        ...frame.face,
-        rendererHints: mergePendingSameHerEmbodimentRepairPressureRendererHints({
-          current: frame.face.rendererHints,
-          pressure: input.pressure,
-        }),
-      },
-      action: {
-        ...frame.action,
-        actionCue: frame.action.actionCue === 'lean-forward'
-          ? 'idle_settle'
-          : frame.action.actionCue,
-        rendererHints: mergePendingSameHerEmbodimentRepairPressureRendererHints({
-          current: frame.action.rendererHints,
-          pressure: input.pressure,
-        }),
-      },
-    })),
-  }
-}
-
 function buildCurrentConsciousFrameForStreamMetaGovernance(
   runtimeDigest: AlicizationRuntimeDigest | null | undefined,
 ): AlicizationCurrentConsciousFrameSnapshot | null {
-  const baseReasonTags = runtimeDigest?.currentConsciousFrame?.reasonTags ?? []
-  const pressure = resolvePendingSameHerEmbodimentRepairPressureRendererHints(runtimeDigest)
-  const reasonTags = pressure?.reasonTags?.length
-    ? Array.from(new Set([
-        ...baseReasonTags,
-        ...pressure.reasonTags,
-      ])).slice(0, 12)
-    : baseReasonTags
+  const reasonTags = runtimeDigest?.currentConsciousFrame?.reasonTags ?? []
 
   if (!runtimeDigest?.currentConsciousFrame && reasonTags.length === 0)
     return null
@@ -3360,25 +3173,6 @@ export function buildAlicizationChatMetaPayload(input: {
     digitalLifeSpine: repairedDigitalLifeSpine,
     runtimeDigest: effectiveRuntimeDigest,
   })
-  const pendingSameHerEmbodimentRepairPressureRendererHints
-    = resolvePendingSameHerEmbodimentRepairPressureRendererHints(effectiveRuntimeDigest)
-  const pressureAdjustedEmbodiment = applyPendingSameHerEmbodimentRepairPressureToEmbodimentPayload({
-    embodiment: repairedEmbodiment,
-    pressure: pendingSameHerEmbodimentRepairPressureRendererHints,
-  })
-  const pressureAdjustedEmbodimentScript = applyPendingSameHerEmbodimentRepairPressureToEmbodimentScript({
-    embodimentScript: repairedEmbodimentScript,
-    pressure: pendingSameHerEmbodimentRepairPressureRendererHints,
-  })
-  const pressureAdjustedSpeechTimeline = applyPendingSameHerEmbodimentRepairPressureToSpeechTimeline({
-    speechTimeline: repairedSpeechTimeline,
-    pressure: pendingSameHerEmbodimentRepairPressureRendererHints,
-  })
-  const pressureAdjustedDigitalLife = applyPendingSameHerEmbodimentRepairPressureToDigitalLifePayload({
-    digitalLife: repairedDigitalLife,
-    pressure: pendingSameHerEmbodimentRepairPressureRendererHints,
-  })
-
   return {
     cardId: input.cardId,
     turnId: input.turnId,
@@ -3386,10 +3180,10 @@ export function buildAlicizationChatMetaPayload(input: {
     visibleReplyExecution: input.visibleReplyExecution ?? null,
     projectState: sanitizeStreamMetaObject(projectState),
     preDialogueAwareness: sanitizeStreamMetaObject(preDialogueAwareness),
-    embodiment: sanitizeStreamMetaObject(pressureAdjustedEmbodiment),
-    embodimentScript: sanitizeStreamMetaObject(pressureAdjustedEmbodimentScript),
-    speechTimeline: sanitizeStreamMetaObject(pressureAdjustedSpeechTimeline),
-    digitalLife: sanitizeStreamMetaObject(pressureAdjustedDigitalLife),
+    embodiment: sanitizeStreamMetaObject(repairedEmbodiment),
+    embodimentScript: sanitizeStreamMetaObject(repairedEmbodimentScript),
+    speechTimeline: sanitizeStreamMetaObject(repairedSpeechTimeline),
+    digitalLife: sanitizeStreamMetaObject(repairedDigitalLife),
     digitalLifeSpine: sanitizeStreamMetaObject(repairedDigitalLifeSpine),
     residentPerformance: sanitizeStreamMetaObject(input.residentPerformance ?? null),
     runtimeDigest: sanitizeStreamMetaObject(effectiveRuntimeDigest),
