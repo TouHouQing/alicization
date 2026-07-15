@@ -506,8 +506,8 @@ describe('buildInitiativeArbitration', () => {
     expect(direct.proposals[0]?.why).toContain('direct')
   })
 
-  it('keeps remembered-familiarity restraint from letting a speak proposal outrank the hover-first counterfactual return', () => {
-    const arbitration = buildInitiativeArbitration({
+  it('does not let numeric replay person-state tuning change dynamic initiative arbitration', () => {
+    const input = {
       now: 12_000,
       context: {
         localTime: { hour: 15, minute: 20, isLateNight: false },
@@ -765,16 +765,17 @@ describe('buildInitiativeArbitration', () => {
         },
         notes: ['Remembered familiarity reopened visible closeness too quickly.'],
       },
-    } as any)
+    } as any
+    const baseline = buildInitiativeArbitration({
+      ...input,
+      memoryTuningAdvice: null,
+    })
+    const tuned = buildInitiativeArbitration(input)
 
-    expect(arbitration.proposals[0]?.action).toBe('hover')
-    expect(arbitration.proposals[0]?.source).toBe('counterfactual')
-    expect(arbitration.proposals[0]?.why).toContain('记忆')
-    expect(arbitration.proposals.find(proposal => proposal.action === 'speak')?.score ?? 1)
-      .toBeLessThan(arbitration.proposals[0]?.score ?? 0)
+    expect(tuned).toEqual(baseline)
   })
 
-  function buildSameHerClosureCarryArbitration(memoryTuningAdvice: any) {
+  function buildTuningInvariantArbitration(memoryTuningAdvice: any) {
     return buildInitiativeArbitration({
       now: 12_000,
       context: {
@@ -949,169 +950,40 @@ describe('buildInitiativeArbitration', () => {
     } as any)
   }
 
-  it('treats low-pressure same-her closure carry as its own hover-first runtime bias even without project-state inputs', () => {
-    const baseline = buildSameHerClosureCarryArbitration(null)
-    const arbitration = buildSameHerClosureCarryArbitration({
+  it('does not let nightly replay tuning change initiative arbitration or proposal wording', () => {
+    const baseline = buildTuningInvariantArbitration(null)
+    const tuned = buildTuningInvariantArbitration({
       version: 'memory-tuning-advice-v1',
       source: 'nightly-replay-benchmark',
       updatedAt: 11_500,
       sourceReportAt: 11_500,
-      focusDimensions: ['projectEmotionalClosureLowPressureCarry'],
+      focusDimensions: [
+        'relationshipTimingDiscipline',
+        'projectEmotionalClosureLowPressureCarry',
+        'projectEmotionalClosureAntiRestartCarry',
+        'runtimeSameHerInitiativeExecutionCarry',
+        'runtimeMemoryClosureCausalIdentity',
+      ],
       retrievalAdjustments: {
         proceduralBoost: 0,
-        relationshipBoost: 0.04,
+        relationshipBoost: 0.08,
         temporalWindowBias: 0.04,
         wrongThreadPenalty: 0,
       },
       surfaceAdjustments: {
         inwardCarryBias: 0.16,
         delayUntilAfterPayoffBias: 0.14,
-        provenanceLabelBias: 0.08,
-        specificityClampBias: 0,
+        provenanceLabelBias: 0.18,
+        specificityClampBias: 0.08,
       },
       personStateAdjustments: {
-        repairWindowBias: 0,
-        closenessCapBias: 0.08,
+        repairWindowBias: 0.14,
+        closenessCapBias: 0.18,
       },
-      notes: ['Keep the same-her closure return low-pressure until live payoff lands.'],
+      notes: ['Replay diagnostics should not govern initiative wording.'],
     })
 
-    expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
-    expect(arbitration.proposals[0]?.action).toBe('hover')
-    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
-      .toBeGreaterThan(baseline.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
-    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
-      .toBeGreaterThan(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.score ?? 0)
-    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
-      .toContain('low-pressure')
-    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.why ?? '')
-      .toContain('stay low-pressure')
-  })
-
-  it('treats anti-restart same-her closure carry as its own runtime bias so the return does not reopen from scratch', () => {
-    const baseline = buildSameHerClosureCarryArbitration(null)
-    const arbitration = buildSameHerClosureCarryArbitration({
-      version: 'memory-tuning-advice-v1',
-      source: 'nightly-replay-benchmark',
-      updatedAt: 11_500,
-      sourceReportAt: 11_500,
-      focusDimensions: ['projectEmotionalClosureAntiRestartCarry'],
-      retrievalAdjustments: {
-        proceduralBoost: 0,
-        relationshipBoost: 0.04,
-        temporalWindowBias: 0.04,
-        wrongThreadPenalty: 0,
-      },
-      surfaceAdjustments: {
-        inwardCarryBias: 0.14,
-        delayUntilAfterPayoffBias: 0.12,
-        provenanceLabelBias: 0.08,
-        specificityClampBias: 0,
-      },
-      personStateAdjustments: {
-        repairWindowBias: 0,
-        closenessCapBias: 0.08,
-      },
-      notes: ['Do not let the same-her closure line reopen from scratch.'],
-    })
-
-    expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
-    expect(arbitration.proposals[0]?.action).toBe('hover')
-    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
-      .toBeGreaterThan(baseline.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
-    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
-      .toBeGreaterThan(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.score ?? 0)
-    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
-      .toContain('reopen from scratch')
-    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.why ?? '')
-      .toContain('reopening from scratch')
-  })
-
-  it('uses runtime same-her initiative execution repair advice to keep proactive follow-through hover-first', () => {
-    const baseline = buildSameHerClosureCarryArbitration(null)
-    const arbitration = buildSameHerClosureCarryArbitration({
-      version: 'memory-tuning-advice-v1',
-      source: 'nightly-replay-benchmark',
-      updatedAt: 11_500,
-      sourceReportAt: 11_500,
-      focusDimensions: [
-        'runtimeSameHerRepairTargets',
-        'runtimeSameHerInitiativeExecutionCarry',
-      ],
-      retrievalAdjustments: {
-        proceduralBoost: 0,
-        relationshipBoost: 0.08,
-        temporalWindowBias: 0.04,
-        wrongThreadPenalty: 0,
-      },
-      surfaceAdjustments: {
-        inwardCarryBias: 0.08,
-        delayUntilAfterPayoffBias: 0.12,
-        provenanceLabelBias: 0.04,
-        specificityClampBias: 0,
-      },
-      personStateAdjustments: {
-        repairWindowBias: 0.12,
-        closenessCapBias: 0.08,
-      },
-      notes: ['Runtime sampling found same-her initiative/execution gaps.'],
-    })
-
-    expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
-    expect(arbitration.proposals[0]?.action).toBe('hover')
-    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
-      .toBeGreaterThan(baseline.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
-    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
-      .toBeGreaterThan(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.score ?? 0)
-    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
-      .toContain('proactive follow-through')
-    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.why ?? '')
-      .toContain('execution callback')
-  })
-
-  it('carries memory closure causal identity requirements into proactive follow-through proposals', () => {
-    const arbitration = buildSameHerClosureCarryArbitration({
-      version: 'memory-tuning-advice-v1',
-      source: 'nightly-replay-benchmark',
-      updatedAt: 11_500,
-      sourceReportAt: 11_500,
-      focusDimensions: [
-        'runtimeMemoryClosureLongRun',
-        'runtimeMemoryClosureCausalIdentity',
-        'runtimeMemoryClosureLaneCarry',
-        'runtimeMemoryClosureIdentityContinuity',
-        'runtimeSameHerInitiativeExecutionCarry',
-      ],
-      retrievalAdjustments: {
-        proceduralBoost: 0,
-        relationshipBoost: 0.08,
-        temporalWindowBias: 0.08,
-        wrongThreadPenalty: 0,
-      },
-      surfaceAdjustments: {
-        inwardCarryBias: 0.08,
-        delayUntilAfterPayoffBias: 0.12,
-        provenanceLabelBias: 0.06,
-        specificityClampBias: 0,
-      },
-      personStateAdjustments: {
-        repairWindowBias: 0.12,
-        closenessCapBias: 0.08,
-      },
-      notes: [
-        'Replay memory closure long-run lacks downstream causal memory identity, so future closure must come from memoryClosureCausality.memoryIdentity instead of route-chain text or visible reply wording.',
-      ],
-    })
-
-    const hoverWhy = arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? ''
-    const speakWhy = arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.why ?? ''
-
-    expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
-    expect(hoverWhy).toContain('memoryClosureCausality.memoryIdentity')
-    expect(hoverWhy).toContain('route-chain text')
-    expect(hoverWhy).toContain('visible reply wording')
-    expect(hoverWhy).toContain('same recalled memory identity')
-    expect(speakWhy).toContain('memoryClosureCausality.memoryIdentity')
+    expect(tuned).toEqual(baseline)
   })
 
   it('keeps hover-first proposals ahead of speak proposals when Phase 1 digital-life closure is still open', () => {

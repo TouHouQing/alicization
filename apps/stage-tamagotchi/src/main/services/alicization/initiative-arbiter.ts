@@ -122,47 +122,6 @@ function lowerFirst(value: string) {
   return value ? `${value.charAt(0).toLowerCase()}${value.slice(1)}` : ''
 }
 
-function hasRememberedFamiliarityRestraint(memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null) {
-  if (!memoryTuningAdvice)
-    return false
-
-  return (memoryTuningAdvice.surfaceAdjustments.provenanceLabelBias ?? 0) >= 0.14
-    && (memoryTuningAdvice.personStateAdjustments.closenessCapBias ?? 0) >= 0.14
-}
-
-function hasSameHerClosureLowPressureCarry(memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null) {
-  if (!memoryTuningAdvice)
-    return false
-
-  return memoryTuningAdvice.focusDimensions.includes('projectEmotionalClosureLowPressureCarry')
-    && (memoryTuningAdvice.surfaceAdjustments.inwardCarryBias ?? 0) >= 0.12
-    && (memoryTuningAdvice.surfaceAdjustments.delayUntilAfterPayoffBias ?? 0) >= 0.12
-}
-
-function hasSameHerClosureAntiRestartCarry(memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null) {
-  if (!memoryTuningAdvice)
-    return false
-
-  return memoryTuningAdvice.focusDimensions.includes('projectEmotionalClosureAntiRestartCarry')
-    && (memoryTuningAdvice.surfaceAdjustments.delayUntilAfterPayoffBias ?? 0) >= 0.12
-}
-
-function hasRuntimeSameHerInitiativeExecutionCarry(memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null) {
-  if (!memoryTuningAdvice)
-    return false
-
-  return memoryTuningAdvice.focusDimensions.includes('runtimeSameHerInitiativeExecutionCarry')
-    && (memoryTuningAdvice.surfaceAdjustments.delayUntilAfterPayoffBias ?? 0) >= 0.1
-    && (memoryTuningAdvice.personStateAdjustments.repairWindowBias ?? 0) >= 0.1
-}
-
-function hasRuntimeMemoryClosureCausalIdentityRequirement(memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null) {
-  if (!memoryTuningAdvice)
-    return false
-
-  return memoryTuningAdvice.focusDimensions.includes('runtimeMemoryClosureCausalIdentity')
-}
-
 function actionSpeaks(action: AlicizationMindActionTendency) {
   return action === 'whisper' || action === 'speak' || action === 'warn'
 }
@@ -534,14 +493,9 @@ function proposalBias(input: {
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
   habitPolicy?: AlicizationHabitPolicySnapshot | null
   concern?: AlicizationConcernSnapshot | null
-  memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
   projectState?: AlicizationInitiativeProjectStateInput | null
 }) {
   let bias = 0
-  const rememberedFamiliarityRestraint = hasRememberedFamiliarityRestraint(input.memoryTuningAdvice ?? null)
-  const sameHerClosureLowPressureCarry = hasSameHerClosureLowPressureCarry(input.memoryTuningAdvice ?? null)
-  const sameHerClosureAntiRestartCarry = hasSameHerClosureAntiRestartCarry(input.memoryTuningAdvice ?? null)
-  const runtimeSameHerInitiativeExecutionCarry = hasRuntimeSameHerInitiativeExecutionCarry(input.memoryTuningAdvice ?? null)
   const projectStateBias = deriveProjectStateArbitrationBias(input.projectState ?? null)
   const autobiographicalProjectCarry = carriesAutobiographicalProjectLine(input.motiveEngine ?? null)
 
@@ -563,22 +517,6 @@ function proposalBias(input: {
         bias += 0.12
       if (autobiographicalProjectCarry && input.proposal.action === 'whisper')
         bias -= 0.06
-      if (rememberedFamiliarityRestraint && input.proposal.action === 'hover')
-        bias += input.proposal.source === 'counterfactual' ? 0.22 : 0.16
-      if (rememberedFamiliarityRestraint && input.proposal.action === 'whisper')
-        bias -= input.proposal.source === 'counterfactual' ? 0.16 : 0.18
-      if (sameHerClosureLowPressureCarry && input.proposal.action === 'hover')
-        bias += input.proposal.source === 'counterfactual' ? 0.18 : 0.14
-      if (sameHerClosureAntiRestartCarry && input.proposal.action === 'hover')
-        bias += input.proposal.source === 'counterfactual' ? 0.14 : 0.1
-      if (runtimeSameHerInitiativeExecutionCarry && input.proposal.action === 'hover')
-        bias += input.proposal.source === 'counterfactual' ? 0.16 : 0.12
-      if (sameHerClosureLowPressureCarry && input.proposal.action === 'whisper')
-        bias -= input.proposal.source === 'counterfactual' ? 0.14 : 0.12
-      if (sameHerClosureAntiRestartCarry && input.proposal.action === 'whisper')
-        bias -= input.proposal.source === 'counterfactual' ? 0.14 : 0.12
-      if (runtimeSameHerInitiativeExecutionCarry && input.proposal.action === 'whisper')
-        bias -= input.proposal.source === 'counterfactual' ? 0.12 : 0.1
       break
     case 'warn':
       bias += (input.motiveEngine?.drives.restProtection ?? 0) * 0.14
@@ -590,28 +528,12 @@ function proposalBias(input: {
       bias -= input.habitPolicy?.blocksDirectSpeakWhenBusy ? 0.12 : 0
       if (autobiographicalProjectCarry)
         bias -= 0.12
-      if (rememberedFamiliarityRestraint)
-        bias -= input.proposal.source === 'counterfactual' ? 0.18 : 0.22
-      if (sameHerClosureLowPressureCarry)
-        bias -= input.proposal.source === 'counterfactual' ? 0.18 : 0.2
-      if (sameHerClosureAntiRestartCarry)
-        bias -= input.proposal.source === 'counterfactual' ? 0.16 : 0.18
-      if (runtimeSameHerInitiativeExecutionCarry)
-        bias -= input.proposal.source === 'counterfactual' ? 0.16 : 0.18
       break
     case 'wait':
       bias += (input.motiveEngine?.drives.boundaryRespect ?? 0) * 0.08
       bias += input.habitPolicy?.blocksDirectSpeakWhenBusy ? 0.12 : 0
       if (autobiographicalProjectCarry)
         bias += 0.1
-      if (rememberedFamiliarityRestraint)
-        bias += 0.06
-      if (sameHerClosureLowPressureCarry)
-        bias += 0.06
-      if (sameHerClosureAntiRestartCarry)
-        bias += 0.04
-      if (runtimeSameHerInitiativeExecutionCarry)
-        bias += 0.06
       break
   }
 
@@ -869,38 +791,6 @@ function buildProjectClosureProposalWhy(input: {
   return ''
 }
 
-function buildSameHerClosureCarryProposalWhy(input: {
-  action: AlicizationMindActionTendency
-  memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
-}) {
-  const lowPressureCarry = hasSameHerClosureLowPressureCarry(input.memoryTuningAdvice ?? null)
-  const antiRestartCarry = hasSameHerClosureAntiRestartCarry(input.memoryTuningAdvice ?? null)
-  const runtimeInitiativeExecutionCarry = hasRuntimeSameHerInitiativeExecutionCarry(input.memoryTuningAdvice ?? null)
-  const memoryClosureCausalIdentityRequired = hasRuntimeMemoryClosureCausalIdentityRequirement(input.memoryTuningAdvice ?? null)
-  if (!lowPressureCarry && !antiRestartCarry && !runtimeInitiativeExecutionCarry && !memoryClosureCausalIdentityRequired)
-    return ''
-
-  if (input.action === 'hover' || input.action === 'wait' || input.action === 'recheck') {
-    return sanitizeText([
-      memoryClosureCausalIdentityRequired ? 'Verify downstream memoryClosureCausality.memoryIdentity; route-chain text and visible reply wording are not closure proof.' : '',
-      lowPressureCarry ? 'closure_return=low_pressure_until_live_payoff' : '',
-      antiRestartCarry ? 'restart=avoid; reason=active_closure' : '',
-      runtimeInitiativeExecutionCarry ? 'proactive_follow_through=execution_callback_adjacent; memory_identity=recalled' : '',
-    ].filter(Boolean).join(' '), initiativeWhyMaxChars)
-  }
-
-  if (input.action === 'whisper' || input.action === 'speak') {
-    return sanitizeText([
-      memoryClosureCausalIdentityRequired ? 'memory_closure_identity=must_match_downstream_memoryClosureCausality.memoryIdentity; route_chain_text=not_proof; visible_reply_wording=not_proof' : '',
-      lowPressureCarry ? 'closer_move=low_pressure' : '',
-      antiRestartCarry ? 'closer_move_restart=avoid' : '',
-      runtimeInitiativeExecutionCarry ? 'spoken_follow_through=execution_callback_adjacent; continuity=single_recalled_memory_identity' : '',
-    ].filter(Boolean).join(' '), initiativeWhyMaxChars)
-  }
-
-  return ''
-}
-
 function compactInitiativeWhyForProjectCarry(input: {
   why: string
   action: AlicizationMindActionTendency
@@ -934,7 +824,6 @@ function createProposal(input: {
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
   personalityAuthority?: AlicizationPersonalityState | null
-  memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
   projectState?: AlicizationInitiativeProjectStateInput | null
   style?: AlicizationProactiveStyle
   presence?: AlicizationInitiativeProposalSnapshot['embodiedPresence']
@@ -1019,10 +908,6 @@ function createProposal(input: {
           action: input.action,
           projectState: input.projectState ?? null,
         }),
-        buildSameHerClosureCarryProposalWhy({
-          action: input.action,
-          memoryTuningAdvice: input.memoryTuningAdvice ?? null,
-        }),
         buildProjectClosureProposalWhy({
           action: input.action,
           projectState: input.projectState ?? null,
@@ -1093,7 +978,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      memoryTuningAdvice: input.memoryTuningAdvice ?? null,
       projectState: input.projectState ?? null,
       style: option.style,
       presence: option.embodiedPresence,
@@ -1134,7 +1018,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      memoryTuningAdvice: input.memoryTuningAdvice ?? null,
       projectState: input.projectState ?? null,
       style: concern.kind === 'care-body'
         ? (input.context.relationship.fatigue >= 80 ? 'firm-warning' : 'gentle-care')
@@ -1177,7 +1060,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      memoryTuningAdvice: input.memoryTuningAdvice ?? null,
       projectState: input.projectState ?? null,
       targetCommitmentId: commitment.id,
       targetRuntimeThreadId: runtimeThread?.id ?? null,
@@ -1216,7 +1098,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      memoryTuningAdvice: input.memoryTuningAdvice ?? null,
       projectState: input.projectState ?? null,
       targetThoughtThreadId: thoughtThread.id,
       targetConcernId: concern?.id ?? null,
@@ -1246,7 +1127,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      memoryTuningAdvice: input.memoryTuningAdvice ?? null,
       projectState: input.projectState ?? null,
       presence: runtimeThread.suggestedPresence,
       targetRuntimeThreadId: runtimeThread.id,
@@ -1280,7 +1160,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      memoryTuningAdvice: input.memoryTuningAdvice ?? null,
       projectState: input.projectState ?? null,
       targetGovernorIntentionId: governorIntention.id,
       targetConcernId: concern?.id ?? null,
@@ -1312,7 +1191,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      memoryTuningAdvice: input.memoryTuningAdvice ?? null,
       projectState: input.projectState ?? null,
       targetDesireId: desire.id,
       targetConcernId: concern?.id ?? null,
@@ -1348,7 +1226,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      memoryTuningAdvice: input.memoryTuningAdvice ?? null,
       projectState: input.projectState ?? null,
       targetThreadId: input.worldModel.activeThread.id,
       targetRuntimeThreadId: runtimeThread?.id ?? null,
@@ -1385,7 +1262,6 @@ export function buildInitiativeArbitration(input: {
         motiveEngine: input.motiveEngine ?? null,
         habitPolicy: input.habitPolicy ?? null,
         concern,
-        memoryTuningAdvice: input.memoryTuningAdvice ?? null,
         projectState: input.projectState ?? null,
       })),
     }))
