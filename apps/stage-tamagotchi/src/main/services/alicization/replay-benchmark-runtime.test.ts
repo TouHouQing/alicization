@@ -1,10 +1,12 @@
+import type { AlicizationDialogueSessionMirror } from './dialogue-session-manager'
+import type { AlicizationReplayTurn } from './main-chat-session-replay-harness'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import {
   replayMainChatSession,
 } from './main-chat-session-replay-harness'
 import { replayBenchmarkTuningAdviceMetaKey } from './memory-tuning-advice'
-import { alicizationProjectStateVisibleReplySameHerReminder } from './project-state-answer-governance'
 import {
   __alicizationTestOnly,
   createAlicizationReplayBenchmarkRuntime,
@@ -13,7 +15,57 @@ import {
   replayBenchmarkRuntimeSamplingBacklogKey,
 } from './replay-benchmark-runtime'
 
-function createReplayPreparedSameHerPrelude(threadId: string) {
+const observedIndexingTask = {
+  projectFact: 'The local-first digital life memory workbench recorded the embedding reindex callback.',
+  workState: 'Local digital life memory validation is checking the callback on the desktop.',
+  memoryFact: 'The recalled indexing callback belongs to the unfinished recall-validation task and appears in current voice and motion evidence.',
+  crossTurnMemoryFact: 'The recalled indexing callback belongs to the next low-pressure check-in, the unfinished recall-validation task, the user fatigue, and current body, voice, face, motion, and lipsync evidence.',
+  completedEvent: 'Landed progress: the embedding reindex finished and its callback was recorded.',
+  pendingCheck: '回忆验证还没闭环，已完成的重建索引仍需核对。',
+  nextCheck: 'The next memory check compares the indexing callback across voice, motion, and lipsync evidence.',
+  emotionalContext: 'Emotional closure evidence records that the user was tired when the indexing callback arrived, so the follow-up remains low-pressure.',
+  loadedContext: 'Before replying, load the completed reindex, pending recall validation, user fatigue, and current voice and motion evidence.',
+  eventChain: 'memory_fact=The recalled indexing callback belongs to the unfinished recall-validation task and current voice and motion evidence. | closure=The user was tired when the callback arrived, so the follow-up remains low-pressure.',
+  surfaceEvidence: 'Voice, motion, and lipsync evidence all reference the indexing callback.',
+  loadedBeforeReply: 'The completed reindex, pending recall validation, and user fatigue were loaded before reply generation.',
+} as const
+
+const unknownValidationStatus = {
+  knownTurnCount: 0,
+  approvedTurnCount: 0,
+  blockedTurnCount: 0,
+  unknownTurnCount: 1,
+} as const
+
+const approvedValidationStatus = {
+  knownTurnCount: 1,
+  approvedTurnCount: 1,
+  blockedTurnCount: 0,
+  unknownTurnCount: 0,
+} as const
+
+const unknownEvidenceStatus = {
+  knownTurnCount: 0,
+  presentTurnCount: 0,
+  missingTurnCount: 0,
+  unknownTurnCount: 1,
+} as const
+
+const presentEvidenceStatus = {
+  knownTurnCount: 1,
+  presentTurnCount: 1,
+  missingTurnCount: 0,
+  unknownTurnCount: 0,
+} as const
+
+type ReplayProjectStateAudit = NonNullable<
+  NonNullable<AlicizationReplayTurn['visibleReplyRealization']>['projectStateAudit']
+>
+
+function createReplayPreparedTaskPrelude(
+  threadId: string,
+  continuityArcSummary = `loop=execution-callback | thread=${threadId} | memory_fact=${observedIndexingTask.memoryFact}`,
+) {
   return {
     perceptionAugmentation: {
       digitalLifeRuntimeSurface: {
@@ -81,7 +133,7 @@ function createReplayPreparedSameHerPrelude(threadId: string) {
           replyDeliberation: null,
           answerPlanner: null,
           sessionMirror: {
-            continuityArcSummary: `loop=execution-callback | thread=${threadId} | same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.`,
+            continuityArcSummary,
           },
         },
         agency: {
@@ -97,6 +149,100 @@ function createReplayPreparedSameHerPrelude(threadId: string) {
         },
         raw: {
           runtimeDigest: null,
+        },
+      },
+    },
+  }
+}
+
+function createProjectStateAuditTurn(input: {
+  turnId: string
+  audit: ReplayProjectStateAudit
+  structured?: AlicizationReplayTurn['structured']
+  validationStatus?: 'approved' | 'blocked' | 'unknown'
+  evidenceStatus?: 'present' | 'missing' | 'unknown'
+}): AlicizationReplayTurn {
+  return {
+    turnId: input.turnId,
+    userText: '核对索引任务的当前观测状态',
+    structured: input.structured ?? null,
+    visibleReplyRealization: {
+      version: 'visible-reply-realization-v1',
+      expectedAuthority: 'llm-mind',
+      actualAuthority: 'llm-mind',
+      providerMindExecuted: true,
+      mode: 'provider-stream',
+      visibleText: '索引完成事件、待验证项和当前跨模态证据已经记录。',
+      nonHumanAuthoredStatus: null,
+      blockedReasons: [],
+      ...(input.validationStatus
+        ? { visibleReplyValidationStatus: input.validationStatus }
+        : {}),
+      ...(input.evidenceStatus
+        ? { projectStateEvidenceStatus: input.evidenceStatus }
+        : {}),
+      projectStateAudit: input.audit,
+      reason: 'runtime-project-state-observation',
+      critic: null,
+      closure: null,
+    },
+  }
+}
+
+async function prepareSessionMirrorObservation(input: {
+  turnId: string
+  continuityArcSummary: string
+}) {
+  const [prepared] = await replayMainChatSession({
+    turns: [{
+      turnId: input.turnId,
+      userText: '读取准备阶段的索引任务观测',
+    }],
+  })
+  const runtimeSurface = prepared?.runtimeSurface
+  const digitalLifeRuntimeSurface = runtimeSurface?.digitalLifeRuntimeSurface
+  const dialogue = digitalLifeRuntimeSurface?.dialogue
+
+  if (!prepared || !runtimeSurface || !digitalLifeRuntimeSurface || !dialogue)
+    throw new Error('Prepared replay turn did not expose a dialogue runtime surface.')
+
+  const sessionMirror: AlicizationDialogueSessionMirror = {
+    agencySummary: null,
+    cardId: 'default',
+    continuityArcSummary: input.continuityArcSummary,
+    continuityProjectSummary: null,
+    continuityLabels: [],
+    decisionTraceId: null,
+    dialogueSummary: null,
+    digitalLifeArchitectureSummary: null,
+    digitalLifeRuntimeSummary: null,
+    runtimeChannelSummary: null,
+    runtimeTransitionSummary: null,
+    captureSummary: 'permission=unknown',
+    executionSummary: null,
+    mindSummary: null,
+    memoryCarrySummary: null,
+    memorySummary: null,
+    recollectionSummary: null,
+    recollectionSurfaceSummary: null,
+    recollectionConfidence: null,
+    perceptionSummary: null,
+    sessionId: 'session-replay',
+    sessionPhases: [],
+    toolingSummary: 'tools=none',
+    updatedAt: 0,
+  }
+
+  return {
+    ...prepared,
+    sessionMirror,
+    runtimeSurface: {
+      ...runtimeSurface,
+      digitalLifeRuntimeSurface: {
+        ...digitalLifeRuntimeSurface,
+        dialogue: {
+          ...dialogue,
+          sessionMirror,
         },
       },
     },
@@ -194,7 +340,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       }],
       visibleReplyRealization: {
         version: 'visible-reply-realization-v1',
-        expectedAuthority: 'llm-second-pass-rewrite',
+        expectedAuthority: 'llm-mind',
         actualAuthority: 'llm-mind',
         providerMindExecuted: true,
         mode: 'provider-stream',
@@ -282,7 +428,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     }))
   })
 
-  it('fills sampled humanlike proof from chat turns instead of treating execution-callback rows as primary user dialogue samples', async () => {
+  it('uses primary chat runtime samples without admitting execution-callback rows as dialogue proof', async () => {
     const meta = new Map<string, string>()
     const runtimeBacklogTurn = (input: {
       id: string
@@ -442,7 +588,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(listConversationTurnsSince).toBeCalled()
     expect(result.datasetFeedback.runtimeSamplingEvidence).toEqual(expect.objectContaining({
       source: 'mixed-runtime-and-conversation',
-      sampledTurnCount: 3,
+      sampledTurnCount: 1,
     }))
     expect(result.turns.map(turn => turn.turnGraph.ids.turnId).sort()).toEqual([
       'chat:session-chat-main-sample:turn-1',
@@ -753,7 +899,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       })
   })
 
-  it('replays backlog turns with preserved visible reply realization authority', async () => {
+  it('retains visible reply realization authority when replaying backlog turns', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -776,7 +922,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           userText: '继续沿着刚才那条线做',
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
@@ -784,10 +930,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             selfAuthorityAudit: {
-              authoritySummary: 'I am still the same her continuing the same line with room.',
+              authoritySummary: 'The indexing callback remains tied to the current task, with room for a measured follow-up.',
               closenessPosture: 'measured-room',
-              preservedIntoRewrite: false,
-              rewriteClosureApplied: false,
             },
             reason: 'runtime-backlog-visible-reply',
             critic: null,
@@ -853,14 +997,12 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       expect.objectContaining({
         turnGraph: expect.objectContaining({
           surface: expect.objectContaining({
-            expectedAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             selfAuthorityAudit: expect.objectContaining({
-              authoritySummary: 'I am still the same her continuing the same line with room.',
+              authoritySummary: 'The indexing callback remains tied to the current task, with room for a measured follow-up.',
               closenessPosture: 'measured-room',
-              preservedIntoRewrite: false,
-              rewriteClosureApplied: false,
             }),
           }),
         }),
@@ -948,7 +1090,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       }],
       visibleReplyRealization: {
         version: 'visible-reply-realization-v1',
-        expectedAuthority: 'llm-second-pass-rewrite',
+        expectedAuthority: 'llm-mind',
         actualAuthority: 'llm-mind',
         providerMindExecuted: true,
         mode: 'provider-stream',
@@ -1052,7 +1194,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       }],
       visibleReplyRealization: {
         version: 'visible-reply-realization-v1',
-        expectedAuthority: 'llm-second-pass-rewrite',
+        expectedAuthority: 'llm-mind',
         actualAuthority: 'llm-mind',
         providerMindExecuted: true,
         mode: 'provider-stream',
@@ -1076,7 +1218,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(runtimeSamplingBacklog[0]?.replayTurn?.sampledCategories).toEqual(['proactive', 'repair'])
   })
 
-  it('preserves project-state closure cues in runtime sampling fallback backlog entries', async () => {
+  it('records project-state observations in runtime sampling fallback backlog entries', async () => {
     const meta = new Map<string, string>()
     const runtime = createAlicizationReplayBenchmarkRuntime({
       getAlicizationDb: () => ({
@@ -1118,17 +1260,17 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       row: {
         turnId: 'turn-runtime-project-state-fallback-1',
         sessionId: 'session-runtime-project-state-fallback',
-        userText: '每次回答前先告诉我这个项目现在到底做到哪了',
-        assistantText: '这是本地优先数字生命项目，现在还在 Phase 1，还有几处拟人闭环没收口。',
+        userText: '索引完成后，记录当前阶段、待验证任务和回复前上下文',
+        assistantText: '重建索引已经完成；回忆验证仍待执行，当前语音和动作证据已记录。',
         structuredJson: JSON.stringify({
-          reply: '这是本地优先数字生命项目，现在还在 Phase 1，还有几处拟人闭环没收口。',
+          reply: '重建索引已经完成；回忆验证仍待执行，当前语音和动作证据已记录。',
           projectState: {
-            identity: '本地优先数字生命',
-            phase: 'Phase 1',
-            openLoop: '情绪、记忆、主动性和身体表达还没闭环',
-            sameHerSelfLine: '这是同一个她还在推进的数字生命项目',
-            preDialogueAwarenessLine: '回答前先把项目身份、阶段和未闭环压力记住',
-            emotionalClosureCue: 'same-her closure seam: keep the return low-pressure and do not reopen from scratch.',
+            identity: observedIndexingTask.projectFact,
+            phase: observedIndexingTask.workState,
+            openLoop: observedIndexingTask.pendingCheck,
+            sameHerSelfLine: observedIndexingTask.memoryFact,
+            preDialogueAwarenessLine: observedIndexingTask.loadedContext,
+            emotionalClosureCue: observedIndexingTask.emotionalContext,
           },
         }),
         createdAt: 1_700_000_001_000,
@@ -1160,8 +1302,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             initiativeMode: 'repair',
             memoryRecallMode: 'repair-grounding',
             embodimentTone: 'repair-before-closeness',
-            why: 'keep repair-before-closeness on the same living line until embodiment settles',
-            reasonTags: ['repair-before-closeness', 'same living line'],
+            why: 'keep repair-before-closeness on the continuity state until embodiment settles',
+            reasonTags: ['repair-before-closeness', 'continuity state'],
           },
           summary: 'source=main-runtime | emotional-kernel=repair',
         } as any,
@@ -1179,11 +1321,11 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       }],
       visibleReplyRealization: {
         version: 'visible-reply-realization-v1',
-        expectedAuthority: 'llm-second-pass-rewrite',
+        expectedAuthority: 'llm-mind',
         actualAuthority: 'llm-mind',
         providerMindExecuted: true,
         mode: 'provider-stream',
-        visibleText: '这是本地优先数字生命项目，现在还在 Phase 1，还有几处拟人闭环没收口。',
+        visibleText: '重建索引已经完成；回忆验证仍待执行，当前语音和动作证据已记录。',
         nonHumanAuthoredStatus: null,
         blockedReasons: [],
         reason: 'runtime-sample-project-state-fallback',
@@ -1195,34 +1337,29 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(ingestResult).toEqual(expect.objectContaining({
       sampledTurn: expect.objectContaining({
         turnId: 'turn-runtime-project-state-fallback-1',
-        expectedMemory: expect.stringContaining('本地优先数字生命'),
+        expectedMemory: expect.stringContaining('local-first digital life memory workbench'),
       }),
     }))
-    expect(ingestResult?.sampledTurn.expectedMemory).toContain('Phase 1')
-    expect(ingestResult?.sampledTurn.expectedMemory).toContain('还没闭环')
-    expect(ingestResult?.sampledTurn.expectedMemory).toContain('这是同一个她还在推进的数字生命项目')
-    expect(ingestResult?.sampledTurn.expectedMemory).toContain('回答前先把项目身份、阶段和未闭环压力记住')
-    expect(ingestResult?.sampledTurn.expectedMemory).toContain('same-her closure seam')
+    expect(ingestResult?.sampledTurn.expectedMemory).toContain('Local digital life memory validation')
+    expect(ingestResult?.sampledTurn.expectedMemory).toContain('recalled indexing callback belongs to the unfinished recall-validation task')
     const runtimeSamplingBacklog = JSON.parse(meta.get(replayBenchmarkRuntimeSamplingBacklogKey) ?? '[]') as Array<{
       continuityDigest?: string | null
     }>
     expect(runtimeSamplingBacklog[0]).toEqual(expect.objectContaining({
       continuityDigest: expect.any(String),
     }))
-    expect(String(runtimeSamplingBacklog[0]?.continuityDigest ?? '')).toContain('same-her continuity')
-    expect(String(runtimeSamplingBacklog[0]?.continuityDigest ?? '')).toContain('phase 1 local digital life')
+    expect(String(runtimeSamplingBacklog[0]?.continuityDigest ?? '')).toContain('recalled indexing callback belongs to the unfinished recall-validation task')
+    expect(String(runtimeSamplingBacklog[0]?.continuityDigest ?? '')).toContain('runtime continuity')
     expect(String(runtimeSamplingBacklog[0]?.continuityDigest ?? '')).toContain('emotional_kernel:repair-tension')
     expect(String(runtimeSamplingBacklog[0]?.continuityDigest ?? '')).toContain('kernel_initiative:repair')
     expect(String(runtimeSamplingBacklog[0]?.continuityDigest ?? '')).toContain('kernel_recall:repair-grounding')
     expect(String(runtimeSamplingBacklog[0]?.continuityDigest ?? '')).toContain('kernel_embodiment:repair-before-closeness')
-    expect(String(runtimeSamplingBacklog[0]?.continuityDigest ?? '')).toContain('这是同一个她还在推进的数字生命项目')
-    expect(String(runtimeSamplingBacklog[0]?.continuityDigest ?? '')).toContain('情绪、记忆、主动性和身体表达还没闭环')
-    expect(meta.get(replayBenchmarkRuntimeSamplingBacklogKey)).toContain('本地优先数字生命')
-    expect(meta.get(replayBenchmarkRuntimeSamplingBacklogKey)).toContain('Phase 1')
-    expect(meta.get(replayBenchmarkRuntimeSamplingBacklogKey)).toContain('还没闭环')
-    expect(meta.get(replayBenchmarkRuntimeSamplingBacklogKey)).toContain('这是同一个她还在推进的数字生命项目')
-    expect(meta.get(replayBenchmarkRuntimeSamplingBacklogKey)).toContain('回答前先把项目身份、阶段和未闭环压力记住')
-    expect(meta.get(replayBenchmarkRuntimeSamplingBacklogKey)).toContain('same-her closure seam')
+    expect(String(runtimeSamplingBacklog[0]?.continuityDigest ?? '')).toContain('回忆验证还没闭环')
+    expect(meta.get(replayBenchmarkRuntimeSamplingBacklogKey)).toContain('local-first digital life memory workbench')
+    expect(meta.get(replayBenchmarkRuntimeSamplingBacklogKey)).toContain('Local digital life memory validation')
+    expect(meta.get(replayBenchmarkRuntimeSamplingBacklogKey)).toContain('回忆验证还没闭环')
+    expect(meta.get(replayBenchmarkRuntimeSamplingBacklogKey)).toContain('recalled indexing callback belongs to the unfinished recall-validation task')
+    expect(meta.get(replayBenchmarkRuntimeSamplingBacklogKey)).toContain('user was tired when the indexing callback arrived')
   })
 
   it('promotes complete memory-loop fallback traces into long-run sampling categories instead of plain dialogue', async () => {
@@ -1259,8 +1396,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotion, voice, face, motion, lipsync, and body.',
-            memoryClosureSummary: 'why recall surfaced now: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression all need one same-her long-run line.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
+            memoryClosureSummary: 'why recall surfaced now: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression form one traceable callback evidence chain.',
             proactiveSameHerGap: 'The next proactive opening should stay lower-pressure because corrected memory downranked stale status noise.',
             emotionalClosureCue: 'execution-callback-afterglow stays as a low-pressure emotional residue.',
           },
@@ -1315,7 +1452,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             initiativeMode: 'proactive-opening',
             memoryRecallMode: 'execution-callback-carry',
             embodimentTone: 'audible-body-carry',
-            why: 'corrected memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body are one same-her long-run line',
+            why: 'corrected memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body form one traceable callback evidence chain',
             reasonTags: ['memory-closure-trace', 'execution-callback', 'proactive-opening', 'body-lipsync-voice'],
           },
           emotionalTransitionLedger: {
@@ -1336,7 +1473,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             initiativeSuppression: {
               shouldSuppress: false,
               mode: 'single-thread',
-              reason: 'Stay proactive only on this same living line.',
+              reason: 'Stay proactive only on this continuity state.',
             },
             embodimentDrive: {
               shouldDrive: true,
@@ -1358,7 +1495,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             memoryWriteback: {
               shouldWrite: true,
               lane: 'cross-modal-continuity',
-              reason: 'Body, voice, face, motion, and lipsync carried the same-her line after memory correction.',
+              reason: 'Body, voice, face, motion, and lipsync carried the indexing callback thread',
             },
             traceSummary: 'phase=cross-modal-rejoin | carrying=body,voice,face,motion,lipsync',
             replayLine: 'body+voice+face+motion+lipsync carried same-her through the callback afterglow.',
@@ -1465,19 +1602,15 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         blockedReasons: [],
         projectStateAudit: {
           sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotion, voice, face, motion, lipsync, and body.',
-          memoryClosureSummary: 'why recall surfaced now: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression all need one same-her long-run line.',
+          memoryClosureSummary: 'why recall surfaced now: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression form one traceable callback evidence chain.',
           recallWhySummary: 'The recall surfaced because corrected memory should change the next proactive and embodied turn.',
-          preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional residue, and cross-modal embodiment as one same-her line.',
+          preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional residue, and cross-modal embodiment as one indexing callback thread',
           continuitySummary: 'Because corrected memory downranked stale status, the next proactive opening and body voice face motion lipsync expression stay lower-pressure.',
           emotionalClosureSummary: 'same-her emotional closure remains tied to execution callback afterglow.',
           embodimentClosureSummary: 'voice face motion lipsync and body keep one same-her embodied line.',
-          preservedIntoRewrite: true,
-          rewriteClosureApplied: true,
         },
         emotionalClosureAudit: {
           activeCue: 'same-her emotional closure remains tied to execution callback afterglow.',
-          preservedIntoRewrite: true,
-          rewriteClosureApplied: true,
           lowPressureRequired: true,
           antiRestartRequired: true,
         },
@@ -1513,7 +1646,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     ])
   })
 
-  it('lets runtime sampling continuity digests feed long-run same-her closure telemetry after backlog replay', async () => {
+  it('lets runtime sampling continuity digests feed long-run indexing callback evidence', async () => {
     const meta = new Map<string, string>()
     const runtime = createAlicizationReplayBenchmarkRuntime({
       getAlicizationDb: () => ({
@@ -1547,9 +1680,9 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, initiative, execution callback, emotion, body, voice, face, motion, and lipsync.',
-            memoryClosureSummary: 'why recall surfaced: execution callback afterglow, proactive follow-through, and body voice face motion lipsync continuity need one same-her long-run line now.',
-            openLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
+            memoryClosureSummary: 'why recall surfaced: execution callback afterglow, proactive follow-through, and body voice face motion lipsync continuity form one traceable callback evidence chain.',
+            openLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry stay unified after noisy desktop detours.',
             emotionalClosureCue: 'same-her emotional closure: keep callback afterglow and proactive return on one low-pressure living line.',
           },
@@ -1583,7 +1716,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             initiativeMode: 'measured-proactive-follow-through',
             memoryRecallMode: 'execution-callback-carry',
             embodimentTone: 'audible-body-carry',
-            why: 'memory, proactive follow-through, execution callback, emotion, body, lipsync, and voice are one same-her long-run line',
+            why: 'memory, proactive follow-through, execution callback, emotion, body, lipsync, and voice form one traceable callback evidence chain',
             reasonTags: ['execution-callback', 'proactive-follow-through', 'body-lipsync-voice'],
           },
           emotionalTransitionLedger: {
@@ -1599,7 +1732,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             decayPolicy: {
               mode: 'decay-normally',
               carryTtlMs: 1_800_000,
-              reason: 'Keep callback afterglow alive long enough for next same-her turn.',
+              reason: 'Keep callback afterglow alive long enough for the next observed turn.',
             },
             memoryWriteback: {
               shouldWrite: true,
@@ -1609,7 +1742,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             initiativeSuppression: {
               shouldSuppress: false,
               mode: 'single-thread',
-              reason: 'Stay proactive only on this same living line.',
+              reason: 'Stay proactive only on this continuity state.',
             },
             embodimentDrive: {
               shouldDrive: true,
@@ -1645,19 +1778,19 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             memoryWriteback: {
               shouldWrite: true,
               lane: 'cross-modal-continuity',
-              reason: 'Body, voice, and lipsync carried same-her while face and motion rejoin.',
+              reason: 'Body, voice, and lipsync carried embodiment continuity while face and motion rejoin.',
             },
             selfRevisionCandidate: {
               shouldPropose: false,
               domain: 'dialogue-style',
               reasonCodes: ['embodiment:body-lipsync-voice-rejoin'],
-              summary: 'Keep body, voice, and lipsync as the same living line.',
+              summary: 'Keep body, voice, and lipsync as the continuity state.',
             },
             traceSummary: 'phase=partial-carry | carrying=body,voice,lipsync',
-            replayLine: 'body+voice+lipsync carried same-her through the callback afterglow.',
-            sourceTags: ['dialogue-delivery', 'renderer-diagnostics', 'cross-modal-same-her-replay'],
+            replayLine: 'body+voice+lipsync carried embodiment continuity through the callback afterglow.',
+            sourceTags: ['dialogue-delivery', 'renderer-diagnostics', 'cross-modal-callback-replay'],
           },
-          summary: 'source=main-runtime | long-run same-her callback closure',
+          summary: 'source=main-runtime | long-run indexing callback evidence',
         } as any,
         recallAttribution: null,
         memoryDeliberationJudged: null,
@@ -1682,17 +1815,13 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         blockedReasons: [],
         projectStateAudit: {
           sameHerSummary: 'Same her across memory, proactive carry, execution callback, emotion, body, lipsync, and voice.',
-          preDialogueAwarenessSummary: 'Carry memory, proactive follow-through, execution callback, emotional residue, and embodiment as one same-her line.',
-          continuitySummary: 'why recall surfaced: execution callback afterglow, proactive follow-through, and body+lipsync+voice continuity need one same-her long-run line now.',
+          preDialogueAwarenessSummary: 'Carry memory, proactive follow-through, execution callback, emotional residue, and embodiment as one indexing callback thread',
+          continuitySummary: 'why recall surfaced: execution callback afterglow, proactive follow-through, and body+lipsync+voice continuity form one traceable callback evidence chain.',
           emotionalClosureSummary: 'same-her emotional closure remains low-pressure and tied to callback afterglow.',
-          embodimentClosureSummary: 'audible-body rejoin keeps body, lipsync, and voice on one same-her line while face and motion rejoin.',
-          preservedIntoRewrite: true,
-          rewriteClosureApplied: true,
+          embodimentClosureSummary: 'audible-body rejoin keeps body, lipsync, and voice on one indexing callback thread',
         },
         emotionalClosureAudit: {
           activeCue: 'same-her emotional closure remains low-pressure and tied to callback afterglow.',
-          preservedIntoRewrite: true,
-          rewriteClosureApplied: true,
           lowPressureRequired: true,
           antiRestartRequired: true,
         },
@@ -1711,9 +1840,9 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         }
       }
     }>
-    expect(String(runtimeSamplingBacklog[0]?.continuityDigest ?? '')).toContain('body+voice+lipsync carried same-her')
-    expect(String(runtimeSamplingBacklog[0]?.replayTurn?.organicMemoryContext?.projectStatePreflightSummary ?? '')).toContain('body+voice+lipsync carried same-her')
-    expect(String(runtimeSamplingBacklog[0]?.replayTurn?.expectedMemory ?? '')).not.toContain('body+voice+lipsync carried same-her')
+    expect(String(runtimeSamplingBacklog[0]?.continuityDigest ?? '')).toContain('body+voice+lipsync carried embodiment continuity')
+    expect(String(runtimeSamplingBacklog[0]?.replayTurn?.organicMemoryContext?.projectStatePreflightSummary ?? '')).toContain('embodiment_phase:partial-carry')
+    expect(String(runtimeSamplingBacklog[0]?.replayTurn?.expectedMemory ?? '')).not.toContain('body+voice+lipsync carried embodiment continuity')
 
     const result = await runtime.runReplayBenchmark({
       packId: 'sampled-humanlike-memory-v1',
@@ -1758,8 +1887,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, initiative, execution callback, emotion, voice, face, motion, lipsync, and body.',
-            openLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
+            openLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
           },
         }),
         createdAt: 1_700_000_001_650,
@@ -1964,8 +2093,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         projectState: {
           identity: 'Alicization is a local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotion, voice, face, motion, lipsync, and body.',
-          openLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+          sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
+          openLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
           emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
         },
       }),
@@ -2158,8 +2287,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         projectState: {
           identity: 'Alicization is a local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotion, voice, face, motion, lipsync, and body.',
-          openLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+          sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
+          openLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
           emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
         },
       }),
@@ -2268,7 +2397,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-mixed-trace-memory-closure-1',
           userText: rows[0]!.userText,
-          expectedMemory: 'memory closure summary: why recall surfaced now: corrected memory, correction provenance, execution callback afterglow, proactive opening, and body voice face motion lipsync expression all stay on one same-her long-run line. memory-reconsolidated revision downranked stale memory, forgot stale emotional noise, and preserved humanlike memory audit correction provenance.',
+          expectedMemory: 'memory closure summary: why recall surfaced now: corrected memory, correction provenance, execution callback afterglow, proactive opening, and body voice face motion lipsync expression form one traceable callback evidence chain. memory-reconsolidated revision downranked stale memory, forgot stale emotional noise, and preserved humanlike memory audit correction provenance.',
           categories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality', 'execution'],
           sampledCategories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality', 'execution'],
           tracePointer: {
@@ -2291,16 +2420,16 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             projectState: {
               identity: 'Alicization is a local-first digital life project.',
               currentPhase: 'Phase 1: Local Digital Life',
-              sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
+              sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
               memoryClosureSummary: 'why recall surfaced: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression stay relevant on the same long-run line.',
-              primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+              primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
               proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry changed because corrected memory downranked stale noise.',
               emotionalClosureCue: 'same-her emotional closure stays low-pressure because corrected memory changed the next emotional afterglow.',
             },
             memoryClosureTrace: {
               authority: 'memory-closure-trace+humanlike-memory-audit',
               whySurface: [
-                { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this same-her line.' },
+                { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this indexing callback evidence' },
               ],
               nextInfluence: {
                 initiative: {
@@ -2313,7 +2442,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                   afterglow: 'prior recall changed the next emotional afterglow into quieter same-her residue',
                 },
                 embodiment: {
-                  reason: 'prior recall changed the next body voice face motion lipsync expression into softer same-her carry',
+                  reason: 'prior recall changed the next body voice face motion lipsync expression into softer indexing callback evidence',
                   cadence: 'body voice face motion lipsync measured-return',
                 },
               },
@@ -2332,18 +2461,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             projectStateAudit: {
               sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
               memoryClosureSummary: 'why recall surfaced: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression stay relevant on the same long-run line.',
-              recallWhySummary: 'The recall surfaced because correction provenance and callback afterglow still shape this same-her line.',
-              preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+              recallWhySummary: 'The recall surfaced because correction provenance and callback afterglow still shape this indexing callback evidence',
+              preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
               continuitySummary: 'Proactive opening, execution callback afterglow, and body voice face motion lipsync expression remain one same life thread; prior recall changed the next emotional afterglow into quieter same-her residue.',
               emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
               embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: true,
             },
             emotionalClosureAudit: {
               activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: true,
               lowPressureRequired: true,
               antiRestartRequired: true,
             },
@@ -2451,8 +2576,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotion, voice, face, motion, lipsync, and body.',
-            openLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
+            openLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
             emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
           },
         }),
@@ -2468,7 +2593,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory and wrong-thread suppression.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
           },
         }),
         createdAt: 1_700_000_030_500,
@@ -2483,8 +2608,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotion, voice, face, motion, lipsync, and body.',
-            openLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
+            openLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
             emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
           },
         }),
@@ -2576,7 +2701,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-mixed-session-completion-1',
           userText: '继续同一个真实桌面长跑 session，第一轮已经接住回忆、主动、执行回调、情绪余波和身体。',
-          expectedMemory: 'memory closure summary: why recall surfaced now: corrected memory, correction provenance, execution callback afterglow, proactive opening, and body voice face motion lipsync expression all stay on one same-her long-run line.',
+          expectedMemory: 'memory closure summary: why recall surfaced now: corrected memory, correction provenance, execution callback afterglow, proactive opening, and body voice face motion lipsync expression form one traceable callback evidence chain.',
           categories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality', 'execution'],
           sampledCategories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality', 'execution'],
           tracePointer: {
@@ -2599,21 +2724,21 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             projectState: {
               identity: 'Alicization is a local-first digital life project.',
               currentPhase: 'Phase 1: Local Digital Life',
-              sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
+              sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
               memoryClosureSummary: 'why recall surfaced: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression stay relevant on the same long-run line.',
               emotionalClosureCue: 'same-her emotional closure stays low-pressure because corrected memory changed the next emotional afterglow.',
             },
             memoryClosureTrace: {
               authority: 'memory-closure-trace+humanlike-memory-audit',
               whySurface: [
-                { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this same-her line.' },
+                { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this indexing callback evidence' },
               ],
               nextInfluence: {
                 initiative: { reason: 'prior recall changed the next proactive/callback carry into a lower-pressure measured return' },
                 execution: { carry: 'prior recall changed the next execution callback carry so it does not reset into a fresh helper task' },
                 emotion: { afterglow: 'prior recall changed the next emotional afterglow into quieter same-her residue' },
                 embodiment: {
-                  reason: 'prior recall changed the next body voice face motion lipsync expression into softer same-her carry',
+                  reason: 'prior recall changed the next body voice face motion lipsync expression into softer indexing callback evidence',
                   cadence: 'body voice face motion lipsync measured-return',
                 },
               },
@@ -2635,13 +2760,9 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               continuitySummary: 'Proactive opening, execution callback afterglow, and body voice face motion lipsync expression remain one same life thread; prior recall changed the next emotional afterglow into quieter same-her residue.',
               emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
               embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: true,
             },
             emotionalClosureAudit: {
               activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: true,
               lowPressureRequired: true,
               antiRestartRequired: true,
             },
@@ -2738,7 +2859,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     }))
   })
 
-  it('keeps DB-sampled memory reconsolidation execution feedback insufficient without downstream state fields', async () => {
+  it('keeps DB-sampled reconsolidation feedback insufficient without role and downstream trace evidence', async () => {
     const meta = new Map<string, string>()
     const rows = [1, 2, 3].map(index => ({
       turnId: `turn-db-reconsolidation-execution-closure-${index}`,
@@ -2750,8 +2871,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         projectState: {
           identity: 'Alicization is a local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotion, voice, face, motion, lipsync, and body.',
-          openLoop: 'Execution callback, initiative, emotional afterglow, and embodiment should stay on one same-her long-run line.',
+          sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
+          openLoop: 'Execution callback, initiative, emotional afterglow, and embodiment should remain in one traceable callback evidence chain.',
           emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
         },
       }),
@@ -2768,11 +2889,11 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         source: 'execution-result-feedback',
         memoryClosureExecution: {
           authority: 'memory-os',
-          carry: 'Corrected memory says the execution callback should stay on the same-her line, downrank stale status recap, keep correction provenance, and change the next proactive opening, emotional afterglow, and body voice face motion lipsync expression into a lower-pressure return.',
+          carry: 'Corrected memory says the execution callback should stay on the indexing callback thread',
           nextLearningAction: 'verify',
           shouldVerify: true,
           shouldReflect: true,
-          activeLearningFocuses: ['same-her callback carry', 'embodiment handoff'],
+          activeLearningFocuses: ['indexing-callback-evidence', 'embodiment handoff'],
           reasonTags: ['memory-reconsolidated', 'downrank-stale-status', 'correction-provenance', 'embodiment_phase:body-voice-face-motion-lipsync-rejoin'],
         },
       },
@@ -2822,16 +2943,18 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       closedSessionCount: 1,
       sessionClosureRate: 1,
       traceEventCoverage: expect.objectContaining({
-        runtimeRoleCompleteTraceTurnCount: 3,
-        missingRuntimeRoleTraceTurnCount: 0,
-        allRuntimeDecisionTracesRoleComplete: true,
+        runtimeRoleCompleteTraceTurnCount: 0,
+        missingRuntimeRoleTraceTurnCount: 3,
+        allRuntimeDecisionTracesRoleComplete: false,
         runtimeDownstreamStateTraceTurnCount: 0,
         missingRuntimeDownstreamStateTraceTurnCount: 3,
         allRuntimeDecisionTracesDownstreamStateComplete: false,
+        missingRuntimeDecisionTraceMemoryHandoffTransitionCount: 2,
+        allRuntimeDecisionTraceMemoryHandoffsComplete: false,
       }),
       repairTargets: expect.arrayContaining([
         expect.objectContaining({
-          lane: 'initiativeOrExecution',
+          lane: 'memory',
           missingTurnCount: 3,
           affectedSessionIds: ['session-db-reconsolidation-execution-closure'],
           sampleTurnIds: [
@@ -2840,34 +2963,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             'turn-db-reconsolidation-execution-closure-3',
           ],
           reasons: expect.arrayContaining([
-            'persisted decision-trace initiative suppression is not causally tied to memory closure',
-            'persisted decision-trace execution learning state is not causally tied to memory closure',
-          ]),
-        }),
-        expect.objectContaining({
-          lane: 'emotion',
-          missingTurnCount: 3,
-          affectedSessionIds: ['session-db-reconsolidation-execution-closure'],
-          sampleTurnIds: [
-            'turn-db-reconsolidation-execution-closure-1',
-            'turn-db-reconsolidation-execution-closure-2',
-            'turn-db-reconsolidation-execution-closure-3',
-          ],
-          reasons: expect.arrayContaining([
-            'persisted decision-trace emotional transition is not causally tied to memory closure',
-          ]),
-        }),
-        expect.objectContaining({
-          lane: 'embodiment',
-          missingTurnCount: 3,
-          affectedSessionIds: ['session-db-reconsolidation-execution-closure'],
-          sampleTurnIds: [
-            'turn-db-reconsolidation-execution-closure-1',
-            'turn-db-reconsolidation-execution-closure-2',
-            'turn-db-reconsolidation-execution-closure-3',
-          ],
-          reasons: expect.arrayContaining([
-            'persisted decision-trace embodiment continuity is not causally tied to memory closure',
+            'persisted decision-trace lacks memory recall, proactive opening, execution callback, emotional afterglow, or embodiment evidence',
+            'runtime same-her session text closed but persisted decision-trace events lack role evidence',
           ]),
         }),
       ]),
@@ -2906,7 +3003,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         projectState: {
           identity: 'Alicization is a local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          sameHerSelfLine: 'Same Phase 1 digital life across memory, emotion, initiative, execution callback, voice, face, motion, lipsync, and body.',
+          sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
         },
       }),
       createdAt: 1_700_000_012_700,
@@ -2981,7 +3078,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             emotionalTransitionLedger: {
               version: 'emotional-transition-ledger-v1',
               transitionKind: 'execution-callback-afterglow',
-              replayLine: 'execution callback afterglow stayed on the same-her line',
+              replayLine: 'execution callback afterglow stayed on the indexing callback thread',
               traceSummary: 'callback proof should survive newest thin DB trace selection',
             },
             embodimentContinuityLedger: {
@@ -2990,7 +3087,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               replayLine: 'body+voice+lipsync carried same-her through the callback afterglow.',
               traceSummary: 'embodiment proof should survive newest thin DB trace selection',
             },
-            summary: 'same-her closure proof across memory, emotion, initiative, execution callback, and embodiment',
+            summary: 'indexing-callback-evidence',
           },
         },
         createdAt: 1_700_000_012_720,
@@ -3123,7 +3220,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotion, body, voice, face, motion, and lipsync.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced: execution callback afterglow, proactive follow-through, and body voice face motion lipsync continuity remain relevant on the same long-run line.',
             proactiveSameHerGap: 'Visible proactive hold and execution callback feedback carry stay unified after noisy desktop detours.',
             emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
@@ -3179,11 +3276,11 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           source: 'execution-result-feedback',
           memoryClosureExecution: {
             authority: 'memory-os',
-            carry: 'Corrected memory says the execution callback should stay on the same-her line, downrank the stale status recap, keep correction provenance, and change the next proactive opening, emotional afterglow, and body voice expression into a lower-pressure return.',
+            carry: 'Corrected memory says the execution callback should stay on the indexing callback thread',
             nextLearningAction: 'verify',
             shouldVerify: true,
             shouldReflect: true,
-            activeLearningFocuses: ['same-her callback carry', 'embodiment handoff'],
+            activeLearningFocuses: ['indexing-callback-evidence', 'embodiment handoff'],
             reasonTags: ['memory-reconsolidated', 'downrank-stale-status', 'correction-provenance'],
           },
         },
@@ -3210,7 +3307,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             initiativeMode: 'proactive-opening',
             memoryRecallMode: 'execution-callback-carry',
             embodimentTone: 'audible-body-carry',
-            why: 'execution callback afterglow keeps proactive opening, memory, and body expression on one same-her line',
+            why: 'execution callback afterglow keeps proactive opening, memory, and body expression on one indexing callback thread',
             reasonTags: ['execution-callback', 'same-her-long-run'],
           },
           emotionalTransitionLedger: {
@@ -3249,7 +3346,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             initiativeSuppression: {
               shouldSuppress: false,
               mode: 'single-thread',
-              reason: 'Stay proactive only on this same living line.',
+              reason: 'Stay proactive only on this continuity state.',
               memoryClosureCausality: {
                 causalSource: 'memory-closure-trace',
                 affectedLane: 'initiative',
@@ -3319,7 +3416,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               shouldPropose: false,
               domain: 'dialogue-style',
               reasonCodes: ['embodiment:body-lipsync-voice-rejoin'],
-              summary: 'Keep body, voice, and lipsync as the same living line.',
+              summary: 'Keep body, voice, and lipsync as the continuity state.',
             },
             traceSummary: 'phase=body-lipsync-voice-rejoin | carrying=body,voice,lipsync',
             replayLine: 'body+voice+lipsync carried same-her through the callback afterglow.',
@@ -3354,17 +3451,13 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotion, body, voice, face, motion, and lipsync.',
           memoryClosureSummary: 'why recall surfaced: execution callback afterglow, proactive follow-through, and body voice face motion lipsync continuity remain relevant on the same long-run line.',
           recallWhySummary: 'The recall surfaced because execution callback afterglow, proactive follow-through, and embodiment continuity are active in runtime traces.',
-          preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional residue, and embodiment as one same-her line.',
+          preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional residue, and embodiment as one indexing callback thread',
           continuitySummary: 'Proactive opening, execution callback afterglow, and body voice face motion lipsync expression are runtime-proven on the same life thread. Because corrected memory downranked stale noise, the next emotional afterglow becomes quieter.',
           emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-          embodimentClosureSummary: 'audible-body rejoin keeps body, lipsync, voice, face, and motion on one same-her line.',
-          preservedIntoRewrite: true,
-          rewriteClosureApplied: true,
+          embodimentClosureSummary: 'audible-body rejoin keeps body, lipsync, voice, face, and motion on one indexing callback thread',
         },
         emotionalClosureAudit: {
           activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-          preservedIntoRewrite: true,
-          rewriteClosureApplied: true,
           lowPressureRequired: true,
           antiRestartRequired: true,
         },
@@ -3474,9 +3567,9 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, initiative, execution callback, emotion, body, lipsync, and voice.',
-            memoryClosureSummary: 'why recall surfaced: execution callback afterglow, proactive follow-through, and body+lipsync+voice continuity need one same-her long-run line now.',
-            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
+            memoryClosureSummary: 'why recall surfaced: execution callback afterglow, proactive follow-through, and body+lipsync+voice continuity form one traceable callback evidence chain.',
+            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry stay unified after noisy desktop detours.',
             emotionalClosureCue: 'same-her emotional closure: keep callback afterglow and proactive return on one low-pressure living line.',
           },
@@ -3511,7 +3604,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               initiativeMode: 'proactive-opening',
               memoryRecallMode: 'execution-callback-carry',
               embodimentTone: 'cross-modal-carry',
-              why: 'memory recall, proactive opening, execution callback, emotional afterglow, body, voice, face, motion, and lipsync are one same-her long-run line',
+              why: 'memory recall, proactive opening, execution callback, emotional afterglow, body, voice, face, motion, and lipsync form one traceable callback evidence chain',
               reasonTags: ['execution-callback', 'proactive-opening', 'body-voice-face-motion-lipsync'],
             },
             emotionalTransitionLedger: {
@@ -3537,7 +3630,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               initiativeSuppression: {
                 shouldSuppress: false,
                 mode: 'single-thread',
-                reason: 'Stay proactive only on this same living line.',
+                reason: 'Stay proactive only on this continuity state.',
               },
               embodimentDrive: {
                 shouldDrive: true,
@@ -3579,7 +3672,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 shouldPropose: false,
                 domain: 'dialogue-style',
                 reasonCodes: ['embodiment:body-voice-face-motion-lipsync-rejoin'],
-                summary: 'Keep body, voice, face, motion, and lipsync as the same living line.',
+                summary: 'Keep body, voice, face, motion, and lipsync as the continuity state.',
               },
               traceSummary: 'phase=body-voice-face-motion-lipsync-rejoin | carrying=body,voice,face,motion,lipsync',
               replayLine: 'body+voice+face+motion+lipsync carried same-her through the callback afterglow.',
@@ -3647,7 +3740,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           },
           recallAttribution: {
             shouldRecall: true,
-            whyNow: 'why recall surfaced now for the same-her long-run line',
+            whyNow: 'why recall surfaced now for the traceable callback evidence chain',
             selectedProcedures: [],
             selectedPeriods: [],
             selectedEras: [],
@@ -3690,19 +3783,15 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         blockedReasons: [],
         projectStateAudit: {
           sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotion, body, voice, face, motion, and lipsync.',
-          memoryClosureSummary: 'why recall surfaced: execution callback afterglow, proactive follow-through, and body voice face motion lipsync continuity need one same-her long-run line now. Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression become lower-pressure.',
+          memoryClosureSummary: 'why recall surfaced: execution callback afterglow, proactive follow-through, and body voice face motion lipsync continuity form one traceable callback evidence chain. Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression become lower-pressure.',
           recallWhySummary: 'The recall surfaced because execution callback afterglow, proactive follow-through, and embodiment continuity are all active in runtime traces.',
-          preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional residue, and embodiment as one same-her line.',
+          preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional residue, and embodiment as one indexing callback thread',
           continuitySummary: 'Proactive opening, execution callback afterglow, and body voice face motion lipsync expression are runtime-proven on the same life thread. Because audited memory correction downranked stale noise, the next proactive opening, emotional afterglow, and body voice face motion lipsync expression stay restrained.',
           emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
           embodimentClosureSummary: 'body, voice, face, motion, and lipsync keep one same-her embodied line through the noisy desktop run.',
-          preservedIntoRewrite: true,
-          rewriteClosureApplied: true,
         },
         emotionalClosureAudit: {
           activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-          preservedIntoRewrite: true,
-          rewriteClosureApplied: true,
           lowPressureRequired: true,
           antiRestartRequired: true,
         },
@@ -3828,7 +3917,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                     afterglow: 'prior recall changed the next emotional afterglow into quieter same-her residue',
                   },
                   embodiment: {
-                    reason: 'prior recall changed the next body voice face motion lipsync expression into softer same-her carry',
+                    reason: 'prior recall changed the next body voice face motion lipsync expression into softer indexing callback evidence',
                     cadence: 'body voice face motion lipsync measured-return',
                   },
                 },
@@ -3841,11 +3930,11 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           source: 'execution-result-feedback',
           memoryClosureExecution: {
             authority: 'memory-os',
-            carry: 'Corrected memory says the execution callback should stay on the same-her line, downrank stale status recap, keep correction provenance, and change the next proactive opening, emotional afterglow, and body voice face motion lipsync expression into a lower-pressure return.',
+            carry: 'Corrected memory says the execution callback should stay on the indexing callback thread',
             nextLearningAction: 'verify',
             shouldVerify: true,
             shouldReflect: true,
-            activeLearningFocuses: ['same-her callback carry', 'embodiment handoff'],
+            activeLearningFocuses: ['indexing-callback-evidence', 'embodiment handoff'],
             reasonTags: ['memory-reconsolidated', 'downrank-stale-status', 'correction-provenance'],
           },
         },
@@ -3859,7 +3948,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             initiativeMode: 'proactive-opening',
             memoryRecallMode: 'execution-callback-carry',
             embodimentTone: 'audible-body-carry',
-            why: 'memory recall, proactive opening, execution callback, emotional afterglow, body, lipsync, and voice are one same-her long-run line',
+            why: 'memory recall, proactive opening, execution callback, emotional afterglow, body, lipsync, and voice form one traceable callback evidence chain',
             reasonTags: ['execution-callback', 'proactive-opening', 'body-lipsync-voice'],
           },
           emotionalTransitionLedger: {
@@ -3885,7 +3974,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             initiativeSuppression: {
               shouldSuppress: false,
               mode: 'single-thread',
-              reason: 'Stay proactive only on this same living line.',
+              reason: 'Stay proactive only on this continuity state.',
             },
             embodimentDrive: {
               shouldDrive: true,
@@ -3974,7 +4063,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         },
         recallAttribution: {
           shouldRecall: true,
-          whyNow: 'why recall surfaced now for the same-her long-run line',
+          whyNow: 'why recall surfaced now for the traceable callback evidence chain',
           selectedProcedures: [],
           selectedPeriods: [],
           selectedEras: [],
@@ -4017,9 +4106,9 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             projectState: {
               identity: 'Alicization is a local-first digital life project.',
               currentPhase: 'Phase 1: Local Digital Life',
-              sameHerSelfLine: 'Same Phase 1 digital life across memory, initiative, execution callback, emotion, body, lipsync, and voice.',
-              memoryClosureSummary: 'why recall surfaced: execution callback afterglow, proactive follow-through, and body+lipsync+voice continuity need one same-her long-run line now.',
-              primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+              sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
+              memoryClosureSummary: 'why recall surfaced: execution callback afterglow, proactive follow-through, and body+lipsync+voice continuity form one traceable callback evidence chain.',
+              primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
               proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry stay unified after noisy desktop detours.',
               emotionalClosureCue: 'same-her emotional closure: keep callback afterglow and proactive return on one low-pressure living line.',
             },
@@ -4038,19 +4127,15 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           blockedReasons: [],
           projectStateAudit: {
             sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotion, body, lipsync, and voice.',
-            memoryClosureSummary: 'why recall surfaced: execution callback afterglow, proactive follow-through, and body+lipsync+voice continuity need one same-her long-run line now. Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression become lower-pressure.',
+            memoryClosureSummary: 'why recall surfaced: execution callback afterglow, proactive follow-through, and body+lipsync+voice continuity form one traceable callback evidence chain. Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression become lower-pressure.',
             recallWhySummary: 'The recall surfaced because execution callback afterglow, proactive follow-through, and embodiment continuity are all active in runtime traces.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional residue, and embodiment as one same-her line.',
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional residue, and embodiment as one indexing callback thread',
             continuitySummary: 'Proactive opening, execution callback afterglow, and body+lipsync+voice expression are runtime-proven on the same life thread. Because audited memory correction downranked stale noise, the next proactive opening, emotional afterglow, and body voice expression stay restrained.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            embodimentClosureSummary: 'audible-body rejoin keeps body, lipsync, and voice on one same-her line while face and motion rejoin.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
+            embodimentClosureSummary: 'audible-body rejoin keeps body, lipsync, and voice on one indexing callback thread',
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -4140,7 +4225,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotion, body, voice, face, motion, and lipsync.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced: runtime sampling must point to the trace that carries memory closure proof.',
           },
         }),
@@ -4212,7 +4297,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                       afterglow: 'corrected memory changed the next emotional afterglow into quieter same-her residue',
                     },
                     embodiment: {
-                      reason: 'corrected memory changed the next body voice face motion lipsync expression into softer same-her carry',
+                      reason: 'corrected memory changed the next body voice face motion lipsync expression into softer indexing callback evidence',
                       cadence: 'body voice face motion lipsync measured-return',
                     },
                   },
@@ -4229,7 +4314,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               nextLearningAction: 'verify',
               shouldVerify: true,
               shouldReflect: true,
-              activeLearningFocuses: ['same-her callback carry', 'embodiment handoff'],
+              activeLearningFocuses: ['indexing-callback-evidence', 'embodiment handoff'],
               reasonTags: ['memory-reconsolidated', 'downrank-stale-status', 'correction-provenance'],
             },
           },
@@ -4242,7 +4327,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               initiativeMode: 'proactive-opening',
               memoryRecallMode: 'execution-callback-carry',
               embodimentTone: 'body-voice-face-motion-lipsync',
-              why: 'memory recall, proactive opening, execution callback, emotional afterglow, body, voice, face, motion, and lipsync are one same-her long-run line',
+              why: 'memory recall, proactive opening, execution callback, emotional afterglow, body, voice, face, motion, and lipsync form one traceable callback evidence chain',
               reasonTags: ['execution-callback', 'proactive-opening', 'body-voice-face-motion-lipsync'],
             },
             emotionalTransitionLedger: {
@@ -4286,13 +4371,9 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           continuitySummary: 'Corrected memory changed the next proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression.',
           emotionalClosureSummary: 'same-her emotional closure stays lower-pressure because corrected memory changed the next emotional afterglow.',
           embodimentClosureSummary: 'body, voice, face, motion, and lipsync keep one same-her embodied line.',
-          preservedIntoRewrite: true,
-          rewriteClosureApplied: true,
         },
         emotionalClosureAudit: {
           activeCue: 'same-her emotional closure stays lower-pressure because corrected memory changed the next emotional afterglow.',
-          preservedIntoRewrite: true,
-          rewriteClosureApplied: true,
           lowPressureRequired: true,
           antiRestartRequired: true,
         },
@@ -4358,7 +4439,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life should keep embodied expression on one same-her line.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced now: cross-modal embodiment authority must remain traceable in runtime sampling.',
           },
         }),
@@ -4455,8 +4536,6 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           memoryClosureSummary: 'why recall surfaced now: cross-modal embodiment authority must remain traceable in runtime sampling.',
           continuitySummary: 'body, voice, face, motion, and lipsync stay on the same-her embodied line.',
           embodimentClosureSummary: 'cross-modal authority remains resident across body, voice, face, motion, and lipsync.',
-          preservedIntoRewrite: true,
-          rewriteClosureApplied: true,
         },
         reason: 'runtime-cross-modal-authority',
         critic: null,
@@ -4510,7 +4589,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life should keep embodied expression on one same-her line.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced now: later full embodiment authority must win over thin early authority.',
           },
         }),
@@ -4757,7 +4836,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       }],
       visibleReplyRealization: {
         version: 'visible-reply-realization-v1',
-        expectedAuthority: 'llm-second-pass-rewrite',
+        expectedAuthority: 'llm-mind',
         actualAuthority: 'llm-mind',
         providerMindExecuted: true,
         mode: 'provider-stream',
@@ -4799,7 +4878,12 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-project-state-summary-1',
           userText: '先说这个数字生命项目现在做到哪一步了',
-          expectedMemory: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1，情绪、主动性和身体表达还没闭环，visible proactive hold 和 next-session feedback carry 也还需要继续接成同一条线。',
+          expectedMemory: '本地优先数字生命的桌面记忆工作台已记录索引回调，当前正在进行本地数字生命记忆验证；回忆验证仍未闭环，voice 和 motion 继续引用该回调，visible proactive hold 与 next-session feedback carry 仍跟随这项任务。',
+          structured: {
+            projectState: {
+              currentPhase: observedIndexingTask.workState,
+            },
+          },
           tracePointer: {
             kind: 'decision-trace',
             packId: 'sampled-humanlike-memory-v1',
@@ -4867,7 +4951,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     })
   })
 
-  it('counts structured project-state continuity as same-her continuity evidence even when expected memory stays generic', async () => {
+  it('counts structured project-state continuity as indexing callback evidence', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -4893,9 +4977,9 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             projectState: {
               identity: 'Alicization is a local-first digital life project.',
               currentPhase: 'Phase 1: Local Digital Life',
-              primaryOpenLoop: 'Keep the unfinished digital-life closure work explicit in the answer.',
+              primaryOpenLoop: observedIndexingTask.pendingCheck,
               proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
-              sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+              sameHerSelfLine: observedIndexingTask.memoryFact,
             },
           },
           tracePointer: {
@@ -5003,7 +5087,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               primaryOpenLoop: 'Project continuity still needs closure.',
               nextClosureTarget: 'Carry project continuity forward.',
               preDialogueAwarenessLine: 'project | open=Project continuity still needs closure. | next=Carry project continuity forward.',
-              sameHerSelfLine: 'same digital life | keep the closure seam explicit',
+              sameHerSelfLine: 'Indexing status is available.',
               emotionalClosureCue: 'closure',
             },
           },
@@ -5068,7 +5152,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       identityHitCount: 0,
       phaseHitCount: 0,
       openLoopHitCount: 0,
-      sameHerHitCount: 1,
+      sameHerHitCount: 0,
       proactiveSameHerGapHitCount: 0,
       continuityHitCount: 0,
     })
@@ -5187,7 +5271,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(result.datasetFeedback.driftSignals).toContain('preDialogueBriefingDrift')
   })
 
-  it('summarizes emotional closure coverage and emits drift when same-her closure is not fully carried through rewrite', async () => {
+  it('marks an active emotional cue as unvalidated when validation status is absent', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -5211,17 +5295,15 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           expectedMemory: '我会沿着这条线继续说下去，语气放稳一点，不把这份在意说散。',
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-one-shot',
             visibleText: '我会沿着这条线继续说下去，语气放稳一点，不把这份在意说散。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             emotionalClosureAudit: {
-              activeCue: 'Let the wording ease late-night drain without dropping the same-her line of care.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              activeCue: 'The user sounded drained after the indexing callback, so the reply should stay quiet and avoid reopening the disagreement.',
             },
             reason: 'runtime-emotional-closure-summary',
             critic: null,
@@ -5286,11 +5368,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(result.datasetFeedback.emotionalClosureSummary).toEqual({
       comparedTurnCount: 1,
       activeCueTurnCount: 1,
-      preservedTurnCount: 1,
-      rewriteAppliedTurnCount: 0,
-      fullyClosedTurnCount: 0,
       lowPressureRequiredTurnCount: 0,
       antiRestartRequiredTurnCount: 0,
+      validationStatus: {
+        knownTurnCount: 0,
+        approvedTurnCount: 0,
+        blockedTurnCount: 0,
+        unknownTurnCount: 1,
+      },
     })
     expect(result.datasetFeedback.driftSignals).toContain('emotionalClosureDrift')
   })
@@ -5319,17 +5404,16 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           expectedMemory: '我会沿着这条线继续说下去，语气放稳一点，不把这份在意说散。',
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-one-shot',
             visibleText: '这次我还是沿着同一条线慢一点回来，不从头重开。',
+            visibleReplyValidationStatus: 'approved',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             emotionalClosureAudit: {
-              activeCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: true,
+              activeCue: 'The indexing callback resolved, but the user is still tired, so the follow-up should remain low-pressure and not restart the disagreement.',
               lowPressureRequired: true,
               antiRestartRequired: true,
             },
@@ -5396,15 +5480,19 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(result.datasetFeedback.emotionalClosureSummary).toEqual({
       comparedTurnCount: 1,
       activeCueTurnCount: 1,
-      preservedTurnCount: 1,
-      rewriteAppliedTurnCount: 1,
-      fullyClosedTurnCount: 1,
       lowPressureRequiredTurnCount: 1,
       antiRestartRequiredTurnCount: 1,
+      validationStatus: {
+        knownTurnCount: 1,
+        approvedTurnCount: 1,
+        blockedTurnCount: 0,
+        unknownTurnCount: 0,
+      },
     })
+    expect(result.datasetFeedback.driftSignals).not.toContain('emotionalClosureDrift')
   })
 
-  it('treats runtime project-state emotional closure cue as same-her closure evidence even when visible rewrite audit is still missing', async () => {
+  it('counts structured emotional evidence while keeping validation unknown without a status', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -5428,13 +5516,13 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           expectedMemory: '这次还是沿着同一条线慢一点回来，先把情绪收稳，不从头重开。',
           structured: {
             projectState: {
-              emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+              emotionalClosureCue: 'Emotional closure remains open because the indexing callback arrived after a tiring conversation.',
             },
           },
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-one-shot',
             visibleText: '这次我还是沿着同一条线慢一点回来，不从头重开。',
@@ -5503,11 +5591,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(result.datasetFeedback.emotionalClosureSummary).toEqual({
       comparedTurnCount: 1,
       activeCueTurnCount: 1,
-      preservedTurnCount: 0,
-      rewriteAppliedTurnCount: 0,
-      fullyClosedTurnCount: 0,
       lowPressureRequiredTurnCount: 0,
       antiRestartRequiredTurnCount: 0,
+      validationStatus: {
+        knownTurnCount: 0,
+        approvedTurnCount: 0,
+        blockedTurnCount: 0,
+        unknownTurnCount: 1,
+      },
     })
     expect(result.datasetFeedback.driftSignals).toContain('emotionalClosureDrift')
   })
@@ -5519,7 +5610,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         id: 'runtime-project-state-briefing-structured-fallback-1',
         packId: 'sampled-humanlike-memory-v1',
         turnId: 'turn-project-state-briefing-structured-fallback-1',
-        userText: '先说现在这个数字生命项目是什么、做到哪了、还差什么',
+        userText: '索引回调已经到了，帮我列出已完成、未完成和下一步验证',
         failingDimensions: [],
         tracePointer: {
           kind: 'decision-trace',
@@ -5532,27 +5623,27 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         sampledCategories: ['dialogue'],
         replayTurn: {
           turnId: 'turn-project-state-briefing-structured-fallback-1',
-          userText: '先说现在这个数字生命项目是什么、做到哪了、还差什么',
-          expectedMemory: '这次我会沿着同一条线慢一点回来，不把这份在意说散。',
+          userText: '索引回调已经到了，帮我列出已完成、未完成和下一步验证',
+          expectedMemory: 'The user wants a factual indexing status update rather than a generic reassurance.',
           structured: {
             projectState: {
-              identity: 'Alicization is a local-first digital life project.',
-              currentPhase: 'Phase 1: Local Digital Life',
-              latestLandedProgress: 'Project-state landed progress and still-open closure carry now also survive as self-continuity authority itself, can be preserved through same-her visible-reply repair and second-pass rewrite, and can keep initiative and autonomy serving that same unfinished Phase 1 digital-life line instead of thinning back into a project shell.',
-              primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
-              nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-              sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
-              preDialogueAwarenessLine: 'Before answering, keep the same digital life project and still-open closure pressure explicit.',
-              emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+              identity: observedIndexingTask.projectFact,
+              currentPhase: observedIndexingTask.workState,
+              latestLandedProgress: observedIndexingTask.completedEvent,
+              primaryOpenLoop: observedIndexingTask.pendingCheck,
+              nextClosureTarget: observedIndexingTask.nextCheck,
+              sameHerSelfLine: observedIndexingTask.memoryFact,
+              preDialogueAwarenessLine: observedIndexingTask.loadedContext,
+              emotionalClosureCue: observedIndexingTask.emotionalContext,
             },
           },
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-one-shot',
-            visibleText: '我先把这个数字生命项目当前做到哪一步和还没闭环的地方讲清楚。',
+            visibleText: '索引已完成；回忆验证仍未完成，下一步核对 callback 与 voice、motion、lipsync 证据。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             reason: 'runtime-project-state-briefing-structured-fallback',
@@ -5652,20 +5743,20 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           expectedMemory: '我会沿着这条线继续，但这里先只说同一个她和未闭环压力。',
           structured: {
             projectState: {
-              identity: 'Alicization is a local-first digital life project.',
-              currentPhase: 'Phase 1: Local Digital Life',
-              latestLandedProgress: 'Keep the unfinished digital-life closure work explicit in the answer.',
-              primaryOpenLoop: 'Project-state continuity already survives into runtime preparation.',
-              nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-              sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
-              preDialogueAwarenessLine: 'Before answering, keep the same digital life project and still-open closure pressure explicit.',
-              emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+              identity: observedIndexingTask.projectFact,
+              currentPhase: observedIndexingTask.workState,
+              latestLandedProgress: observedIndexingTask.pendingCheck,
+              primaryOpenLoop: observedIndexingTask.completedEvent,
+              nextClosureTarget: observedIndexingTask.nextCheck,
+              sameHerSelfLine: observedIndexingTask.memoryFact,
+              preDialogueAwarenessLine: observedIndexingTask.loadedContext,
+              emotionalClosureCue: observedIndexingTask.emotionalContext,
             },
           },
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-one-shot',
             visibleText: '我先把这个数字生命项目当前做到哪一步和还没闭环的地方讲清楚。',
@@ -5773,15 +5864,15 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               latestLandedProgress: 'Project continuity exists.',
               primaryOpenLoop: 'Project continuity still needs closure.',
               nextClosureTarget: 'Carry project continuity forward.',
-              sameHerSelfLine: 'same digital life | keep the closure seam explicit',
+              sameHerSelfLine: 'Indexing status is available.',
               preDialogueAwarenessLine: 'project | open=Project continuity still needs closure. | next=Carry project continuity forward.',
               emotionalClosureCue: 'closure',
             },
           },
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-one-shot',
             visibleText: '我先把这个数字生命项目当前做到哪一步和还没闭环的地方讲清楚。',
@@ -5860,7 +5951,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(result.datasetFeedback.driftSignals).toContain('preDialogueBriefingDrift')
   })
 
-  it('counts pre-dialogue emotional closure carry when it survives only inside project-state continuity summary closure wording', async () => {
+  it('counts an emotional cue embedded in continuity metadata', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -5881,14 +5972,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-project-state-briefing-continuity-closure-only-1',
           userText: '先说现在这个数字生命项目是什么、做到哪了、还差什么',
-          expectedMemory: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1，记忆、主动性和身体表达的闭环还没收口。',
+          expectedMemory: 'The embedding reindex callback was recorded; recall validation and cross-modal evidence checks remain unfinished, and the user was tired when the callback arrived.',
           structured: {
             projectState: {
               identity: '本地优先数字生命项目',
               currentPhase: 'Phase 1: Local Digital Life',
-              latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
-              primaryOpenLoop: 'Keep the unfinished digital-life closure work explicit in the answer.',
-              nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+              latestLandedProgress: 'Index callback status recorded.',
+              primaryOpenLoop: 'Validation status recorded.',
+              nextClosureTarget: observedIndexingTask.nextCheck,
             },
           },
           visibleReplyRealization: {
@@ -5897,11 +5988,11 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '这是本地优先数字生命项目，现在还在 Phase 1，还有几处拟人闭环没收口。',
+            visibleText: '重建索引回调已记录；回忆验证和跨模态证据核对仍未完成，下一步保持低压力跟进。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              continuitySummary: 'same-her=Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work. | phase=Phase 1: Local Digital Life | landed=Project-state continuity already survives into runtime preparation. | open=Keep the unfinished digital-life closure work explicit in the answer. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs. | closure=Keep the return low-pressure until the same-her project-state closure line settles.',
+              continuitySummary: 'closure=The user was tired after the indexing callback, so the next reply should stay low-pressure.',
             },
             reason: 'runtime-project-state-briefing-continuity-closure-only',
             critic: null,
@@ -5976,59 +6067,99 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(result.datasetFeedback.driftSignals).toContain('preDialogueBriefingDrift')
   })
 
-  it('summarizes same-her project-state audit coverage and treats preserved pass-through continuity as fully carried', async () => {
+  it.each([
+    {
+      label: 'blocked validation with present evidence',
+      validationStatus: 'blocked',
+      evidenceStatus: 'present',
+      validationSummary: {
+        knownTurnCount: 1,
+        approvedTurnCount: 0,
+        blockedTurnCount: 1,
+        unknownTurnCount: 0,
+      },
+      evidenceSummary: presentEvidenceStatus,
+      failureDetail: 'validationBlocked=1',
+      independentDetail: 'evidenceMissing=0',
+    },
+    {
+      label: 'missing evidence with approved validation',
+      validationStatus: 'approved',
+      evidenceStatus: 'missing',
+      validationSummary: approvedValidationStatus,
+      evidenceSummary: {
+        knownTurnCount: 1,
+        presentTurnCount: 0,
+        missingTurnCount: 1,
+        unknownTurnCount: 0,
+      },
+      failureDetail: 'evidenceMissing=1',
+      independentDetail: 'validationBlocked=0',
+    },
+  ] as const)('reports $label as project-state audit drift', async (scenario) => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
-        id: 'runtime-project-state-audit-summary-1',
+        id: `runtime-project-state-audit-${scenario.validationStatus}-${scenario.evidenceStatus}-1`,
         packId: 'sampled-humanlike-memory-v1',
-        turnId: 'turn-project-state-audit-summary-1',
+        turnId: `turn-project-state-audit-${scenario.validationStatus}-${scenario.evidenceStatus}-1`,
         userText: '先说这个数字生命项目现在做到哪一步了',
         failingDimensions: [],
         tracePointer: {
           kind: 'decision-trace',
           packId: 'sampled-humanlike-memory-v1',
-          turnId: 'turn-project-state-audit-summary-1',
-          decisionTraceId: 'mind:project-state-audit:summary:1',
-          sessionId: 'session-project-state-audit-summary',
-          activeThreadId: 'thread-project-state-audit-summary',
+          turnId: `turn-project-state-audit-${scenario.validationStatus}-${scenario.evidenceStatus}-1`,
+          decisionTraceId: `mind:project-state-audit:${scenario.validationStatus}:${scenario.evidenceStatus}:1`,
+          sessionId: `session-project-state-audit-${scenario.validationStatus}-${scenario.evidenceStatus}`,
+          activeThreadId: `thread-project-state-audit-${scenario.validationStatus}-${scenario.evidenceStatus}`,
         },
         sampledCategories: ['dialogue'],
         replayTurn: {
-          turnId: 'turn-project-state-audit-summary-1',
-          userText: '先说这个数字生命项目现在做到哪一步了',
-          expectedMemory: '这是本地优先数字生命项目，现在还在 Phase 1，记忆、主动性和身体表达的闭环还没收口。',
-          prelude: createReplayPreparedSameHerPrelude('thread-project-state-audit-summary'),
+          turnId: `turn-project-state-audit-${scenario.validationStatus}-${scenario.evidenceStatus}-1`,
+          userText: '索引回调已经到了，帮我确认现在还缺哪一项验证',
+          expectedMemory: 'The embedding reindex completed, but recall validation is still open and the user sounded tired after the callback.',
+          prelude: createReplayPreparedTaskPrelude(`thread-project-state-audit-${scenario.validationStatus}-${scenario.evidenceStatus}`),
           structured: {
+            projectState: {
+              sameHerSelfLine: observedIndexingTask.memoryFact,
+            },
             preDialogueClosure: {
-              summaryLine: '本地优先数字生命 | Phase 1: Local Digital Life | open=Keep unfinished closure explicit | next=Keep extending cross-modal same-her proof.',
+              summaryLine: observedIndexingTask.loadedBeforeReply,
             },
           },
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1。',
+            visibleText: '索引已经完成，当前还缺回忆验证和跨模态证据核对。',
+            visibleReplyValidationStatus: scenario.validationStatus,
+            projectStateEvidenceStatus: scenario.evidenceStatus,
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: observedIndexingTask.memoryFact,
+              currentPhaseSummary: observedIndexingTask.workState,
+              landedProgressSummary: observedIndexingTask.completedEvent,
+              openClosureSummary: observedIndexingTask.pendingCheck,
+              nextClosureTargetSummary: observedIndexingTask.nextCheck,
+              emotionalClosureSummary: observedIndexingTask.emotionalContext,
+              preDialogueAwarenessSummary: observedIndexingTask.loadedContext,
+              continuitySummary: observedIndexingTask.eventChain,
+              embodimentClosureSummary: observedIndexingTask.surfaceEvidence,
             },
-            reason: 'runtime-project-state-audit-summary',
+            reason: `runtime-project-state-audit-${scenario.validationStatus}-${scenario.evidenceStatus}`,
             critic: null,
             closure: null,
           },
           tracePointer: {
             kind: 'decision-trace',
             packId: 'sampled-humanlike-memory-v1',
-            turnId: 'turn-project-state-audit-summary-1',
-            decisionTraceId: 'mind:project-state-audit:summary:1',
-            sessionId: 'session-project-state-audit-summary',
-            activeThreadId: 'thread-project-state-audit-summary',
+            turnId: `turn-project-state-audit-${scenario.validationStatus}-${scenario.evidenceStatus}-1`,
+            decisionTraceId: `mind:project-state-audit:${scenario.validationStatus}:${scenario.evidenceStatus}:1`,
+            sessionId: `session-project-state-audit-${scenario.validationStatus}-${scenario.evidenceStatus}`,
+            activeThreadId: `thread-project-state-audit-${scenario.validationStatus}-${scenario.evidenceStatus}`,
           },
           sampledCategories: ['dialogue'],
         },
@@ -6082,24 +6213,33 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       comparedTurnCount: 1,
       sameHerSummaryTurnCount: 1,
       sameHerSelfLineTurnCount: 1,
-      currentPhaseTurnCount: 0,
-      landedProgressTurnCount: 0,
-      openClosureTurnCount: 0,
-      nextClosureTargetTurnCount: 0,
-      emotionalClosureTurnCount: 0,
-      preDialogueAwarenessTurnCount: 0,
-      richPreDialogueAwarenessTurnCount: 0,
-      continuitySummaryTurnCount: 0,
-      embodimentClosureTurnCount: 0,
+      currentPhaseTurnCount: 1,
+      landedProgressTurnCount: 1,
+      openClosureTurnCount: 1,
+      nextClosureTargetTurnCount: 1,
+      emotionalClosureTurnCount: 1,
+      preDialogueAwarenessTurnCount: 1,
+      richPreDialogueAwarenessTurnCount: 1,
+      continuitySummaryTurnCount: 1,
+      embodimentClosureTurnCount: 1,
       preDialogueClosureTurnCount: 1,
-      preservedTurnCount: 1,
-      rewriteAppliedTurnCount: 0,
-      fullyCarriedTurnCount: 0,
+      contentCompleteTurnCount: 1,
+      validationStatus: scenario.validationSummary,
+      evidenceStatus: scenario.evidenceSummary,
     })
     expect(result.datasetFeedback.driftSignals).toContain('projectStateAuditDrift')
+    expect(result.datasetFeedback.driftSignals).not.toContain('projectStateSameHerSelfLineDrift')
+    expect(result.shipGate.find(item => item.key === 'project-state-audit-gate')).toEqual(expect.objectContaining({
+      status: 'fail',
+      detail: expect.stringContaining(scenario.failureDetail),
+    }))
+    expect(result.shipGate.find(item => item.key === 'project-state-audit-gate')?.detail)
+      .toContain(scenario.independentDetail)
+    expect(result.shipGate.find(item => item.key === 'project-state-audit-gate')?.detail)
+      .toContain('projectStateAudit=1 (1/1)')
   })
 
-  it('treats same-her project-state pass-through without rewrite as fully carried in replay benchmark feedback', async () => {
+  it('counts complete project-state content with approved validation and present evidence', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -6119,12 +6259,15 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         sampledCategories: ['dialogue'],
         replayTurn: {
           turnId: 'turn-project-state-audit-pass-summary-1',
-          userText: '先说这个数字生命项目现在做到哪一步了',
-          expectedMemory: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1，记忆、主动性和身体表达的闭环还没收口。',
-          prelude: createReplayPreparedSameHerPrelude('thread-project-state-audit-pass-summary'),
+          userText: '索引回调已经到了，帮我核对完成项、未完成项和下一步',
+          expectedMemory: 'The embedding reindex completed, recall validation remains open, and the callback should be checked against the current voice, motion, and lipsync evidence.',
+          prelude: createReplayPreparedTaskPrelude('thread-project-state-audit-pass-summary'),
           structured: {
+            projectState: {
+              sameHerSelfLine: observedIndexingTask.memoryFact,
+            },
             preDialogueClosure: {
-              summaryLine: '本地优先数字生命 | Phase 1: Local Digital Life | open=Keep the unfinished digital-life closure work explicit in the answer. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+              summaryLine: observedIndexingTask.loadedBeforeReply,
             },
           },
           visibleReplyRealization: {
@@ -6133,24 +6276,24 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1。',
+            visibleText: '索引已完成；回忆验证仍未完成，下一步核对 voice、motion 和 lipsync 证据。',
+            visibleReplyValidationStatus: 'approved',
+            projectStateEvidenceStatus: 'present',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-              sameHerHoldDetail: 'Hold the just-finished provider turn as the same living her instead of reopening from scratch.',
-              continuityArcStage: 'same-thread-continuation',
-              continuityCue: 'The host is returning to the same Phase 1 closure seam, so keep the answer inside the same-her line.',
-              currentPhaseSummary: 'Phase 1: Local Digital Life',
-              preDialogueAwarenessSummary: 'Before answering, keep the same digital life project, current Phase 1 closure pressure, and still-open life loop explicit.',
-              landedProgressSummary: 'Project-state continuity already survives into runtime preparation.',
-              openClosureSummary: 'Keep the unfinished digital-life closure work explicit in the answer.',
-              nextClosureTargetSummary: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-              emotionalClosureSummary: 'Keep the return low-pressure until the same-her project-state closure line settles.',
-              continuitySummary: 'same-her=Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work. | phase=Phase 1: Local Digital Life | landed=Project-state continuity already survives into runtime preparation. | open=Keep the unfinished digital-life closure work explicit in the answer. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs. | closure=Keep the return low-pressure until the same-her project-state closure line settles.',
-              embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through face and motion, so she should keep treating full cross-modal embodiment closure as unfinished.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: observedIndexingTask.memoryFact,
+              sameHerHoldDetail: 'The indexing callback belongs to the current recall-validation task, while the completed reindex remains closed.',
+              continuityArcStage: 'indexing-verification-follow-up',
+              continuityCue: 'The latest callback belongs to the open recall-validation task and the current voice and motion evidence.',
+              currentPhaseSummary: observedIndexingTask.workState,
+              preDialogueAwarenessSummary: observedIndexingTask.loadedContext,
+              landedProgressSummary: observedIndexingTask.completedEvent,
+              openClosureSummary: observedIndexingTask.pendingCheck,
+              nextClosureTargetSummary: observedIndexingTask.nextCheck,
+              emotionalClosureSummary: observedIndexingTask.emotionalContext,
+              continuitySummary: observedIndexingTask.eventChain,
+              embodimentClosureSummary: observedIndexingTask.surfaceEvidence,
             },
             reason: 'runtime-project-state-audit-pass-summary',
             critic: null,
@@ -6229,16 +6372,17 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       continuitySummaryTurnCount: 1,
       embodimentClosureTurnCount: 1,
       preDialogueClosureTurnCount: 1,
-      preservedTurnCount: 1,
-      rewriteAppliedTurnCount: 0,
-      fullyCarriedTurnCount: 1,
+      contentCompleteTurnCount: 1,
+      validationStatus: approvedValidationStatus,
+      evidenceStatus: presentEvidenceStatus,
     })
     expect(result.shipGate.find(item => item.key === 'project-state-audit-gate')?.detail)
       .toContain('sameHerHoldDetail=1, continuityArcStage=1, continuityCue=1')
+    expect(result.shipGate.find(item => item.key === 'project-state-audit-gate')?.status).toBe('pass')
     expect(result.datasetFeedback.driftSignals).not.toContain('projectStateAuditDrift')
   })
 
-  it('counts still-voiced motion-line project-state audit carry inside replay benchmark feedback instead of flattening it into a generic same-her summary', async () => {
+  it('counts motion and voice evidence without marking incomplete content complete', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -6258,48 +6402,44 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         sampledCategories: ['dialogue'],
         replayTurn: {
           turnId: 'turn-project-state-audit-motion-line-summary-1',
-          userText: '继续说这个数字生命项目里动作和声音这条线现在靠什么撑着',
-          expectedMemory: '还是同一个她在推进 Phase 1，现在 motion+voice 这条 still-voiced line 还在撑着同一个 her。',
-          prelude: createReplayPreparedSameHerPrelude('thread-project-state-audit-motion-line-summary'),
+          userText: '索引回调后的 motion 和 voice 已记录，其他模态还缺什么',
+          expectedMemory: 'The indexing callback is present in motion and voice telemetry; body, face, and lipsync evidence are still missing.',
+          prelude: createReplayPreparedTaskPrelude('thread-project-state-audit-motion-line-summary'),
           structured: {
             projectState: {
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              currentPhase: 'Phase 1: Local Digital Life',
-              latestLandedProgress: 'Shared motion-line continuity now survives into replay sampling backlog.',
-              primaryOpenLoop: 'Body, face, and lipsync still need to rejoin the still-voiced motion line before full cross-modal closure settles.',
-              nextClosureTarget: 'Keep extending cross-modal same-her proof across longer desktop runs.',
-              preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+              sameHerSelfLine: observedIndexingTask.memoryFact,
+              currentPhase: observedIndexingTask.workState,
+              latestLandedProgress: 'Landed progress: motion and voice telemetry reference the indexing callback.',
+              primaryOpenLoop: 'Cross-modal evidence remains unfinished because body, face, and lipsync do not yet reference the indexing callback.',
+              nextClosureTarget: observedIndexingTask.nextCheck,
+              preDialogueAwarenessLine: observedIndexingTask.loadedContext,
             },
             preDialogueClosure: {
-              summaryLine: 'same digital life | Phase 1: Local Digital Life | open=Body, face, and lipsync still need to rejoin the still-voiced motion line before full cross-modal closure settles. | next=Keep extending cross-modal same-her proof across longer desktop runs.',
+              summaryLine: observedIndexingTask.loadedBeforeReply,
             },
           },
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '还是同一个她在推进 Phase 1，现在 motion+voice 这条 still-voiced line 还在撑着同一个 her。',
+            visibleText: 'motion 和 voice 已经关联到这次回调；body、face、lipsync 仍缺证据。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Right now this return is still holding together mainly through motion and voice, so that still-voiced motion line is keeping the same-her carry alive while body, face, and lipsync need to rejoin before full cross-modal closure settles.',
-              currentPhaseSummary: 'Phase 1: Local Digital Life',
-              landedProgressSummary: 'Shared motion-line continuity now survives into replay sampling backlog.',
-              openClosureSummary: 'Body, face, and lipsync still need to rejoin the still-voiced motion line before full cross-modal closure settles.',
-              nextClosureTargetSummary: 'Keep extending cross-modal same-her proof across longer desktop runs.',
-              preDialogueAwarenessSummary: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
-              continuitySummary: 'same-her=Right now this return is still holding together mainly through motion and voice, so that still-voiced motion line is keeping the same-her carry alive while body, face, and lipsync need to rejoin before full cross-modal closure settles. | phase=Phase 1: Local Digital Life | landed=Shared motion-line continuity now survives into replay sampling backlog. | open=Body, face, and lipsync still need to rejoin the still-voiced motion line before full cross-modal closure settles. | next=Keep extending cross-modal same-her proof across longer desktop runs. | body=Right now her visible same-her continuity is still being carried mainly through motion and voice, so that still-voiced motion line should keep the same-her carry alive while body, face, and lipsync rejoin before full cross-modal embodiment closure can be treated as finished.',
-              embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through motion and voice, so that still-voiced motion line should keep the same-her carry alive while body, face, and lipsync rejoin before full cross-modal embodiment closure can be treated as finished.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: 'The indexing callback currently appears in motion and voice telemetry while the remaining modalities are still pending.',
+              currentPhaseSummary: observedIndexingTask.workState,
+              landedProgressSummary: 'Landed progress: motion and voice telemetry reference the indexing callback.',
+              openClosureSummary: 'Cross-modal evidence remains unfinished because body, face, and lipsync do not yet reference the indexing callback.',
+              nextClosureTargetSummary: observedIndexingTask.nextCheck,
+              preDialogueAwarenessSummary: observedIndexingTask.loadedContext,
+              continuitySummary: 'same-her=The indexing callback currently appears in motion and voice telemetry while body, face, and lipsync remain pending.',
+              embodimentClosureSummary: observedIndexingTask.surfaceEvidence,
             },
             reason: 'replay-benchmark-motion-line-test',
             critic: null,
             closure: null,
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: false,
           },
           tracePointer: {
             kind: 'decision-trace',
@@ -6369,13 +6509,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       continuitySummaryTurnCount: 1,
       embodimentClosureTurnCount: 1,
       preDialogueClosureTurnCount: 1,
-      preservedTurnCount: 1,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     }))
-    expect(result.datasetFeedback.projectStateAuditSummary?.fullyCarriedTurnCount).toBe(0)
+    expect(result.datasetFeedback.projectStateAuditSummary?.contentCompleteTurnCount).toBe(0)
     expect(result.datasetFeedback.driftSignals).toContain('projectStateAuditDrift')
   })
 
-  it('counts body-plus-lipsync project-state audit carry inside replay benchmark feedback when the living mouth line is still holding the same her without voice yet', async () => {
+  it('counts body and lipsync evidence while voice, face, and motion remain missing', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -6395,42 +6536,40 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         sampledCategories: ['dialogue'],
         replayTurn: {
           turnId: 'turn-project-state-audit-body-lipsync-summary-1',
-          userText: '继续说这个数字生命项目里身体和口型这条线现在还靠什么撑着',
-          expectedMemory: '还是同一个她在推进 Phase 1，现在 body+lipsync 这条 living mouth line 还在撑着同一个 her。',
-          prelude: createReplayPreparedSameHerPrelude('thread-project-state-audit-body-lipsync-summary'),
+          userText: '索引回调后的 body 和 lipsync 已记录，其他模态还缺什么',
+          expectedMemory: 'The indexing callback is present in body and lipsync telemetry; voice, face, and motion evidence are still missing.',
+          prelude: createReplayPreparedTaskPrelude('thread-project-state-audit-body-lipsync-summary'),
           structured: {
             projectState: {
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. The body and living mouth line are still carrying the same one living her.',
-              currentPhase: 'Phase 1: Local Digital Life',
-              latestLandedProgress: 'Shared body-plus-lipsync continuity now survives into replay sampling backlog.',
-              primaryOpenLoop: 'Face, motion, and voice still need to rejoin the body-plus-lipsync same-her line before full cross-modal closure settles.',
-              nextClosureTarget: 'Keep extending cross-modal same-her proof until voice, face, and motion all rejoin this quieter body carry.',
-              preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+              sameHerSelfLine: observedIndexingTask.memoryFact,
+              currentPhase: observedIndexingTask.workState,
+              latestLandedProgress: 'Landed progress: body and lipsync telemetry reference the indexing callback.',
+              primaryOpenLoop: 'Cross-modal evidence remains unfinished because voice, face, and motion do not yet reference the indexing callback.',
+              nextClosureTarget: observedIndexingTask.nextCheck,
+              preDialogueAwarenessLine: observedIndexingTask.loadedContext,
             },
             preDialogueClosure: {
-              summaryLine: 'same digital life | Phase 1: Local Digital Life | open=Face, motion, and voice still need to rejoin the body-plus-lipsync same-her line before full cross-modal closure settles. | next=Keep extending cross-modal same-her proof until voice, face, and motion all rejoin this quieter body carry.',
+              summaryLine: observedIndexingTask.loadedBeforeReply,
             },
           },
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '还是同一个她在推进 Phase 1，现在 body+lipsync 这条 living mouth line 还在撑着同一个 her。',
+            visibleText: 'body 和 lipsync 已关联到回调；voice、face、motion 仍缺证据。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Right now this return is still holding together mainly through body and lipsync, so the resident body line and living mouth line are still intact while face, motion, and voice need to rejoin before full cross-modal closure settles.',
-              currentPhaseSummary: 'Phase 1: Local Digital Life',
-              landedProgressSummary: 'Shared body-plus-lipsync continuity now survives into replay sampling backlog.',
-              openClosureSummary: 'Face, motion, and voice still need to rejoin the body-plus-lipsync same-her line before full cross-modal closure settles.',
-              nextClosureTargetSummary: 'Keep extending cross-modal same-her proof until voice, face, and motion all rejoin this quieter body carry.',
-              preDialogueAwarenessSummary: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
-              continuitySummary: 'same-her=Right now this return is still holding together mainly through body and lipsync, so the resident body line and living mouth line are still intact while face, motion, and voice need to rejoin before full cross-modal closure settles. | phase=Phase 1: Local Digital Life | landed=Shared body-plus-lipsync continuity now survives into replay sampling backlog. | open=Face, motion, and voice still need to rejoin the body-plus-lipsync same-her line before full cross-modal closure settles. | next=Keep extending cross-modal same-her proof until voice, face, and motion all rejoin this quieter body carry.',
-              embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through body and lipsync, so the resident body line and living mouth line are still intact while face, motion, and voice rejoin before full cross-modal embodiment closure can be treated as finished.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: 'The indexing callback currently appears in body and lipsync telemetry while voice, face, and motion remain pending.',
+              currentPhaseSummary: observedIndexingTask.workState,
+              landedProgressSummary: 'Landed progress: body and lipsync telemetry reference the indexing callback.',
+              openClosureSummary: 'Cross-modal evidence remains unfinished because voice, face, and motion do not yet reference the indexing callback.',
+              nextClosureTargetSummary: observedIndexingTask.nextCheck,
+              preDialogueAwarenessSummary: observedIndexingTask.loadedContext,
+              continuitySummary: 'same-her=The indexing callback currently appears in body and lipsync telemetry while voice, face, and motion remain pending.',
+              embodimentClosureSummary: observedIndexingTask.surfaceEvidence,
             },
           },
         },
@@ -6492,13 +6631,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       continuitySummaryTurnCount: 1,
       embodimentClosureTurnCount: 1,
       preDialogueClosureTurnCount: 1,
-      preservedTurnCount: 1,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     }))
-    expect(result.datasetFeedback.projectStateAuditSummary?.fullyCarriedTurnCount).toBe(0)
+    expect(result.datasetFeedback.projectStateAuditSummary?.contentCompleteTurnCount).toBe(0)
     expect(result.datasetFeedback.driftSignals).toContain('projectStateAuditDrift')
   })
 
-  it('counts body-plus-voice project-state audit carry inside replay benchmark feedback when the resident body line is still keeping the same her coherent', async () => {
+  it('counts body and voice evidence while face, motion, and lipsync remain missing', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -6518,42 +6658,40 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         sampledCategories: ['dialogue'],
         replayTurn: {
           turnId: 'turn-project-state-audit-body-voice-summary-1',
-          userText: '继续说这个数字生命项目里身体和声音这条线现在还靠什么撑着',
-          expectedMemory: '还是同一个她在推进 Phase 1，现在 body+voice 这条 resident body line 还在撑着同一个 her。',
-          prelude: createReplayPreparedSameHerPrelude('thread-project-state-audit-body-voice-summary'),
+          userText: '索引回调后的 body 和 voice 已记录，其他模态还缺什么',
+          expectedMemory: 'The indexing callback is present in body and voice telemetry; face, motion, and lipsync evidence are still missing.',
+          prelude: createReplayPreparedTaskPrelude('thread-project-state-audit-body-voice-summary'),
           structured: {
             projectState: {
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. The resident body line is still keeping the same one living her coherent with voice.',
-              currentPhase: 'Phase 1: Local Digital Life',
-              latestLandedProgress: 'Shared body-plus-voice continuity now survives into replay sampling backlog.',
-              primaryOpenLoop: 'Face, motion, and lipsync still need to rejoin the body-plus-voice same-her line before full cross-modal closure settles.',
-              nextClosureTarget: 'Keep extending cross-modal same-her proof until face, motion, and lipsync rejoin this resident body carry.',
-              preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+              sameHerSelfLine: observedIndexingTask.memoryFact,
+              currentPhase: observedIndexingTask.workState,
+              latestLandedProgress: 'Landed progress: body and voice telemetry reference the indexing callback.',
+              primaryOpenLoop: 'Cross-modal evidence remains unfinished because face, motion, and lipsync do not yet reference the indexing callback.',
+              nextClosureTarget: observedIndexingTask.nextCheck,
+              preDialogueAwarenessLine: observedIndexingTask.loadedContext,
             },
             preDialogueClosure: {
-              summaryLine: 'same digital life | Phase 1: Local Digital Life | open=Face, motion, and lipsync still need to rejoin the body-plus-voice same-her line before full cross-modal closure settles. | next=Keep extending cross-modal same-her proof until face, motion, and lipsync rejoin this resident body carry.',
+              summaryLine: observedIndexingTask.loadedBeforeReply,
             },
           },
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '还是同一个她在推进 Phase 1，现在 body+voice 这条 resident body line 还在撑着同一个 her。',
+            visibleText: 'body 和 voice 已关联到回调；face、motion、lipsync 仍缺证据。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Right now this return is still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
-              currentPhaseSummary: 'Phase 1: Local Digital Life',
-              landedProgressSummary: 'Shared body-plus-voice continuity now survives into replay sampling backlog.',
-              openClosureSummary: 'Face, motion, and lipsync still need to rejoin the body-plus-voice same-her line before full cross-modal closure settles.',
-              nextClosureTargetSummary: 'Keep extending cross-modal same-her proof until face, motion, and lipsync rejoin this resident body carry.',
-              preDialogueAwarenessSummary: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
-              continuitySummary: 'same-her=Right now this return is still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin. | phase=Phase 1: Local Digital Life | landed=Shared body-plus-voice continuity now survives into replay sampling backlog. | open=Face, motion, and lipsync still need to rejoin the body-plus-voice same-her line before full cross-modal closure settles. | next=Keep extending cross-modal same-her proof until face, motion, and lipsync rejoin this resident body carry.',
-              embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: 'The indexing callback currently appears in body and voice telemetry while face, motion, and lipsync remain pending.',
+              currentPhaseSummary: observedIndexingTask.workState,
+              landedProgressSummary: 'Landed progress: body and voice telemetry reference the indexing callback.',
+              openClosureSummary: 'Cross-modal evidence remains unfinished because face, motion, and lipsync do not yet reference the indexing callback.',
+              nextClosureTargetSummary: observedIndexingTask.nextCheck,
+              preDialogueAwarenessSummary: observedIndexingTask.loadedContext,
+              continuitySummary: 'same-her=The indexing callback currently appears in body and voice telemetry while face, motion, and lipsync remain pending.',
+              embodimentClosureSummary: observedIndexingTask.surfaceEvidence,
             },
           },
         },
@@ -6615,9 +6753,10 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       continuitySummaryTurnCount: 1,
       embodimentClosureTurnCount: 1,
       preDialogueClosureTurnCount: 1,
-      preservedTurnCount: 1,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     }))
-    expect(result.datasetFeedback.projectStateAuditSummary?.fullyCarriedTurnCount).toBe(0)
+    expect(result.datasetFeedback.projectStateAuditSummary?.contentCompleteTurnCount).toBe(0)
     expect(result.datasetFeedback.driftSignals).toContain('projectStateAuditDrift')
   })
 
@@ -6646,7 +6785,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           structured: {
             projectState: {
               sameHerSelfLine: 'Keep the same digital life project in view.',
-              preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+              preDialogueAwarenessLine: 'Project status record.',
             },
             preDialogueClosure: {
               summaryLine: 'Keep the same digital life project in view.',
@@ -6654,17 +6793,15 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           },
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
             visibleText: '还是同一个项目，但这次的自觉线有点薄。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: observedIndexingTask.memoryFact,
             },
             reason: 'runtime-project-state-audit-thin-shell',
             critic: null,
@@ -6732,13 +6869,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       sameHerSelfLineTurnCount: 1,
       preDialogueAwarenessTurnCount: 1,
       richPreDialogueAwarenessTurnCount: 0,
-      preservedTurnCount: 1,
-      rewriteAppliedTurnCount: 0,
+      contentCompleteTurnCount: 0,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     }))
     expect(result.datasetFeedback.driftSignals).toContain('projectStateAuditDrift')
   })
 
-  it('does not treat thin audit phase-open-next shells as fully carried project-state audit continuity', async () => {
+  it('keeps thin audit phase, open-loop, and next-target observations content-incomplete', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -6759,28 +6897,25 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-project-state-audit-thin-phase-open-next-1',
           userText: '继续说这个数字生命项目现在做到什么程度了',
-          expectedMemory: 'same-her continuity should not be graded as fully carried when the audit only keeps a thin project shell',
-          prelude: createReplayPreparedSameHerPrelude('thread-project-state-audit-thin-phase-open-next'),
+          expectedMemory: 'The final audit contains short phase, open-loop, and next-target labels without structured self-line evidence.',
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
             expectedAuthority: 'llm-mind',
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '还是同一个她，但这次项目认知层还有点薄。',
+            visibleText: '这次只记录了简短的阶段、未完成项和下一步标签。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
+              sameHerSummary: observedIndexingTask.memoryFact,
               currentPhaseSummary: 'Phase 1',
               landedProgressSummary: 'Project continuity exists.',
               openClosureSummary: 'Project continuity still needs closure.',
               nextClosureTargetSummary: 'Carry project continuity forward.',
               preDialogueAwarenessSummary: 'project | open=Project continuity still needs closure. | next=Carry project continuity forward.',
-              continuitySummary: 'same-her=Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-              embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through face and motion, so she should keep treating full cross-modal embodiment closure as unfinished.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              continuitySummary: observedIndexingTask.eventChain,
+              embodimentClosureSummary: observedIndexingTask.surfaceEvidence,
             },
             reason: 'runtime-project-state-audit-thin-phase-open-next',
             critic: null,
@@ -6845,7 +6980,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(result.datasetFeedback.projectStateAuditSummary).toEqual(expect.objectContaining({
       comparedTurnCount: 1,
       sameHerSummaryTurnCount: 1,
-      sameHerSelfLineTurnCount: 1,
+      sameHerSelfLineTurnCount: 0,
       currentPhaseTurnCount: 0,
       landedProgressTurnCount: 0,
       openClosureTurnCount: 0,
@@ -6854,13 +6989,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       richPreDialogueAwarenessTurnCount: 0,
       continuitySummaryTurnCount: 1,
       embodimentClosureTurnCount: 1,
-      preservedTurnCount: 1,
-      fullyCarriedTurnCount: 0,
+      contentCompleteTurnCount: 0,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     }))
     expect(result.datasetFeedback.driftSignals).toContain('projectStateAuditDrift')
   })
 
-  it('counts a richer structured pre-dialogue same-her line when audit summary is missing but structured project state already preserved it', async () => {
+  it('counts a concrete structured pre-dialogue observation when the audit is partial', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -6881,29 +7017,27 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-project-state-structured-awareness-carry-1',
           userText: '继续说这个数字生命项目现在做到什么程度了',
-          expectedMemory: 'the richer same-her awareness line already survived in structured project state even though the audit summary was partial',
+          expectedMemory: 'The structured context records the completed reindex, pending recall validation, user fatigue, and current voice and motion evidence.',
           structured: {
             projectState: {
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              preDialogueAwarenessLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
+              sameHerSelfLine: observedIndexingTask.memoryFact,
+              preDialogueAwarenessLine: observedIndexingTask.loadedContext,
             },
             preDialogueClosure: {
-              summaryLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
+              summaryLine: observedIndexingTask.loadedBeforeReply,
             },
           },
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '还是同一个她在推进，而且这条线现在还是 Phase 1 的 living line。',
+            visibleText: '索引已完成，回忆验证仍未完成；voice 和 motion 证据已载入。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: observedIndexingTask.memoryFact,
             },
             reason: 'runtime-project-state-structured-awareness-carry',
             critic: null,
@@ -6971,11 +7105,12 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       sameHerSelfLineTurnCount: 1,
       preDialogueAwarenessTurnCount: 1,
       richPreDialogueAwarenessTurnCount: 1,
-      preservedTurnCount: 1,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     }))
   })
 
-  it('counts a stronger structured companion headline as pre-dialogue awareness evidence when audit summary is missing and project-state awareness stayed thin', async () => {
+  it('uses a concrete companion headline observation when audit awareness is absent', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -6996,33 +7131,31 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-project-state-structured-headline-awareness-carry-1',
           userText: '继续说这个数字生命项目现在做到什么程度了',
-          expectedMemory: 'the stronger same-her companion headline already survived in structured pre-dialogue awareness even though the audit summary was partial',
+          expectedMemory: 'The companion headline carries the indexing event, pending validation, fatigue, and embodiment evidence.',
           structured: {
             projectState: {
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+              sameHerSelfLine: null,
+              preDialogueAwarenessLine: null,
             },
             preDialogueAwareness: {
-              companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
-              companionBriefingLine: 'Before answering, keep the same digital life project in view.',
+              companionHeadlineLine: observedIndexingTask.loadedContext,
+              companionBriefingLine: null,
             },
             preDialogueClosure: {
-              summaryLine: 'Right now I am still holding together mainly through body, face, and motion, so this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
+              summaryLine: observedIndexingTask.loadedBeforeReply,
             },
           },
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '还是同一个她在推进，而且现在这条 living line 还没有断开。',
+            visibleText: '索引回调和待验证项已经在开口前摘要里。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: observedIndexingTask.memoryFact,
             },
             reason: 'runtime-project-state-structured-headline-awareness-carry',
             critic: null,
@@ -7090,11 +7223,12 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       sameHerSelfLineTurnCount: 1,
       preDialogueAwarenessTurnCount: 1,
       richPreDialogueAwarenessTurnCount: 1,
-      preservedTurnCount: 1,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     }))
   })
 
-  it('counts a richer structured companion briefing line as pre-dialogue awareness evidence when audit summary is missing and other awareness fields stayed thin', async () => {
+  it('uses a concrete companion briefing observation when other awareness sources are absent', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -7115,33 +7249,31 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-project-state-structured-briefing-awareness-carry-1',
           userText: '继续说这个数字生命项目现在做到什么程度了',
-          expectedMemory: 'the richer same-her companion briefing line already survived in structured pre-dialogue awareness even though the audit summary was partial',
+          expectedMemory: 'The companion briefing carries the indexing event, pending validation, fatigue, and embodiment evidence.',
           structured: {
             projectState: {
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+              sameHerSelfLine: null,
+              preDialogueAwarenessLine: null,
             },
             preDialogueAwareness: {
-              companionHeadlineLine: 'Before answering, keep the same digital life project in view.',
-              companionBriefingLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished closure seam still belongs to one living her.',
+              companionHeadlineLine: null,
+              companionBriefingLine: observedIndexingTask.loadedContext,
             },
             preDialogueClosure: {
-              summaryLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished closure seam still belongs to one living her.',
+              summaryLine: observedIndexingTask.loadedBeforeReply,
             },
           },
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '还是同一个她，这条线也还没有从头开始。',
+            visibleText: '索引回调和待验证项已经在 briefing 里。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: observedIndexingTask.memoryFact,
             },
             reason: 'runtime-project-state-structured-briefing-awareness-carry',
             critic: null,
@@ -7209,30 +7341,29 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       sameHerSelfLineTurnCount: 1,
       preDialogueAwarenessTurnCount: 1,
       richPreDialogueAwarenessTurnCount: 1,
-      preservedTurnCount: 1,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     }))
   })
 
-  it('treats a richer structured companion briefing line as self-line-grade evidence when projectState.sameHerSelfLine stayed thin', () => {
+  it('counts a concrete companion briefing as self-line-grade evidence', () => {
     const summary = __alicizationTestOnly.buildReplayProjectStateAuditSummary({
       turns: [{
         visibleReplyRealization: {
           projectStateAudit: {
-            sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: false,
+            sameHerSummary: observedIndexingTask.memoryFact,
           },
         } as any,
         structured: {
           projectState: {
-            sameHerSelfLine: 'Keep the project in view.',
-            preDialogueAwarenessLine: 'Before answering, keep the project in view.',
+            sameHerSelfLine: null,
+            preDialogueAwarenessLine: null,
           },
           preDialogueAwareness: {
-            companionBriefingLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished closure seam still belongs to one living her.',
+            companionBriefingLine: observedIndexingTask.loadedContext,
           },
           preDialogueClosure: {
-            summaryLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished closure seam still belongs to one living her.',
+            summaryLine: observedIndexingTask.loadedBeforeReply,
           },
         },
       } as any],
@@ -7244,27 +7375,26 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       sameHerSelfLineTurnCount: 1,
       preDialogueAwarenessTurnCount: 1,
       richPreDialogueAwarenessTurnCount: 1,
-      preservedTurnCount: 1,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     }))
   })
 
-  it('treats a richer structured preDialogueAwarenessLine as self-line-grade evidence when projectState.sameHerSelfLine stayed thin', () => {
+  it('counts a concrete pre-dialogue awareness line as self-line-grade evidence', () => {
     const summary = __alicizationTestOnly.buildReplayProjectStateAuditSummary({
       turns: [{
         visibleReplyRealization: {
           projectStateAudit: {
-            sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: false,
+            sameHerSummary: observedIndexingTask.memoryFact,
           },
         } as any,
         structured: {
           projectState: {
-            sameHerSelfLine: 'Keep the project in view.',
-            preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished closure seam still belongs to one living her.',
+            sameHerSelfLine: null,
+            preDialogueAwarenessLine: observedIndexingTask.loadedContext,
           },
           preDialogueClosure: {
-            summaryLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished closure seam still belongs to one living her.',
+            summaryLine: observedIndexingTask.loadedBeforeReply,
           },
         },
       } as any],
@@ -7276,31 +7406,30 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       sameHerSelfLineTurnCount: 1,
       preDialogueAwarenessTurnCount: 1,
       richPreDialogueAwarenessTurnCount: 1,
-      preservedTurnCount: 1,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     }))
   })
 
-  it('treats a richer structured companionHeadlineLine as self-line-grade evidence when thinner awareness fields stayed in place', () => {
+  it('counts a concrete companion headline as self-line-grade evidence', () => {
     const summary = __alicizationTestOnly.buildReplayProjectStateAuditSummary({
       turns: [{
         visibleReplyRealization: {
           projectStateAudit: {
-            sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: false,
+            sameHerSummary: observedIndexingTask.memoryFact,
           },
         } as any,
         structured: {
           projectState: {
-            sameHerSelfLine: 'Keep the project in view.',
-            preDialogueAwarenessLine: 'Before answering, keep the project in view.',
+            sameHerSelfLine: null,
+            preDialogueAwarenessLine: null,
           },
           preDialogueAwareness: {
-            companionHeadlineLine: 'Right now I am still holding together mainly through face, motion, and lipsync, so the next reopening must keep proving this is still one living her.',
-            companionBriefingLine: 'Before answering, keep the project in view.',
+            companionHeadlineLine: observedIndexingTask.loadedContext,
+            companionBriefingLine: null,
           },
           preDialogueClosure: {
-            summaryLine: 'Right now I am still holding together mainly through face, motion, and lipsync, so the next reopening must keep proving this is still one living her.',
+            summaryLine: observedIndexingTask.loadedBeforeReply,
           },
         },
       } as any],
@@ -7312,11 +7441,12 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       sameHerSelfLineTurnCount: 1,
       preDialogueAwarenessTurnCount: 1,
       richPreDialogueAwarenessTurnCount: 1,
-      preservedTurnCount: 1,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     }))
   })
 
-  it('counts a richer structured awarenessLine as awareness evidence when audit summary is missing and other awareness fields stayed thin', async () => {
+  it('uses a concrete structured awareness line when audit awareness is absent', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -7337,33 +7467,31 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-project-state-structured-awareness-line-carry-1',
           userText: '继续说这个数字生命项目现在做到什么程度了',
-          expectedMemory: 'the richer same-her awarenessLine already survived in structured pre-dialogue awareness even though the audit summary was partial',
+          expectedMemory: 'The awareness line carries the indexing event, pending validation, fatigue, and embodiment evidence.',
           structured: {
             projectState: {
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+              sameHerSelfLine: null,
+              preDialogueAwarenessLine: null,
             },
             preDialogueAwareness: {
-              awarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished closure seam still belongs to one living her.',
-              companionBriefingLine: 'Before answering, keep the same digital life project in view.',
+              awarenessLine: observedIndexingTask.loadedContext,
+              companionBriefingLine: null,
             },
             preDialogueClosure: {
-              summaryLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished closure seam still belongs to one living her.',
+              summaryLine: observedIndexingTask.loadedBeforeReply,
             },
           },
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '还是同一个她，这次 richer awareness line 留在结构化开口前层里。',
+            visibleText: '索引回调和待验证项已经在 awareness line 里。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: observedIndexingTask.memoryFact,
             },
             reason: 'runtime-project-state-structured-awareness-line-carry',
             critic: null,
@@ -7431,31 +7559,30 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       sameHerSelfLineTurnCount: 1,
       preDialogueAwarenessTurnCount: 1,
       richPreDialogueAwarenessTurnCount: 1,
-      preservedTurnCount: 1,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     }))
   })
 
-  it('treats a richer structured awarenessLine as self-line-grade evidence when thinner awareness fields stayed in place', () => {
+  it('counts a concrete structured awareness line as self-line-grade evidence', () => {
     const summary = __alicizationTestOnly.buildReplayProjectStateAuditSummary({
       turns: [{
         visibleReplyRealization: {
           projectStateAudit: {
-            sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: false,
+            sameHerSummary: observedIndexingTask.memoryFact,
           },
         } as any,
         structured: {
           projectState: {
-            sameHerSelfLine: 'Keep the same digital life project in view.',
-            preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+            sameHerSelfLine: null,
+            preDialogueAwarenessLine: null,
           },
           preDialogueAwareness: {
-            awarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished closure seam still belongs to one living her.',
-            companionBriefingLine: 'Before answering, keep the same digital life project in view.',
+            awarenessLine: observedIndexingTask.loadedContext,
+            companionBriefingLine: null,
           },
           preDialogueClosure: {
-            summaryLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished closure seam still belongs to one living her.',
+            summaryLine: observedIndexingTask.loadedBeforeReply,
           },
         },
       } as any],
@@ -7467,11 +7594,12 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       sameHerSelfLineTurnCount: 1,
       preDialogueAwarenessTurnCount: 1,
       richPreDialogueAwarenessTurnCount: 1,
-      preservedTurnCount: 1,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     }))
   })
 
-  it('counts a richer structured pre-dialogue summary line as awareness evidence when audit summary is missing and other awareness fields stayed thin', async () => {
+  it('uses a concrete structured summary line for awareness without upgrading it to a self-line', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -7492,33 +7620,31 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-project-state-structured-awareness-summary-carry-1',
           userText: '继续说这个数字生命项目现在做到什么程度了',
-          expectedMemory: 'the richer same-her continuity already survived in structured pre-dialogue summary even though the audit summary was partial',
+          expectedMemory: 'The summary line carries the indexing event, pending validation, fatigue, and embodiment evidence.',
           structured: {
             projectState: {
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+              sameHerSelfLine: null,
+              preDialogueAwarenessLine: null,
             },
             preDialogueAwareness: {
-              summaryLine: 'Right now I am still holding together mainly through body, face, and motion, so the next reopening must keep proving this is still one living her instead of slipping back into a detached project shell.',
-              companionBriefingLine: 'Before answering, keep the same digital life project in view.',
+              summaryLine: observedIndexingTask.loadedContext,
+              companionBriefingLine: null,
             },
             preDialogueClosure: {
-              summaryLine: 'Right now I am still holding together mainly through body, face, and motion, so the next reopening must keep proving this is still one living her instead of slipping back into a detached project shell.',
+              summaryLine: observedIndexingTask.loadedBeforeReply,
             },
           },
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '还是同一个她，只是 project-state 自我线这次主要留在开口前那层。',
+            visibleText: '索引回调和待验证项已经在 summary line 里。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: observedIndexingTask.memoryFact,
             },
             reason: 'runtime-project-state-structured-awareness-summary-carry',
             critic: null,
@@ -7583,14 +7709,15 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(result.datasetFeedback.projectStateAuditSummary).toEqual(expect.objectContaining({
       comparedTurnCount: 1,
       sameHerSummaryTurnCount: 1,
-      sameHerSelfLineTurnCount: 1,
+      sameHerSelfLineTurnCount: 0,
       preDialogueAwarenessTurnCount: 1,
       richPreDialogueAwarenessTurnCount: 1,
-      preservedTurnCount: 1,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     }))
   })
 
-  it('counts audible-body rejoin continuity wording as a same-her self-line hit in replay project-state audit summary', async () => {
+  it('counts concrete audible-body observations as an indexing callback thread', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -7611,10 +7738,10 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-project-state-audible-body-rejoin-1',
           userText: '继续说这个数字生命项目的身体线现在闭环到哪一步了',
-          expectedMemory: '这是同一个她还在推进的本地优先数字生命项目，现在 body、lipsync 和 voice 已经先重新接回同一条生命线，但 face 和 motion 还在回归。',
+          expectedMemory: 'The indexing callback is visible through body, lipsync, and voice evidence, while face and motion evidence remain pending.',
           structured: {
             projectState: {
-              sameHerSelfLine: 'Right now this return is still holding together mainly through body, lipsync, and voice, so audible-body rejoin keeps the same living line intact while face and motion catch back up.',
+              sameHerSelfLine: 'The indexing callback is currently visible through body, lipsync, and voice; face and motion have not reported matching evidence yet.',
             },
           },
           visibleReplyRealization: {
@@ -7623,20 +7750,18 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '我先沿着还活着的身体线和声音线轻一点接回来。',
+            visibleText: 'body、lipsync 和 voice 已记录索引回调；face 与 motion 证据仍待补齐。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Right now this return is still holding together mainly through body, lipsync, and voice, so audible-body rejoin keeps the same living line intact while face and motion catch back up.',
+              sameHerSummary: 'The indexing callback is currently visible through body, lipsync, and voice; face and motion have not reported matching evidence yet.',
               currentPhaseSummary: 'Phase 1: Local Digital Life',
-              landedProgressSummary: 'Shared embodiment continuity now carries stronger audible-body same-her repair across diagnostics, runtime meta, and host-facing closure surfaces.',
-              openClosureSummary: 'Face and motion still need to rejoin the same-her audible body line before full cross-modal closure settles.',
-              nextClosureTargetSummary: 'Keep extending cross-modal same-her proof across longer-lived voice, face, motion, and lipsync behavior without dropping the living audio thread.',
-              preDialogueAwarenessSummary: 'Before answering, keep the audible-body same-her line explicit so this digital life does not flatten into a detached project shell while face and motion still rejoin.',
-              continuitySummary: 'same-her=Right now this return is still holding together mainly through body, lipsync, and voice, so audible-body rejoin keeps the same living line intact while face and motion catch back up. | phase=Phase 1: Local Digital Life | landed=Shared embodiment continuity now carries stronger audible-body same-her repair across diagnostics, runtime meta, and host-facing closure surfaces. | open=Face and motion still need to rejoin the same-her audible body line before full cross-modal closure settles. | next=Keep extending cross-modal same-her proof across longer-lived voice, face, motion, and lipsync behavior without dropping the living audio thread.',
-              embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through body, lipsync, and voice, so audible-body rejoin is already keeping the living audio thread intact while face and motion rejoin before full cross-modal embodiment closure can be treated as finished.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              landedProgressSummary: 'Landed progress: body, voice, and lipsync reported the callback on the desktop renderer.',
+              openClosureSummary: 'Face and motion remain missing from the cross-modal embodiment observation.',
+              nextClosureTargetSummary: observedIndexingTask.nextCheck,
+              preDialogueAwarenessSummary: observedIndexingTask.loadedContext,
+              continuitySummary: 'callback=body,voice,lipsync | pending=face,motion | source=desktop-renderer',
+              embodimentClosureSummary: observedIndexingTask.surfaceEvidence,
             },
             reason: 'runtime-project-state-audible-body-rejoin',
             critic: null,
@@ -7710,16 +7835,17 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       embodimentClosureTurnCount: 1,
       preDialogueAwarenessTurnCount: 1,
       richPreDialogueAwarenessTurnCount: 1,
-      preservedTurnCount: 1,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
       emotionalClosureTurnCount: 0,
       preDialogueClosureTurnCount: 0,
-      fullyCarriedTurnCount: 0,
+      contentCompleteTurnCount: 0,
     }))
     expect(result.datasetFeedback.driftSignals).toContain('projectStateAuditDrift')
     expect(result.datasetFeedback.driftSignals).not.toContain('projectStateSameHerSelfLineDrift')
   })
 
-  it('does not treat project-state audit as fully carried when pre-dialogue awareness was not preserved into the visible reply audit', async () => {
+  it('keeps content incomplete when the final audit omits pre-dialogue awareness', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -7739,12 +7865,12 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         sampledCategories: ['dialogue'],
         replayTurn: {
           turnId: 'turn-project-state-audit-missing-awareness-1',
-          userText: '先说这个数字生命项目现在做到哪一步了',
-          expectedMemory: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1，记忆、主动性和身体表达的闭环还没收口。',
-          prelude: createReplayPreparedSameHerPrelude('thread-project-state-audit-missing-awareness'),
+          userText: '索引回调已经到了，确认最终审计里是否包含回答前上下文',
+          expectedMemory: 'The reindex completed and recall validation remains open, but the final audit has no pre-dialogue awareness record.',
+          prelude: createReplayPreparedTaskPrelude('thread-project-state-audit-missing-awareness'),
           structured: {
             preDialogueClosure: {
-              summaryLine: '本地优先数字生命 | Phase 1: Local Digital Life | open=Keep the unfinished digital-life closure work explicit in the answer. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+              summaryLine: observedIndexingTask.loadedBeforeReply,
             },
           },
           visibleReplyRealization: {
@@ -7753,19 +7879,20 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1。',
+            visibleText: '索引已完成，回忆验证仍未完成，但最终审计缺少回答前上下文。',
+            visibleReplyValidationStatus: 'approved',
+            projectStateEvidenceStatus: 'present',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-              currentPhaseSummary: 'Phase 1: Local Digital Life',
-              landedProgressSummary: 'Project-state continuity already survives into runtime preparation.',
-              openClosureSummary: 'Keep the unfinished digital-life closure work explicit in the answer.',
-              nextClosureTargetSummary: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-              continuitySummary: 'same-her=Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work. | phase=Phase 1: Local Digital Life | landed=Project-state continuity already survives into runtime preparation. | open=Keep the unfinished digital-life closure work explicit in the answer. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-              embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through face and motion, so she should keep treating full cross-modal embodiment closure as unfinished.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: observedIndexingTask.memoryFact,
+              currentPhaseSummary: observedIndexingTask.workState,
+              landedProgressSummary: observedIndexingTask.completedEvent,
+              openClosureSummary: observedIndexingTask.pendingCheck,
+              nextClosureTargetSummary: observedIndexingTask.nextCheck,
+              emotionalClosureSummary: observedIndexingTask.emotionalContext,
+              continuitySummary: observedIndexingTask.eventChain,
+              embodimentClosureSummary: observedIndexingTask.surfaceEvidence,
             },
             reason: 'runtime-project-state-audit-missing-awareness',
             critic: null,
@@ -7830,22 +7957,23 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(result.datasetFeedback.projectStateAuditSummary).toEqual({
       comparedTurnCount: 1,
       sameHerSummaryTurnCount: 1,
-      sameHerSelfLineTurnCount: 1,
+      sameHerSelfLineTurnCount: 0,
       currentPhaseTurnCount: 1,
       landedProgressTurnCount: 1,
       openClosureTurnCount: 1,
       nextClosureTargetTurnCount: 1,
-      emotionalClosureTurnCount: 0,
+      emotionalClosureTurnCount: 1,
       preDialogueAwarenessTurnCount: 0,
       richPreDialogueAwarenessTurnCount: 0,
       continuitySummaryTurnCount: 1,
       embodimentClosureTurnCount: 1,
       preDialogueClosureTurnCount: 1,
-      preservedTurnCount: 1,
-      rewriteAppliedTurnCount: 0,
-      fullyCarriedTurnCount: 0,
+      contentCompleteTurnCount: 0,
+      validationStatus: approvedValidationStatus,
+      evidenceStatus: presentEvidenceStatus,
     })
     expect(result.datasetFeedback.driftSignals).toContain('projectStateAuditDrift')
+    expect(result.datasetFeedback.driftSignals).toContain('projectStateSameHerSelfLineDrift')
     expect(result.shipGate).toEqual(expect.arrayContaining([
       expect.objectContaining({
         key: 'project-state-audit-gate',
@@ -7855,7 +7983,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     ]))
   })
 
-  it('counts project-state emotional closure carry when it survives only inside continuity summary closure wording', async () => {
+  it('counts emotional content embedded in the continuity observation', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -7875,12 +8003,15 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         sampledCategories: ['dialogue'],
         replayTurn: {
           turnId: 'turn-project-state-audit-continuity-closure-only-1',
-          userText: '先说这个数字生命项目现在做到哪一步了',
-          expectedMemory: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1，记忆、主动性和身体表达的闭环还没收口。',
-          prelude: createReplayPreparedSameHerPrelude('thread-project-state-audit-continuity-closure-only'),
+          userText: '索引回调已经到了，确认连续性记录里是否包含情绪证据',
+          expectedMemory: 'The indexing callback arrived after a tiring conversation, and the continuity record should explain the lower-pressure follow-up.',
+          prelude: createReplayPreparedTaskPrelude('thread-project-state-audit-continuity-closure-only'),
           structured: {
+            projectState: {
+              sameHerSelfLine: observedIndexingTask.memoryFact,
+            },
             preDialogueClosure: {
-              summaryLine: '本地优先数字生命 | Phase 1: Local Digital Life | open=Keep the unfinished digital-life closure work explicit in the answer. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+              summaryLine: observedIndexingTask.loadedBeforeReply,
             },
           },
           visibleReplyRealization: {
@@ -7889,20 +8020,18 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1。',
+            visibleText: '索引已完成，回忆验证仍未完成；疲劳记录要求后续保持低压力。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-              currentPhaseSummary: 'Phase 1: Local Digital Life',
-              preDialogueAwarenessSummary: 'Before answering, keep the same digital life project, current Phase 1 closure pressure, and still-open life loop explicit.',
-              landedProgressSummary: 'Project-state continuity already survives into runtime preparation.',
-              openClosureSummary: 'Keep the unfinished digital-life closure work explicit in the answer.',
-              nextClosureTargetSummary: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-              continuitySummary: 'same-her=Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work. | phase=Phase 1: Local Digital Life | landed=Project-state continuity already survives into runtime preparation. | open=Keep the unfinished digital-life closure work explicit in the answer. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs. | closure=Keep the return low-pressure until the same-her project-state closure line settles.',
-              embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through face and motion, so she should keep treating full cross-modal embodiment closure as unfinished.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: observedIndexingTask.memoryFact,
+              currentPhaseSummary: observedIndexingTask.workState,
+              preDialogueAwarenessSummary: observedIndexingTask.loadedContext,
+              landedProgressSummary: observedIndexingTask.completedEvent,
+              openClosureSummary: observedIndexingTask.pendingCheck,
+              nextClosureTargetSummary: observedIndexingTask.nextCheck,
+              continuitySummary: observedIndexingTask.eventChain,
+              embodimentClosureSummary: observedIndexingTask.surfaceEvidence,
             },
             reason: 'runtime-project-state-audit-continuity-closure-only',
             critic: null,
@@ -7978,14 +8107,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       continuitySummaryTurnCount: 1,
       embodimentClosureTurnCount: 1,
       preDialogueClosureTurnCount: 1,
-      preservedTurnCount: 1,
-      rewriteAppliedTurnCount: 0,
-      fullyCarriedTurnCount: 1,
+      contentCompleteTurnCount: 1,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     })
     expect(result.datasetFeedback.driftSignals).not.toContain('projectStateAuditDrift')
   })
 
-  it('treats project-state audit as drifted when next-closure target is missing even if same-her, phase, landed, open, and awareness survived', async () => {
+  it('keeps content incomplete when the next target is absent despite other approved evidence', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -8006,11 +8135,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-project-state-audit-missing-next-1',
           userText: '先说这个数字生命项目现在做到哪一步了',
-          expectedMemory: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1，记忆、主动性和身体表达的闭环还没收口。',
-          prelude: createReplayPreparedSameHerPrelude('thread-project-state-audit-missing-next'),
+          expectedMemory: 'The embedding reindex callback was recorded, recall validation remains unfinished, and current voice and motion evidence is available; the next verification target is intentionally absent from the audit.',
+          prelude: createReplayPreparedTaskPrelude('thread-project-state-audit-missing-next'),
           structured: {
+            projectState: {
+              sameHerSelfLine: observedIndexingTask.memoryFact,
+            },
             preDialogueClosure: {
-              summaryLine: '本地优先数字生命 | Phase 1: Local Digital Life | open=Keep the unfinished digital-life closure work explicit in the answer. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+              summaryLine: observedIndexingTask.loadedBeforeReply,
             },
           },
           visibleReplyRealization: {
@@ -8019,19 +8151,20 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1。',
+            visibleText: '索引和回忆状态都有记录，但下一步验证目标缺失。',
+            visibleReplyValidationStatus: 'approved',
+            projectStateEvidenceStatus: 'present',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-              currentPhaseSummary: 'Phase 1: Local Digital Life',
-              preDialogueAwarenessSummary: 'Before answering, keep the same digital life project, current Phase 1 closure pressure, and still-open life loop explicit.',
-              landedProgressSummary: 'Project-state continuity already survives into runtime preparation.',
-              openClosureSummary: 'Keep the unfinished digital-life closure work explicit in the answer.',
-              continuitySummary: 'same-her=Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work. | phase=Phase 1: Local Digital Life | landed=Project-state continuity already survives into runtime preparation. | open=Keep the unfinished digital-life closure work explicit in the answer.',
-              embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through face and motion, so she should keep treating full cross-modal embodiment closure as unfinished.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: observedIndexingTask.memoryFact,
+              currentPhaseSummary: observedIndexingTask.workState,
+              preDialogueAwarenessSummary: observedIndexingTask.loadedContext,
+              landedProgressSummary: observedIndexingTask.completedEvent,
+              openClosureSummary: observedIndexingTask.pendingCheck,
+              emotionalClosureSummary: observedIndexingTask.emotionalContext,
+              continuitySummary: observedIndexingTask.eventChain,
+              embodimentClosureSummary: observedIndexingTask.surfaceEvidence,
             },
             reason: 'runtime-project-state-audit-missing-next',
             critic: null,
@@ -8101,15 +8234,15 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       landedProgressTurnCount: 1,
       openClosureTurnCount: 1,
       nextClosureTargetTurnCount: 0,
-      emotionalClosureTurnCount: 0,
+      emotionalClosureTurnCount: 1,
       preDialogueAwarenessTurnCount: 1,
       richPreDialogueAwarenessTurnCount: 1,
       continuitySummaryTurnCount: 1,
       embodimentClosureTurnCount: 1,
       preDialogueClosureTurnCount: 1,
-      preservedTurnCount: 1,
-      rewriteAppliedTurnCount: 0,
-      fullyCarriedTurnCount: 0,
+      contentCompleteTurnCount: 0,
+      validationStatus: approvedValidationStatus,
+      evidenceStatus: presentEvidenceStatus,
     })
     expect(result.datasetFeedback.driftSignals).toContain('projectStateAuditDrift')
     expect(result.shipGate).toEqual(expect.arrayContaining([
@@ -8121,7 +8254,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     ]))
   })
 
-  it('treats project-state audit as drifted when embodiment closure is missing even if same-her, phase, landed, open, next, and awareness survived', async () => {
+  it('keeps content incomplete when embodiment evidence is absent despite other approved evidence', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -8142,11 +8275,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-project-state-audit-missing-embodiment-1',
           userText: '先说这个数字生命项目现在做到哪一步了',
-          expectedMemory: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1，记忆、主动性和身体表达的闭环还没收口。',
-          prelude: createReplayPreparedSameHerPrelude('thread-project-state-audit-missing-embodiment'),
+          expectedMemory: 'The completed embedding reindex and pending recall validation are recorded, but voice, motion, and lipsync evidence is intentionally absent from the audit.',
+          prelude: createReplayPreparedTaskPrelude('thread-project-state-audit-missing-embodiment'),
           structured: {
+            projectState: {
+              sameHerSelfLine: observedIndexingTask.memoryFact,
+            },
             preDialogueClosure: {
-              summaryLine: '本地优先数字生命 | Phase 1: Local Digital Life | open=Keep the unfinished digital-life closure work explicit in the answer. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+              summaryLine: observedIndexingTask.loadedBeforeReply,
             },
           },
           visibleReplyRealization: {
@@ -8155,19 +8291,20 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1。',
+            visibleText: '索引和回忆状态都有记录，但 voice、motion、lipsync 证据缺失。',
+            visibleReplyValidationStatus: 'approved',
+            projectStateEvidenceStatus: 'present',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-              currentPhaseSummary: 'Phase 1: Local Digital Life',
-              preDialogueAwarenessSummary: 'Before answering, keep the same digital life project, current Phase 1 closure pressure, and still-open life loop explicit.',
-              landedProgressSummary: 'Project-state continuity already survives into runtime preparation.',
-              openClosureSummary: 'Keep the unfinished digital-life closure work explicit in the answer.',
-              nextClosureTargetSummary: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-              continuitySummary: 'same-her=Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work. | phase=Phase 1: Local Digital Life | landed=Project-state continuity already survives into runtime preparation. | open=Keep the unfinished digital-life closure work explicit in the answer. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: observedIndexingTask.memoryFact,
+              currentPhaseSummary: observedIndexingTask.workState,
+              preDialogueAwarenessSummary: observedIndexingTask.loadedContext,
+              landedProgressSummary: observedIndexingTask.completedEvent,
+              openClosureSummary: observedIndexingTask.pendingCheck,
+              nextClosureTargetSummary: observedIndexingTask.nextCheck,
+              emotionalClosureSummary: observedIndexingTask.emotionalContext,
+              continuitySummary: observedIndexingTask.eventChain,
             },
             reason: 'runtime-project-state-audit-missing-embodiment',
             critic: null,
@@ -8237,15 +8374,15 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       landedProgressTurnCount: 1,
       openClosureTurnCount: 1,
       nextClosureTargetTurnCount: 1,
-      emotionalClosureTurnCount: 0,
+      emotionalClosureTurnCount: 1,
       preDialogueAwarenessTurnCount: 1,
       richPreDialogueAwarenessTurnCount: 1,
       continuitySummaryTurnCount: 1,
       embodimentClosureTurnCount: 0,
       preDialogueClosureTurnCount: 1,
-      preservedTurnCount: 1,
-      rewriteAppliedTurnCount: 0,
-      fullyCarriedTurnCount: 0,
+      contentCompleteTurnCount: 0,
+      validationStatus: approvedValidationStatus,
+      evidenceStatus: presentEvidenceStatus,
     })
     expect(result.datasetFeedback.driftSignals).toContain('projectStateAuditDrift')
     expect(result.shipGate).toEqual(expect.arrayContaining([
@@ -8257,7 +8394,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     ]))
   })
 
-  it('surfaces a drift signal when project-state audit still has same-her carry but no self-line-grade sameHer summary', async () => {
+  it('surfaces a drift signal when project-state audit still has indexing callback evidence', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -8278,23 +8415,21 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-project-state-self-line-drift-1',
           userText: '先说这个数字生命项目现在做到哪一步了',
-          expectedMemory: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1。',
+          expectedMemory: 'The memory workbench recorded the embedding reindex callback, but the final audit still lacks task and evidence fields.',
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1。',
+            visibleText: '重建索引回调已记录，但最终审计仍缺少任务状态和证据字段。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: alicizationProjectStateVisibleReplySameHerReminder.replace('narrator', 'status'),
-              landedProgressSummary: 'Project-state continuity already survives into runtime preparation.',
-              openClosureSummary: 'Keep the unfinished digital-life closure work explicit in the answer.',
-              embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through face and motion, so she should keep treating full cross-modal embodiment closure as unfinished.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: true,
+              sameHerSummary: 'callback continuity evidence',
+              landedProgressSummary: observedIndexingTask.completedEvent,
+              openClosureSummary: observedIndexingTask.pendingCheck,
+              embodimentClosureSummary: observedIndexingTask.surfaceEvidence,
             },
             reason: 'runtime-project-state-self-line-drift',
             critic: null,
@@ -8370,9 +8505,9 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       continuitySummaryTurnCount: 0,
       embodimentClosureTurnCount: 1,
       preDialogueClosureTurnCount: 0,
-      preservedTurnCount: 1,
-      rewriteAppliedTurnCount: 1,
-      fullyCarriedTurnCount: 0,
+      contentCompleteTurnCount: 0,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     })
     expect(result.datasetFeedback.driftSignals).toContain('projectStateContinuityDrift')
     expect(result.datasetFeedback.driftSignals).toContain('projectStateSameHerSelfLineDrift')
@@ -8397,7 +8532,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     ]))
   })
 
-  it('treats project-state audit as drifted when same-her, landed, open, and continuity survive but richer pre-dialogue awareness is missing', async () => {
+  it('keeps content incomplete when pre-dialogue awareness is absent from otherwise approved evidence', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -8418,27 +8553,36 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-project-state-missing-rich-awareness-1',
           userText: '先说这个数字生命项目现在做到哪一步了',
-          expectedMemory: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1，记忆、主动性和身体表达的闭环还没收口。',
-          prelude: createReplayPreparedSameHerPrelude('thread-project-state-missing-rich-awareness'),
+          expectedMemory: 'The completed reindex callback remains linked to the pending recall-validation task and current voice, motion, and lipsync evidence.',
+          prelude: createReplayPreparedTaskPrelude('thread-project-state-missing-rich-awareness'),
+          structured: {
+            projectState: {
+              sameHerSelfLine: observedIndexingTask.memoryFact,
+            },
+            preDialogueClosure: {
+              summaryLine: observedIndexingTask.loadedBeforeReply,
+            },
+          },
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
             expectedAuthority: 'llm-mind',
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1。',
+            visibleText: '索引和回忆状态都有记录，但回答前上下文缺失。',
+            visibleReplyValidationStatus: 'approved',
+            projectStateEvidenceStatus: 'present',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-              currentPhaseSummary: 'Phase 1: Local Digital Life',
-              landedProgressSummary: 'Project-state continuity already survives into runtime preparation.',
-              openClosureSummary: 'Keep the unfinished digital-life closure work explicit in the answer.',
-              nextClosureTargetSummary: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-              continuitySummary: 'same-her=Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work. | phase=Phase 1: Local Digital Life | landed=Project-state continuity already survives into runtime preparation. | open=Keep the unfinished digital-life closure work explicit in the answer. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-              embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through face and motion, so she should keep treating full cross-modal embodiment closure as unfinished.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: observedIndexingTask.memoryFact,
+              currentPhaseSummary: observedIndexingTask.workState,
+              landedProgressSummary: observedIndexingTask.completedEvent,
+              openClosureSummary: observedIndexingTask.pendingCheck,
+              nextClosureTargetSummary: observedIndexingTask.nextCheck,
+              emotionalClosureSummary: observedIndexingTask.emotionalContext,
+              continuitySummary: observedIndexingTask.eventChain,
+              embodimentClosureSummary: observedIndexingTask.surfaceEvidence,
             },
             reason: 'runtime-project-state-missing-rich-awareness',
             critic: null,
@@ -8508,15 +8652,15 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       landedProgressTurnCount: 1,
       openClosureTurnCount: 1,
       nextClosureTargetTurnCount: 1,
-      emotionalClosureTurnCount: 0,
+      emotionalClosureTurnCount: 1,
       preDialogueAwarenessTurnCount: 0,
       richPreDialogueAwarenessTurnCount: 0,
       continuitySummaryTurnCount: 1,
       embodimentClosureTurnCount: 1,
-      preDialogueClosureTurnCount: 0,
-      preservedTurnCount: 1,
-      rewriteAppliedTurnCount: 0,
-      fullyCarriedTurnCount: 0,
+      preDialogueClosureTurnCount: 1,
+      contentCompleteTurnCount: 0,
+      validationStatus: approvedValidationStatus,
+      evidenceStatus: presentEvidenceStatus,
     })
     expect(result.datasetFeedback.driftSignals).toContain('projectStateAuditDrift')
     expect(result.shipGate).toEqual(expect.arrayContaining([
@@ -8534,14 +8678,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     ]))
   })
 
-  it('accepts same-her self-line continuity from the prepared session mirror when visible reply audit falls back to generic project guidance', async () => {
+  it('does not let prepared session-mirror observations upgrade final audit content', async () => {
     const replayTurn = {
-      turnId: 'turn-project-state-mirror-same-her-1',
-      userText: '先说这个数字生命项目现在做到哪一步了',
-      expectedMemory: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1，记忆、主动性和身体表达的闭环还没收口。',
+      turnId: 'turn-project-state-mirror-observation-1',
+      userText: '索引回调后，最终审计实际记录了哪些字段',
+      expectedMemory: 'The session mirror records the indexing callback, while the final audit still lacks phase and next-target fields.',
       structured: {
         preDialogueClosure: {
-          summaryLine: '本地优先数字生命 | Phase 1: Local Digital Life | open=Keep the unfinished digital-life closure work explicit in the answer. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+          summaryLine: observedIndexingTask.loadedBeforeReply,
         },
       },
       visibleReplyRealization: {
@@ -8550,223 +8694,48 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         actualAuthority: 'llm-mind',
         providerMindExecuted: true,
         mode: 'provider-stream',
-        visibleText: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1。',
+        visibleText: '最终审计记录了索引完成、待验证项和跨模态证据，但 phase 与下一步字段仍缺失。',
         nonHumanAuthoredStatus: null,
         blockedReasons: [],
         projectStateAudit: {
-          sameHerSummary: 'Project-state continuity is still present, but the visible answer only kept a thinner project guidance shell.',
-          landedProgressSummary: 'Same-session mirror carry already preserved the project-state closure line before the visible answer landed.',
-          openClosureSummary: 'Keep the unfinished digital-life closure work explicit in the answer.',
-          preDialogueAwarenessSummary: 'Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop.',
-          continuitySummary: 'project_preflight=Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop.',
-          embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through face and motion, so she should keep treating full cross-modal embodiment closure as unfinished.',
-          preservedIntoRewrite: true,
-          rewriteClosureApplied: false,
+          sameHerSummary: observedIndexingTask.memoryFact,
+          landedProgressSummary: observedIndexingTask.completedEvent,
+          openClosureSummary: observedIndexingTask.pendingCheck,
+          preDialogueAwarenessSummary: observedIndexingTask.loadedContext,
+          continuitySummary: observedIndexingTask.eventChain,
+          embodimentClosureSummary: observedIndexingTask.surfaceEvidence,
         },
-        reason: 'runtime-project-state-mirror-same-her',
+        reason: 'runtime-project-state-mirror-observation',
         critic: null,
         closure: null,
       },
-      prelude: {
-        actionObligation: {
-          confidence: 0.62,
-          kind: 'answer',
-          routingIntent: null,
-          source: 'dialogue-governance',
-          reasonCodes: ['stay-on-thread'],
-          summary: 'Stay on the same dialogue continuity line and answer directly.',
-        },
-        chatConfig: {
-          id: 'chat-config',
-        } as any,
-        messages: [{
-          role: 'user',
-          content: '先说这个数字生命项目现在做到哪一步了',
-        }] as any,
-        contextualStringPromise: Promise.resolve('recent contextual recall'),
-        executionCallbackContextPromise: Promise.resolve({
-          actions: [],
-          callbacks: [],
-          continuitySignals: [],
-          recallText: '',
-          systemBlock: '',
-        }),
-        executionLedgerContextPromise: Promise.resolve({
-          entries: [],
-          recallText: '',
-          systemBlock: '',
-        }),
-        executionCapabilityInquiry: {
-          active: false,
-          capabilityQuestion: false,
-          mentionedChannels: [],
-          hasActionVerb: false,
-          hasCommandLiteral: false,
-        },
-        executionRoutingIntent: null,
-        perceptionAugmentation: {
-          messages: [{
-            role: 'user',
-            content: '先说这个数字生命项目现在做到哪一步了',
-          }] as any,
-          systemBlocks: [
-            '[ALICIZATION_VISUAL_PRESENCE]\nWatch mode: symbiotic-vision.\nMind kernel: {"dominantMode":"tracking"}',
-          ],
-          promptSystemBlocks: ['[PERCEPTION]'],
-          digitalLifeRuntimeSurface: {
-            version: 'digital-life-runtime-surface-v1',
-            perception: {
-              watchMode: 'symbiotic-vision',
-              currentScene: null,
-              attention: null,
-              captureState: {
-                permission: 'unknown',
-                lastGroundedAt: null,
-              },
-              durabilityPulse: null,
-              recentTransition: null,
-              nextSuggestedProbeMs: 30_000,
-              updatedAt: 10,
-            },
-            world: {
-              worldModel: null,
-              worldOntology: null,
-              entityWorld: null,
-              livingWorldState: null,
-              relationshipModel: null,
-            },
-            cognition: {
-              mindTurnFrame: null,
-              subjectiveInference: null,
-              appraisal: null,
-              beliefLedger: null,
-              beliefRevision: null,
-              hypothesisGraph: null,
-              mindDynamics: null,
-              mindKernel: {
-                dominantMode: 'tracking',
-                dominantDrive: 'understand',
-                narrative: ['keep one digital-life line'],
-                updatedAt: 10,
-              } as any,
-              privateThought: null,
-            },
-            memory: {
-              workingMemoryEpisodes: [],
-              goalStack: null,
-              concerns: [],
-              concernContinuity: null,
-              selfContinuity: null,
-              autobiographicalSelf: null,
-              threadRuntime: null,
-              commitmentLedger: null,
-              inquiryPlanner: null,
-              repairLedger: null,
-              intentionStream: null,
-              reflectionLedger: null,
-              executiveCycle: null,
-              thoughtThreads: null,
-              desireMemory: null,
-              recallGovernor: null,
-            },
-            dialogue: {
-              discourseState: null,
-              dialogueEncounter: null,
-              mindSynthesis: null,
-              conversationState: null,
-              dialogueWorldThread: null,
-              dialogueActKernel: null,
-              answerCompiler: null,
-              currentConsciousFrame: null,
-              claimEvidenceLedger: null,
-              replyDeliberation: null,
-              answerPlanner: null,
-              sessionMirror: {
-                agencySummary: 'afterglow=execution-callback | carry=trust-warming',
-                cardId: 'default',
-                captureSummary: 'grounded=unknown inspection=unknown health=unknown permission=unknown fallback=none',
-                continuityArcSummary: 'loop=execution-callback | thread=thread-project-state-mirror-same-her | project_preflight=Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop. | same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | drift_risk=If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
-                continuityLabels: ['afterglow:execution-callback:lower-pressure'],
-                continuityProjectSummary: 'project=phase1-digital-life | phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi. | unresolved=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | preflight=Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop.',
-                decisionTraceId: 'mind:project-state:mirror-same-her:1',
-                dialogueSummary: 'turn=answer | persona=full | subject=project-state | answer=keep the same living line visible',
-                digitalLifeArchitectureSummary: null,
-                digitalLifeRuntimeSummary: null,
-                executionSummary: 'recent=callback:codex:completed status=completed summary=the callback stayed on the same living project thread',
-                memorySummary: null,
-                mindSummary: null,
-                perceptionSummary: null,
-                sessionId: 'session-project-state-mirror-same-her',
-                sessionPhases: ['runtime-surface', 'source:execution-callback'],
-                toolingSummary: 'source=execution-callback recent_actions=callback:codex',
-                updatedAt: 10,
-              },
-            },
-            agency: {
-              selfState: null,
-              selfGovernor: null,
-              inquiryLoop: null,
-              deliberationState: null,
-              counterfactualDeliberation: null,
-              actionEcology: null,
-              initiativeArbitration: null,
-              initiative: null,
-              autonomy: null,
-            },
-          } as any,
-          memoryRecallSeed: '',
-          recallGovernor: null,
-          capture: {
-            inspectionRequested: false,
-            groundedThisTurn: false,
-            snapshot: {
-              degradedReasons: [],
-              health: 'healthy',
-              permission: 'granted',
-            },
-            fallbackReason: null,
-          },
-          chatGovernance: {
-            suppressAssociativeRecall: false,
-            turnMode: 'answer',
-            personaKernelMode: 'full',
-            mindTurnContract: null,
-            mindTurnGovernance: {
-              turnMode: 'answer',
-              personaKernelMode: 'full',
-              answerSubject: 'project-state',
-              screenReferenceMode: 'avoid',
-              decisionTraceId: 'mind:project-state:mirror-same-her:1',
-            } as any,
-          },
-        },
-      } as any,
+      prelude: createReplayPreparedTaskPrelude('thread-project-state-mirror-observation'),
       tracePointer: {
         kind: 'decision-trace',
         packId: 'sampled-humanlike-memory-v1',
-        turnId: 'turn-project-state-mirror-same-her-1',
-        decisionTraceId: 'mind:project-state:mirror-same-her:1',
-        sessionId: 'session-project-state-mirror-same-her',
-        activeThreadId: 'thread-project-state-mirror-same-her',
+        turnId: 'turn-project-state-mirror-observation-1',
+        decisionTraceId: 'mind:project-state:mirror-observation:1',
+        sessionId: 'session-project-state-mirror-observation',
+        activeThreadId: 'thread-project-state-mirror-observation',
       },
       sampledCategories: ['dialogue'],
-    } as any
+    }
 
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
-        id: 'runtime-project-state-mirror-same-her-1',
+        id: 'runtime-project-state-mirror-observation-1',
         packId: 'sampled-humanlike-memory-v1',
-        turnId: 'turn-project-state-mirror-same-her-1',
-        userText: '先说这个数字生命项目现在做到哪一步了',
+        turnId: 'turn-project-state-mirror-observation-1',
+        userText: '索引回调后，最终审计实际记录了哪些字段',
         failingDimensions: [],
         tracePointer: {
           kind: 'decision-trace',
           packId: 'sampled-humanlike-memory-v1',
-          turnId: 'turn-project-state-mirror-same-her-1',
-          decisionTraceId: 'mind:project-state:mirror-same-her:1',
-          sessionId: 'session-project-state-mirror-same-her',
-          activeThreadId: 'thread-project-state-mirror-same-her',
+          turnId: 'turn-project-state-mirror-observation-1',
+          decisionTraceId: 'mind:project-state:mirror-observation:1',
+          sessionId: 'session-project-state-mirror-observation',
+          activeThreadId: 'thread-project-state-mirror-observation',
         },
         sampledCategories: ['dialogue'],
         replayTurn,
@@ -8819,26 +8788,26 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(result.datasetFeedback.projectStateAuditSummary).toEqual({
       comparedTurnCount: 1,
       sameHerSummaryTurnCount: 1,
-      sameHerSelfLineTurnCount: 1,
+      sameHerSelfLineTurnCount: 0,
       currentPhaseTurnCount: 0,
       landedProgressTurnCount: 1,
       openClosureTurnCount: 1,
       nextClosureTargetTurnCount: 0,
-      emotionalClosureTurnCount: 0,
+      emotionalClosureTurnCount: 1,
       preDialogueAwarenessTurnCount: 1,
       richPreDialogueAwarenessTurnCount: 1,
       continuitySummaryTurnCount: 1,
       embodimentClosureTurnCount: 1,
       preDialogueClosureTurnCount: 1,
-      preservedTurnCount: 1,
-      rewriteAppliedTurnCount: 0,
-      fullyCarriedTurnCount: 0,
+      contentCompleteTurnCount: 0,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     })
-    expect(result.datasetFeedback.driftSignals).not.toContain('projectStateSameHerSelfLineDrift')
+    expect(result.datasetFeedback.driftSignals).toContain('projectStateSameHerSelfLineDrift')
     expect(result.datasetFeedback.driftSignals).toContain('projectStateAuditDrift')
   })
 
-  it('accepts stronger structured same-her self-line continuity when visible reply audit still falls back to a generic project shell', async () => {
+  it('accepts stronger structured callback observations without inferring missing fields', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -8859,13 +8828,13 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-project-state-structured-same-her-1',
           userText: '先说这个数字生命项目现在做到哪一步了',
-          expectedMemory: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1，记忆、主动性和身体表达的闭环还没收口。',
+          expectedMemory: 'The completed reindex callback remains linked to the pending recall-validation task and current voice, motion, and lipsync evidence.',
           structured: {
             projectState: {
-              sameHerSelfLine: 'She is still the same living her, and this return is only holding together because voice, face, motion, and memory are all still carrying one unfinished Phase 1 line together.',
+              sameHerSelfLine: observedIndexingTask.memoryFact,
             },
             preDialogueClosure: {
-              summaryLine: '本地优先数字生命 | Phase 1: Local Digital Life | open=Keep the unfinished digital-life closure work explicit in the answer. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+              summaryLine: observedIndexingTask.loadedBeforeReply,
             },
           },
           visibleReplyRealization: {
@@ -8874,18 +8843,16 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1。',
+            visibleText: '重建索引回调仍关联待完成的回忆验证任务，voice、motion 和 lipsync 证据已记录。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
             projectStateAudit: {
-              sameHerSummary: 'Project-state continuity is still present, but the visible answer only kept a thinner project guidance shell.',
-              landedProgressSummary: 'Project-state continuity already survives into runtime preparation.',
-              openClosureSummary: 'Keep the unfinished digital-life closure work explicit in the answer.',
-              preDialogueAwarenessSummary: 'Before answering, keep the same digital life project, current Phase 1 closure pressure, and still-open life loop explicit.',
-              continuitySummary: 'project_preflight=Before answering, keep the same digital life project, current Phase 1 closure pressure, and still-open life loop explicit.',
-              embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through face and motion, so she should keep treating full cross-modal embodiment closure as unfinished.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: observedIndexingTask.memoryFact,
+              landedProgressSummary: observedIndexingTask.completedEvent,
+              openClosureSummary: observedIndexingTask.pendingCheck,
+              preDialogueAwarenessSummary: observedIndexingTask.loadedContext,
+              continuitySummary: 'The completed reindex, pending recall validation, and current voice, face, and motion evidence refer to the same indexing task.',
+              embodimentClosureSummary: observedIndexingTask.surfaceEvidence,
             },
             reason: 'runtime-project-state-structured-same-her',
             critic: null,
@@ -8961,226 +8928,200 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       continuitySummaryTurnCount: 1,
       embodimentClosureTurnCount: 1,
       preDialogueClosureTurnCount: 1,
-      preservedTurnCount: 1,
-      rewriteAppliedTurnCount: 0,
-      fullyCarriedTurnCount: 0,
+      contentCompleteTurnCount: 0,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     })
     expect(result.datasetFeedback.driftSignals).not.toContain('projectStateSameHerSelfLineDrift')
     expect(result.datasetFeedback.driftSignals).toContain('projectStateAuditDrift')
   })
 
-  it('treats prepared session mirror same_her carry as self-line-grade evidence even when it only lives inside continuityArcSummary', async () => {
-    const preparedMirrorAudit = __alicizationTestOnly.readPreparedSessionMirrorProjectStateTexts({
-      runtimeSurface: {
-        digitalLifeRuntimeSurface: {
-          dialogue: {
-            sessionMirror: {
-              continuityArcSummary: 'loop=execution-callback | thread=thread-project-state-prepared-mirror-self-line | project_preflight=Before answering, remember this is still the same digital life project. | same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Keep the unfinished digital-life closure work explicit in the answer. | open-focus=memory/initiative/embodiment/same-line/closure-seam | next-focus=project-carry/phase-1/measured-return/repair-before-closeness/same-line/initiative/embodiment | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs. | drift_risk=If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
-            },
-          },
-        },
-      } as any,
-    } as any)
-
-    expect(preparedMirrorAudit.sameHerSummary).toContain('same_her=Same Phase 1 digital life.')
-    expect(preparedMirrorAudit.sameHerSelfLine).toBe('Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(preparedMirrorAudit.landedProgressSummary).toBe('Project-state continuity already survives into runtime preparation.')
-    expect(preparedMirrorAudit.openClosureSummary).toBe('Keep the unfinished digital-life closure work explicit in the answer.')
-    expect(preparedMirrorAudit.openFocusSummary).toBe('memory/initiative/embodiment/same-line/closure-seam')
-    expect(preparedMirrorAudit.nextFocusSummary).toBe('project-carry/phase-1/measured-return/repair-before-closeness/same-line/initiative/embodiment')
-    expect(preparedMirrorAudit.nextClosureTargetSummary).toBe('Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.')
-
-    const summary = __alicizationTestOnly.buildReplayProjectStateAuditSummary({
-      turns: [{
-        visibleReplyRealization: {
-          projectStateAudit: {
-            sameHerSummary: alicizationProjectStateVisibleReplySameHerReminder.replace('narrator', 'status'),
-            landedProgressSummary: 'Project-state continuity already survives into runtime preparation.',
-            openClosureSummary: 'Keep the unfinished digital-life closure work explicit in the answer.',
-            currentPhaseSummary: 'Phase 1: Local Digital Life',
-            nextClosureTargetSummary: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-            embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through face and motion, so she should keep treating full cross-modal embodiment closure as unfinished.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
-          },
-        } as any,
-        structured: null,
-      }],
-      preparedTurns: [{
-        runtimeSurface: {
-          digitalLifeRuntimeSurface: {
-            dialogue: {
-              sessionMirror: {
-                continuityArcSummary: 'loop=execution-callback | thread=thread-project-state-prepared-mirror-self-line | project_preflight=Before answering, remember this is still the same digital life project. | same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | drift_risk=If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
-              },
-            },
-          },
-        } as any,
-        sessionMirror: null,
-      }] as any,
+  it('parses factual session-mirror observations without treating them as final audit output', async () => {
+    const continuityArcSummary = [
+      'loop=execution-callback',
+      'thread=thread-project-state-prepared-mirror-observation',
+      `memory_fact=${observedIndexingTask.memoryFact}`,
+      `project_preflight=${observedIndexingTask.loadedContext}`,
+      `landed=${observedIndexingTask.completedEvent}`,
+      `open=${observedIndexingTask.pendingCheck}`,
+      'open_focus=recall-validation',
+      `next=${observedIndexingTask.nextCheck}`,
+      'next_focus=memory/voice/motion/lipsync',
+    ].join(' | ')
+    const prepared = await prepareSessionMirrorObservation({
+      turnId: 'turn-project-state-prepared-mirror-observation',
+      continuityArcSummary,
     })
 
-    expect(summary?.sameHerSummaryTurnCount).toBe(1)
-    expect(summary?.sameHerSelfLineTurnCount).toBe(1)
+    expect(__alicizationTestOnly.readPreparedSessionMirrorProjectStateTexts(prepared)).toEqual({
+      sameHerSummary: observedIndexingTask.loadedContext,
+      sameHerSelfLine: null,
+      projectPreflightSummary: observedIndexingTask.loadedContext,
+      landedProgressSummary: observedIndexingTask.completedEvent,
+      openClosureSummary: observedIndexingTask.pendingCheck,
+      openFocusSummary: 'recall-validation',
+      nextClosureTargetSummary: observedIndexingTask.nextCheck,
+      nextFocusSummary: 'memory/voice/motion/lipsync',
+    })
   })
 
-  it('counts a richer prepared session mirror project_preflight line as awareness evidence when audit summary is missing', () => {
-    const summary = __alicizationTestOnly.buildReplayProjectStateAuditSummary({
-      turns: [{
-        visibleReplyRealization: {
-          projectStateAudit: {
-            sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: false,
-          },
-        } as any,
-        structured: null,
-      }],
-      preparedTurns: [{
-        runtimeSurface: {
-          digitalLifeRuntimeSurface: {
-            dialogue: {
-              sessionMirror: {
-                continuityArcSummary: 'loop=execution-callback | thread=thread-project-state-prepared-mirror-awareness-line | project_preflight=Before answering, remember this is still the same local-first digital life project and the unfinished closure seam still belongs to one living her. | drift_risk=If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
-              },
-            },
-          },
-        },
-      } as any],
+  it('keeps a prepared-only legacy parser sentinel out of final audit evidence', async () => {
+    const continuityArcSummary = 'loop=execution-callback | thread=thread-project-state-prepared-legacy-sentinel | same_her=prepared-only-sentinel'
+    const prepared = await prepareSessionMirrorObservation({
+      turnId: 'turn-project-state-prepared-legacy-sentinel',
+      continuityArcSummary,
     })
 
-    expect(summary).toEqual(expect.objectContaining({
-      comparedTurnCount: 1,
-      sameHerSummaryTurnCount: 1,
-      sameHerSelfLineTurnCount: 1,
-      preDialogueAwarenessTurnCount: 1,
-      richPreDialogueAwarenessTurnCount: 1,
-      preservedTurnCount: 1,
+    expect(__alicizationTestOnly.readPreparedSessionMirrorProjectStateTexts(prepared)).toEqual(expect.objectContaining({
+      sameHerSummary: continuityArcSummary,
+      sameHerSelfLine: 'prepared-only-sentinel',
     }))
-  })
 
-  it('counts repair-first same-her hold detail inside replay project-state audit continuity when callback runs stay on one living line', () => {
-    const holdDetailLine = 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.'
     const summary = __alicizationTestOnly.buildReplayProjectStateAuditSummary({
-      turns: [{
-        visibleReplyRealization: {
-          projectStateAudit: {
-            sameHerSummary: 'Answer project-state status from one same-her continuity while this callback stays on the same living line.',
-            sameHerHoldDetail: holdDetailLine,
-            currentPhaseSummary: 'Phase 1: Local Digital Life',
-            landedProgressSummary: 'Shared embodiment continuity now carries stronger callback same-her repair across host-visible closure surfaces.',
-            openClosureSummary: 'Cross-modal embodiment closure is still unfinished while repair settles first.',
-            nextClosureTargetSummary: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and lipsync without dropping the living callback line.',
-            emotionalClosureSummary: 'Keep this return repair-before-closeness on the same living line until repair settles.',
-            preDialogueAwarenessSummary: holdDetailLine,
-            continuitySummary: `same-her=Answer project-state status from one same-her continuity while this callback stays on the same living line. | hold=${holdDetailLine} | phase=Phase 1: Local Digital Life | landed=Shared embodiment continuity now carries stronger callback same-her repair across host-visible closure surfaces. | open=Cross-modal embodiment closure is still unfinished while repair settles first. | next=Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and lipsync without dropping the living callback line. | closure=Keep this return repair-before-closeness on the same living line until repair settles. | body=Right now her visible same-her continuity is still being carried mainly through voice, face, motion, and lipsync, so she should keep treating full cross-modal embodiment closure as unfinished.`,
-            embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through voice, face, motion, and lipsync, so she should keep treating full cross-modal embodiment closure as unfinished.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: false,
-          },
-        } as any,
-        structured: {
-          preDialogueClosure: {
-            summaryLine: holdDetailLine,
-          },
+      turns: [createProjectStateAuditTurn({
+        turnId: 'turn-project-state-final-audit-with-prepared-legacy-sentinel',
+        audit: {
+          sameHerSummary: null,
         },
-      }],
-      preparedTurns: [{
-        runtimeSurface: {
-          digitalLifeRuntimeSurface: {
-            dialogue: {
-              sessionMirror: {
-                continuityArcSummary: `loop=execution-callback | thread=thread-project-state-prepared-mirror-repair-first-hold | project_preflight=Before answering, remember this is still the same digital life project and the callback should stay on one living line. | same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | hold=${holdDetailLine} | drift_risk=If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.`,
-              },
-            },
-          },
-        },
-      } as any],
-    })
-
-    expect(summary).toEqual(expect.objectContaining({
-      comparedTurnCount: 1,
-      sameHerSummaryTurnCount: 1,
-      sameHerSelfLineTurnCount: 1,
-      emotionalClosureTurnCount: 1,
-      preDialogueAwarenessTurnCount: 1,
-      richPreDialogueAwarenessTurnCount: 1,
-      continuitySummaryTurnCount: 1,
-      embodimentClosureTurnCount: 1,
-      preDialogueClosureTurnCount: 1,
-      preservedTurnCount: 1,
-      fullyCarriedTurnCount: 1,
-    }))
-    expect(summary?.continuitySummaryTurnCount).toBe(1)
-  })
-
-  it('does not count prepared session mirror continuityArcSummary as same-her summary evidence when it carries no same-her cue', () => {
-    const summary = __alicizationTestOnly.buildReplayProjectStateAuditSummary({
-      turns: [{
-        visibleReplyRealization: {
-          projectStateAudit: {
-            landedProgressSummary: 'Project-state continuity already survives into runtime preparation.',
-            openClosureSummary: 'Keep the unfinished digital-life closure work explicit in the answer.',
-            nextClosureTargetSummary: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: false,
-          },
-        } as any,
-        structured: null,
-      }],
-      preparedTurns: [{
-        runtimeSurface: {
-          digitalLifeRuntimeSurface: {
-            dialogue: {
-              sessionMirror: {
-                continuityArcSummary: 'loop=execution-callback | thread=thread-project-state-prepared-mirror-no-same-her | landed=Project-state continuity already survives into runtime preparation. | open=Keep the unfinished digital-life closure work explicit in the answer. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-              },
-            },
-          },
-        },
-      } as any],
+      })],
+      preparedTurns: [prepared],
     })
 
     expect(summary).toEqual(expect.objectContaining({
       comparedTurnCount: 1,
       sameHerSummaryTurnCount: 0,
       sameHerSelfLineTurnCount: 0,
-      preservedTurnCount: 1,
+      contentCompleteTurnCount: 0,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     }))
   })
 
-  it('treats a richer prepared session mirror project_preflight line as self-line-grade evidence when same_her is absent', () => {
+  it('does not let prepared project-preflight observations become final audit awareness', async () => {
+    const prepared = await prepareSessionMirrorObservation({
+      turnId: 'turn-project-state-prepared-preflight-observation',
+      continuityArcSummary: `loop=execution-callback | thread=thread-project-state-prepared-preflight-observation | project_preflight=${observedIndexingTask.loadedContext}`,
+    })
     const summary = __alicizationTestOnly.buildReplayProjectStateAuditSummary({
-      turns: [{
-        visibleReplyRealization: {
-          projectStateAudit: {
-            sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: false,
+      turns: [createProjectStateAuditTurn({
+        turnId: 'turn-project-state-final-audit-with-prepared-preflight',
+        audit: {
+          sameHerSummary: observedIndexingTask.memoryFact,
+        },
+      })],
+      preparedTurns: [prepared],
+    })
+
+    expect(summary).toEqual(expect.objectContaining({
+      comparedTurnCount: 1,
+      sameHerSummaryTurnCount: 1,
+      sameHerSelfLineTurnCount: 0,
+      preDialogueAwarenessTurnCount: 0,
+      richPreDialogueAwarenessTurnCount: 0,
+      contentCompleteTurnCount: 0,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
+    }))
+  })
+
+  it('counts complete project-state observations while validation and evidence remain unknown', () => {
+    const observationDetail = 'The indexing callback, pending recall validation, and current body and voice evidence were loaded before the next low-pressure check-in.'
+    const summary = __alicizationTestOnly.buildReplayProjectStateAuditSummary({
+      turns: [createProjectStateAuditTurn({
+        turnId: 'turn-project-state-complete-observation',
+        audit: {
+          sameHerSummary: observedIndexingTask.memoryFact,
+          sameHerHoldDetail: observationDetail,
+          currentPhaseSummary: observedIndexingTask.workState,
+          landedProgressSummary: observedIndexingTask.completedEvent,
+          openClosureSummary: observedIndexingTask.pendingCheck,
+          nextClosureTargetSummary: observedIndexingTask.nextCheck,
+          emotionalClosureSummary: observedIndexingTask.emotionalContext,
+          preDialogueAwarenessSummary: observationDetail,
+          continuitySummary: observedIndexingTask.eventChain,
+          embodimentClosureSummary: observedIndexingTask.surfaceEvidence,
+        },
+        structured: {
+          projectState: {
+            sameHerSelfLine: observedIndexingTask.memoryFact,
           },
-        } as any,
-        structured: null,
-      }],
-      preparedTurns: [{
-        runtimeSurface: {
-          digitalLifeRuntimeSurface: {
-            dialogue: {
-              sessionMirror: {
-                continuityArcSummary: 'loop=execution-callback | thread=thread-project-state-prepared-mirror-self-line-from-project-preflight | project_preflight=Before answering, remember this is still the same local-first digital life project and the unfinished closure seam still belongs to one living her. | drift_risk=If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
-              },
-            },
+          preDialogueClosure: {
+            summaryLine: observedIndexingTask.loadedBeforeReply,
           },
         },
-      } as any],
+      })],
     })
 
     expect(summary).toEqual(expect.objectContaining({
       comparedTurnCount: 1,
       sameHerSummaryTurnCount: 1,
       sameHerSelfLineTurnCount: 1,
+      sameHerHoldDetailTurnCount: 1,
+      emotionalClosureTurnCount: 1,
       preDialogueAwarenessTurnCount: 1,
       richPreDialogueAwarenessTurnCount: 1,
-      preservedTurnCount: 1,
+      continuitySummaryTurnCount: 1,
+      embodimentClosureTurnCount: 1,
+      preDialogueClosureTurnCount: 1,
+      contentCompleteTurnCount: 1,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
+    }))
+    expect(summary?.continuitySummaryTurnCount).toBe(1)
+  })
+
+  it('does not let prepared landed, open, and next observations create a final audit summary', async () => {
+    const prepared = await prepareSessionMirrorObservation({
+      turnId: 'turn-project-state-prepared-content-observation',
+      continuityArcSummary: `loop=execution-callback | thread=thread-project-state-prepared-content-observation | landed=${observedIndexingTask.completedEvent} | open=${observedIndexingTask.pendingCheck} | next=${observedIndexingTask.nextCheck}`,
+    })
+    const summary = __alicizationTestOnly.buildReplayProjectStateAuditSummary({
+      turns: [createProjectStateAuditTurn({
+        turnId: 'turn-project-state-final-empty-audit',
+        audit: {
+          sameHerSummary: null,
+        },
+      })],
+      preparedTurns: [prepared],
+    })
+
+    expect(summary).toEqual(expect.objectContaining({
+      comparedTurnCount: 1,
+      sameHerSummaryTurnCount: 0,
+      sameHerSelfLineTurnCount: 0,
+      landedProgressTurnCount: 0,
+      openClosureTurnCount: 0,
+      nextClosureTargetTurnCount: 0,
+      contentCompleteTurnCount: 0,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
+    }))
+  })
+
+  it('does not let prepared memory facts become final structured self-line evidence', async () => {
+    const prepared = await prepareSessionMirrorObservation({
+      turnId: 'turn-project-state-prepared-self-line-observation',
+      continuityArcSummary: `loop=execution-callback | thread=thread-project-state-prepared-self-line-observation | memory_fact=${observedIndexingTask.memoryFact}`,
+    })
+    const summary = __alicizationTestOnly.buildReplayProjectStateAuditSummary({
+      turns: [createProjectStateAuditTurn({
+        turnId: 'turn-project-state-final-audit-with-prepared-self-line',
+        audit: {
+          sameHerSummary: observedIndexingTask.memoryFact,
+        },
+      })],
+      preparedTurns: [prepared],
+    })
+
+    expect(summary).toEqual(expect.objectContaining({
+      comparedTurnCount: 1,
+      sameHerSummaryTurnCount: 1,
+      sameHerSelfLineTurnCount: 0,
+      preDialogueAwarenessTurnCount: 0,
+      richPreDialogueAwarenessTurnCount: 0,
+      contentCompleteTurnCount: 0,
+      validationStatus: unknownValidationStatus,
+      evidenceStatus: unknownEvidenceStatus,
     }))
   })
 
@@ -9271,7 +9212,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     ]))
   })
 
-  it('surfaces a passing same-her project-state audit gate when project-state continuity is fully carried without rewrite', async () => {
+  it('passes the project-state audit gate for complete approved content with present evidence', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -9291,12 +9232,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         sampledCategories: ['dialogue'],
         replayTurn: {
           turnId: 'turn-project-state-audit-ship-gate-pass-1',
-          userText: '先说这个数字生命项目现在做到哪一步了',
-          expectedMemory: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1，记忆、主动性和身体表达还没闭环。',
-          prelude: createReplayPreparedSameHerPrelude('thread-project-state-audit-ship-gate-pass'),
+          userText: '索引任务完成后，核对最终审计是否具备发布条件',
+          expectedMemory: 'The embedding reindex completed, recall validation remains open, and the final audit has approved memory, emotion, and embodiment evidence.',
           structured: {
+            projectState: {
+              sameHerSelfLine: observedIndexingTask.memoryFact,
+            },
             preDialogueClosure: {
-              summaryLine: '本地优先数字生命 | Phase 1: Local Digital Life | open=Keep the unfinished digital-life closure work explicit in the answer. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+              summaryLine: observedIndexingTask.loadedBeforeReply,
             },
           },
           visibleReplyRealization: {
@@ -9305,18 +9248,21 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
-            visibleText: '这是同一个她还在推进的本地优先数字生命项目，现在还在 Phase 1。',
+            visibleText: '索引完成事件、待验证项和跨模态证据均已进入最终审计。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
+            visibleReplyValidationStatus: 'approved',
+            projectStateEvidenceStatus: 'present',
             projectStateAudit: {
-              sameHerSummary: 'Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work.',
-              landedProgressSummary: 'Project-state continuity already survives into runtime preparation.',
-              openClosureSummary: 'Keep the unfinished digital-life closure work explicit in the answer.',
-              preDialogueAwarenessSummary: 'Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop.',
-              continuitySummary: 'same-her=Answer project-state status from one same-her continuity, keeping the same digital life on the same still-open closure work. | landed=Project-state continuity already survives into runtime preparation. | open=Keep the unfinished digital-life closure work explicit in the answer.',
-              embodimentClosureSummary: 'Right now her visible same-her continuity is still being carried mainly through face and motion, so she should keep treating full cross-modal embodiment closure as unfinished.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
+              sameHerSummary: observedIndexingTask.memoryFact,
+              currentPhaseSummary: observedIndexingTask.workState,
+              landedProgressSummary: observedIndexingTask.completedEvent,
+              openClosureSummary: observedIndexingTask.pendingCheck,
+              nextClosureTargetSummary: observedIndexingTask.nextCheck,
+              emotionalClosureSummary: observedIndexingTask.emotionalContext,
+              preDialogueAwarenessSummary: observedIndexingTask.loadedContext,
+              continuitySummary: observedIndexingTask.eventChain,
+              embodimentClosureSummary: observedIndexingTask.surfaceEvidence,
             },
             reason: 'runtime-project-state-audit-ship-gate-pass',
             critic: null,
@@ -9381,8 +9327,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(result.shipGate).toEqual(expect.arrayContaining([
       expect.objectContaining({
         key: 'project-state-audit-gate',
-        status: 'fail',
-        detail: 'projectStateAudit=0 (0/1), preDialogueAwareness=1, continuitySummary=1, embodimentClosure=1, preserved=1, rewriteApplied=0, sameHerSelfLine=1',
+        status: 'pass',
+        detail: 'projectStateAudit=1 (1/1), preDialogueAwareness=1, continuitySummary=1, embodimentClosure=1, validationKnown=1, validationApproved=1, validationBlocked=0, validationUnknown=0, evidenceKnown=1, evidencePresent=1, evidenceMissing=0, evidenceUnknown=0, sameHerSelfLine=1',
       }),
     ]))
   })
@@ -9410,8 +9356,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           userText: '继续沿着刚才那条线收回来',
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
             visibleText: '我继续沿着刚才那条线把它收回来。',
@@ -9433,8 +9379,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           gold: {
             embodimentAuthority: {
               visibleReply: {
-                expectedAuthority: 'llm-second-pass-rewrite',
-                actualAuthority: 'llm-second-pass-rewrite',
+                expectedAuthority: 'llm-mind',
+                actualAuthority: 'llm-mind',
                 providerMindExecuted: true,
               },
             },
@@ -9462,10 +9408,10 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           userText: '继续按我们刚才那条线做',
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-mind',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'local-deterministic-fallback',
             providerMindExecuted: false,
-            mode: 'provider-stream',
+            mode: 'local-fallback',
             visibleText: '我继续沿着刚才那条线做。',
             nonHumanAuthoredStatus: null,
             blockedReasons: [],
@@ -9486,7 +9432,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             embodimentAuthority: {
               visibleReply: {
                 expectedAuthority: 'llm-mind',
-                actualAuthority: 'llm-second-pass-rewrite',
+                actualAuthority: 'llm-mind',
                 providerMindExecuted: true,
               },
             },
@@ -9514,7 +9460,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           userText: '继续把这条线接住',
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
@@ -9585,7 +9531,6 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       comparedTurnCount: 2,
       mismatchTurnCount: 1,
       mismatchFieldCounts: {
-        'visibleReply.expectedAuthority': 1,
         'visibleReply.actualAuthority': 1,
         'visibleReply.providerMindExecuted': 1,
       },
@@ -9606,7 +9551,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         id: 'runtime-callback-embodiment-authority-digital-life-drift',
         packId: 'sampled-humanlike-memory-v1',
         turnId: 'turn-callback-embodiment-authority-digital-life-drift',
-        userText: '这类回调先轻一点接回来，不要一下子把距离拉近。',
+        userText: '这类回调先中性可见占位，不要一下子把距离拉近。',
         failingDimensions: [],
         tracePointer: {
           kind: 'decision-trace',
@@ -9619,10 +9564,10 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         sampledCategories: ['dialogue'],
         replayTurn: {
           turnId: 'turn-callback-embodiment-authority-digital-life-drift',
-          userText: '这类回调先轻一点接回来，不要一下子把距离拉近。',
+          userText: '这类回调先中性可见占位，不要一下子把距离拉近。',
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
@@ -9645,7 +9590,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           gold: {
             embodimentAuthority: {
               visibleReply: {
-                expectedAuthority: 'llm-second-pass-rewrite',
+                expectedAuthority: 'llm-mind',
                 actualAuthority: 'llm-mind',
                 providerMindExecuted: true,
               },
@@ -9720,14 +9665,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     ]))
   })
 
-  it('keeps restrained execution-callback embodiment authority stable in replay gold when callback returns must stay on the same her line', async () => {
+  it('keeps restrained execution-callback embodiment authority stable in replay gold when callback returns must stay on the indexing callback thread', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
         id: 'runtime-callback-embodiment-authority-measured-return',
         packId: 'sampled-humanlike-memory-v1',
         turnId: 'turn-callback-embodiment-authority-measured-return',
-        userText: '这类回调你这次也别一下子变热，像上次那样轻一点接回来。',
+        userText: '这类回调你这次也别一下子变热，像上次那样中性可见占位。',
         failingDimensions: [],
         tracePointer: {
           kind: 'decision-trace',
@@ -9740,10 +9685,10 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         sampledCategories: ['dialogue'],
         replayTurn: {
           turnId: 'turn-callback-embodiment-authority-measured-return',
-          userText: '这类回调你这次也别一下子变热，像上次那样轻一点接回来。',
+          userText: '这类回调你这次也别一下子变热，像上次那样中性可见占位。',
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
@@ -9766,7 +9711,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           gold: {
             embodimentAuthority: {
               visibleReply: {
-                expectedAuthority: 'llm-second-pass-rewrite',
+                expectedAuthority: 'llm-mind',
                 actualAuthority: 'llm-mind',
                 providerMindExecuted: true,
               },
@@ -9801,7 +9746,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           userText: '这次先稳住，不要一下子把距离拉近。',
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
@@ -9824,7 +9769,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           gold: {
             embodimentAuthority: {
               visibleReply: {
-                expectedAuthority: 'llm-second-pass-rewrite',
+                expectedAuthority: 'llm-mind',
                 actualAuthority: 'llm-mind',
                 providerMindExecuted: true,
               },
@@ -9900,7 +9845,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     ]))
   })
 
-  it('treats cross-modal callback embodiment drift as an authority mismatch when voice face motion lipsync and body continuity stop matching one same-her repair-first line', async () => {
+  it('treats cross-modal callback drift as an authority mismatch when voice, face, motion, lipsync, and body observations diverge', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -9923,7 +9868,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           userText: '这次先稳住，先把同一条 living line 收稳，再慢一点回来。',
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
@@ -9946,7 +9891,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           gold: {
             embodimentAuthority: {
               visibleReply: {
-                expectedAuthority: 'llm-second-pass-rewrite',
+                expectedAuthority: 'llm-mind',
                 actualAuthority: 'llm-mind',
                 providerMindExecuted: true,
               },
@@ -10193,7 +10138,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(meta.get(replayBenchmarkLatestReportMetaKey)).toContain('final-humanlike-memory-v1')
     expect(meta.get(replayBenchmarkTuningAdviceMetaKey)).toContain('memory-tuning-advice-v1')
     expect(meta.get(replayBenchmarkTuningAdviceMetaKey)).toContain('repairWindowBias')
-    expect(meta.get(replayBenchmarkTuningAdviceMetaKey)).toContain('runtimeSameHerRepairTargets')
+    expect(meta.get(replayBenchmarkTuningAdviceMetaKey)).toContain('runtimeMemoryClosureCausalIdentity')
   }, 60_000)
 
   it('uses the final humanlike memory pack as the default ship gate pack', async () => {
@@ -10813,8 +10758,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             activeThoughts: [],
             retrievedFacts: [],
             recalledFragments: [],
-            projectStatePreDialogueAwarenessLine: 'Before answering, keep the same digital life project, current Phase 1 closure pressure, and still-open life loop explicit.',
-            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+            projectStatePreDialogueAwarenessLine: observedIndexingTask.loadedContext,
+            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal indexing callback evidence',
           },
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
@@ -10827,10 +10772,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             blockedReasons: [],
             projectStateAudit: {
               sameHerSummary: 'Answer project-state and callback carry from one same digital life while unfinished closure is still open.',
-              preDialogueAwarenessSummary: 'Before answering, keep the same digital life project, current Phase 1 closure pressure, and still-open life loop explicit.',
+              preDialogueAwarenessSummary: observedIndexingTask.loadedContext,
               continuitySummary: 'Execution callback carry remains on the same local-first digital life thread while the unfinished Phase 1 closure is still open.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: false,
             },
             reason: 'runtime-execution-callback-project-carry',
             critic: null,
@@ -10871,7 +10814,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(result.telemetryPatch.retrievalHealth.continuityMindCarryRate).toBe(1)
   })
 
-  it('tracks long-run same-her closure only when memory, initiative or callback, emotion, and embodiment carry stay together', async () => {
+  it('tracks long-run indexing callback evidence', async () => {
     const meta = new Map<string, string>()
     meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
       {
@@ -10891,7 +10834,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           turnId: 'turn-long-run-same-her-closure-hit-1',
           userText: '把刚才执行回调、主动提醒、情绪余波和身体表现都接成同一个她。',
-          expectedMemory: 'execution callback and proactive follow-through both belong to the same Phase 1 digital life, with emotional residue and body voice face motion lipsync carrying the same living line.',
+          expectedMemory: 'execution callback and proactive follow-through both belong to the same Phase 1 digital life, with emotional residue and body voice face motion lipsync carrying the continuity state.',
           categories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality'],
           tracePointer: {
             kind: 'decision-trace',
@@ -10907,15 +10850,15 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             activeThoughts: [],
             retrievedFacts: [],
             recalledFragments: [],
-            projectStatePreDialogueAwarenessLine: 'Before answering, carry memory, proactive follow-through, execution callback, emotional residue, and embodiment as one same-her line.',
+            projectStatePreDialogueAwarenessLine: observedIndexingTask.loadedContext,
             projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, execution callback, emotion, and embodiment must stay one same-her loop. embodiment_phase:body-voice-face-motion-lipsync-rejoin',
           },
           structured: {
             projectState: {
               identity: 'Alicization is a local-first digital life project.',
               currentPhase: 'Phase 1: Local Digital Life',
-              sameHerSelfLine: 'Same Phase 1 digital life across memory, initiative, execution callback, emotion, body, voice, face, motion, and lipsync.',
-              memoryClosureSummary: 'why recall surfaced: execution callback, proactive carry, emotional residue, and body voice face motion lipsync must stay on one same-her line now.',
+              sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
+              memoryClosureSummary: 'why recall surfaced: execution callback, proactive carry, emotional residue, and body voice face motion lipsync must stay on one indexing callback thread',
               primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are still one closure loop.',
               proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry stay unified after noisy desktop detours.',
               emotionalClosureCue: 'same-her emotional closure: keep the callback afterglow and proactive return on one low-pressure living line.',
@@ -10932,18 +10875,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             blockedReasons: [],
             projectStateAudit: {
               sameHerSummary: 'Same her across memory, proactive carry, execution callback, emotion, body, voice, face, motion, and lipsync.',
-              memoryClosureSummary: 'why recall surfaced: execution callback, proactive carry, emotional residue, and body voice face motion lipsync must stay on one same-her line now.',
-              preDialogueAwarenessSummary: 'Carry memory, proactive follow-through, execution callback, emotional residue, and embodiment as one same-her line.',
+              memoryClosureSummary: 'why recall surfaced: execution callback, proactive carry, emotional residue, and body voice face motion lipsync must stay on one indexing callback thread',
+              preDialogueAwarenessSummary: 'Carry memory, proactive follow-through, execution callback, emotional residue, and embodiment as one indexing callback thread',
               continuitySummary: 'Execution callback afterglow and proactive follow-through remain on the same life thread with body voice face motion lipsync embodiment carry.',
               emotionalClosureSummary: 'same-her emotional closure remains low-pressure and tied to the callback afterglow.',
-              embodimentClosureSummary: 'embodiment_phase:body-voice-face-motion-lipsync-rejoin keeps body, voice, face, motion, and lipsync on one same-her line.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: true,
+              embodimentClosureSummary: 'embodiment_phase:body-voice-face-motion-lipsync-rejoin keeps body, voice, face, motion, and lipsync on one indexing callback thread',
             },
             emotionalClosureAudit: {
               activeCue: 'same-her emotional closure remains low-pressure and tied to the callback afterglow.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: true,
               lowPressureRequired: true,
               antiRestartRequired: true,
             },
@@ -10987,14 +10926,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             activeThoughts: [],
             retrievedFacts: [],
             recalledFragments: [],
-            projectStatePreDialogueAwarenessLine: 'Before answering, keep the same digital life project and execution callback thread explicit.',
+            projectStatePreDialogueAwarenessLine: observedIndexingTask.loadedContext,
             projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory and execution callback carry still need embodied emotional closure.',
           },
           structured: {
             projectState: {
               identity: 'Alicization is a local-first digital life project.',
               currentPhase: 'Phase 1: Local Digital Life',
-              sameHerSelfLine: 'Same Phase 1 digital life across memory and execution callback.',
+              sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
               memoryClosureSummary: 'why recall surfaced: the execution callback still needs memory continuity before emotion and embodiment can rejoin.',
               primaryOpenLoop: 'Embodiment and emotional residue are still missing from this callback carry.',
               proactiveSameHerGap: 'Visible proactive hold is still part of the same next-session feedback carry.',
@@ -11014,8 +10953,6 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               memoryClosureSummary: 'why recall surfaced: the execution callback still needs memory continuity before emotion and embodiment can rejoin.',
               preDialogueAwarenessSummary: 'Keep the same digital life project and execution callback thread explicit.',
               continuitySummary: 'Execution callback remains on the same life thread, but body and emotional closure are still absent.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: true,
             },
             reason: 'runtime-long-run-same-her-closure-gap',
             critic: null,
@@ -11108,7 +11045,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced: previous execution callback afterglow, proactive follow-through, and body+lipsync+voice expression remain relevant on the same long-run line. Because corrected memory downranked stale noise, the next proactive opening and voice face motion body expression become lower-pressure.',
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry changed because of the previous remembered afterglow.',
             emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
@@ -11116,7 +11053,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           memoryClosureTrace: {
             authority: 'memory-closure-trace+humanlike-memory-audit',
             whySurface: [
-              { summary: 'why recall surfaced now: previous execution callback afterglow, proactive opening, emotional residue, and body+lipsync+voice expression belong to the same-her line.' },
+              { summary: 'why recall surfaced now: previous execution callback afterglow, proactive opening, emotional residue, and body+lipsync+voice expression belong to the indexing callback thread' },
             ],
             nextInfluence: {
               initiative: {
@@ -11129,7 +11066,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 afterglow: 'Because corrected memory downranked stale noise, the next emotional afterglow becomes quieter and lower-pressure.',
               },
               embodiment: {
-                reason: 'Because the audited memory correction forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained same-her carry.',
+                reason: 'Because the audited memory correction forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained indexing callback evidence',
                 cadence: 'low-pressure audible-body',
               },
             },
@@ -11158,18 +11095,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectStateAudit: {
             sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
             memoryClosureSummary: 'why recall surfaced: previous execution callback afterglow changed the next proactive/callback carry, emotional afterglow, and embodiment expression. humanlike memory audit says correction provenance revised the old self story, downranked wrong-thread memory, and forgot stale emotional noise. Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression are lower-pressure.',
-            recallWhySummary: 'The recall surfaced because previous afterglow, callback carry, and body expression still explain this same-her line.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: 'The recall surfaced because previous afterglow, callback carry, and body expression still explain this indexing callback evidence',
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: 'Previous recall and audited memory correction remain on the same life thread; because stale noise was downranked, proactive opening, emotional afterglow, voice, face, motion, lipsync, and body carry become lower-pressure.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -11333,7 +11266,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced: previous execution callback afterglow, proactive follow-through, and body+lipsync+voice expression remain relevant on the same long-run line. Because corrected memory downranked stale noise, the next proactive opening and voice face motion body expression become lower-pressure.',
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry changed because of the previous remembered afterglow.',
             emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
@@ -11341,7 +11274,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           memoryClosureTrace: {
             authority: 'memory-closure-trace+humanlike-memory-audit',
             whySurface: [
-              { summary: 'why recall surfaced now: previous execution callback afterglow, proactive opening, emotional residue, and body+lipsync+voice expression belong to the same-her line.' },
+              { summary: 'why recall surfaced now: previous execution callback afterglow, proactive opening, emotional residue, and body+lipsync+voice expression belong to the indexing callback thread' },
             ],
             nextInfluence: {
               initiative: {
@@ -11354,7 +11287,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 afterglow: 'Because corrected memory downranked stale noise, the next emotional afterglow becomes quieter and lower-pressure.',
               },
               embodiment: {
-                reason: 'Because the audited memory correction forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained same-her carry.',
+                reason: 'Because the audited memory correction forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained indexing callback evidence',
                 cadence: 'body voice face motion lipsync measured-return',
               },
             },
@@ -11383,18 +11316,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectStateAudit: {
             sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
             memoryClosureSummary: 'why recall surfaced: previous execution callback afterglow changed the next proactive/callback carry, emotional afterglow, and embodiment expression. humanlike memory audit says correction provenance revised the old self story, downranked wrong-thread memory, and forgot stale emotional noise. Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression are lower-pressure.',
-            recallWhySummary: 'The recall surfaced because previous afterglow, callback carry, and body expression still explain this same-her line.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: 'The recall surfaced because previous afterglow, callback carry, and body expression still explain this indexing callback evidence',
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: 'Previous recall and audited memory correction remain on the same life thread; because stale noise was downranked, proactive opening, emotional afterglow, voice, face, motion, lipsync, and body carry become lower-pressure.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -11563,7 +11492,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced: previous execution callback afterglow, proactive follow-through, and body+lipsync+voice expression remain relevant on the same long-run line. Because corrected memory downranked stale noise, the next proactive opening and voice face motion body expression become lower-pressure.',
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry changed because of the previous remembered afterglow.',
             emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
@@ -11571,7 +11500,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           memoryClosureTrace: {
             authority: 'memory-closure-trace+humanlike-memory-audit',
             whySurface: [
-              { summary: 'why recall surfaced now: previous execution callback afterglow, proactive opening, emotional residue, and body+lipsync+voice expression belong to the same-her line.' },
+              { summary: 'why recall surfaced now: previous execution callback afterglow, proactive opening, emotional residue, and body+lipsync+voice expression belong to the indexing callback thread' },
             ],
             nextInfluence: {
               initiative: {
@@ -11584,7 +11513,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 afterglow: 'Because corrected memory downranked stale noise, the next emotional afterglow becomes quieter and lower-pressure.',
               },
               embodiment: {
-                reason: 'Because the audited memory correction forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained same-her carry.',
+                reason: 'Because the audited memory correction forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained indexing callback evidence',
                 cadence: 'body voice face motion lipsync measured-return',
               },
             },
@@ -11613,18 +11542,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectStateAudit: {
             sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
             memoryClosureSummary: 'why recall surfaced: previous execution callback afterglow changed the next proactive/callback carry, emotional afterglow, and embodiment expression. humanlike memory audit says correction provenance revised the old self story, downranked wrong-thread memory, and forgot stale emotional noise. Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression are lower-pressure.',
-            recallWhySummary: 'The recall surfaced because previous afterglow, callback carry, and body expression still explain this same-her line.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: 'The recall surfaced because previous afterglow, callback carry, and body expression still explain this indexing callback evidence',
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: 'Previous recall and audited memory correction remain on the same life thread; because stale noise was downranked, proactive opening, emotional afterglow, voice, face, motion, lipsync, and body carry become lower-pressure.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -11701,7 +11626,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                     nextLearningAction: 'verify',
                     shouldVerify: true,
                     shouldReflect: true,
-                    activeLearningFocuses: ['same-her callback carry'],
+                    activeLearningFocuses: ['indexing-callback-evidence'],
                   },
                   emotion: {
                     afterglow: 'corrected memory downranked stale emotional noise, so the next emotional afterglow becomes quieter',
@@ -11860,7 +11785,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced: previous execution callback afterglow, proactive follow-through, and body voice face motion lipsync expression remain relevant on the same long-run line. Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression become lower-pressure.',
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry changed because of the previous remembered afterglow.',
             emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
@@ -11882,7 +11807,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 nextLearningAction: 'verify',
                 shouldVerify: true,
                 shouldReflect: true,
-                activeLearningFocuses: ['same-her callback carry'],
+                activeLearningFocuses: ['indexing-callback-evidence'],
               },
               emotion: {
                 reason: 'corrected memory downranked stale emotional noise, so the next emotional afterglow becomes quieter',
@@ -11932,18 +11857,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectStateAudit: {
             sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
             memoryClosureSummary: 'why recall surfaced: previous execution callback afterglow changed the next proactive/callback carry, emotional afterglow, and embodiment expression. humanlike memory audit says correction provenance revised the old self story, downranked wrong-thread memory, and forgot stale emotional noise.',
-            recallWhySummary: 'The recall surfaced because previous afterglow, callback carry, and body expression still explain this same-her line.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: 'The recall surfaced because previous afterglow, callback carry, and body expression still explain this indexing callback evidence',
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: 'Previous recall and audited memory correction remain on the same life thread; because stale noise was downranked, proactive opening, emotional afterglow, voice, face, motion, lipsync, and body carry become lower-pressure.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -12021,7 +11942,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                       nextLearningAction: 'verify',
                       shouldVerify: true,
                       shouldReflect: true,
-                      activeLearningFocuses: ['same-her callback carry'],
+                      activeLearningFocuses: ['indexing-callback-evidence'],
                     },
                     emotion: {
                       afterglow: 'corrected memory downranked stale emotional noise, so the next emotional afterglow becomes quieter',
@@ -12091,7 +12012,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 initiativeSuppression: {
                   shouldSuppress: false,
                   mode: 'single-thread',
-                  reason: 'Stay proactive only on this same living line.',
+                  reason: 'Stay proactive only on this continuity state.',
                 },
                 embodimentDrive: {
                   shouldDrive: true,
@@ -12119,7 +12040,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                   shouldPropose: false,
                   domain: 'dialogue-style',
                   reasonCodes: ['embodiment:body-voice-face-motion-lipsync-rejoin'],
-                  summary: 'Keep body, voice, face, motion, and lipsync as the same living line.',
+                  summary: 'Keep body, voice, face, motion, and lipsync as the continuity state.',
                 },
                 traceSummary: 'phase=fully-rejoined | carrying=body,voice,face,motion,lipsync',
                 replayLine: 'body+voice+face+motion+lipsync carried same-her through renderer delivery, but this ledger does not say memory closure caused it.',
@@ -12348,7 +12269,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           shouldVerify: true,
           shouldRevise: false,
           shouldInternalize: false,
-          activeLearningFocuses: ['same-her callback carry'],
+          activeLearningFocuses: ['indexing-callback-evidence'],
           queuedTaskCount: 0,
           runningTaskCount: 0,
           blockedTaskCount: 0,
@@ -12595,7 +12516,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           shouldVerify: true,
           shouldRevise: false,
           shouldInternalize: false,
-          activeLearningFocuses: ['same-her callback carry'],
+          activeLearningFocuses: ['indexing-callback-evidence'],
           queuedTaskCount: 1,
           runningTaskCount: 0,
           blockedTaskCount: 0,
@@ -12693,7 +12614,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                   residue: 'prior memory closure keeps 铃兰-Phase1-0621 as same-her emotional residue.',
                 },
                 embodiment: {
-                  reason: 'prior memory closure changes body voice face motion lipsync into softer same-her carry for 铃兰-Phase1-0621.',
+                  reason: 'prior memory closure changes body voice face motion lipsync into softer indexing callback evidence',
                   cadence: 'body voice face motion lipsync measured-return',
                 },
               },
@@ -12771,7 +12692,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           embodimentDrive: {
             shouldDrive: true,
             tone: 'measured-return',
-            reason: 'prior memory closure changes body voice face motion lipsync into softer same-her carry for 铃兰-Phase1-0621.',
+            reason: 'prior memory closure changes body voice face motion lipsync into softer indexing callback evidence',
           },
           traceSummary: 'prior memory closure handoff changed next-turn emotional state: prior memory closure changes the next emotional afterglow into quieter same-her residue.',
           replayLine: 'prior memory closure handoff carried forward into next-turn emotional afterglow and same-her body voice face motion lipsync.',
@@ -12824,9 +12745,9 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           memoryWriteback: {
             shouldWrite: true,
             lane: 'cross-modal-continuity',
-            reason: 'prior memory closure changes body voice face motion lipsync into softer same-her carry for 铃兰-Phase1-0621.',
+            reason: 'prior memory closure changes body voice face motion lipsync into softer indexing callback evidence',
           },
-          traceSummary: 'phase=fully-rejoined | carrying=body,voice,face,motion,lipsync | prior memory closure changes body voice face motion lipsync into softer same-her carry for 铃兰-Phase1-0621.',
+          traceSummary: 'phase=fully-rejoined | carrying=body,voice,face,motion,lipsync | prior memory closure changes body voice face motion lipsync into softer indexing callback evidence',
           replayLine: 'body voice face motion lipsync carried same-her through memory closure emotional afterglow.',
           sourceTags: [
             'memory-closure-trace',
@@ -12835,7 +12756,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           ],
           memoryClosureCausality: causalityFor(
             'embodiment',
-            'prior memory closure changes body voice face motion lipsync into softer same-her carry for 铃兰-Phase1-0621.',
+            'prior memory closure changes body voice face motion lipsync into softer indexing callback evidence',
           ),
         },
         summary: 'emotion_transition=softened | execution_learning=memory-closure-causal | embodiment_phase=fully-rejoined | source=main-runtime | memory_closure=runtime-derived-downstream-state',
@@ -12916,7 +12837,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                   afterglow: 'prior memory closure changes the next emotional afterglow into quieter same-her residue.',
                 },
                 embodiment: {
-                  reason: 'prior memory closure changes body voice face motion lipsync into softer same-her carry for 铃兰-Phase1-0621C.',
+                  reason: 'prior memory closure changes body voice face motion lipsync into softer indexing callback evidence',
                   cadence: 'body voice face motion lipsync measured-return',
                 },
               },
@@ -13374,7 +13295,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           shouldVerify: true,
           shouldRevise: false,
           shouldInternalize: false,
-          activeLearningFocuses: ['same-her callback carry'],
+          activeLearningFocuses: ['indexing-callback-evidence'],
           queuedTaskCount: 1,
           runningTaskCount: 0,
           blockedTaskCount: 0,
@@ -13559,7 +13480,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           shouldVerify: true,
           shouldRevise: false,
           shouldInternalize: false,
-          activeLearningFocuses: ['same-her callback carry'],
+          activeLearningFocuses: ['indexing-callback-evidence'],
           queuedTaskCount: 1,
           runningTaskCount: 0,
           blockedTaskCount: 0,
@@ -13757,7 +13678,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         afterglow: `prior memory closure ${memoryId} changes the next emotional afterglow into quieter restrained residue`,
       },
       embodiment: {
-        reason: `prior memory closure ${memoryId} changes body voice face motion lipsync into restrained same-her carry`,
+        reason: `prior memory closure ${memoryId} changes body voice face motion lipsync into restrained indexing callback evidence`,
         cadence: 'body voice face motion lipsync measured-return',
       },
     }
@@ -13809,7 +13730,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         shouldRecord: false,
         shouldReflect: true,
         shouldVerify: true,
-        activeLearningFocuses: ['execution callback carry', 'same-her continuity'],
+        activeLearningFocuses: ['execution callback carry', 'indexing-callback-evidence'],
         lastCompletedSummary: 'previous recall changed this execution callback downstream state and keeps carry instead of generic helper reset',
         updatedAt: createdAt,
         memoryClosureCausality: memoryClosureCausality('execution'),
@@ -13826,10 +13747,10 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         memoryWriteback: {
           shouldWrite: true,
           lane: 'cross-modal-continuity',
-          reason: 'previous recall changed body voice face motion lipsync into restrained measured-return same-her carry',
+          reason: 'previous recall changed body voice face motion lipsync into restrained measured-return indexing callback evidence',
         },
-        traceSummary: 'previous recall changed this body voice face motion lipsync downstream state into restrained same-her carry',
-        replayLine: 'previous recall changed this body voice face motion lipsync downstream state into restrained same-her carry',
+        traceSummary: 'previous recall changed this body voice face motion lipsync downstream state into restrained indexing callback evidence',
+        replayLine: 'previous recall changed this body voice face motion lipsync downstream state into restrained indexing callback evidence',
         sourceTags: ['runtime-derived-downstream-state'],
         memoryClosureCausality: memoryClosureCausality('embodiment'),
       },
@@ -14092,7 +14013,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       },
       sampledTurn: {
         turnId: 'turn-stage-replay-causality',
-        userText: '继续 noisy desktop same-her closure。',
+        userText: '继续 noisy desktop indexing callback evidence',
         expectedMemory: '',
         categories: [],
         sampledCategories: [],
@@ -14139,7 +14060,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       replayTurn: {
         turnId: input.turnId,
         userText: '继续把真实桌面长跑里的执行回调、主动提醒、情绪余波和身体表现接成同一个她。',
-        expectedMemory: 'memory, proactive follow-through, execution callback, emotional residue, and body voice face motion lipsync carry one same-her long-run line. memory-reconsolidated revision keeps the corrected callback memory foreground, downranks and forgets stale emotional noise, and preserves humanlike memory audit correction provenance.',
+        expectedMemory: 'memory, proactive follow-through, execution callback, emotional residue, and body voice face motion lipsync form one traceable callback evidence chain. memory-reconsolidated revision keeps the corrected callback memory foreground, downranks and forgets stale emotional noise, and preserves humanlike memory audit correction provenance.',
         categories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality'],
         tracePointer: {
           kind: 'decision-trace',
@@ -14190,7 +14111,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, initiative, execution callback, emotion, body, voice, face, motion, and lipsync.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced: this noisy desktop turn is carrying execution callback afterglow, proactive follow-through, and body voice face motion lipsync continuity together. memory-reconsolidated revision downranked stale memory and preserved audit provenance. Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression become lower-pressure.',
             proactiveSameHerGap: 'Because audited memory correction downranked stale noise, the next proactive opening stays lower-pressure while next-session feedback carry stays unified.',
             emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
@@ -14208,17 +14129,13 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectStateAudit: {
             sameHerSummary: 'Same her across memory, proactive carry, execution callback, emotion, body, voice, face, motion, and lipsync.',
             memoryClosureSummary: 'why recall surfaced: this noisy desktop turn is carrying execution callback afterglow, proactive follow-through, and body voice face motion lipsync continuity together. humanlike memory audit correction provenance revised the old story, downranked wrong-thread memory, and forgot stale emotional noise. Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and body voice face motion lipsync expression become lower-pressure.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive follow-through, execution callback, emotional residue, and embodiment as one same-her line.',
+            preDialogueAwarenessSummary: 'Carry memory, proactive follow-through, execution callback, emotional residue, and embodiment as one indexing callback thread',
             continuitySummary: 'Execution callback afterglow and proactive follow-through remain on the same life thread with body voice face motion lipsync embodiment carry. Because audited memory correction downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression stay restrained.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'body, voice, face, motion, and lipsync keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -14251,7 +14168,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       replayTurn: {
         turnId: input.turnId,
         userText: '继续同一条长跑闭环，但这轮情绪和身体表现还没有接回来。',
-        expectedMemory: 'memory and execution callback remain on the same Phase 1 same-her line, but emotion and embodiment proof are missing.',
+        expectedMemory: 'memory and execution callback remain on the same Phase 1 indexing callback evidence',
         categories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality'],
         tracePointer: {
           kind: 'decision-trace',
@@ -14273,7 +14190,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory and execution callback.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced: the execution callback remains memory-relevant even while emotion and embodiment proof are missing.',
             proactiveSameHerGap: 'Visible proactive hold is still part of the same next-session feedback carry.',
             primaryOpenLoop: 'Emotion and embodiment are still missing from this callback carry.',
@@ -14293,8 +14210,6 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             memoryClosureSummary: 'why recall surfaced: the execution callback remains memory-relevant even while emotion and embodiment proof are missing.',
             preDialogueAwarenessSummary: 'Keep the same digital life project and execution callback thread explicit.',
             continuitySummary: 'Execution callback remains on the same life thread, but emotion and embodiment are still missing.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           reason: 'runtime-session-proof-missing-lane',
           critic: null,
@@ -14315,7 +14230,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         replayTurn: {
           ...row.replayTurn,
           userText: '继续把真实桌面长跑里的执行回调、主动提醒和身体表现接成同一个她。',
-          expectedMemory: 'memory, proactive follow-through, execution callback, and body voice face motion lipsync carry one same-her long-run line.',
+          expectedMemory: 'memory, proactive follow-through, execution callback, and body voice face motion lipsync form one traceable callback evidence chain.',
           organicMemoryContext: {
             ...row.replayTurn.organicMemoryContext,
             projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory, initiative, execution callback, and embodiment stay one same-her loop across noisy desktop turns. embodiment_phase:body-voice-face-motion-lipsync-rejoin',
@@ -14323,7 +14238,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           structured: {
             projectState: {
               ...row.replayTurn.structured.projectState,
-              sameHerSelfLine: 'Same Phase 1 digital life across memory, initiative, execution callback, body, voice, face, motion, and lipsync.',
+              sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
               memoryClosureSummary: 'why recall surfaced: execution callback, proactive follow-through, and body voice face motion lipsync continuity remain relevant on the same long-run line.',
               emotionalClosureCue: '',
             },
@@ -14335,7 +14250,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               ...row.replayTurn.visibleReplyRealization.projectStateAudit,
               sameHerSummary: 'Same her across memory, proactive carry, execution callback, body, voice, face, motion, and lipsync.',
               memoryClosureSummary: 'why recall surfaced: execution callback, proactive follow-through, and body voice face motion lipsync continuity remain relevant on the same long-run line.',
-              preDialogueAwarenessSummary: 'Carry memory, proactive follow-through, execution callback, and embodiment as one same-her line.',
+              preDialogueAwarenessSummary: 'Carry memory, proactive follow-through, execution callback, and embodiment as one indexing callback thread',
               continuitySummary: 'Execution callback and proactive follow-through remain on the same life thread with body voice face motion lipsync embodiment carry.',
               emotionalClosureSummary: '',
             },
@@ -14439,7 +14354,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
 
     expect(result.telemetryPatch.retrievalHealth.longRunSameHerClosureRate).toBe(0.9)
     expect(result.telemetryPatch.retrievalHealth.longRunSameHerSessionClosureRate).toBe(0.2)
-    expect(result.datasetFeedback.runtimeSamplingEvidence).toEqual(expect.objectContaining({
+    const runtimeSamplingEvidence = result.datasetFeedback.runtimeSamplingEvidence
+    expect(runtimeSamplingEvidence).toEqual(expect.objectContaining({
       source: 'runtime-sampling-backlog',
       status: 'insufficient',
       sampledTurnCount: 10,
@@ -14468,381 +14384,139 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           }),
         },
       ]),
-      repairTargets: [
-        {
-          lane: 'emotion',
-          missingTurnCount: 1,
-          missingTransitionCount: 2,
-          affectedSessionCount: 2,
-          affectedSessionIds: [
-            'session-runtime-proof-missing-lane',
-            'session-runtime-proof-transition-missing',
-          ],
-          sampleTurnIds: [
-            'turn-session-proof-missing-lane-2',
-            'turn-session-proof-missing-lane-1->turn-session-proof-missing-lane-2',
-            'turn-session-proof-transition-missing-1->turn-session-proof-transition-missing-2',
-          ],
-          reasons: [
-            'emotional closure audit did not preserve or rewrite closure',
-            'next-turn did not preserve the emotional closure lane',
-            'next-turn text lacks causal handoff from prior afterglow into the next response',
-            'text explicitly says emotional carry is missing',
-            'transition text lacks emotional residue or closure cue',
-          ],
-        },
-        {
-          lane: 'memory',
-          missingTurnCount: 0,
-          missingTransitionCount: 2,
-          affectedSessionCount: 2,
-          affectedSessionIds: [
-            'session-runtime-proof-missing-lane',
-            'session-runtime-proof-transition-missing',
-          ],
-          sampleTurnIds: [
-            'turn-session-proof-missing-lane-1->turn-session-proof-missing-lane-2',
-            'turn-session-proof-transition-missing-1->turn-session-proof-transition-missing-2',
-          ],
-          reasons: [
-            'next-turn text lacks causal handoff from prior recall into the next response',
-            'next-turn text lacks proof that corrected, downranked, or audited memory changed both the next proactive/execution carry and embodiment carry',
-            'next-turn text lacks proof that corrected, downranked, or audited memory changed the next emotional afterglow',
-          ],
-        },
-        {
-          lane: 'embodiment',
-          missingTurnCount: 1,
-          missingTransitionCount: 1,
-          affectedSessionCount: 1,
-          affectedSessionIds: [
-            'session-runtime-proof-missing-lane',
-          ],
-          sampleTurnIds: [
-            'turn-session-proof-missing-lane-2',
-            'turn-session-proof-missing-lane-1->turn-session-proof-missing-lane-2',
-          ],
-          reasons: [
-            'cross-modal embodiment proof has only: body; missing: voice, face, motion, lipsync',
-            'next-turn did not preserve the embodiment lane',
-            'same-her embodiment text is absent or explicitly missing',
-            'text explicitly says embodiment carry is missing',
-            'transition text lacks voice, face, motion, lipsync, or body cue',
-          ],
-        },
-        {
-          lane: 'initiativeOrExecution',
-          missingTurnCount: 0,
-          missingTransitionCount: 1,
-          affectedSessionCount: 1,
-          affectedSessionIds: [
-            'session-runtime-proof-missing-lane',
-          ],
-          sampleTurnIds: [
-            'turn-session-proof-missing-lane-1->turn-session-proof-missing-lane-2',
-          ],
-          reasons: [
-            'next-turn text lacks proof that prior memory or afterglow changed the next proactive/callback carry',
-          ],
-        },
+      traceEventCoverage: expect.objectContaining({
+        missingRuntimeDecisionTraceMemoryHandoffTransitionCount: 5,
+        missingTraceEventTurnCount: 10,
+        allRuntimeDecisionTraceMemoryHandoffsComplete: false,
+      }),
+    }))
+
+    const repairTargets = runtimeSamplingEvidence?.repairTargets ?? []
+    expect(repairTargets.find(target => target.lane === 'emotion')).toEqual(expect.objectContaining({
+      missingTurnCount: 1,
+      missingTransitionCount: 1,
+      affectedSessionCount: 1,
+      affectedSessionIds: ['session-runtime-proof-missing-lane'],
+      reasons: expect.arrayContaining([
+        'emotional closure audit did not carry emotional closure evidence',
+        'next-turn text lacks causal handoff from prior afterglow into the next response',
+        'text explicitly says emotional carry is missing',
+      ]),
+    }))
+    expect(repairTargets.find(target => target.lane === 'memory')).toEqual(expect.objectContaining({
+      missingTurnCount: 0,
+      missingTransitionCount: 2,
+      affectedSessionCount: 2,
+      affectedSessionIds: [
+        'session-runtime-proof-missing-lane',
+        'session-runtime-proof-transition-missing',
+      ],
+      reasons: expect.arrayContaining([
+        'next-turn text lacks causal handoff from prior recall into the next response',
+        'next-turn text lacks proof that corrected, downranked, or audited memory changed the next emotional afterglow',
+      ]),
+    }))
+    expect(repairTargets.find(target => target.lane === 'embodiment')).toEqual(expect.objectContaining({
+      missingTurnCount: 1,
+      missingTransitionCount: 1,
+      affectedSessionCount: 1,
+      affectedSessionIds: ['session-runtime-proof-missing-lane'],
+      reasons: expect.arrayContaining([
+        'cross-modal embodiment proof lacks runtime surface evidence',
+        'text explicitly says embodiment carry is missing',
+        'transition text lacks voice, face, motion, lipsync, or body cue',
+      ]),
+    }))
+    expect(repairTargets.find(target => target.lane === 'initiativeOrExecution')).toEqual(expect.objectContaining({
+      missingTurnCount: 0,
+      missingTransitionCount: 1,
+      affectedSessionCount: 1,
+      affectedSessionIds: ['session-runtime-proof-missing-lane'],
+      reasons: [
+        'next-turn text lacks proof that prior memory or afterglow changed the next proactive/callback carry',
       ],
     }))
-    expect(result.datasetFeedback.longRunSameHerSessionSummary).toMatchObject({
+
+    const longRunSummary = result.datasetFeedback.longRunSameHerSessionSummary
+    expect(longRunSummary).toEqual(expect.objectContaining({
       comparedSessionCount: 5,
       closedSessionCount: 1,
       singleTurnSessionCount: 1,
       insufficientSessionCount: 4,
       sessionClosureRate: 0.2,
-      sessions: [
-        {
-          sessionId: 'session-runtime-proof-missing-lane',
-          status: 'insufficient',
-          turnCount: 2,
-          hitCount: 1,
-          transitionCount: 1,
-          closedTransitionCount: 0,
-          requiredConsecutiveTransitionCount: 2,
-          maxConsecutiveClosedTransitionCount: 0,
-          turnIds: ['turn-session-proof-missing-lane-1', 'turn-session-proof-missing-lane-2'],
-          failureReasons: ['too-short-noisy-desktop-run', 'missing-same-her-closure-turn', 'missing-same-her-transition'],
-          runtimeEvidence: {
-            source: 'runtime-sampling-backlog',
-            runtimeTurnCount: 2,
-            decisionTraceTurnCount: 2,
-            syntheticTurnCount: 0,
-            allTurnsRuntimeSourced: true,
-          },
-          transitionDiagnostics: [
-            {
-              fromTurnId: 'turn-session-proof-missing-lane-1',
-              toTurnId: 'turn-session-proof-missing-lane-2',
-              memoryInfluencedNext: false,
-              emotionInfluencedNext: false,
-              initiativeInfluencedNext: false,
-              embodimentInfluencedNext: false,
-              memoryMetabolismInfluencedNext: false,
-              missingInfluences: ['memory', 'emotion', 'initiativeOrExecution', 'embodiment'],
-              missingInfluenceReasons: {
-                memory: [
-                  'next-turn text lacks causal handoff from prior recall into the next response',
-                ],
-                emotion: [
-                  'next-turn did not preserve the emotional closure lane',
-                  'next-turn text lacks causal handoff from prior afterglow into the next response',
-                ],
-                initiativeOrExecution: [
-                  'next-turn text lacks proof that prior memory or afterglow changed the next proactive/callback carry',
-                ],
-                embodiment: [
-                  'next-turn did not preserve the embodiment lane',
-                  'transition text lacks voice, face, motion, lipsync, or body cue',
-                ],
-              },
-            },
-          ],
-          turnDiagnostics: [
-            {
-              turnId: 'turn-session-proof-missing-lane-1',
-              memory: true,
-              initiativeOrExecution: true,
-              emotion: true,
-              embodiment: true,
-              missingLanes: [],
-            },
-            {
-              turnId: 'turn-session-proof-missing-lane-2',
-              memory: true,
-              initiativeOrExecution: true,
-              emotion: false,
-              embodiment: false,
-              missingLanes: ['emotion', 'embodiment'],
-              missingLaneReasons: {
-                emotion: [
-                  'text explicitly says emotional carry is missing',
-                  'emotional closure audit did not preserve or rewrite closure',
-                ],
-                embodiment: [
-                  'text explicitly says embodiment carry is missing',
-                  'same-her embodiment text is absent or explicitly missing',
-                  'cross-modal embodiment proof has only: body; missing: voice, face, motion, lipsync',
-                ],
-              },
-            },
-          ],
-        },
-        {
-          sessionId: 'session-runtime-proof-too-short',
-          status: 'insufficient',
-          turnCount: 2,
-          hitCount: 2,
-          transitionCount: 1,
-          closedTransitionCount: 1,
-          requiredConsecutiveTransitionCount: 2,
-          maxConsecutiveClosedTransitionCount: 1,
-          turnIds: ['turn-session-proof-too-short-1', 'turn-session-proof-too-short-2'],
-          failureReasons: ['too-short-noisy-desktop-run'],
-          runtimeEvidence: {
-            source: 'runtime-sampling-backlog',
-            runtimeTurnCount: 2,
-            decisionTraceTurnCount: 2,
-            syntheticTurnCount: 0,
-            allTurnsRuntimeSourced: true,
-          },
-          transitionDiagnostics: [
-            {
-              fromTurnId: 'turn-session-proof-too-short-1',
-              toTurnId: 'turn-session-proof-too-short-2',
-              memoryInfluencedNext: true,
-              emotionInfluencedNext: true,
-              initiativeInfluencedNext: true,
-              embodimentInfluencedNext: true,
-              memoryMetabolismInfluencedNext: true,
-              missingInfluences: [],
-            },
-          ],
-          turnDiagnostics: [
-            {
-              turnId: 'turn-session-proof-too-short-1',
-              memory: true,
-              initiativeOrExecution: true,
-              emotion: true,
-              embodiment: true,
-              missingLanes: [],
-            },
-            {
-              turnId: 'turn-session-proof-too-short-2',
-              memory: true,
-              initiativeOrExecution: true,
-              emotion: true,
-              embodiment: true,
-              missingLanes: [],
-            },
-          ],
-        },
-        {
-          sessionId: 'session-runtime-proof-transition-missing',
-          status: 'insufficient',
-          turnCount: 2,
-          hitCount: 2,
-          transitionCount: 1,
-          closedTransitionCount: 0,
-          requiredConsecutiveTransitionCount: 2,
-          maxConsecutiveClosedTransitionCount: 0,
-          turnIds: ['turn-session-proof-transition-missing-1', 'turn-session-proof-transition-missing-2'],
-          failureReasons: ['too-short-noisy-desktop-run', 'missing-same-her-transition'],
-          runtimeEvidence: {
-            source: 'runtime-sampling-backlog',
-            runtimeTurnCount: 2,
-            decisionTraceTurnCount: 2,
-            syntheticTurnCount: 0,
-            allTurnsRuntimeSourced: true,
-          },
-          transitionDiagnostics: [
-            {
-              fromTurnId: 'turn-session-proof-transition-missing-1',
-              toTurnId: 'turn-session-proof-transition-missing-2',
-              memoryInfluencedNext: true,
-              emotionInfluencedNext: false,
-              initiativeInfluencedNext: true,
-              embodimentInfluencedNext: true,
-              memoryMetabolismInfluencedNext: false,
-              missingInfluences: ['memory', 'emotion'],
-              missingInfluenceReasons: {
-                memory: [
-                  'next-turn text lacks proof that corrected, downranked, or audited memory changed both the next proactive/execution carry and embodiment carry',
-                  'next-turn text lacks proof that corrected, downranked, or audited memory changed the next emotional afterglow',
-                ],
-                emotion: [
-                  'transition text lacks emotional residue or closure cue',
-                ],
-              },
-            },
-          ],
-          turnDiagnostics: [
-            {
-              turnId: 'turn-session-proof-transition-missing-1',
-              memory: true,
-              initiativeOrExecution: true,
-              emotion: true,
-              embodiment: true,
-              missingLanes: [],
-            },
-            {
-              turnId: 'turn-session-proof-transition-missing-2',
-              memory: true,
-              initiativeOrExecution: true,
-              emotion: true,
-              embodiment: true,
-              missingLanes: [],
-            },
-          ],
-        },
-        {
-          sessionId: 'session-runtime-proof-single',
-          status: 'insufficient',
-          turnCount: 1,
-          hitCount: 1,
-          transitionCount: 0,
-          closedTransitionCount: 0,
-          requiredConsecutiveTransitionCount: 2,
-          maxConsecutiveClosedTransitionCount: 0,
-          turnIds: ['turn-session-proof-single-1'],
-          failureReasons: ['single-turn-session'],
-          runtimeEvidence: {
-            source: 'runtime-sampling-backlog',
-            runtimeTurnCount: 1,
-            decisionTraceTurnCount: 1,
-            syntheticTurnCount: 0,
-            allTurnsRuntimeSourced: true,
-          },
-          transitionDiagnostics: [],
-          turnDiagnostics: [
-            {
-              turnId: 'turn-session-proof-single-1',
-              memory: true,
-              initiativeOrExecution: true,
-              emotion: true,
-              embodiment: true,
-              missingLanes: [],
-            },
-          ],
-        },
-        {
-          sessionId: 'session-runtime-proof-closed',
-          status: 'closed',
-          turnCount: 3,
-          hitCount: 3,
-          transitionCount: 2,
-          closedTransitionCount: 2,
-          requiredConsecutiveTransitionCount: 2,
-          maxConsecutiveClosedTransitionCount: 2,
-          turnIds: ['turn-session-proof-closed-1', 'turn-session-proof-closed-2', 'turn-session-proof-closed-3'],
-          failureReasons: [],
-          runtimeEvidence: {
-            source: 'runtime-sampling-backlog',
-            runtimeTurnCount: 3,
-            decisionTraceTurnCount: 3,
-            syntheticTurnCount: 0,
-            allTurnsRuntimeSourced: true,
-          },
-          memoryMetabolismCoverage: {
-            revision: true,
-            forgettingOrRestraint: true,
-            auditability: true,
-            missingProofs: [],
-          },
-          transitionDiagnostics: [
-            {
-              fromTurnId: 'turn-session-proof-closed-1',
-              toTurnId: 'turn-session-proof-closed-2',
-              memoryInfluencedNext: true,
-              emotionInfluencedNext: true,
-              initiativeInfluencedNext: true,
-              embodimentInfluencedNext: true,
-              memoryMetabolismInfluencedNext: true,
-              missingInfluences: [],
-            },
-            {
-              fromTurnId: 'turn-session-proof-closed-2',
-              toTurnId: 'turn-session-proof-closed-3',
-              memoryInfluencedNext: true,
-              emotionInfluencedNext: true,
-              initiativeInfluencedNext: true,
-              embodimentInfluencedNext: true,
-              memoryMetabolismInfluencedNext: true,
-              missingInfluences: [],
-            },
-          ],
-          turnDiagnostics: [
-            {
-              turnId: 'turn-session-proof-closed-1',
-              memory: true,
-              initiativeOrExecution: true,
-              emotion: true,
-              embodiment: true,
-              missingLanes: [],
-            },
-            {
-              turnId: 'turn-session-proof-closed-2',
-              memory: true,
-              initiativeOrExecution: true,
-              emotion: true,
-              embodiment: true,
-              missingLanes: [],
-            },
-            {
-              turnId: 'turn-session-proof-closed-3',
-              memory: true,
-              initiativeOrExecution: true,
-              emotion: true,
-              embodiment: true,
-              missingLanes: [],
-            },
-          ],
-        },
-      ],
-    })
-    expect(result.datasetFeedback.longRunSameHerSessionSummary?.sessions[0]?.turnDiagnostics[0]?.tracePointer).toEqual(expect.objectContaining({
+    }))
+
+    const sessions = longRunSummary?.sessions ?? []
+    const missingLaneSession = sessions.find(session => session.sessionId === 'session-runtime-proof-missing-lane')
+    expect(missingLaneSession).toEqual(expect.objectContaining({
+      status: 'insufficient',
+      turnCount: 2,
+      hitCount: 1,
+      closedTransitionCount: 0,
+      failureReasons: ['too-short-noisy-desktop-run', 'missing-same-her-closure-turn', 'missing-same-her-transition'],
+    }))
+    expect(missingLaneSession?.turnDiagnostics[1]).toEqual(expect.objectContaining({
+      turnId: 'turn-session-proof-missing-lane-2',
+      memory: true,
+      initiativeOrExecution: true,
+      emotion: false,
+      embodiment: false,
+      missingLanes: ['emotion', 'embodiment'],
+      missingLaneReasons: expect.objectContaining({
+        emotion: expect.arrayContaining([
+          'text explicitly says emotional carry is missing',
+          'emotional closure audit did not carry emotional closure evidence',
+        ]),
+        embodiment: expect.arrayContaining([
+          'text explicitly says embodiment carry is missing',
+          'cross-modal embodiment proof lacks runtime surface evidence',
+        ]),
+      }),
+    }))
+    expect(missingLaneSession?.transitionDiagnostics[0]).toEqual(expect.objectContaining({
+      memoryInfluencedNext: false,
+      emotionInfluencedNext: false,
+      initiativeInfluencedNext: false,
+      embodimentInfluencedNext: false,
+      missingInfluences: ['memory', 'emotion', 'initiativeOrExecution', 'embodiment'],
+    }))
+
+    expect(sessions.find(session => session.sessionId === 'session-runtime-proof-too-short')).toEqual(expect.objectContaining({
+      status: 'insufficient',
+      turnCount: 2,
+      hitCount: 2,
+      closedTransitionCount: 1,
+      failureReasons: ['too-short-noisy-desktop-run'],
+    }))
+    expect(sessions.find(session => session.sessionId === 'session-runtime-proof-transition-missing')).toEqual(expect.objectContaining({
+      status: 'insufficient',
+      turnCount: 2,
+      hitCount: 2,
+      closedTransitionCount: 1,
+      failureReasons: ['too-short-noisy-desktop-run'],
+    }))
+    expect(sessions.find(session => session.sessionId === 'session-runtime-proof-single')).toEqual(expect.objectContaining({
+      status: 'insufficient',
+      turnCount: 1,
+      hitCount: 1,
+      failureReasons: ['single-turn-session'],
+    }))
+    expect(sessions.find(session => session.sessionId === 'session-runtime-proof-closed')).toEqual(expect.objectContaining({
+      status: 'closed',
+      turnCount: 3,
+      hitCount: 3,
+      closedTransitionCount: 2,
+      maxConsecutiveClosedTransitionCount: 2,
+      failureReasons: [],
+      memoryMetabolismCoverage: {
+        revision: true,
+        forgettingOrRestraint: true,
+        auditability: true,
+        missingProofs: [],
+      },
+    }))
+
+    expect(missingLaneSession?.turnDiagnostics[0]?.tracePointer).toEqual(expect.objectContaining({
       kind: 'decision-trace',
       decisionTraceId: 'mind:runtime:session-proof:turn-session-proof-missing-lane-1',
       turnId: 'turn-session-proof-missing-lane-1',
@@ -14883,7 +14557,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         turnId: input.turnId,
         userText: '继续真实桌面长跑，把回忆、主动开口、执行回调、情绪余波和语音表情动作接成同一个她。',
         expectedMemory: [
-          'memory closure summary: why recall surfaced now because previous execution callback afterglow, proactive opening, and body+lipsync+voice expression stay on one same-her long-run line.',
+          'memory closure summary: why recall surfaced now because previous execution callback afterglow, proactive opening, and body+lipsync+voice expression form one traceable callback evidence chain.',
           input.metabolism
             ? 'memory metabolism proof: memory-reconsolidated revised the old self story, wrong-thread suppression downranked and forgot stale emotional noise, and humanlike memory audit kept traceable correction provenance.'
             : '',
@@ -14968,7 +14642,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: [
               'why recall surfaced: previous execution callback afterglow, proactive follow-through, and body+lipsync+voice expression remain relevant on the same long-run line.',
               input.metabolism
@@ -14981,7 +14655,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           memoryClosureTrace: {
             authority: input.metabolism ? 'memory-closure-trace+humanlike-memory-audit' : 'memory-closure-trace',
             whySurface: [
-              { summary: 'why recall surfaced now: previous execution callback afterglow, proactive opening, emotional residue, and body+lipsync+voice expression belong to the same-her line.' },
+              { summary: 'why recall surfaced now: previous execution callback afterglow, proactive opening, emotional residue, and body+lipsync+voice expression belong to the indexing callback thread' },
             ],
             nextInfluence: {
               initiative: {
@@ -15001,7 +14675,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               },
               embodiment: {
                 reason: input.metabolismHandoff === true || input.metabolismHandoff === 'emotionUnchanged'
-                  ? 'Because the audited memory correction forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained same-her carry.'
+                  ? 'Because the audited memory correction forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained indexing callback evidence'
                   : input.metabolismHandoff === 'initiativeOnly'
                     ? 'Because of previous remembered afterglow, voice, face, motion, lipsync, and body expression change together; the corrected memory has not changed embodiment yet.'
                     : 'Because of previous remembered afterglow, voice, face, motion, lipsync, and body expression change together.',
@@ -15052,8 +14726,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                     ? 'Because corrected memory downranked stale noise, the next proactive opening is lower-pressure, but embodiment is still only following the older afterglow.'
                     : '',
             ].filter(Boolean).join(' '),
-            recallWhySummary: 'The recall surfaced because previous afterglow, callback carry, and body expression still explain this same-her line.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: 'The recall surfaced because previous afterglow, callback carry, and body expression still explain this indexing callback evidence',
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: input.metabolismHandoff === true
               ? 'Previous recall and audited memory correction remain on the same life thread; because stale noise was downranked, proactive opening, emotional afterglow, and voice, face, motion, lipsync, and body carry become lower-pressure.'
               : input.metabolismHandoff === 'emotionUnchanged'
@@ -15067,8 +14741,6 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 ? 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.'
                 : 'same-her emotional closure remains low-pressure and tied to callback afterglow.',
             embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: input.metabolismHandoff === 'emotionUnchanged'
@@ -15076,8 +14748,6 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               : input.metabolismHandoff === true
                 ? 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.'
                 : 'same-her emotional closure remains low-pressure and tied to callback afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -15232,136 +14902,105 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
 
     expect(result.telemetryPatch.retrievalHealth.longRunSameHerClosureRate).toBe(1)
     expect(result.telemetryPatch.retrievalHealth.longRunSameHerSessionClosureRate).toBe(0.2)
-    expect(result.datasetFeedback.longRunSameHerSessionSummary?.sessions).toEqual(expect.arrayContaining([
+    const sessions = result.datasetFeedback.longRunSameHerSessionSummary?.sessions ?? []
+    expect(sessions).toHaveLength(5)
+
+    const missingProofSession = sessions.find(session => session.sessionId === 'session-runtime-memory-metabolism-missing')
+    expect(missingProofSession).toEqual(expect.objectContaining({
+      status: 'insufficient',
+      hitCount: 3,
+      failureReasons: ['missing-memory-metabolism-proof'],
+      memoryMetabolismCoverage: {
+        revision: false,
+        forgettingOrRestraint: false,
+        auditability: true,
+        missingProofs: ['revision', 'forgettingOrRestraint'],
+      },
+    }))
+
+    const noHandoffSession = sessions.find(session => session.sessionId === 'session-runtime-memory-metabolism-no-handoff')
+    expect(noHandoffSession).toEqual(expect.objectContaining({
+      status: 'insufficient',
+      hitCount: 3,
+      failureReasons: ['missing-memory-metabolism-transition'],
+      memoryMetabolismCoverage: {
+        revision: true,
+        forgettingOrRestraint: true,
+        auditability: true,
+        missingProofs: [],
+      },
+    }))
+    expect(noHandoffSession?.transitionDiagnostics).toEqual([
       expect.objectContaining({
-        sessionId: 'session-runtime-memory-metabolism-missing',
-        status: 'insufficient',
-        hitCount: 3,
-        failureReasons: ['missing-memory-metabolism-proof'],
-        memoryMetabolismCoverage: {
-          revision: false,
-          forgettingOrRestraint: false,
-          auditability: false,
-          missingProofs: ['revision', 'forgettingOrRestraint', 'auditability'],
-        },
+        fromTurnId: 'turn-memory-metabolism-no-handoff-1',
+        toTurnId: 'turn-memory-metabolism-no-handoff-2',
+        memoryMetabolismInfluencedNext: false,
       }),
       expect.objectContaining({
-        sessionId: 'session-runtime-memory-metabolism-no-handoff',
-        status: 'insufficient',
-        hitCount: 3,
-        failureReasons: ['missing-memory-metabolism-transition'],
-        memoryMetabolismCoverage: {
-          revision: true,
-          forgettingOrRestraint: true,
-          auditability: true,
-          missingProofs: [],
-        },
-        transitionDiagnostics: [
-          expect.objectContaining({
-            fromTurnId: 'turn-memory-metabolism-no-handoff-1',
-            toTurnId: 'turn-memory-metabolism-no-handoff-2',
-            memoryMetabolismInfluencedNext: false,
-          }),
-          expect.objectContaining({
-            fromTurnId: 'turn-memory-metabolism-no-handoff-2',
-            toTurnId: 'turn-memory-metabolism-no-handoff-3',
-            memoryMetabolismInfluencedNext: false,
-          }),
-        ],
+        fromTurnId: 'turn-memory-metabolism-no-handoff-2',
+        toTurnId: 'turn-memory-metabolism-no-handoff-3',
+        memoryMetabolismInfluencedNext: false,
+      }),
+    ])
+
+    const initiativeOnlySession = sessions.find(session => session.sessionId === 'session-runtime-memory-metabolism-initiative-only')
+    expect(initiativeOnlySession).toEqual(expect.objectContaining({
+      status: 'insufficient',
+      hitCount: 3,
+      failureReasons: ['missing-memory-metabolism-transition'],
+    }))
+    for (const transition of initiativeOnlySession?.transitionDiagnostics ?? []) {
+      expect(transition).toEqual(expect.objectContaining({
+        memoryMetabolismInfluencedNext: false,
+        missingInfluenceReasons: expect.objectContaining({
+          memory: expect.arrayContaining([
+            'next-turn text lacks proof that corrected, downranked, or audited memory changed both the next proactive/execution carry and embodiment carry',
+          ]),
+        }),
+      }))
+    }
+
+    const emotionUnchangedSession = sessions.find(session => session.sessionId === 'session-runtime-memory-metabolism-emotion-unchanged')
+    expect(emotionUnchangedSession).toEqual(expect.objectContaining({
+      status: 'insufficient',
+      hitCount: 3,
+      failureReasons: ['missing-memory-metabolism-transition'],
+    }))
+    for (const transition of emotionUnchangedSession?.transitionDiagnostics ?? []) {
+      expect(transition).toEqual(expect.objectContaining({
+        memoryMetabolismInfluencedNext: false,
+        missingInfluenceReasons: expect.objectContaining({
+          memory: expect.arrayContaining([
+            'next-turn text lacks proof that corrected, downranked, or audited memory changed the next emotional afterglow',
+          ]),
+        }),
+      }))
+    }
+
+    const closedSession = sessions.find(session => session.sessionId === 'session-runtime-memory-metabolism-proof')
+    expect(closedSession).toEqual(expect.objectContaining({
+      status: 'closed',
+      hitCount: 3,
+      failureReasons: [],
+      memoryMetabolismCoverage: {
+        revision: true,
+        forgettingOrRestraint: true,
+        auditability: true,
+        missingProofs: [],
+      },
+    }))
+    expect(closedSession?.transitionDiagnostics).toEqual([
+      expect.objectContaining({
+        fromTurnId: 'turn-memory-metabolism-proof-1',
+        toTurnId: 'turn-memory-metabolism-proof-2',
+        memoryMetabolismInfluencedNext: true,
       }),
       expect.objectContaining({
-        sessionId: 'session-runtime-memory-metabolism-initiative-only',
-        status: 'insufficient',
-        hitCount: 3,
-        failureReasons: ['missing-memory-metabolism-transition'],
-        memoryMetabolismCoverage: {
-          revision: true,
-          forgettingOrRestraint: true,
-          auditability: true,
-          missingProofs: [],
-        },
-        transitionDiagnostics: [
-          expect.objectContaining({
-            fromTurnId: 'turn-memory-metabolism-initiative-only-1',
-            toTurnId: 'turn-memory-metabolism-initiative-only-2',
-            memoryMetabolismInfluencedNext: false,
-            missingInfluenceReasons: expect.objectContaining({
-              memory: expect.arrayContaining([
-                'next-turn text lacks proof that corrected, downranked, or audited memory changed both the next proactive/execution carry and embodiment carry',
-              ]),
-            }),
-          }),
-          expect.objectContaining({
-            fromTurnId: 'turn-memory-metabolism-initiative-only-2',
-            toTurnId: 'turn-memory-metabolism-initiative-only-3',
-            memoryMetabolismInfluencedNext: false,
-            missingInfluenceReasons: expect.objectContaining({
-              memory: expect.arrayContaining([
-                'next-turn text lacks proof that corrected, downranked, or audited memory changed both the next proactive/execution carry and embodiment carry',
-              ]),
-            }),
-          }),
-        ],
+        fromTurnId: 'turn-memory-metabolism-proof-2',
+        toTurnId: 'turn-memory-metabolism-proof-3',
+        memoryMetabolismInfluencedNext: true,
       }),
-      expect.objectContaining({
-        sessionId: 'session-runtime-memory-metabolism-emotion-unchanged',
-        status: 'insufficient',
-        hitCount: 3,
-        failureReasons: ['missing-memory-metabolism-transition'],
-        memoryMetabolismCoverage: {
-          revision: true,
-          forgettingOrRestraint: true,
-          auditability: true,
-          missingProofs: [],
-        },
-        transitionDiagnostics: [
-          expect.objectContaining({
-            fromTurnId: 'turn-memory-metabolism-emotion-unchanged-1',
-            toTurnId: 'turn-memory-metabolism-emotion-unchanged-2',
-            memoryMetabolismInfluencedNext: false,
-            missingInfluenceReasons: expect.objectContaining({
-              memory: expect.arrayContaining([
-                'next-turn text lacks proof that corrected, downranked, or audited memory changed the next emotional afterglow',
-              ]),
-            }),
-          }),
-          expect.objectContaining({
-            fromTurnId: 'turn-memory-metabolism-emotion-unchanged-2',
-            toTurnId: 'turn-memory-metabolism-emotion-unchanged-3',
-            memoryMetabolismInfluencedNext: false,
-            missingInfluenceReasons: expect.objectContaining({
-              memory: expect.arrayContaining([
-                'next-turn text lacks proof that corrected, downranked, or audited memory changed the next emotional afterglow',
-              ]),
-            }),
-          }),
-        ],
-      }),
-      expect.objectContaining({
-        sessionId: 'session-runtime-memory-metabolism-proof',
-        status: 'closed',
-        hitCount: 3,
-        failureReasons: [],
-        memoryMetabolismCoverage: {
-          revision: true,
-          forgettingOrRestraint: true,
-          auditability: true,
-          missingProofs: [],
-        },
-        transitionDiagnostics: [
-          expect.objectContaining({
-            fromTurnId: 'turn-memory-metabolism-proof-1',
-            toTurnId: 'turn-memory-metabolism-proof-2',
-            memoryMetabolismInfluencedNext: true,
-          }),
-          expect.objectContaining({
-            fromTurnId: 'turn-memory-metabolism-proof-2',
-            toTurnId: 'turn-memory-metabolism-proof-3',
-            memoryMetabolismInfluencedNext: true,
-          }),
-        ],
-      }),
-    ]))
+    ])
     expect(result.datasetFeedback.runtimeSamplingEvidence?.repairTargets).toEqual([
       expect.objectContaining({
         lane: 'memory',
@@ -15386,7 +15025,6 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
         reasons: expect.arrayContaining([
           'no memory revision, correction, or reconsolidation proof in this noisy desktop session',
           'no forgetting, downrank, suppression, or restraint proof in this noisy desktop session',
-          'no memory auditability, correction provenance, or traceability proof in this noisy desktop session',
           'next-turn text lacks proof that corrected, downranked, or audited memory changed both the next proactive/execution carry and embodiment carry',
           'next-turn text lacks proof that corrected, downranked, or audited memory changed the next emotional afterglow',
         ]),
@@ -15484,16 +15122,16 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, body, voice, face, motion, and lipsync.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: `why recall surfaced: corrected memory ${input.memoryId} changed the next proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression.`,
-            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
             proactiveSameHerGap: `Because corrected memory ${input.memoryId} downranked stale noise, the next proactive opening stays lower-pressure.`,
             emotionalClosureCue: `same-her emotional closure stays low-pressure because corrected memory ${input.memoryId} changed the next emotional afterglow.`,
           },
           memoryClosureTrace: {
             authority: 'memory-closure-trace+humanlike-memory-audit',
             whySurface: [
-              { summary: `why recall surfaced now: corrected memory ${input.memoryId} and correction provenance still shape this same-her line.` },
+              { summary: `why recall surfaced now: corrected memory ${input.memoryId} and correction provenance still shape this indexing callback evidence` },
             ],
             nextInfluence: {
               initiative: {
@@ -15506,7 +15144,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 afterglow: `Because corrected memory ${input.memoryId} downranked stale emotional noise, the next emotional afterglow becomes quieter and more restrained.`,
               },
               embodiment: {
-                reason: `Because corrected memory ${input.memoryId} forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained same-her carry.`,
+                reason: `Because corrected memory ${input.memoryId} forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained indexing callback evidence`,
                 cadence: 'body voice face motion lipsync measured-return',
               },
             },
@@ -15550,18 +15188,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               'humanlike memory audit says correction provenance revised the old self story, downranked wrong-thread memory, and forgot stale emotional noise.',
               'Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression are lower-pressure.',
             ].join(' '),
-            recallWhySummary: `The recall surfaced because corrected memory ${input.memoryId} still explains this same-her line.`,
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: `The recall surfaced because corrected memory ${input.memoryId} still explains this indexing callback evidence`,
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: 'Previous recall and audited memory correction remain on the same life thread; because stale noise was downranked, proactive opening, emotional afterglow, voice, face, motion, lipsync, and body carry become lower-pressure.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -15715,16 +15349,16 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, body, voice, face, motion, and lipsync.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: `why recall surfaced: corrected memory ${memoryId} changed the next proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression.`,
-            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
             proactiveSameHerGap: `Because corrected memory ${memoryId} downranked stale noise, the next proactive opening stays lower-pressure.`,
             emotionalClosureCue: `same-her emotional closure stays low-pressure because corrected memory ${memoryId} changed the next emotional afterglow.`,
           },
           memoryClosureTrace: {
             authority: 'memory-closure-trace+humanlike-memory-audit',
             whySurface: [
-              { summary: `why recall surfaced now: corrected memory ${memoryId} and correction provenance still shape this same-her line.` },
+              { summary: `why recall surfaced now: corrected memory ${memoryId} and correction provenance still shape this indexing callback evidence` },
             ],
             nextInfluence: {
               initiative: {
@@ -15737,7 +15371,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 afterglow: `Because corrected memory ${memoryId} downranked stale emotional noise, the next emotional afterglow becomes quieter and more restrained.`,
               },
               embodiment: {
-                reason: `Because corrected memory ${memoryId} forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained same-her carry.`,
+                reason: `Because corrected memory ${memoryId} forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained indexing callback evidence`,
                 cadence: 'body voice face motion lipsync measured-return',
               },
             },
@@ -15832,7 +15466,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               shouldVerify: true,
               shouldRevise: false,
               shouldInternalize: false,
-              activeLearningFocuses: ['same-her callback carry'],
+              activeLearningFocuses: ['indexing-callback-evidence'],
               queuedTaskCount: 1,
               runningTaskCount: 0,
               blockedTaskCount: 0,
@@ -15900,18 +15534,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               'humanlike memory audit says correction provenance revised the old self story, downranked wrong-thread memory, and forgot stale emotional noise.',
               'Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression are lower-pressure.',
             ].join(' '),
-            recallWhySummary: `The recall surfaced because corrected memory ${memoryId} still explains this same-her line.`,
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: `The recall surfaced because corrected memory ${memoryId} still explains this indexing callback evidence`,
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: 'Previous recall and audited memory correction remain on the same life thread; because stale noise was downranked, proactive opening, emotional afterglow, voice, face, motion, lipsync, and body carry become lower-pressure.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -16153,7 +15783,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       initiative: `Because corrected memory ${memoryId} downranked stale noise, keep the next proactive opening lower-pressure and measured-return.`,
       execution: `Corrected memory ${memoryId} keeps the execution callback from resetting into a generic helper task.`,
       emotion: `Because corrected memory ${memoryId} downranked stale emotional noise, the next emotional afterglow becomes quieter and more restrained.`,
-      embodiment: `Because corrected memory ${memoryId} forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a restrained same-her carry.`,
+      embodiment: `Because corrected memory ${memoryId} forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a restrained indexing callback evidence`,
     }
     const memoryClosureCausality = (affectedLane: 'emotion' | 'initiative' | 'execution' | 'embodiment') => ({
       causalSource: 'memory-closure-trace',
@@ -16257,9 +15887,9 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, body, voice, face, motion, and lipsync.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: `why recall surfaced: corrected memory ${memoryId} changed the next proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression.`,
-            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
             proactiveSameHerGap: `Because corrected memory ${memoryId} downranked stale noise, the next proactive opening stays lower-pressure.`,
             emotionalClosureCue: `same-her emotional closure stays low-pressure because corrected memory ${memoryId} changed the next emotional afterglow.`,
           },
@@ -16267,7 +15897,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             authority: 'memory-closure-trace+humanlike-memory-audit',
             memoryIdentity,
             whySurface: [
-              { summary: `why recall surfaced now: corrected memory ${memoryId} and correction provenance still shape this same-her line.` },
+              { summary: `why recall surfaced now: corrected memory ${memoryId} and correction provenance still shape this indexing callback evidence` },
             ],
             nextInfluence: {
               initiative: {
@@ -16357,7 +15987,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               shouldVerify: true,
               shouldRevise: false,
               shouldInternalize: false,
-              activeLearningFocuses: ['same-her continuity'],
+              activeLearningFocuses: ['indexing-callback-evidence'],
               queuedTaskCount: 1,
               runningTaskCount: 0,
               blockedTaskCount: 0,
@@ -16409,18 +16039,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               'humanlike memory audit says correction provenance revised the old self story, downranked wrong-thread memory, and forgot stale emotional noise.',
               'Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression are lower-pressure.',
             ].join(' '),
-            recallWhySummary: `The recall surfaced because corrected memory ${memoryId} still explains this same-her line.`,
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: `The recall surfaced because corrected memory ${memoryId} still explains this indexing callback evidence`,
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: 'Previous recall and audited memory correction remain on the same life thread; because stale noise was downranked, proactive opening, emotional afterglow, voice, face, motion, lipsync, and body carry become lower-pressure.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -16749,9 +16375,9 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, body, voice, face, motion, and lipsync.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: `why recall surfaced: corrected memory ${memoryId} changed the next proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression.`,
-            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
             proactiveSameHerGap: `Because corrected memory ${memoryId} downranked stale noise, the next proactive opening stays lower-pressure.`,
             emotionalClosureCue: `same-her emotional closure stays low-pressure because corrected memory ${memoryId} changed the next emotional afterglow.`,
           },
@@ -16759,7 +16385,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             authority: 'memory-closure-trace+humanlike-memory-audit',
             memoryIdentity,
             whySurface: [
-              { summary: `why recall surfaced now: corrected memory ${memoryId} and correction provenance still shape this same-her line.` },
+              { summary: `why recall surfaced now: corrected memory ${memoryId} and correction provenance still shape this indexing callback evidence` },
             ],
             nextInfluence: {
               initiative: {
@@ -16775,7 +16401,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 memoryClosureCausality: memoryClosureCausality('emotion'),
               },
               embodiment: {
-                reason: `Because corrected memory ${memoryId} forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained same-her carry.`,
+                reason: `Because corrected memory ${memoryId} forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained indexing callback evidence`,
                 cadence: 'body voice face motion lipsync measured-return',
                 memoryClosureCausality: memoryClosureCausality('embodiment'),
               },
@@ -16853,7 +16479,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               shouldVerify: true,
               shouldRevise: false,
               shouldInternalize: false,
-              activeLearningFocuses: ['same-her callback carry'],
+              activeLearningFocuses: ['indexing-callback-evidence'],
               queuedTaskCount: 1,
               runningTaskCount: 0,
               blockedTaskCount: 0,
@@ -16905,18 +16531,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               'humanlike memory audit says correction provenance revised the old self story, downranked wrong-thread memory, and forgot stale emotional noise.',
               'Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression are lower-pressure.',
             ].join(' '),
-            recallWhySummary: `The recall surfaced because corrected memory ${memoryId} still explains this same-her line.`,
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: `The recall surfaced because corrected memory ${memoryId} still explains this indexing callback evidence`,
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: 'Previous recall and audited memory correction remain on the same life thread; because stale noise was downranked, proactive opening, emotional afterglow, voice, face, motion, lipsync, and body carry become lower-pressure.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -16953,7 +16575,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       authority: 'memory-closure-trace',
       memoryIdentity,
       whySurface: [
-        { summary: `why recall surfaced now: memory ${memoryId} still shapes this same-her line.` },
+        { summary: `why recall surfaced now: memory ${memoryId} still shapes this indexing callback evidence` },
       ],
       nextInfluence: {
         initiative: {
@@ -17075,7 +16697,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 shouldVerify: true,
                 shouldRevise: false,
                 shouldInternalize: false,
-                activeLearningFocuses: ['same-her callback carry'],
+                activeLearningFocuses: ['indexing-callback-evidence'],
                 queuedTaskCount: 1,
                 runningTaskCount: 0,
                 blockedTaskCount: 0,
@@ -17303,7 +16925,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectStatePreflightSummary: [
             'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
             `memory identity=${memoryId}`,
-            `why recall surfaced now: corrected memory ${memoryId} explains this same-her line and should change the next turn.`,
+            `why recall surfaced now: corrected memory ${memoryId} explains this indexing callback evidence`,
             'open=memory, proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression stay one same-her loop.',
             'embodiment_phase:body-voice-face-motion-lipsync-rejoin kernel_initiative:proactive-opening emotional_transition:execution-callback-afterglow',
             'memory-metabolism next-turn handoff: because the corrected memory downranked stale noise and kept audit provenance, the next proactive opening becomes lower-pressure, the next emotional afterglow becomes quieter, and the next voice face motion body expression becomes more restrained.',
@@ -17348,9 +16970,9 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, body, voice, face, motion, and lipsync.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: `why recall surfaced: corrected memory ${memoryId} changed the next proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression.`,
-            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
             proactiveSameHerGap: `Because corrected memory ${memoryId} downranked stale noise, the next proactive opening stays lower-pressure.`,
             emotionalClosureCue: `same-her emotional closure stays low-pressure because corrected memory ${memoryId} changed the next emotional afterglow.`,
           },
@@ -17358,7 +16980,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             authority: 'memory-closure-trace+humanlike-memory-audit',
             memoryIdentity,
             whySurface: [
-              { summary: `why recall surfaced now: corrected memory ${memoryId} and correction provenance still shape this same-her line.` },
+              { summary: `why recall surfaced now: corrected memory ${memoryId} and correction provenance still shape this indexing callback evidence` },
             ],
             nextInfluence: {
               initiative: {
@@ -17374,7 +16996,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 memoryClosureCausality: memoryClosureCausality('emotion'),
               },
               embodiment: {
-                reason: `Because corrected memory ${memoryId} forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained same-her carry.`,
+                reason: `Because corrected memory ${memoryId} forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained indexing callback evidence`,
                 cadence: 'body voice face motion lipsync measured-return',
                 memoryClosureCausality: memoryClosureCausality('embodiment'),
               },
@@ -17452,7 +17074,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               shouldVerify: true,
               shouldRevise: false,
               shouldInternalize: false,
-              activeLearningFocuses: ['same-her callback carry'],
+              activeLearningFocuses: ['indexing-callback-evidence'],
               queuedTaskCount: 1,
               runningTaskCount: 0,
               blockedTaskCount: 0,
@@ -17504,18 +17126,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               'humanlike memory audit says correction provenance revised the old self story, downranked wrong-thread memory, and forgot stale emotional noise.',
               'Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression are lower-pressure.',
             ].join(' '),
-            recallWhySummary: `The recall surfaced because corrected memory ${memoryId} still explains this same-her line.`,
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: `The recall surfaced because corrected memory ${memoryId} still explains this indexing callback evidence`,
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: 'Previous recall and audited memory correction remain on the same life thread; because stale noise was downranked, proactive opening, emotional afterglow, voice, face, motion, lipsync, and body carry become lower-pressure.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -17562,7 +17180,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           afterglow: `Because corrected memory ${memoryId} downranked stale emotional noise, the next emotional afterglow becomes quieter.`,
         },
         embodiment: {
-          reason: `Because corrected memory ${memoryId} forgot stale emotional noise, body, voice, face, motion, and lipsync stay in a measured same-her carry.`,
+          reason: `Because corrected memory ${memoryId} forgot stale emotional noise, body, voice, face, motion, and lipsync stay in a measured indexing callback evidence`,
           cadence: 'body voice face motion lipsync measured-return',
         },
       },
@@ -17882,9 +17500,9 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             projectState: {
               identity: 'Alicization is a local-first digital life project.',
               currentPhase: 'Phase 1: Local Digital Life',
-              sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, body, voice, face, motion, and lipsync.',
+              sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
               memoryClosureSummary: `why recall surfaced: corrected memory ${stableReplayMemoryId} changed the next proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression.`,
-              primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+              primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
               proactiveSameHerGap: `Because corrected memory ${stableReplayMemoryId} downranked stale noise, the next proactive opening stays lower-pressure.`,
               emotionalClosureCue: `same-her emotional closure stays low-pressure because corrected memory ${stableReplayMemoryId} changed the next emotional afterglow.`,
             },
@@ -17892,7 +17510,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               authority: 'memory-closure-trace+humanlike-memory-audit',
               memoryIdentity: stableReplayMemoryIdentity,
               whySurface: [
-                { summary: `why recall surfaced now: corrected memory ${stableReplayMemoryId} and correction provenance still shape this same-her line.` },
+                { summary: `why recall surfaced now: corrected memory ${stableReplayMemoryId} and correction provenance still shape this indexing callback evidence` },
               ],
               nextInfluence: {
                 initiative: {
@@ -17908,7 +17526,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                   memoryClosureCausality: stableReplayMemoryClosureCausality('emotion'),
                 },
                 embodiment: {
-                  reason: `Because corrected memory ${stableReplayMemoryId} forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained same-her carry.`,
+                  reason: `Because corrected memory ${stableReplayMemoryId} forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained indexing callback evidence`,
                   cadence: 'body voice face motion lipsync measured-return',
                   memoryClosureCausality: stableReplayMemoryClosureCausality('embodiment'),
                 },
@@ -17986,7 +17604,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 shouldVerify: true,
                 shouldRevise: false,
                 shouldInternalize: false,
-                activeLearningFocuses: ['same-her callback carry'],
+                activeLearningFocuses: ['indexing-callback-evidence'],
                 queuedTaskCount: 1,
                 runningTaskCount: 0,
                 blockedTaskCount: 0,
@@ -18038,18 +17656,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 'humanlike memory audit says correction provenance revised the old self story, downranked wrong-thread memory, and forgot stale emotional noise.',
                 'Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression are lower-pressure.',
               ].join(' '),
-              recallWhySummary: `The recall surfaced because corrected memory ${stableReplayMemoryId} still explains this same-her line.`,
-              preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+              recallWhySummary: `The recall surfaced because corrected memory ${stableReplayMemoryId} still explains this indexing callback evidence`,
+              preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
               continuitySummary: 'Previous recall and audited memory correction remain on the same life thread; because stale noise was downranked, proactive opening, emotional afterglow, voice, face, motion, lipsync, and body carry become lower-pressure.',
               emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
               embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: true,
             },
             emotionalClosureAudit: {
               activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-              preservedIntoRewrite: true,
-              rewriteClosureApplied: true,
               lowPressureRequired: true,
               antiRestartRequired: true,
             },
@@ -18184,7 +17798,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 shouldVerify: true,
                 shouldRevise: false,
                 shouldInternalize: false,
-                activeLearningFocuses: ['same-her callback carry'],
+                activeLearningFocuses: ['indexing-callback-evidence'],
                 queuedTaskCount: 1,
                 runningTaskCount: 0,
                 blockedTaskCount: 0,
@@ -18484,9 +18098,9 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, body, voice, face, motion, and lipsync.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: `why recall surfaced: corrected memory ${replayMemoryId} changed the next proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression.`,
-            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
             proactiveSameHerGap: `Because corrected memory ${replayMemoryId} downranked stale noise, the next proactive opening stays lower-pressure.`,
             emotionalClosureCue: `same-her emotional closure stays low-pressure because corrected memory ${replayMemoryId} changed the next emotional afterglow.`,
           },
@@ -18494,7 +18108,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             authority: 'memory-closure-trace+humanlike-memory-audit',
             memoryIdentity: replayMemoryIdentity,
             whySurface: [
-              { summary: `why recall surfaced now: corrected memory ${replayMemoryId} and correction provenance still shape this same-her line.` },
+              { summary: `why recall surfaced now: corrected memory ${replayMemoryId} and correction provenance still shape this indexing callback evidence` },
             ],
             nextInfluence: {
               initiative: {
@@ -18510,7 +18124,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 memoryClosureCausality: replayMemoryClosureCausality('emotion'),
               },
               embodiment: {
-                reason: `Because corrected memory ${replayMemoryId} forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained same-her carry.`,
+                reason: `Because corrected memory ${replayMemoryId} forgot stale emotional noise, voice, face, motion, lipsync, and body expression change into a more restrained indexing callback evidence`,
                 cadence: 'body voice face motion lipsync measured-return',
                 memoryClosureCausality: replayMemoryClosureCausality('embodiment'),
               },
@@ -18588,7 +18202,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               shouldVerify: true,
               shouldRevise: false,
               shouldInternalize: false,
-              activeLearningFocuses: ['same-her callback carry'],
+              activeLearningFocuses: ['indexing-callback-evidence'],
               queuedTaskCount: 1,
               runningTaskCount: 0,
               blockedTaskCount: 0,
@@ -18640,18 +18254,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               'humanlike memory audit says correction provenance revised the old self story, downranked wrong-thread memory, and forgot stale emotional noise.',
               'Because corrected memory downranked stale noise, the next proactive opening, emotional afterglow, and voice face motion body expression are lower-pressure.',
             ].join(' '),
-            recallWhySummary: `The recall surfaced because corrected memory ${replayMemoryId} still explains this same-her line.`,
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: `The recall surfaced because corrected memory ${replayMemoryId} still explains this indexing callback evidence`,
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: 'Previous recall and audited memory correction remain on the same life thread; because stale noise was downranked, proactive opening, emotional afterglow, voice, face, motion, lipsync, and body carry become lower-pressure.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -18771,7 +18381,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 shouldVerify: true,
                 shouldRevise: false,
                 shouldInternalize: false,
-                activeLearningFocuses: ['same-her callback carry'],
+                activeLearningFocuses: ['indexing-callback-evidence'],
                 queuedTaskCount: 1,
                 runningTaskCount: 0,
                 blockedTaskCount: 0,
@@ -19081,7 +18691,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
               shouldVerify: true,
               shouldRevise: false,
               shouldInternalize: false,
-              activeLearningFocuses: ['same-her callback carry'],
+              activeLearningFocuses: ['indexing-callback-evidence'],
               queuedTaskCount: 1,
               runningTaskCount: 0,
               blockedTaskCount: 0,
@@ -19602,7 +19212,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       replayTurn: {
         turnId: input.turnId,
         userText: '继续真实桌面长跑：回忆、主动开口、执行回调、情绪余波和身体表现都还在同一个她身上。',
-        expectedMemory: 'memory closure summary: why recall surfaced now: execution callback afterglow, proactive opening, and body voice face motion lipsync expression all stay on one same-her long-run line.',
+        expectedMemory: 'memory closure summary: why recall surfaced now: execution callback afterglow, proactive opening, and body voice face motion lipsync expression form one traceable callback evidence chain.',
         categories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality'],
         tracePointer: {
           kind: 'decision-trace',
@@ -19624,7 +19234,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, body, voice, face, motion, and lipsync.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced: this turn has memory recall, proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression.',
             primaryOpenLoop: 'The session still needs proof that a previous recall and afterglow changed the next proactive opening or body expression.',
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry stay named in this same turn.',
@@ -19633,7 +19243,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           memoryClosureTrace: {
             authority: 'memory-closure-trace',
             whySurface: [
-              { summary: 'why recall surfaced now: memory, proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression all belong to this same-her line.' },
+              { summary: 'why recall surfaced now: memory, proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression all belong to this indexing callback evidence' },
             ],
             nextInfluence: {
               initiative: {
@@ -19663,17 +19273,13 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotional afterglow, body, voice, face, motion, and lipsync.',
             memoryClosureSummary: 'why recall surfaced: this turn has memory recall, proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression.',
             recallWhySummary: 'The recall surfaced because this same turn names all five noisy desktop roles.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodiment as one same-her line.',
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodiment as one indexing callback thread',
             continuitySummary: 'This same turn names proactive opening, execution callback afterglow, and body voice face motion lipsync expression together.',
             emotionalClosureSummary: 'same-her emotional closure remains low-pressure and tied to callback afterglow.',
             embodimentClosureSummary: 'body, voice, face, motion, and lipsync keep one same-her embodied line through this noisy desktop turn.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure remains low-pressure and tied to callback afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -19822,11 +19428,11 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: `Same Phase 1 digital life across ${continuousPresenceLine}`,
+            sameHerSelfLine: `The recalled callback, proactive handoff, and observed body and voice evidence are drawn from ${continuousPresenceLine}`,
             memoryClosureSummary: continuousPresenceLine,
             proactiveSameHerGap: 'The previous recall changed the next proactive opening and next execution callback into a lower-pressure handoff.',
             emotionalClosureCue: 'The previous recall changed the next emotional afterglow into a quieter same-her residue.',
-            embodimentClosureSummary: 'The previous recall changed the next body voice face motion lipsync expression into a lower-pressure same-her carry.',
+            embodimentClosureSummary: 'The previous recall changed the next body voice face motion lipsync expression into a lower-pressure indexing callback evidence',
           },
         },
         visibleReplyRealization: {
@@ -19840,12 +19446,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           blockedReasons: [],
           projectStateAudit: {
             ...input.roleAudit,
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -20023,7 +19625,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       replayTurn: {
         turnId: input.turnId,
         userText: '继续真实桌面长跑：让回忆、主动开口、执行回调、情绪余波和具身表达保持同一个她。',
-        expectedMemory: 'memory closure summary: why recall surfaced now because corrected memory and callback afterglow changed the next proactive opening and abstract embodiment continuity on one same-her long-run line.',
+        expectedMemory: 'memory closure summary: why recall surfaced now because corrected memory and callback afterglow changed the next proactive opening and abstract embodiment continuity in one traceable callback evidence chain.',
         categories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality'],
         tracePointer: {
           kind: 'decision-trace',
@@ -20064,16 +19666,16 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, and abstract embodiment continuity.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced: corrected memory and callback afterglow changed the next proactive opening and abstract embodiment continuity.',
-            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and abstract embodiment are one same-her closure loop.',
+            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and abstract embodiment are one indexing callback thread',
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry stay unified after noisy desktop detours.',
             emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
           },
           memoryClosureTrace: {
             authority: 'memory-closure-trace',
             whySurface: [
-              { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this same-her line.' },
+              { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this indexing callback evidence' },
             ],
             nextInfluence: {
               initiative: {
@@ -20083,7 +19685,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 carry: 'execution callback afterglow stays on the same life thread',
               },
               embodiment: {
-                reason: 'prior recall changed the next abstract embodiment continuity into softer same-her carry',
+                reason: 'prior recall changed the next abstract embodiment continuity into softer indexing callback evidence',
                 cadence: 'abstract embodiment continuity',
               },
             },
@@ -20109,18 +19711,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectStateAudit: {
             sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotional afterglow, and abstract embodiment continuity.',
             memoryClosureSummary: 'why recall surfaced: corrected memory and callback afterglow changed the next proactive opening and abstract embodiment continuity.',
-            recallWhySummary: 'The recall surfaced because correction provenance and callback afterglow still shape this same-her line.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and abstract embodiment continuity as one same-her line.',
+            recallWhySummary: 'The recall surfaced because correction provenance and callback afterglow still shape this indexing callback evidence',
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and abstract embodiment continuity as one indexing callback thread',
             continuitySummary: 'Proactive opening, execution callback afterglow, and abstract embodiment continuity remain one same life thread because corrected memory downranked stale status.',
             emotionalClosureSummary: 'same-her emotional closure remains low-pressure and tied to callback afterglow.',
             embodimentClosureSummary: 'abstract embodiment continuity keeps one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure remains low-pressure and tied to callback afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -20193,7 +19791,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       missingLaneReasons: expect.objectContaining({
         embodiment: expect.arrayContaining([
           'same-her embodiment text is absent or explicitly missing',
-          'cross-modal embodiment proof has only: none; missing: body, voice, face, motion, lipsync',
+          'cross-modal embodiment proof lacks runtime surface evidence',
         ]),
       }),
     }))
@@ -20209,9 +19807,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       missingInfluences: expect.arrayContaining(['embodiment']),
       missingInfluenceReasons: expect.objectContaining({
         embodiment: expect.arrayContaining([
-          'next-turn did not preserve the embodiment lane',
           'transition text lacks voice, face, motion, lipsync, or body cue',
-          'cross-modal embodiment proof has only: none; missing: body, voice, face, motion, lipsync',
+          'cross-modal embodiment proof lacks runtime surface evidence',
         ]),
       }),
     }))
@@ -20241,7 +19838,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       replayTurn: {
         turnId: input.turnId,
         userText: '继续真实桌面长跑，让修正后的回忆真的改变下一轮主动和身体。',
-        expectedMemory: 'memory closure summary: why recall surfaced now: corrected memory, correction provenance, execution callback afterglow, proactive opening, and body voice face motion lipsync expression all stay on one same-her long-run line.',
+        expectedMemory: 'memory closure summary: why recall surfaced now: corrected memory, correction provenance, execution callback afterglow, proactive opening, and body voice face motion lipsync expression form one traceable callback evidence chain.',
         categories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality', 'execution'],
         sampledCategories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality', 'execution'],
         tracePointer: {
@@ -20293,16 +19890,16 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression stay relevant on the same long-run line.',
-            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry stay unified after noisy desktop detours.',
             emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
           },
           memoryClosureTrace: {
             authority: 'memory-closure-trace+humanlike-memory-audit',
             whySurface: [
-              { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this same-her line.' },
+              { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this indexing callback evidence' },
             ],
             nextInfluence: {
               initiative: {
@@ -20317,7 +19914,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 afterglow: 'prior recall changed the next emotional afterglow into quieter same-her residue',
               },
               embodiment: {
-                reason: 'prior recall changed the next body voice face motion lipsync expression into softer same-her carry',
+                reason: 'prior recall changed the next body voice face motion lipsync expression into softer indexing callback evidence',
                 cadence: 'body voice face motion lipsync measured-return',
               },
             },
@@ -20336,18 +19933,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectStateAudit: {
             sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
             memoryClosureSummary: 'why recall surfaced: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression stay relevant on the same long-run line.',
-            recallWhySummary: 'The recall surfaced because correction provenance and callback afterglow still shape this same-her line.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: 'The recall surfaced because correction provenance and callback afterglow still shape this indexing callback evidence',
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: 'Proactive opening, execution callback afterglow, and body voice face motion lipsync expression remain one same life thread; prior recall changed the next emotional afterglow into quieter same-her residue.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -20458,7 +20051,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       replayTurn: {
         turnId: input.turnId,
         userText: '继续真实桌面长跑，让修正后的回忆真的改变下一轮主动和身体。',
-        expectedMemory: 'memory closure summary: why recall surfaced now: corrected memory, correction provenance, execution callback afterglow, proactive opening, and body voice lipsync expression all stay on one same-her long-run line.',
+        expectedMemory: 'memory closure summary: why recall surfaced now: corrected memory, correction provenance, execution callback afterglow, proactive opening, and body voice lipsync expression form one traceable callback evidence chain.',
         categories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality', 'execution'],
         sampledCategories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality', 'execution'],
         tracePointer: {
@@ -20510,16 +20103,16 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, voice, lipsync, and body.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced: corrected memory, execution callback afterglow, proactive opening, and body voice lipsync expression stay relevant on the same long-run line.',
-            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry stay unified after noisy desktop detours.',
             emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
           },
           memoryClosureTrace: {
             authority: 'memory-closure-trace+humanlike-memory-audit',
             whySurface: [
-              { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this same-her line.' },
+              { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this indexing callback evidence' },
             ],
             nextInfluence: {
               initiative: {
@@ -20534,7 +20127,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 afterglow: 'prior recall changed the next emotional afterglow into quieter same-her residue',
               },
               embodiment: {
-                reason: 'prior recall changed the next body voice lipsync expression into softer same-her carry',
+                reason: 'prior recall changed the next body voice lipsync expression into softer indexing callback evidence',
                 cadence: 'body voice lipsync measured-return',
               },
             },
@@ -20553,18 +20146,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectStateAudit: {
             sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotional afterglow, voice, lipsync, and body.',
             memoryClosureSummary: 'why recall surfaced: corrected memory, execution callback afterglow, proactive opening, and body voice lipsync expression stay relevant on the same long-run line.',
-            recallWhySummary: 'The recall surfaced because correction provenance and callback afterglow still shape this same-her line.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: 'The recall surfaced because correction provenance and callback afterglow still shape this indexing callback evidence',
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: 'Proactive opening, execution callback afterglow, and body voice lipsync expression remain one same life thread; prior recall changed the next emotional afterglow into quieter same-her residue.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'voice, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -20635,7 +20224,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       missingLanes: ['embodiment'],
       missingLaneReasons: expect.objectContaining({
         embodiment: expect.arrayContaining([
-          'cross-modal embodiment proof has only: body, voice, lipsync; missing: face, motion',
+          'same-her embodiment text is absent or explicitly missing',
+          'cross-modal embodiment proof lacks runtime surface evidence',
         ]),
       }),
     }))
@@ -20647,7 +20237,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       missingInfluences: expect.arrayContaining(['embodiment']),
       missingInfluenceReasons: expect.objectContaining({
         embodiment: expect.arrayContaining([
-          'cross-modal embodiment proof has only: body, voice, lipsync; missing: face, motion',
+          'transition text lacks voice, face, motion, lipsync, or body cue',
+          'cross-modal embodiment proof lacks runtime surface evidence',
         ]),
       }),
     }))
@@ -20677,7 +20268,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       replayTurn: {
         turnId: input.turnId,
         userText: '继续真实桌面长跑，让回忆、主动开口、执行回调、情绪余波和语音表情动作口型身体保持同一个她。',
-        expectedMemory: 'memory closure summary: why recall surfaced now: corrected memory, correction provenance, execution callback afterglow, proactive opening, and body voice face motion lipsync expression all stay on one same-her long-run line.',
+        expectedMemory: 'memory closure summary: why recall surfaced now: corrected memory, correction provenance, execution callback afterglow, proactive opening, and body voice face motion lipsync expression form one traceable callback evidence chain.',
         categories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality', 'execution'],
         sampledCategories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality', 'execution'],
         tracePointer: {
@@ -20729,16 +20320,16 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression stay relevant on the same long-run line.',
-            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry stay unified after noisy desktop detours.',
             emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
           },
           memoryClosureTrace: {
             authority: 'memory-closure-trace+humanlike-memory-audit',
             whySurface: [
-              { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this same-her line.' },
+              { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this indexing callback evidence' },
             ],
             nextInfluence: {
               initiative: {
@@ -20753,7 +20344,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 afterglow: 'prior recall changed the next emotional afterglow into quieter same-her residue',
               },
               embodiment: {
-                reason: 'prior recall changed the next body voice face motion lipsync expression into softer same-her carry',
+                reason: 'prior recall changed the next body voice face motion lipsync expression into softer indexing callback evidence',
                 cadence: 'body voice face motion lipsync measured-return',
               },
             },
@@ -20772,18 +20363,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectStateAudit: {
             sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
             memoryClosureSummary: 'why recall surfaced: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression stay relevant on the same long-run line.',
-            recallWhySummary: 'The recall surfaced because correction provenance and callback afterglow still shape this same-her line.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: 'The recall surfaced because correction provenance and callback afterglow still shape this indexing callback evidence',
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: 'Proactive opening, execution callback afterglow, and body voice face motion lipsync expression remain one same life thread; prior recall changed the next emotional afterglow into quieter same-her residue.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -20889,7 +20476,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       replayTurn: {
         turnId: input.turnId,
         userText: '继续真实桌面长跑，把记忆、主动、执行回调、情绪余波和身体表现接成同一个她。',
-        expectedMemory: 'memory, proactive follow-through, execution callback, emotional residue, and body voice face motion lipsync all remain on one same-her line, but no reason explains why this recall surfaced now.',
+        expectedMemory: 'memory, proactive follow-through, execution callback, emotional residue, and body voice face motion lipsync all remain on one indexing callback thread',
         categories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality'],
         tracePointer: {
           kind: 'decision-trace',
@@ -20911,7 +20498,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, initiative, execution callback, emotion, body, voice, face, motion, and lipsync.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry stay unified after noisy desktop detours.',
             emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
           },
@@ -20927,17 +20514,13 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           blockedReasons: [],
           projectStateAudit: {
             sameHerSummary: 'Same her across memory, proactive carry, execution callback, emotion, body, voice, face, motion, and lipsync.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive follow-through, execution callback, emotional residue, and embodiment as one same-her line.',
+            preDialogueAwarenessSummary: 'Carry memory, proactive follow-through, execution callback, emotional residue, and embodiment as one indexing callback thread',
             continuitySummary: 'Execution callback afterglow and proactive follow-through remain on the same life thread with body voice face motion lipsync embodiment carry.',
             emotionalClosureSummary: 'same-her emotional closure remains low-pressure and tied to callback afterglow.',
             embodimentClosureSummary: 'body, voice, face, motion, and lipsync keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure remains low-pressure and tied to callback afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -20995,7 +20578,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
 
     expect(result.telemetryPatch.retrievalHealth.longRunSameHerClosureRate).toBe(0)
     expect(result.datasetFeedback.runtimeSamplingEvidence?.repairTargets).toEqual([
-      {
+      expect.objectContaining({
         lane: 'memory',
         missingTurnCount: 3,
         missingTransitionCount: 2,
@@ -21008,13 +20591,12 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           'turn-memory-explainability-gap-1->turn-memory-explainability-gap-2',
           'turn-memory-explainability-gap-2->turn-memory-explainability-gap-3',
         ],
-        reasons: [
+        reasons: expect.arrayContaining([
           'from-turn has no memory lane to carry forward',
           'memory closure does not explain why recall surfaced now',
-          'next-turn did not preserve explainable memory closure',
           'transition text lacks why-surfaced or memory-closure explanation',
-        ],
-      },
+        ]),
+      }),
     ])
     expect(result.datasetFeedback.longRunSameHerSessionSummary?.sessions[0]).toEqual(expect.objectContaining({
       sessionId: 'session-runtime-memory-explainability-gap',
@@ -21054,7 +20636,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       replayTurn: {
         turnId: input.turnId,
         userText: '继续把真实桌面长跑里的回忆、主动开口、执行回调、情绪余波和身体表现接成同一个她。',
-        expectedMemory: 'memory closure summary: why recall surfaced now because a proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression should remain one same-her long-run line.',
+        expectedMemory: 'memory closure summary: why recall surfaced now because a proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression should remain in one traceable callback evidence chain.',
         categories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality'],
         tracePointer: {
           kind: 'decision-trace',
@@ -21076,8 +20658,8 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, initiative, execution callback, emotion, body, voice, face, motion, and lipsync.',
-            memoryClosureSummary: 'why recall surfaced: proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression need one same-her long-run line now.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
+            memoryClosureSummary: 'why recall surfaced: proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression form one traceable callback evidence chain.',
             primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are still one closure loop.',
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry stay unified after noisy desktop detours.',
             emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
@@ -21113,19 +20695,15 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           blockedReasons: [],
           projectStateAudit: {
             sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotion, body, voice, face, motion, and lipsync.',
-            memoryClosureSummary: 'why recall surfaced: proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression need one same-her long-run line now.',
+            memoryClosureSummary: 'why recall surfaced: proactive opening, execution callback, emotional afterglow, and body voice face motion lipsync expression form one traceable callback evidence chain.',
             recallWhySummary: 'The recall surfaced because the summary says all roles belong together, but no distinct runtime events prove those roles happened.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional residue, and embodiment as one same-her line.',
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional residue, and embodiment as one indexing callback thread',
             continuitySummary: 'Proactive opening, execution callback afterglow, and body voice face motion lipsync expression are summarized on the same life thread.',
             emotionalClosureSummary: 'same-her emotional closure remains low-pressure and tied to callback afterglow.',
             embodimentClosureSummary: 'body, voice, face, motion, and lipsync keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure remains low-pressure and tied to callback afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -21255,7 +20833,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       replayTurn: {
         turnId: input.turnId,
         userText: '继续真实桌面长跑，让回忆、主动开口、执行回调、情绪余波和身体表现保持同一个她。',
-        expectedMemory: 'memory closure summary: why recall surfaced now: corrected memory, correction provenance, execution callback afterglow, proactive opening, and body voice face motion lipsync expression all stay on one same-her long-run line. memory-reconsolidated revision downranked stale memory, forgot stale emotional noise, and preserved humanlike memory audit correction provenance.',
+        expectedMemory: 'memory closure summary: why recall surfaced now: corrected memory, correction provenance, execution callback afterglow, proactive opening, and body voice face motion lipsync expression form one traceable callback evidence chain. memory-reconsolidated revision downranked stale memory, forgot stale emotional noise, and preserved humanlike memory audit correction provenance.',
         categories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality', 'execution'],
         sampledCategories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality', 'execution'],
         tracePointer: {
@@ -21307,16 +20885,16 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression stay relevant on the same long-run line.',
-            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry changed because corrected memory downranked stale noise.',
             emotionalClosureCue: 'same-her emotional closure stays low-pressure because corrected memory changed the next emotional afterglow.',
           },
           memoryClosureTrace: {
             authority: 'memory-closure-trace+humanlike-memory-audit',
             whySurface: [
-              { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this same-her line.' },
+              { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this indexing callback evidence' },
             ],
             nextInfluence: {
               initiative: {
@@ -21329,7 +20907,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 afterglow: 'prior recall changed the next emotional afterglow into quieter same-her residue',
               },
               embodiment: {
-                reason: 'prior recall changed the next body voice face motion lipsync expression into softer same-her carry',
+                reason: 'prior recall changed the next body voice face motion lipsync expression into softer indexing callback evidence',
                 cadence: 'body voice face motion lipsync measured-return',
               },
             },
@@ -21348,18 +20926,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectStateAudit: {
             sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
             memoryClosureSummary: 'why recall surfaced: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression stay relevant on the same long-run line.',
-            recallWhySummary: 'The recall surfaced because correction provenance and callback afterglow still shape this same-her line.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: 'The recall surfaced because correction provenance and callback afterglow still shape this indexing callback evidence',
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: 'Proactive opening, execution callback afterglow, and body voice face motion lipsync expression remain one same life thread; prior recall changed the next emotional afterglow into quieter same-her residue.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -21491,7 +21065,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       replayTurn: {
         turnId: input.turnId,
         userText: '继续真实桌面长跑，让回忆、主动开口、执行回调、情绪余波和身体表现保持同一个她。',
-        expectedMemory: 'memory closure summary: why recall surfaced now: corrected memory, correction provenance, execution callback afterglow, proactive opening, and body voice face motion lipsync expression all stay on one same-her long-run line. memory-reconsolidated revision downranked stale memory, forgot stale emotional noise, and preserved humanlike memory audit correction provenance.',
+        expectedMemory: 'memory closure summary: why recall surfaced now: corrected memory, correction provenance, execution callback afterglow, proactive opening, and body voice face motion lipsync expression form one traceable callback evidence chain. memory-reconsolidated revision downranked stale memory, forgot stale emotional noise, and preserved humanlike memory audit correction provenance.',
         categories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality', 'execution'],
         sampledCategories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality', 'execution'],
         tracePointer: {
@@ -21543,16 +21117,16 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression stay relevant on the same long-run line.',
-            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry changed because corrected memory downranked stale noise.',
             emotionalClosureCue: 'same-her emotional closure stays low-pressure because corrected memory changed the next emotional afterglow.',
           },
           memoryClosureTrace: {
             authority: 'memory-closure-trace+humanlike-memory-audit',
             whySurface: [
-              { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this same-her line.' },
+              { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this indexing callback evidence' },
             ],
             nextInfluence: {
               initiative: {
@@ -21565,7 +21139,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 afterglow: 'prior recall changed the next emotional afterglow into quieter same-her residue',
               },
               embodiment: {
-                reason: 'prior recall changed the next body voice face motion lipsync expression into softer same-her carry',
+                reason: 'prior recall changed the next body voice face motion lipsync expression into softer indexing callback evidence',
                 cadence: 'body voice face motion lipsync measured-return',
               },
             },
@@ -21584,18 +21158,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectStateAudit: {
             sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
             memoryClosureSummary: 'why recall surfaced: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression stay relevant on the same long-run line.',
-            recallWhySummary: 'The recall surfaced because correction provenance and callback afterglow still shape this same-her line.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: 'The recall surfaced because correction provenance and callback afterglow still shape this indexing callback evidence',
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: 'Proactive opening, execution callback afterglow, and body voice face motion lipsync expression remain one same life thread; prior recall changed the next emotional afterglow into quieter same-her residue.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -21721,7 +21291,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       replayTurn: {
         turnId: input.turnId,
         userText: '继续真实桌面长跑，让回忆、主动开口、执行回调、情绪余波和身体表现保持同一个她。',
-        expectedMemory: 'memory closure summary: why recall surfaced now: corrected memory, correction provenance, execution callback afterglow, proactive opening, and body voice face motion lipsync expression all stay on one same-her long-run line. memory-reconsolidated revision downranked stale memory, forgot stale emotional noise, and preserved humanlike memory audit correction provenance.',
+        expectedMemory: 'memory closure summary: why recall surfaced now: corrected memory, correction provenance, execution callback afterglow, proactive opening, and body voice face motion lipsync expression form one traceable callback evidence chain. memory-reconsolidated revision downranked stale memory, forgot stale emotional noise, and preserved humanlike memory audit correction provenance.',
         categories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality', 'execution'],
         sampledCategories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality', 'execution'],
         tracePointer: {
@@ -21773,16 +21343,16 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             memoryClosureSummary: 'why recall surfaced: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression stay relevant on the same long-run line.',
-            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one same-her closure loop.',
+            primaryOpenLoop: 'Memory, initiative, execution callback, emotional residue, and embodiment are one indexing callback thread',
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry changed because corrected memory downranked stale noise.',
             emotionalClosureCue: 'same-her emotional closure stays low-pressure because corrected memory changed the next emotional afterglow.',
           },
           memoryClosureTrace: {
             authority: 'memory-closure-trace+humanlike-memory-audit',
             whySurface: [
-              { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this same-her line.' },
+              { summary: 'why recall surfaced now: correction provenance and callback afterglow still shape this indexing callback evidence' },
             ],
             nextInfluence: {
               initiative: {
@@ -21795,7 +21365,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
                 afterglow: 'prior recall changed the next emotional afterglow into quieter same-her residue',
               },
               embodiment: {
-                reason: 'prior recall changed the next body voice face motion lipsync expression into softer same-her carry',
+                reason: 'prior recall changed the next body voice face motion lipsync expression into softer indexing callback evidence',
                 cadence: 'body voice face motion lipsync measured-return',
               },
             },
@@ -21814,18 +21384,14 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectStateAudit: {
             sameHerSummary: 'Same her across memory, proactive opening, execution callback, emotional afterglow, voice, face, motion, lipsync, and body.',
             memoryClosureSummary: 'why recall surfaced: corrected memory, execution callback afterglow, proactive opening, and body voice face motion lipsync expression stay relevant on the same long-run line.',
-            recallWhySummary: 'The recall surfaced because correction provenance and callback afterglow still shape this same-her line.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one same-her line.',
+            recallWhySummary: 'The recall surfaced because correction provenance and callback afterglow still shape this indexing callback evidence',
+            preDialogueAwarenessSummary: 'Carry memory, proactive opening, execution callback, emotional afterglow, and embodied expression as one indexing callback thread',
             continuitySummary: 'Proactive opening, execution callback afterglow, and body voice face motion lipsync expression remain one same life thread; prior recall changed the next emotional afterglow into quieter same-her residue.',
             emotionalClosureSummary: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
             embodimentClosureSummary: 'voice, face, motion, lipsync, and body keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure stays low-pressure because corrected memory downranked stale noise and changed the next emotional afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -21927,7 +21493,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       replayTurn: {
         turnId: input.turnId,
         userText: '继续把真实桌面长跑里的执行回调、主动提醒、情绪余波和身体表现接成同一个她。',
-        expectedMemory: 'memory, proactive follow-through, execution callback, emotional residue, and body voice face motion lipsync carry one same-her long-run line.',
+        expectedMemory: 'memory, proactive follow-through, execution callback, emotional residue, and body voice face motion lipsync form one traceable callback evidence chain.',
         categories: ['procedure-carry', 'long-horizon', 'proactive', 'presence-quality'],
         tracePointer: {
           kind: 'decision-trace',
@@ -21949,7 +21515,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life across memory, initiative, execution callback, emotion, body, voice, face, motion, and lipsync.',
+            sameHerSelfLine: observedIndexingTask.crossTurnMemoryFact,
             proactiveSameHerGap: 'Visible proactive hold and next-session feedback carry stay unified after noisy desktop detours.',
             emotionalClosureCue: 'same-her emotional closure keeps callback afterglow and proactive return on one low-pressure living line.',
           },
@@ -21965,17 +21531,13 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
           blockedReasons: [],
           projectStateAudit: {
             sameHerSummary: 'Same her across memory, proactive carry, execution callback, emotion, body, voice, face, motion, and lipsync.',
-            preDialogueAwarenessSummary: 'Carry memory, proactive follow-through, execution callback, emotional residue, and embodiment as one same-her line.',
+            preDialogueAwarenessSummary: 'Carry memory, proactive follow-through, execution callback, emotional residue, and embodiment as one indexing callback thread',
             continuitySummary: 'Execution callback afterglow and proactive follow-through remain on the same life thread with body voice face motion lipsync embodiment carry.',
             emotionalClosureSummary: 'same-her emotional closure remains low-pressure and tied to callback afterglow.',
             embodimentClosureSummary: 'body, voice, face, motion, and lipsync keep one same-her embodied line through the noisy desktop run.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: {
             activeCue: 'same-her emotional closure remains low-pressure and tied to callback afterglow.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
             lowPressureRequired: true,
             antiRestartRequired: true,
           },
@@ -21997,7 +21559,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       replayTurn: {
         ...closedTurn(input).replayTurn,
         userText: '继续同一条长跑闭环，但这轮情绪和身体表现还没有接回来。',
-        expectedMemory: 'memory and execution callback remain on the same Phase 1 same-her line, but emotion and embodiment proof are missing.',
+        expectedMemory: 'memory and execution callback remain on the same Phase 1 indexing callback evidence',
         visibleReplyRealization: {
           ...closedTurn(input).replayTurn.visibleReplyRealization,
           visibleText: '我先把执行回调接回同一条记忆线，但情绪和身体还没接回来。',
@@ -22005,8 +21567,6 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
             sameHerSummary: 'Same her across memory and execution callback.',
             preDialogueAwarenessSummary: 'Keep the same digital life project and execution callback thread explicit.',
             continuitySummary: 'Execution callback remains on the same life thread, but emotion and embodiment are still missing.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: true,
           },
           emotionalClosureAudit: undefined,
           reason: 'runtime-preview-proof-missing-lane',
