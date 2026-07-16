@@ -159,20 +159,6 @@ export function filterMainGatewayToolsForRoutingIntent<T extends { function?: { 
     : tools
 }
 
-export function buildSessionMirrorRecollectionAfterthoughtSeed(mirror: AlicizationDialogueSessionMirror | null) {
-  if (!mirror)
-    return ''
-  if (!mirror.recollectionSummary || !mirror.recollectionSurfaceSummary)
-    return ''
-  if (!mirror.recollectionSurfaceSummary.includes('afterthought=ripe'))
-    return ''
-  return [
-    'mirror_recollection_afterthought:',
-    mirror.recollectionSummary,
-    mirror.recollectionSurfaceSummary,
-  ].filter(Boolean).join(' ')
-}
-
 export function buildSessionMirrorRuntimeContinuitySeed(mirror: AlicizationDialogueSessionMirror | null) {
   if (!mirror)
     return ''
@@ -487,12 +473,6 @@ export function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessio
 
   const projectAwareLines = projectAwareSignals.map((signal) => {
     const metadata = signal.metadata ?? {}
-    const projectStatePreDialogueAwarenessLine = sanitizeGuidanceText(
-      typeof metadata.projectStatePreDialogueAwarenessLine === 'string'
-        ? metadata.projectStatePreDialogueAwarenessLine
-        : '',
-      220,
-    )
     const projectStatePreflightSummary = sanitizeProjectStateSeedField(
       typeof metadata.projectStatePreflightSummary === 'string' ? metadata.projectStatePreflightSummary : '',
       220,

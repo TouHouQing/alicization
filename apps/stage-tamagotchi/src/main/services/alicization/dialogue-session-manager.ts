@@ -3,7 +3,7 @@ import type { AlicizationAgentSessionSnapshot } from './agent-runtime'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationDigitalLifeSpineSnapshot } from './digital-life-spine'
 import type { AlicizationMainChatRuntimeSurface } from './main-chat-runtime-surface'
-import type { OrganicMemoryPromptContext } from './runtime-soul'
+import type { OrganicMemoryPromptContext, OrganicMemoryRecollectionCarry } from './runtime-soul'
 
 import {
   alicizationFixedTemplateReplacement,
@@ -47,15 +47,15 @@ export interface AlicizationDialogueSessionMirror {
   mindSummary: string | null
   memoryCarrySummary: string | null
   memorySummary: string | null
-  recollectionSummary?: string | null
-  recollectionSurfaceSummary?: string | null
-  recollectionConfidence?: number | null
+  recollection: AlicizationDialogueSessionRecollectionState | null
   perceptionSummary: string | null
   sessionId: string
   sessionPhases: string[]
   toolingSummary: string
   updatedAt: number
 }
+
+export type AlicizationDialogueSessionRecollectionState = OrganicMemoryRecollectionCarry
 
 export interface AlicizationDialogueSessionManager {
   buildSessionMirrorSystemBlock: (input: {
@@ -689,6 +689,7 @@ function cloneMirror(mirror: AlicizationDialogueSessionMirror): AlicizationDialo
   return {
     ...mirror,
     continuityLabels: [...mirror.continuityLabels],
+    recollection: mirror.recollection ? { ...mirror.recollection } : null,
     sessionPhases: [...mirror.sessionPhases],
   }
 }
@@ -1707,7 +1708,9 @@ function compactContinuityArcSummary(summary: string | null | undefined) {
   return result || sanitizeText(normalized, continuityArcSummaryMaxChars)
 }
 
-function summarizeRecollectionForeground(context: OrganicMemoryPromptContext | null | undefined) {
+function deriveSessionMirrorRecollectionState(
+  context: OrganicMemoryPromptContext | null | undefined,
+): AlicizationDialogueSessionRecollectionState | null {
   const deliberation = context?.memoryDeliberation ?? null
   const intent = context?.recollectionIntent ?? null
   const plan = context?.recollectionPlan ?? null
@@ -1716,16 +1719,18 @@ function summarizeRecollectionForeground(context: OrganicMemoryPromptContext | n
   if (!deliberation && !intent && !plan && !speech && !narrative)
     return null
 
-  const opening = sanitizeText(
+  const sanitizedForeground = sanitizeMirrorProviderFacingText(
     deliberation?.inwardLine
     ?? plan?.opening
-    ?? speech?.internalLead
     ?? narrative?.recallCenter
     ?? narrative?.opening
     ?? '',
     180,
-  ) || null
-  const certainty = sanitizeText(speech?.certainty ?? plan?.certainty ?? narrative?.certainty ?? '', 32) || null
+  )
+  const foreground = sanitizedForeground && sanitizedForeground !== alicizationFixedTemplateReplacement
+    ? sanitizedForeground
+    : null
+  const certainty = speech?.certainty ?? plan?.certainty ?? narrative?.certainty ?? null
   const confidence = Number.isFinite(deliberation?.confidence)
     ? Number(deliberation!.confidence)
     : Number.isFinite(plan?.confidence)
@@ -1735,27 +1740,37 @@ function summarizeRecollectionForeground(context: OrganicMemoryPromptContext | n
         : Number.isFinite(narrative?.confidence)
           ? Number(narrative!.confidence)
           : null
-  const mode = sanitizeText(intent?.mode ?? narrative?.mode ?? '', 48) || null
+  const rawMode = intent?.mode ?? narrative?.mode ?? null
+  const mode = rawMode && rawMode !== 'none' ? rawMode : null
+  const surfaceMode = deliberation?.surfacePolicy ?? speech?.surfaceMode ?? null
+  const placement = speech?.placement ?? null
+  const hasSurfaceDecision = Boolean(deliberation || speech)
+  const visibility = hasSurfaceDecision
+    ? deliberation?.shouldRecall === false || speech?.shouldSurface !== true
+      ? 'inward'
+      : 'visible'
+    : null
+  const normalizedConfidence = Number.isFinite(confidence)
+    ? Math.max(0, Math.min(1, Number(confidence)))
+    : null
+  const afterthoughtState = (
+    hasSurfaceDecision
+    && deliberation?.shouldRecall !== false
+    && (surfaceMode === 'internal-only' || placement === 'internal-only')
+    && (normalizedConfidence ?? 0) >= 0.68
+  )
+    ? 'ripe'
+    : 'resting'
 
   return {
-    summary: [
-      mode ? `mode=${mode}` : '',
-      certainty ? `certainty=${certainty}` : '',
-      opening ? `foreground=${opening}` : '',
-    ].filter(Boolean).join(' | ') || null,
-    surfaceSummary: deliberation || speech
-      ? [
-          deliberation?.shouldRecall === false || !speech?.shouldSurface ? 'surface=inward' : 'surface=visible',
-          (deliberation?.shouldRecall !== false && (deliberation?.surfacePolicy === 'internal-only' || speech?.placement === 'internal-only') && (confidence ?? 0) >= 0.68)
-            ? 'afterthought=ripe'
-            : '',
-          deliberation?.surfacePolicy ? `surface_mode=${sanitizeText(deliberation.surfacePolicy, 48)}` : speech?.surfaceMode ? `surface_mode=${sanitizeText(speech.surfaceMode, 48)}` : '',
-          speech?.placement ? `placement=${sanitizeText(speech.placement, 48)}` : '',
-          deliberation?.visibleLine ? `visible=${sanitizeText(deliberation.visibleLine, 140)}` : speech?.visibleLead ? `visible=${sanitizeText(speech.visibleLead, 140)}` : '',
-          speech?.styleNote ? `style=${sanitizeText(speech.styleNote, 140)}` : '',
-        ].filter(Boolean).join(' | ') || null
-      : null,
-    confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, Number(confidence))) : null,
+    afterthoughtState,
+    certainty,
+    confidence: normalizedConfidence,
+    foreground,
+    mode,
+    placement,
+    surfaceMode,
+    visibility,
   }
 }
 
@@ -1993,7 +2008,7 @@ export function createAlicizationDialogueSessionManager(
             preparedRuntimeSurface: preferredRuntimeSurface,
             runtimeSurfaceSpine: preferredIncomingDigitalLifeSpine,
           })
-    const recollectionForeground = summarizeRecollectionForeground(input.organicMemoryContext ?? null)
+    const recollection = deriveSessionMirrorRecollectionState(input.organicMemoryContext ?? null)
     const mirror: AlicizationDialogueSessionMirror = {
       cardId: normalizedCardId,
       sessionId: normalizedSessionId,
@@ -2058,21 +2073,10 @@ export function createAlicizationDialogueSessionManager(
         220,
       ) || previousMirror?.memoryCarrySummary || null,
       memorySummary: sanitizeMirrorProviderFacingSummary(
-        [
-          summarizeMemoryFromSpine(digitalLifeSpine),
-          recollectionForeground?.summary ? `recollection=${sanitizeText(recollectionForeground.summary, 120)}` : '',
-        ].filter(Boolean).join(' | '),
+        summarizeMemoryFromSpine(digitalLifeSpine),
         220,
       ) || previousMirror?.memorySummary || null,
-      recollectionSummary: sanitizeMirrorProviderFacingSummary(
-        recollectionForeground?.summary,
-        220,
-      ) || previousMirror?.recollectionSummary || null,
-      recollectionSurfaceSummary: sanitizeMirrorProviderFacingSummary(
-        recollectionForeground?.surfaceSummary,
-        220,
-      ) || previousMirror?.recollectionSurfaceSummary || null,
-      recollectionConfidence: recollectionForeground?.confidence ?? previousMirror?.recollectionConfidence ?? null,
+      recollection: recollection ?? previousMirror?.recollection ?? null,
       perceptionSummary: sanitizeText(
         summarizePerceptionFromSpine(digitalLifeSpine),
         220,
@@ -2199,9 +2203,7 @@ export function createAlicizationDialogueSessionManager(
         summarizeMemoryFromSpine(digitalLifeSpine),
         220,
       ) || previousMirror?.memorySummary || null,
-      recollectionSummary: previousMirror?.recollectionSummary ?? null,
-      recollectionSurfaceSummary: previousMirror?.recollectionSurfaceSummary ?? null,
-      recollectionConfidence: previousMirror?.recollectionConfidence ?? null,
+      recollection: previousMirror?.recollection ?? null,
       perceptionSummary: sanitizeText(
         summarizePerceptionFromSpine(digitalLifeSpine),
         220,
@@ -2268,13 +2270,6 @@ export function createAlicizationDialogueSessionManager(
       `mind=${mirror.mindSummary ?? 'none'}`,
       `memory_carry=${mirror.memoryCarrySummary ?? 'none'}`,
       `memory=${mirror.memorySummary ?? 'none'}`,
-      `recollection=${mirror.recollectionSummary ?? 'none'}`,
-      mirror.recollectionSurfaceSummary
-        ? `recollection_surface=${mirror.recollectionSurfaceSummary}`
-        : 'recollection_surface=none',
-      typeof mirror.recollectionConfidence === 'number'
-        ? `recollection_confidence=${mirror.recollectionConfidence.toFixed(2)}`
-        : 'recollection_confidence=none',
       `perception=${mirror.perceptionSummary ?? 'none'}`,
       `agency=${mirror.agencySummary ?? 'none'}`,
       `execution=${mirror.executionSummary ?? 'none'}`,

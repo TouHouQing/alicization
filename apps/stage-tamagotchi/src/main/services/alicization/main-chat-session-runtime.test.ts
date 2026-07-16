@@ -4235,13 +4235,19 @@ describe('main chat session runtime', () => {
       }),
     })
 
-    expect(firstResult.sessionMirror?.recollectionSurfaceSummary).toContain('afterthought=ripe')
+    expect(firstResult.sessionMirror?.recollection).toMatchObject({
+      afterthoughtState: 'ripe',
+      foreground: 'What returns first is the runtime seam we kept carrying.',
+      visibility: 'inward',
+    })
     expect(persistAutobiographicalEpisodesFromPreparedMirror).toHaveBeenCalledWith(expect.objectContaining({
       cardId: 'default',
       turnId: 'turn-afterthought-1',
       sessionId: firstResult.conversationSessionId,
       mirror: expect.objectContaining({
-        recollectionSurfaceSummary: expect.stringContaining('afterthought=ripe'),
+        recollection: expect.objectContaining({
+          afterthoughtState: 'ripe',
+        }),
       }),
     }))
 
@@ -4262,9 +4268,10 @@ describe('main chat session runtime', () => {
     const lastOrganicCall = resolveOrganicMemoryPromptContext.mock.calls.at(-1) as unknown[] | undefined
     const secondOrganicInput = (lastOrganicCall?.[0] ?? {}) as {
       recallSeed?: string
+      sessionMirrorRecollection?: unknown
     }
-    expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('mirror_recollection_afterthought:')
-    expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('foreground=What returns first is the runtime seam we kept carrying.')
+    expect(secondOrganicInput.sessionMirrorRecollection).toEqual(firstResult.sessionMirror?.recollection)
+    expect(String(secondOrganicInput?.recallSeed ?? '')).not.toContain('mirror_recollection_afterthought:')
   })
 
   it('carries runtime continuity from the session mirror into the next turn recall seed', async () => {
@@ -7416,15 +7423,14 @@ describe('main chat session runtime', () => {
       && typeof message.content === 'string'
       && message.content.includes('[ALICIZATION_RECOLLECTION_SPEECH_PLAN]'),
     )).toBe(true)
-    expect(result.sessionMirror?.recollectionSummary).toContain('foreground=What returns first is the runtime seam we kept carrying.')
-    expect(result.sessionMirror?.recollectionSurfaceSummary).toContain('surface=inward')
+    expect(result.sessionMirror?.recollection).toMatchObject({
+      afterthoughtState: 'ripe',
+      foreground: null,
+      visibility: 'inward',
+    })
     expect(result.governance?.mustDo.join(' | ')).toMatch(/(memory|recollection)_latent_controls=/)
-    expect(result.governance?.mustNotDo.join(' | ')).toContain('Do not reuse drafted recollection wording')
-    expect(result.governance?.mindTurnFrame?.self.thought).toContain('Recollection latent controls:')
-    expect(result.governance?.mindTurnFrame?.self.thought).not.toContain('What returns first is the runtime seam we kept carrying.')
-    expect(result.governance?.mindTurnFrame?.obligation.answerIntent).toContain('recollection_answer_anchor{')
-    expect(result.governance?.mindTurnFrame?.obligation.whyNow).toContain('An active recollection is shaping the answer from the inside')
-    expect(result.governance?.mindTurnFrame?.narrative).toContain('memory:inward-recollection')
+    expect(result.governance?.mustNotDo.join(' | ')).toContain('memory_recollection_verbatim_copy=blocked')
+    expect(JSON.stringify(result.sessionMirror?.recollection ?? null)).not.toContain('What returns first is the runtime seam we kept carrying.')
   })
 
   it('threads memory deliberation into runtime governance as the final memory authority', async () => {

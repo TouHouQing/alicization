@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildSessionContinuityRecallSeed,
-  buildSessionMirrorRecollectionAfterthoughtSeed,
   buildSessionMirrorRuntimeContinuitySeed,
   deriveOrganicMemoryBudgetClass,
   filterMainGatewayToolsForRoutingIntent,
@@ -23,15 +22,7 @@ describe('runtime turn composition helpers', () => {
     } as any)).toBe('deep-recall-reply')
   })
 
-  it('builds afterglow recall seeds only from ripe continuity signals', () => {
-    expect(buildSessionMirrorRecollectionAfterthoughtSeed({
-      recollectionSummary: 'old seam',
-      recollectionSurfaceSummary: 'afterthought=ripe room-first',
-    } as any)).toContain('mirror_recollection_afterthought')
-    expect(buildSessionMirrorRecollectionAfterthoughtSeed({
-      recollectionSummary: 'old seam',
-      recollectionSurfaceSummary: 'afterthought=not-yet',
-    } as any)).toBe('')
+  it('builds runtime and afterglow continuity recall seeds', () => {
     expect(buildSessionMirrorRuntimeContinuitySeed({
       runtimeChannelSummary: 'dominant=dialogue | phase=dialogue | handoff=dialogue',
       runtimeTransitionSummary: 'from=symbiotic-vision | to=recovering | scenario=coding | reason=host fatigue detected',

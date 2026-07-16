@@ -136,8 +136,7 @@ function deriveExecutionCallbackCarryModeFromMirror(mirror: AlicizationDialogueS
   const haystack = [
     sanitizeText(mirror.agencySummary, 220),
     sanitizeText(mirror.digitalLifeRuntimeSummary, 220),
-    sanitizeText(mirror.recollectionSummary, 220),
-    sanitizeText(mirror.recollectionSurfaceSummary, 220),
+    sanitizeText(mirror.recollection?.foreground, 220),
   ].join(' ').toLowerCase()
   if (!/afterglow=execution-callback|execution-callback/u.test(haystack))
     return null
@@ -247,9 +246,9 @@ export function buildAutobiographicalEpisodesFromPreparedMirror(input: {
   projectStateSameHerSelfLine?: string | null
 }): AlicizationEpisodicEventInput[] {
   const events: AlicizationEpisodicEventInput[] = []
-  const currentSurface = sanitizeText(input.mirror.recollectionSurfaceSummary, 220)
-  const previousSurface = sanitizeText(input.previousMirror?.recollectionSurfaceSummary, 220)
-  const currentSummary = sanitizeText(input.mirror.recollectionSummary, 220)
+  const currentRecollection = input.mirror.recollection
+  const previousRecollection = input.previousMirror?.recollection ?? null
+  const currentSummary = sanitizeText(currentRecollection?.foreground, 220)
   const currentCarryMode = deriveExecutionCallbackCarryModeFromMirror(input.mirror)
   const previousCarryMode = input.previousMirror ? deriveExecutionCallbackCarryModeFromMirror(input.previousMirror) : null
   const projectStateBias = deriveProjectStateContinuityWritebackBias(
@@ -260,10 +259,10 @@ export function buildAutobiographicalEpisodesFromPreparedMirror(input: {
     ?? input.projectStatePrimaryOpenLoop,
   )
 
-  if (currentSurface.includes('afterthought=ripe') && currentSummary) {
-    if (!previousSurface.includes('afterthought=ripe') || currentSummary !== sanitizeText(input.previousMirror?.recollectionSummary, 220)) {
-      const confidence = Number.isFinite(input.mirror.recollectionConfidence)
-        ? Math.max(0, Math.min(1, Number(input.mirror.recollectionConfidence)))
+  if (currentRecollection?.afterthoughtState === 'ripe' && currentSummary) {
+    if (previousRecollection?.afterthoughtState !== 'ripe' || currentSummary !== sanitizeText(previousRecollection.foreground, 220)) {
+      const confidence = Number.isFinite(currentRecollection.confidence)
+        ? Math.max(0, Math.min(1, Number(currentRecollection.confidence)))
         : 0.68
       events.push({
         id: stableEpisodeId('autobio-afterthought', [

@@ -196,6 +196,17 @@ export interface PreparedMainChatExecution {
   executionPayoffStructuredReply?: AlicizationExecutionPayoffStructured | null
 }
 
+export interface OrganicMemoryRecollectionCarry {
+  afterthoughtState: 'resting' | 'ripe'
+  certainty: AlicizationRecollectionPlan['certainty'] | null
+  confidence: number | null
+  foreground: string | null
+  mode: Exclude<AlicizationMemoryRecollectionIntentSnapshot['mode'], 'none'> | null
+  placement: AlicizationRecollectionSpeechPlan['placement'] | null
+  surfaceMode: AlicizationRecollectionSpeechPlan['surfaceMode'] | null
+  visibility: 'inward' | 'visible' | null
+}
+
 export interface OrganicMemoryPromptContext {
   decisionTraceId?: string | null
   sessionId?: string | null

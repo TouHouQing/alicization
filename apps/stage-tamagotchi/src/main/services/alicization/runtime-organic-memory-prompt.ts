@@ -20,7 +20,7 @@ import type {
   MemoryClusterState,
   MemoryDeliberationSnapshot,
 } from './runtime-organic-memory-prompt-types'
-import type { OrganicMemoryPromptContext } from './runtime-soul'
+import type { OrganicMemoryPromptContext, OrganicMemoryRecollectionCarry } from './runtime-soul'
 
 import {
   alicizationFixedTemplateReplacement,
@@ -72,7 +72,11 @@ import {
 } from './project-state-brief'
 import { planAlicizationRecall } from './recall-planner'
 import { buildOrganicMemorySystemBlocks as buildOrganicMemoryPromptBlocks } from './runtime-organic-memory-prompt-blocks'
-import { deriveSceneTriggeredRecollectionIntent, sanitizeOrganicMemoryText } from './runtime-organic-memory-search-prelude'
+import {
+  deriveSceneTriggeredRecollectionIntent,
+  deriveSessionMirrorRecollectionIntent,
+  sanitizeOrganicMemoryText,
+} from './runtime-organic-memory-search-prelude'
 import { buildOrganicMemoryEvolutionState } from './runtime-organic-memory-self-evolution-integration'
 import {
   buildProactiveRecallSeed as buildOrganicMemoryProactiveRecallSeed,
@@ -1139,8 +1143,18 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     sessionId?: string | null
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    sessionMirrorRecollection?: OrganicMemoryRecollectionCarry | null
   }): Promise<AlicizationOrganicMemoryPreludeResolution> {
     const budgetClass = input.budgetClass ?? 'realtime-reply'
+    const sessionMirrorRecollectionIntent = deriveSessionMirrorRecollectionIntent(
+      input.sessionMirrorRecollection,
+    )
+    const sessionMirrorForeground
+      = sessionMirrorRecollectionIntent?.queryHints[0] ?? ''
+    const retrievalPolicyRecallSeed = uniquePromptList([
+      input.recallSeed ?? input.recallGovernor?.recallSeed ?? '',
+      sessionMirrorForeground,
+    ], 2).join('\n')
     const retrievalPolicySnapshot = await (
       resolveTurnRetrievalPolicySnapshot
       ?? (async (innerInput: {
@@ -1155,7 +1169,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         tuningAdvice: null,
       }))
     )({
-      recallSeed: input.recallSeed ?? input.recallGovernor?.recallSeed ?? '',
+      recallSeed: retrievalPolicyRecallSeed,
       recallGovernor: input.recallGovernor ?? null,
       budgetClass,
     })
@@ -1186,6 +1200,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       budgetClass: retrievalPolicySnapshot.plan.budgetClass,
       retrievalPolicySnapshot,
       digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
+      sessionMirrorRecollection: input.sessionMirrorRecollection ?? null,
     })
     void recordOrganicMemoryStageLatency?.({
       stage: 'search-prelude',
@@ -1350,6 +1365,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     sessionId?: string | null
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    sessionMirrorRecollection?: OrganicMemoryRecollectionCarry | null
   }): Promise<OrganicMemoryPromptContext> {
     const prelude = await resolveOrganicMemoryPrelude({
       recallSeed: options?.recallSeed,
@@ -1359,6 +1375,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       sessionId: options?.sessionId ?? null,
       turnId: options?.turnId ?? null,
       budgetClass: options?.budgetClass,
+      sessionMirrorRecollection: options?.sessionMirrorRecollection ?? null,
     })
     const {
       budgetClass,

@@ -9,7 +9,10 @@ import {
   rankByRecollectionAgendaAffinity,
   rankBySceneMoodEmbodiedCarry,
 } from './memory-os/context-ranking'
-import { deriveSceneTriggeredRecollectionIntent } from './runtime-organic-memory-search-prelude'
+import {
+  deriveSceneTriggeredRecollectionIntent,
+  deriveSessionMirrorRecollectionIntent,
+} from './runtime-organic-memory-search-prelude'
 
 const normalizeOrganicRecallText = (raw: string) => raw.trim().toLowerCase().replace(/\s+/g, ' ')
 
@@ -141,14 +144,20 @@ describe('memory recollection ranking continuity audit', () => {
   })
 
   it('keeps inward same-her callback afterthought memory ahead of a generic callback receipt once the ripe recollection line is reopened', () => {
-    const recallSeed = [
-      '先把刚才那条 inward same-her callback closure recollection 带回来，再继续当前回答。',
-      'mirror_recollection_afterthought: mode=execution-procedure | certainty=approximate | foreground=Keep the same-her callback closure line inward until there is more room. surface=inward | afterthought=ripe | surface_mode=internal-only',
-    ].join('\n')
-    const recollectionIntent = deriveSceneTriggeredRecollectionIntent({
-      recallSeed,
-      recalledEpisodes: [],
-    })
+    const sessionMirrorRecollection = {
+      afterthoughtState: 'ripe' as const,
+      certainty: 'approximate' as const,
+      confidence: 0.8,
+      foreground: 'Keep the callback closure line inward until there is more room.',
+      mode: 'execution-procedure' as const,
+      placement: 'internal-only' as const,
+      surfaceMode: 'internal-only' as const,
+      visibility: 'inward' as const,
+    }
+    const recallSeed = sessionMirrorRecollection.foreground
+    const recollectionIntent = deriveSessionMirrorRecollectionIntent(
+      sessionMirrorRecollection,
+    )
 
     expect(recollectionIntent?.mode).toBe('execution-procedure')
 

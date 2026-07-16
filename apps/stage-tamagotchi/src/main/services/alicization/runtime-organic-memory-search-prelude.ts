@@ -1,5 +1,10 @@
 import type { AlicizationEpisodicEventRecord } from '../../../shared/eventa'
-import type { OrganicMemoryPromptContext } from './runtime-soul'
+import type { OrganicMemoryPromptContext, OrganicMemoryRecollectionCarry } from './runtime-soul'
+
+import {
+  alicizationFixedTemplateReplacement,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
 
 export function sanitizeOrganicMemoryText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -696,67 +701,6 @@ function parseHumanlikeMemoryRecallCarry(recallSeed: string) {
     forget,
     metabolism,
     created,
-  }
-}
-
-function parseRecollectionAfterthoughtCarry(recallSeed: string) {
-  const line = recallSeed
-    .split('\n')
-    .map(item => item.trim())
-    .find(item => item.startsWith('mirror_recollection_afterthought:'))
-  if (!line)
-    return null
-
-  const payload = line.slice('mirror_recollection_afterthought:'.length).trim()
-  if (!payload)
-    return null
-
-  const knownKeys = ['mode', 'certainty', 'foreground', 'surface', 'afterthought', 'surface_mode', 'placement', 'visible', 'style']
-  const tokenPattern = new RegExp(`(?:^|\\s|\\|)(${knownKeys.join('|')})=`, 'g')
-  const matches = [...payload.matchAll(tokenPattern)]
-  if (matches.length === 0)
-    return null
-
-  const fields = new Map<string, string>()
-  for (let index = 0; index < matches.length; index += 1) {
-    const current = matches[index]
-    const next = matches[index + 1]
-    const key = current[1]?.trim().toLowerCase()
-    const start = (current.index ?? 0) + current[0].length
-    const end = next?.index ?? payload.length
-    const rawValue = payload
-      .slice(start, end)
-      .replace(/^\s*\|\s*/u, '')
-      .replace(/\s*\|\s*$/u, '')
-      .trim()
-    const value = sanitizePromptText(rawValue, 160)
-    if (!key || !value)
-      continue
-    fields.set(key, value)
-  }
-
-  const mode = fields.get('mode') ?? ''
-  const certainty = fields.get('certainty') ?? ''
-  const foreground = fields.get('foreground') ?? ''
-  const surface = fields.get('surface') ?? ''
-  const afterthought = fields.get('afterthought') ?? ''
-  const surfaceMode = fields.get('surface_mode') ?? ''
-  const placement = fields.get('placement') ?? ''
-  const visible = fields.get('visible') ?? ''
-  const style = fields.get('style') ?? ''
-  if (!mode && !certainty && !foreground && !surface && !afterthought && !surfaceMode && !placement && !visible && !style)
-    return null
-
-  return {
-    mode,
-    certainty,
-    foreground,
-    surface,
-    afterthought,
-    surfaceMode,
-    placement,
-    visible,
-    style,
   }
 }
 
@@ -1529,101 +1473,71 @@ function deriveHumanlikeMemoryRecallTriggeredIntent(input: {
   }
 }
 
-function deriveRecollectionAfterthoughtTriggeredIntent(input: {
-  recallSeed: string
-}): OrganicMemoryPromptContext['recollectionIntent'] | null {
-  const continuity = parseRecollectionAfterthoughtCarry(input.recallSeed)
-  if (!continuity)
-    return null
-
-  const runtimeText = [
-    continuity.mode,
-    continuity.certainty,
-    continuity.foreground,
-    continuity.surface,
-    continuity.afterthought,
-    continuity.surfaceMode,
-    continuity.placement,
-    continuity.visible,
-    continuity.style,
-  ].filter(Boolean).join(' ').toLowerCase()
-  const procedureTriggered = /afterthought|foreground|runtime|callback|recollection|same-her|same line|closure|return|room|inward|task|workflow|execution|repair|数字生命|闭环|回调|继续/u.test(runtimeText)
-  if (!procedureTriggered)
-    return null
-
-  const foregroundCarry = sanitizePromptText(
-    [
-      continuity.foreground,
-      continuity.surface ? `surface=${continuity.surface}` : '',
-    ].filter(Boolean).join(' '),
+export function deriveSessionMirrorRecollectionIntent(
+  recollection: OrganicMemoryRecollectionCarry | null | undefined,
+): OrganicMemoryPromptContext['recollectionIntent'] | null {
+  const foreground = sanitizeAlicizationProviderFacingText(
+    sanitizePromptText(recollection?.foreground, 160),
     160,
+    '',
   )
-  const queryHints = uniqueList([
-    foregroundCarry,
-    continuity.visible,
-    continuity.style,
-    continuity.mode,
-    continuity.surface,
-    continuity.surfaceMode,
-    continuity.certainty,
-  ], 8)
-  const candidateProcedureLines = uniqueList([
-    foregroundCarry,
-    continuity.visible,
-    continuity.style,
-  ], 6)
+  if (recollection?.afterthoughtState !== 'ripe' || !foreground)
+    return null
+  if (foreground === alicizationFixedTemplateReplacement)
+    return null
+
+  const mode = recollection.mode ?? 'experience-pattern'
+  const procedural = mode === 'execution-procedure' || mode === 'experience-pattern'
+  const relationship = mode === 'relationship-history'
+  const conversational = mode === 'conversation-history'
+  const confidence = recollection.confidence ?? 0.8
+  const primaryFacet = relationship
+    ? 'relationship-era' as const
+    : procedural
+      ? 'task-era' as const
+      : 'self-era' as const
 
   return {
-    mode: continuity.mode === 'execution-procedure'
-      ? 'execution-procedure'
-      : 'experience-pattern',
+    mode,
     temporalFocus: 'experience-matched',
     searchEpisodes: true,
-    searchConversations: false,
-    searchProceduralExperience: continuity.mode === 'execution-procedure' || /runtime|callback|closure|same-her|repair|execution/u.test(runtimeText),
-    queryHints,
-    rationale: sanitizePromptText(
-      'A ripe inward recollection afterthought suggests that the next recollection should reopen the carried foreground line before it fades into generic background memory.',
-      220,
-    ),
-    confidence: clamp01(
-      0.7
-      + (continuity.foreground ? 0.1 : 0)
-      + (continuity.afterthought === 'ripe' ? 0.06 : 0)
-      + (continuity.surface === 'inward' ? 0.04 : 0),
-    ),
+    searchConversations: relationship || conversational,
+    searchProceduralExperience: procedural,
+    queryHints: [foreground],
+    rationale: 'session-mirror-afterthought',
+    confidence: clamp01(confidence),
     recollectionAgenda: {
-      whyRecallNow: 'The prior turn left a ripe inward recollection afterthought, so the carried foreground line should reopen before generic background history takes over.',
-      goalSimilarity: clamp01(0.78 + (continuity.foreground ? 0.1 : 0)),
-      relationshipNeed: clamp01(0.14 + (/same-her|room|inward/u.test(runtimeText) ? 0.08 : 0)),
-      affectivePull: clamp01(0.16 + (/same-her|closure|room/u.test(runtimeText) ? 0.08 : 0)),
-      sceneFamiliarity: clamp01(0.62 + (continuity.afterthought === 'ripe' ? 0.08 : 0)),
+      whyRecallNow: 'session-mirror-afterthought',
+      goalSimilarity: procedural ? 0.88 : 0.62,
+      relationshipNeed: relationship ? 0.82 : 0.18,
+      affectivePull: relationship ? 0.68 : 0.2,
+      sceneFamiliarity: 0.7,
       candidateTimeScopes: [
         {
           scope: 'experience-matched',
           weight: 0.92,
-          rationale: 'The carried foreground line matters more than an exact timestamp because it is already ripe to return.',
+          rationale: 'session-mirror-foreground-match',
         },
         {
           scope: 'recent-or-mid',
           weight: 0.4,
-          rationale: 'Recent carry still helps if the recollection needs a narrower remembered window.',
+          rationale: 'session-mirror-recent-carry',
         },
       ],
       candidateEraFacets: [
         {
-          facet: 'task-era',
+          facet: primaryFacet,
           weight: 0.84,
-          rationale: 'The ripe afterthought points back to the unfinished working seam that stayed active under the surface.',
+          rationale: 'session-mirror-primary-facet',
         },
         {
-          facet: 'relationship-era',
+          facet: 'window',
           weight: 0.4,
-          rationale: 'An execution callback continuity line also carries relationship continuity as a secondary anchor.',
+          rationale: 'session-mirror-window-anchor',
         },
       ],
-      candidateProcedureLines,
-      uncertaintyTolerance: 'medium',
+      candidateProcedureLines: procedural ? [foreground] : [],
+      uncertaintyTolerance: recollection.certainty === 'fragmentary' ? 'low' : 'medium',
     },
   }
 }
@@ -1664,12 +1578,6 @@ export function deriveSceneTriggeredRecollectionIntent(input: {
   })
   if (afterglowIntent)
     return afterglowIntent
-
-  const recollectionAfterthoughtIntent = deriveRecollectionAfterthoughtTriggeredIntent({
-    recallSeed: input.recallSeed,
-  })
-  if (recollectionAfterthoughtIntent)
-    return recollectionAfterthoughtIntent
 
   const cadenceReconfirmationIntent = deriveCadenceReconfirmationTriggeredIntent({
     recallSeed: input.recallSeed,

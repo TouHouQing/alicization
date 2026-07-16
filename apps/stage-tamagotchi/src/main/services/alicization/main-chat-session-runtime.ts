@@ -59,6 +59,7 @@ import type { AlicizationRuntimeCallChainSnapshot } from './runtime-call-chain'
 import type {
   MainGatewayResolvedConfig,
   OrganicMemoryPromptContext,
+  OrganicMemoryRecollectionCarry,
   PreparedMainChatExecution,
   ResolvedCardCustomDirectives,
 } from './runtime-soul'
@@ -152,7 +153,6 @@ import {
 import { readTransportContentAsText } from './runtime-transport-content'
 import {
   buildSessionContinuityRecallSeed,
-  buildSessionMirrorRecollectionAfterthoughtSeed,
   buildSessionMirrorRuntimeContinuitySeed,
   deriveOrganicMemoryBudgetClass,
   filterMainGatewayToolsForRoutingIntent,
@@ -380,6 +380,7 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     recallSeed: string
     recallGovernor: AlicizationRecallGovernorSnapshot | null | undefined
     sessionId?: string | null
+    sessionMirrorRecollection?: OrganicMemoryRecollectionCarry | null
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
     retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
@@ -2720,6 +2721,7 @@ function appendMissingContinuitySummaryMarkers(input: {
 function preferIncomingDialogueSessionMirror<T extends {
   continuityArcSummary?: unknown
   continuityProjectSummary?: unknown
+  recollection?: OrganicMemoryRecollectionCarry | null
 }>(input: {
   incoming: T | null | undefined
   generated: T | null | undefined
@@ -2762,6 +2764,7 @@ function preferIncomingDialogueSessionMirror<T extends {
     ...incoming,
     continuityArcSummary: preservedArc,
     continuityProjectSummary: preferredProjectSummary,
+    recollection: generated.recollection ?? incoming.recollection ?? null,
   } as T
 }
 
@@ -8640,7 +8643,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       prelude.perceptionAugmentation.memoryRecallSeed,
       memoryCarryPolicy.recallSeed,
       buildSessionContinuityRecallSeed(sessionContinuitySignals ?? []),
-      buildSessionMirrorRecollectionAfterthoughtSeed(previousSessionMirror),
       buildSessionMirrorRuntimeContinuitySeed(previousSessionMirror),
     ].filter(Boolean).join('\n')
     const organicMemoryBudgetClass = deriveOrganicMemoryBudgetClass(
@@ -8695,6 +8697,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             digitalLifeRuntimeSurface: digitalLifeSpine?.runtimeSurface
               ?? prelude.perceptionAugmentation.digitalLifeRuntimeSurface
               ?? null,
+            sessionMirrorRecollection: previousSessionMirror?.recollection ?? null,
           }),
           tuneContext: input => options.tuneOrganicMemoryPromptContextForExecutiveTurn({
             context: input.context,

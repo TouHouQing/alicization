@@ -15,7 +15,7 @@ import type {
 import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
-import type { OrganicMemoryPromptContext } from './runtime-soul'
+import type { OrganicMemoryPromptContext, OrganicMemoryRecollectionCarry } from './runtime-soul'
 
 import {
   alicizationFixedTemplateReplacement,
@@ -25,7 +25,10 @@ import {
 import { rankFactsByLearningTuning } from './learning-tuned-fact-ranking'
 import { buildProceduralMemoryAbstractions } from './memory-procedural-abstraction'
 import { buildMemoryRecollectionWindows } from './memory-recollection-windows'
-import { isPresentFacingSelfCritiqueRecallSeed } from './runtime-organic-memory-search-prelude'
+import {
+  deriveSessionMirrorRecollectionIntent,
+  isPresentFacingSelfCritiqueRecallSeed,
+} from './runtime-organic-memory-search-prelude'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -71,7 +74,7 @@ function uniqueRecallSeedBlocks(values: Array<string | null | undefined>, maxIte
   return result
 }
 
-const structuredRecallSeedLinePattern = /^(?:mirror_runtime_continuity|continuity_held_autonomy|continuity_project_state|continuity_cadence_reconfirmation|continuity_afterglow|humanlike_memory_recall|mirror_recollection_afterthought|recollection_afterthought):/iu
+const structuredRecallSeedLinePattern = /^(?:mirror_runtime_continuity|continuity_held_autonomy|continuity_project_state|continuity_cadence_reconfirmation|continuity_afterglow|humanlike_memory_recall):/iu
 
 function sanitizeRecallSeedBlockForMemoryPrompt(raw: unknown) {
   const normalized = typeof raw === 'string'
@@ -243,6 +246,7 @@ export interface AlicizationMemorySearchPreludeInput {
   budgetClass?: AlicizationMemoryRetrievalBudgetClass
   retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
+  sessionMirrorRecollection?: OrganicMemoryRecollectionCarry | null
 }
 
 export interface AlicizationMemorySearchPreludeResult {
@@ -268,9 +272,13 @@ export async function resolveMemorySearchPrelude(
     input.access.buildHostPersonModel().catch(() => null),
   ])
   const memoryTuningAdvice = await input.access.getMemoryTuningAdvice?.().catch(() => null) ?? null
+  const sessionMirrorRecollectionIntent = deriveSessionMirrorRecollectionIntent(
+    input.sessionMirrorRecollection,
+  )
   const recallSeed = uniqueRecallSeedBlocks([
     input.recallSeed,
     input.recallGovernor?.recallSeed,
+    sessionMirrorRecollectionIntent ? input.sessionMirrorRecollection?.foreground : null,
   ].map(sanitizeRecallSeedBlockForMemoryPrompt), 8).join('\n')
   const suppressAssociativeRecall = input.recallGovernor?.suppressAssociativeRecall === true
   const seedTriggeredHeuristicIntent = recallSeed
@@ -279,7 +287,11 @@ export async function resolveMemorySearchPrelude(
         recalledEpisodes: [],
       })
     : null
-  const heuristicRecollectionIntent = input.recallGovernor?.recollectionIntent ?? seedTriggeredHeuristicIntent ?? null
+  const heuristicRecollectionIntent
+    = input.recallGovernor?.recollectionIntent
+      ?? sessionMirrorRecollectionIntent
+      ?? seedTriggeredHeuristicIntent
+      ?? null
   if (recallSeed && isPresentFacingSelfCritiqueRecallSeed(recallSeed)) {
     return {
       snapshot,

@@ -4,7 +4,10 @@ import {
   resolveMemorySearchPrelude,
   retrieveMemorySearchCandidates,
 } from './memory-search-retrieval-operators'
-import { deriveSceneTriggeredRecollectionIntent } from './runtime-organic-memory-search-prelude'
+import {
+  deriveSceneTriggeredRecollectionIntent,
+  deriveSessionMirrorRecollectionIntent,
+} from './runtime-organic-memory-search-prelude'
 
 const fixedTemplateResiduePattern = /Before (?:answering|speaking|acting)|Same Phase 1 digital life|same-her|same her|same living line|one living her|one continuous her|local-first digital life project|同一个她|同一个 her|数字生命主线/iu
 
@@ -13,6 +16,32 @@ function expectNoFixedTemplateResidue(value: unknown) {
 }
 
 describe('memory-search-retrieval-operators', () => {
+  it('does not reopen resting session-mirror recollection state', () => {
+    expect(deriveSessionMirrorRecollectionIntent({
+      afterthoughtState: 'resting',
+      certainty: 'approximate',
+      confidence: 0.8,
+      foreground: 'Return to the remembered runtime seam before branching again.',
+      mode: 'execution-procedure',
+      placement: 'internal-only',
+      surfaceMode: 'internal-only',
+      visibility: 'inward',
+    })).toBeNull()
+  })
+
+  it('does not reopen fixed-template residue from typed session-mirror foreground', () => {
+    expect(deriveSessionMirrorRecollectionIntent({
+      afterthoughtState: 'ripe',
+      certainty: 'approximate',
+      confidence: 0.8,
+      foreground: 'Same Phase 1 digital life. Keep the same-her closure line explicit.',
+      mode: 'execution-procedure',
+      placement: 'internal-only',
+      surfaceMode: 'internal-only',
+      visibility: 'inward',
+    })).toBeNull()
+  })
+
   it('derives heuristic recollection intent from session mirror runtime continuity carry', async () => {
     let plannedInput: any = null
     const prelude = await resolveMemorySearchPrelude({
@@ -316,7 +345,7 @@ describe('memory-search-retrieval-operators', () => {
     expectNoFixedTemplateResidue(prelude.recollectionIntent)
   })
 
-  it('keeps inward identity-continuity callback recollection carry structured when mirror recollection afterthought already marks it ripe', async () => {
+  it('carries a ripe session-mirror recollection into typed retrieval planning', async () => {
     let plannedInput: any = null
     const prelude = await resolveMemorySearchPrelude({
       access: {
@@ -339,10 +368,17 @@ describe('memory-search-retrieval-operators', () => {
         deriveSceneTriggeredRecollectionIntent,
         isPersonaResidueMemoryText: () => false,
       },
-      recallSeed: [
-        '先把刚才那条 inward same-her callback closure recollection 带回来，再继续当前回答。',
-        'mirror_recollection_afterthought: mode=execution-procedure | certainty=approximate | foreground=Keep the same-her callback closure line inward until there is more room. surface=inward | afterthought=ripe | surface_mode=internal-only',
-      ].join('\n'),
+      recallSeed: '继续处理刚才的运行时问题。',
+      sessionMirrorRecollection: {
+        afterthoughtState: 'ripe',
+        certainty: 'approximate',
+        confidence: 0.8,
+        foreground: 'Return to the remembered runtime seam before branching again.',
+        mode: 'execution-procedure',
+        placement: 'internal-only',
+        surfaceMode: 'internal-only',
+        visibility: 'inward',
+      },
       recallGovernor: {
         allowRecalledFragments: true,
       } as any,
@@ -352,11 +388,11 @@ describe('memory-search-retrieval-operators', () => {
       mode: 'execution-procedure',
       searchProceduralExperience: true,
       queryHints: expect.arrayContaining([
-        'Keep the identity-continuity callback closure line inward until there is more room. surface=inward',
+        'Return to the remembered runtime seam before branching again.',
       ]),
       recollectionAgenda: expect.objectContaining({
         candidateProcedureLines: expect.arrayContaining([
-          'Keep the identity-continuity callback closure line inward until there is more room. surface=inward',
+          'Return to the remembered runtime seam before branching again.',
         ]),
       }),
     }))
@@ -365,9 +401,10 @@ describe('memory-search-retrieval-operators', () => {
       mode: 'execution-procedure',
       searchProceduralExperience: true,
       queryHints: expect.arrayContaining([
-        'Keep the identity-continuity callback closure line inward until there is more room. surface=inward',
+        'Return to the remembered runtime seam before branching again.',
       ]),
     }))
+    expect(plannedInput?.heuristicIntent.queryHints.join(' ')).not.toContain('surface=inward')
     expectNoFixedTemplateResidue(prelude.recollectionIntent)
   })
 
